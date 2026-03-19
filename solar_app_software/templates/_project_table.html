@@ -1,0 +1,36 @@
+{# _project_table.html — reusable project table partial #}
+{% set projects = projects if projects is defined else data.projects %}
+{% if projects %}
+<table>
+  <thead>
+    <tr>
+      <th>Project</th>
+      <th>Customer</th>
+      <th>Location</th>
+      <th>Type</th>
+      <th>Size</th>
+      <th>Stage</th>
+      <th>Status</th>
+      <th>Days</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in projects %}
+    <tr>
+      <td style="font-weight:500">{{ p.project_code }}</td>
+      <td>{{ p.customer.name }}</td>
+      <td style="font-size:12px;color:var(--muted)">{{ p.customer.district }}</td>
+      <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
+      <td>{{ p.system_kw }} kW</td>
+      <td style="font-size:12px;color:var(--muted)">{{ p.stage }}</td>
+      <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
+      <td style="font-size:12px;color:var(--hint)">{{ p.days_open }}d</td>
+      <td><a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div style="text-align:center;padding:32px;color:var(--hint);font-size:13px">No projects found.</div>
+{% endif %}

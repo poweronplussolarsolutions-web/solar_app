@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Projects — Solar App{% endblock %}
+{% block page_title %}Projects{% endblock %}
+{% block topbar_actions %}
+  {% if current_user.role == 'coordinator' %}
+  <a href="{{ url_for('new_project') }}" class="btn btn-primary">+ New Project</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:16px;padding:14px 20px">
+  <form method="GET" style="display:flex;gap:10px;align-items:center">
+    <input name="q" value="{{ search }}" placeholder="Search customer or project code…" style="max-width:280px"/>
+    <select name="status" style="max-width:180px">
+      <option value="">All statuses</option>
+      {% for s in ['Lead','Created','InProgress','Completed','Delayed','Pending','Closed'] %}
+      <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary">Filter</button>
+    <a href="{{ url_for('projects') }}" class="btn">Clear</a>
+  </form>
+</div>
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div class="card-title" style="margin:0">
+      {{ projects | length }} project{{ 's' if projects | length != 1 }}
+      {% if status_filter %} — {{ status_filter }}{% endif %}
+      {% if search %} matching "{{ search }}"{% endif %}
+    </div>
+  </div>
+  {% if projects %}
+  <table>
+    <thead>
+      <tr>
+        <th>Project</th>
+        <th>Customer</th>
+        <th>Location</th>
+        <th>Type</th>
+        <th>Size</th>
+        <th>Stage</th>
+        <th>Assigned to</th>
+        <th>Status</th>
+        <th>Days</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in projects %}
+      <tr>
+        <td style="font-weight:500">{{ p.project_code }}</td>
+        <td>{{ p.customer.name }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ p.customer.district }}</td>
+        <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
+        <td>{{ p.system_kw }} kW</td>
+        <td style="font-size:12px;color:var(--muted)">{{ p.stage }}</td>
+        <td>
+          {% if p.doc_staff %}
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="width:22px;height:22px;border-radius:50%;background:var(--teal-50);
+                        display:flex;align-items:center;justify-content:center;
+                        font-size:10px;font-weight:500;color:var(--teal-800);flex-shrink:0">
+              {{ p.doc_staff.full_name[:1] }}
+            </div>
+            <span style="font-size:12px">{{ p.doc_staff.full_name }}</span>
+          </div>
+          {% else %}
+          <span style="font-size:12px;color:var(--red-600)">Unassigned</span>
+          {% endif %}
+        </td>
+        <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
+        <td style="font-size:12px;color:var(--hint)">{{ p.days_open }}d</td>
+        <td><a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center;padding:32px;color:var(--hint);font-size:13px">No projects found.</div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,511 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Solar App{% endblock %}
+{% block page_title %}
+  {% if current_user.role == 'admin' %}Admin Dashboard
+  {% elif current_user.role == 'coordinator' %}Coordinator Dashboard
+  {% elif current_user.role == 'documents' %}Documents Team
+  {% elif current_user.role == 'payments' %}Payments Dashboard
+  {% elif current_user.role == 'onsite' %}On-site Management
+  {% elif current_user.role == 'appinstall' %}App Installation
+  {% endif %}
+{% endblock %}
+{% block topbar_actions %}
+  {% if current_user.role == 'coordinator' %}
+  <a href="{{ url_for('new_project') }}" class="btn btn-primary">+ New Project</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+{# ── ADMIN ── #}
+{% if current_user.role == 'admin' %}
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total projects</div>
+    <div class="stat-value">{{ data.total }}</div>
+    <div class="stat-sub">All time</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">In progress</div>
+    <div class="stat-value" style="color:var(--amber-600)">{{ data.inprog }}</div>
+    <div class="stat-sub">Active</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Completed</div>
+    <div class="stat-value" style="color:var(--teal-600)">{{ data.completed }}</div>
+    <div class="stat-sub">Incl. closed</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Delayed</div>
+    <div class="stat-value" style="color:var(--red-600)">{{ data.delayed }}</div>
+    <div class="stat-sub">Needs attention</div>
+  </div>
+</div>
+
+<div class="two-col">
+  <div class="card">
+    <div class="card-title">Revenue collected</div>
+    <div style="font-size:26px;font-weight:500">{{ data.collected | inr }}</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px">
+      of {{ data.total_amt | inr }} total contracted
+    </div>
+    {% if data.total_amt > 0 %}
+    <div class="progress-wrap" style="margin-top:12px">
+      <div class="progress-bar" style="width:{{ (data.collected / data.total_amt * 100) | int }}%"></div>
+    </div>
+    <div style="font-size:11px;color:var(--hint);margin-top:4px">
+      {{ (data.collected / data.total_amt * 100) | int }}% collected
+    </div>
+    {% endif %}
+  </div>
+  <div class="card">
+    <div class="card-title">Quick actions</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <a href="{{ url_for('projects') }}?status=Delayed" class="btn" style="justify-content:center">View delayed projects</a>
+      <a href="{{ url_for('projects') }}?status=InProgress" class="btn" style="justify-content:center">View in-progress</a>
+      <a href="{{ url_for('payments_dashboard') }}" class="btn" style="justify-content:center">Payments overview</a>
+      <a href="{{ url_for('manage_users') }}" class="btn" style="justify-content:center">Manage users</a>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Recent projects</div>
+  {% include '_project_table.html' with context %}
+</div>
+
+{# ── COORDINATOR ── #}
+{% elif current_user.role == 'coordinator' %}
+<div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+  <div class="stat-card">
+    <div class="stat-label">My projects</div>
+    <div class="stat-value">{{ data.projects | length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total collected</div>
+    <div class="stat-value" style="color:var(--amber-600)">{{ data.total_collected | inr }}</div>
+    <div class="stat-sub">of {{data.total_value | inr}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Payment Pending</div>
+    <div class="stat-value" style="color:var(--amber-600)">{{ data.total_pending | inr }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Delayed</div>
+    <div class="stat-value" style="color:var(--red-600)">{{ data.delayed }}</div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title">My projects</div>
+  {% if data.projects %}
+  <table>
+    <thead>
+      <tr>
+        <th>Project</th>
+        <th>Customer</th>
+        <th>Type</th>
+        <th>Size</th>
+        <th>Stage</th>
+        <th>Assigned to</th>
+        <th>Status</th>
+        <th>Days</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in data.projects %}
+      <tr>
+        <td style="font-weight:500">{{ p.project_code }}</td>
+        <td>{{ p.customer.name }}</td>
+        <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
+        <td>{{ p.system_kw }} kW</td>
+        <td style="font-size:12px;color:var(--muted)">{{ p.stage }}</td>
+        <td>
+          {% if p.doc_staff %}
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="width:22px;height:22px;border-radius:50%;
+                        background:var(--teal-50);color:var(--teal-800);
+                        display:flex;align-items:center;justify-content:center;
+                        font-size:10px;font-weight:500;flex-shrink:0">
+              {{ p.doc_staff.full_name[:1] }}
+            </div>
+            <span style="font-size:12px">{{ p.doc_staff.full_name }}</span>
+          </div>
+          {% else %}
+          <span style="font-size:12px;color:var(--red-600)">Unassigned</span>
+          {% endif %}
+        </td>
+        <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
+        <td style="font-size:12px;color:var(--hint)">{{ p.days_open }}d</td>
+        <td><a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center;padding:24px;color:var(--hint)">No projects yet.</div>
+  {% endif %}
+</div>
+{% if data.site_visits %}
+<div class="card">
+  <div class="card-title">Upcoming site visits</div>
+  <table>
+    <thead><tr><th>Project</th><th>Customer</th><th>Date</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for v in data.site_visits %}
+      <tr>
+        <td>{{ v.project.project_code }}</td>
+        <td>{{ v.project.customer.name }}</td>
+        <td>{{ v.scheduled_date | date_fmt }}</td>
+        <td><span class="badge badge-{{ v.status }}">{{ v.status }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+<div class="card">
+  <div class="card-title">Payment status — my projects</div>
+  {% if data.projects %}
+  <table>
+    <thead>
+      <tr>
+        <th>Project</th>
+        <th>Customer</th>
+        <th>Type</th>
+        <th>Assigned to</th>
+        <th>Collected</th>
+        <th>Total</th>
+        <th>Pending</th>
+        <th>Progress</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in data.projects %}
+      <tr>
+        <td>
+          <a href="{{ url_for('project_detail', pid=p.id) }}"
+             style="font-weight:500;color:var(--amber-600)">{{ p.project_code }}</a>
+        </td>
+        <td>{{ p.customer.name }}</td>
+        <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
+        <td>{% if p.doc_staff %}
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="width:22px;height:22px;border-radius:50%;background:var(--teal-50);
+                        display:flex;align-items:center;justify-content:center;
+                        font-size:10px;font-weight:500;color:var(--teal-800);flex-shrink:0">
+              {{ p.doc_staff.full_name[:1] }}
+            </div>
+            <span style="font-size:12px">{{ p.doc_staff.full_name }}</span>
+          </div>
+          {% else %}
+          <span style="font-size:12px;color:var(--red-600)">Unassigned</span>
+          {% endif %}
+        </td>
+        <td>{{ p.collected_amount | inr }}</td>
+        <td>{{ p.total_amount | inr }}</td>
+        <td style="color:{% if p.pending_amount > 0 %}var(--red-600){% else %}var(--green-600){% endif %}">
+          {{ p.pending_amount | inr }}
+        </td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div class="progress-wrap" style="width:60px">
+              <div class="progress-bar" style="width:{{ p.payment_pct }}%"></div>
+            </div>
+            <span style="font-size:11px">{{ p.payment_pct }}%</span>
+          </div>
+          </td>
+        <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center;padding:24px;color:var(--hint)">No projects yet.</div>
+  {% endif %}
+</div>
+<div class="card">
+  <div class="card-title">Subsidy status — my projects</div>
+  <div class="stats-grid" style="grid-template-columns:1fr 1fr;margin-bottom:16px">
+    <div class="stat-card">
+      <div class="stat-label">Subsidy received</div>
+      <div class="stat-value" style="color:var(--green-600)">{{ data.subsidy_received | inr }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Subsidy pending</div>
+      <div class="stat-value" style="color:var(--amber-600)">{{ data.subsidy_pending | inr }}</div>
+    </div>
+  </div>
+  {% if data.subsidy_list %}
+  <table>
+    <thead>
+      <tr>
+        <th>Project</th>
+        <th>Customer</th>
+        <th>Requested</th>
+        <th>Expected</th>
+        <th>Received</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in data.subsidy_list %}
+      <tr>
+        <td>
+          <a href="{{ url_for('project_detail', pid=s.project_id) }}"
+             style="font-weight:500;color:var(--amber-600)">{{ s.project.project_code }}</a>
+        </td>
+        <td>{{ s.project.customer.name }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ s.request_date | date_fmt }}</td>
+        <td>{{ s.expected_amount | inr }}</td>
+        <td style="color:{% if s.received_amount > 0 %}var(--green-600){% else %}var(--hint){% endif %}">
+          {{ s.received_amount | inr }}
+        </td>
+        <td>
+          <span class="badge
+            {% if s.status == 'Received' %}badge-Completed
+            {% elif s.status == 'Processing' %}badge-InProgress
+            {% elif s.status == 'Requested' %}badge-Created
+            {% else %}badge-Closed{% endif %}">
+            {{ s.status }}
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+  </table>
+  {% else %}
+  <div style="color:var(--hint);font-size:13px;padding:4px 0">
+    No subsidy records for your projects yet.
+  </div>
+  {% endif %}
+</div>
+
+
+{# ── DOCUMENTS ── #}
+{% elif current_user.role == 'documents' %}
+
+{% if data.new_count > 0 %}
+<div style="
+  background: var(--amber-50); border: 0.5px solid var(--amber-100);
+  border-radius: var(--radius-lg); padding: 14px 18px; margin-bottom: 20px;
+  display: flex; align-items: flex-start; gap: 12px;">
+  <div style="
+    width: 32px; height: 32px; border-radius: 50%; background: var(--amber-100);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M8 2a6 6 0 100 12A6 6 0 008 2zm0 3.5v3m0 2v.5" stroke="#633806" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+  </div>
+  <div style="flex:1">
+    <div style="font-size:13px;font-weight:500;color:var(--amber-800);margin-bottom:6px">
+      {{ data.new_count }} new project{{ 's' if data.new_count != 1 }} assigned to you
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      {% for p in data.new_projects %}
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+        <span style="font-weight:500;color:var(--amber-800)">{{ p.project_code }}</span>
+        <span style="color:var(--amber-600)">{{ p.customer.name }}</span>
+        <span style="font-size:11px;color:var(--amber-600)">
+          · {{ p.project_type }} · {{ p.system_kw }} kW · assigned {{ p.created_at | date_fmt }}
+        </span>
+        <a href="{{ url_for('documents', pid=p.id) }}"
+           class="btn btn-sm btn-primary" style="margin-left:auto">
+          Start →
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+  <div class="stat-card">
+    <div class="stat-label">Assigned to me</div>
+    <div class="stat-value">{{ data.queue }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">New / not started</div>
+    <div class="stat-value" style="color:var(--amber-600)">{{ data.new_count }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">In progress</div>
+    <div class="stat-value" style="color:var(--teal-600)">
+      {{ data.projects | selectattr('status','eq','InProgress') | list | length }}
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Completed</div>
+    <div class="stat-value" style="color:var(--green-600)">{{ data.completed_count }}</div>
+    <div class="stat-sub">Closed or completed</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    My work queue
+    {% if data.new_count > 0 %}
+    <span class="badge badge-InProgress" style="margin-left:6px">
+      {{ data.new_count }} new
+    </span>
+    {% endif %}
+  </div>
+  {% if data.projects %}
+  <table>
+    <thead>
+      <tr>
+        <th>Project</th>
+        <th>Customer</th>
+        <th>Type</th>
+        <th>Stage</th>
+        <th>Status</th>
+        <th>Docs</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+  {% for item in data.projects_with_counts %}
+  {% set p = item.project %}
+  <tr style="{% if p in data.new_projects %}background:var(--amber-50){% endif %}">
+    <td>
+      <span style="font-weight:500">{{ p.project_code }}</span>
+      {% if p in data.new_projects %}
+      <span class="badge badge-InProgress" style="margin-left:4px;font-size:10px">New</span>
+      {% endif %}
+    </td>
+    <td>{{ p.customer.name }}</td>
+    <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
+    <td style="font-size:12px;color:var(--muted)">{{ p.stage }}</td>
+    <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
+    <td>
+      <div style="display:flex;align-items:center;gap:6px">
+        <div class="progress-wrap" style="width:50px">
+          <div class="progress-bar" style="width:{{ item.doc_pct }}%"></div>
+        </div>
+        <span style="font-size:11px;color:var(--muted)">
+          {{ item.done_docs }}/{{ item.total_docs }}
+        </span>
+      </div>
+    </td>
+    <td>
+      <a href="{{ url_for('documents', pid=p.id) }}" class="btn btn-sm
+        {% if p in data.new_projects %}btn-primary{% endif %}">
+        {% if p in data.new_projects %}Start →{% else %}Open{% endif %}
+      </a>
+    </td>
+  </tr>
+  {% endfor %}
+</tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center;padding:32px;color:var(--hint)">No projects assigned to you yet.</div>
+  {% endif %}
+</div>
+
+{# ── PAYMENTS ── #}
+{% elif current_user.role == 'payments' %}
+<div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+  <div class="stat-card">
+    <div class="stat-label">Total collected</div>
+    <div class="stat-value" style="color:var(--teal-600)">{{ data.total_collected | inr }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total pending</div>
+    <div class="stat-value" style="color:var(--red-600)">{{ data.total_pending | inr }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active projects</div>
+    <div class="stat-value">{{ data.projects | length }}</div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title">Payment status by project</div>
+  <table>
+    <thead><tr><th>Project</th><th>Customer</th><th>Type</th><th>Collected</th><th>Total</th><th>Pending</th><th>%</th></tr></thead>
+    <tbody>
+      {% for p in data.projects %}
+      <tr>
+        <td><a href="{{ url_for('project_detail', pid=p.id) }}" style="font-weight:500;color:var(--amber-600)">{{ p.project_code }}</a></td>
+        <td>{{ p.customer.name }}</td>
+        <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
+        <td>{{ p.collected_amount | inr }}</td>
+        <td>{{ p.total_amount | inr }}</td>
+        <td style="color:{% if p.pending_amount > 0 %}var(--red-600){% else %}var(--green-600){% endif %}">{{ p.pending_amount | inr }}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div class="progress-wrap" style="width:60px"><div class="progress-bar" style="width:{{ p.payment_pct }}%"></div></div>
+            <span style="font-size:11px">{{ p.payment_pct }}%</span>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ── ONSITE ── #}
+{% elif current_user.role == 'onsite' %}
+<div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+  <div class="stat-card">
+    <div class="stat-label">Active projects</div>
+    <div class="stat-value">{{ data.projects | length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active workers</div>
+    <div class="stat-value">{{ data.workers | length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total workers</div>
+    <div class="stat-value">{{ data.workers | length }}</div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title">Active site projects</div>
+  {% set projects = data.projects %}
+  {% include '_project_table.html' with context %}
+</div>
+
+{# ── APP INSTALL ── #}
+{% elif current_user.role == 'appinstall' %}
+<div class="stats-grid" style="grid-template-columns:1fr 1fr">
+  <div class="stat-card">
+    <div class="stat-label">Pending installations</div>
+    <div class="stat-value" style="color:var(--amber-600)">{{ data.installs | length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Completed this run</div>
+    <div class="stat-value" style="color:var(--green-600)">{{ data.completed }}</div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-title">Pending app installations</div>
+  {% if data.installs %}
+  <table>
+    <thead><tr><th>Project</th><th>Customer</th><th>Scheduled</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for i in data.installs %}
+      <tr>
+        <td style="font-weight:500">{{ i.project.project_code }}</td>
+        <td>{{ i.project.customer.name }}</td>
+        <td>{{ i.scheduled_date | date_fmt }}</td>
+        <td><span class="badge badge-{{ i.status }}">{{ i.status }}</span></td>
+        <td>
+          <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}" style="display:inline">
+            <input type="hidden" name="status" value="Completed">
+            <input type="hidden" name="completed_date" value="{{ now.strftime('%Y-%m-%d') if now else '' }}">
+            <button type="submit" class="btn btn-sm btn-primary">Mark Done</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center;padding:32px;color:var(--hint)">No pending installations.</div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

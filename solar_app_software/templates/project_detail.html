@@ -1,0 +1,444 @@
+{% extends "base.html" %}
+{% block title %}{{ proj.project_code }} — Solar App{% endblock %}
+{% block page_title %}{{ proj.project_code }} — {{ proj.customer.name }}{% endblock %}
+{% block topbar_actions %}
+  <span class="badge badge-{{ proj.status }}" style="font-size:13px;padding:5px 12px">{{ proj.status }}</span>
+  <a href="{{ url_for('projects') }}" class="btn btn-sm">← Back</a>
+{% endblock %}
+
+{% block content %}
+
+{# ── INFO HEADER ── #}
+<div class="two-col">
+  <div class="card">
+    <div class="card-title">Project details</div>
+    <table style="font-size:13px">
+      <tr><td style="color:var(--muted);width:140px;padding:5px 0">Project code</td><td style="font-weight:500">{{ proj.project_code }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Customer</td><td>{{ proj.customer.name }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Phone</td><td>{{ proj.customer.phone or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Location</td><td>{{ proj.customer.district }}{% if proj.customer.pincode %} — {{ proj.customer.pincode }}{% endif %}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Address</td><td style="font-size:12px">{{ proj.customer.address or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">System size</td><td>{{ proj.system_kw }} kW</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Type</td><td><span class="badge badge-{{ proj.project_type }}">{{ proj.project_type }}</span></td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Stage</td><td>{{ proj.stage }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Coordinator</td><td>{{ proj.coordinator.full_name if proj.coordinator else '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Docs staff</td><td>{{ proj.doc_staff.full_name if proj.doc_staff else '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Created</td><td>{{ proj.created_at | date_fmt }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Days open</td><td>{{ proj.days_open }} days</td></tr>
+    </table>
+  </div>
+
+  <div>
+    {% if current_user.role in ['admin','coordinator','documents'] %}
+    <div class="card">
+      <div class="card-title">Update status</div>
+      <form method="POST" action="{{ url_for('update_status', pid=proj.id) }}">
+        <div class="form-group">
+          <label>Status</label>
+          <select name="status">
+            {% for s in ['Lead','Created','InProgress','Completed','Delayed','Pending','Closed'] %}
+            <option value="{{ s }}" {% if proj.status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Stage</label>
+          <select name="stage">
+            {% for s in ['Lead','Site Visit','Project Confirmation','Documentation','Bank/Feasibility','Structure Work','Material Delivery','KSEB Processing','Inspection','Connection','Subsidy','App Installation','Final Payment','Warranty Issued'] %}
+            <option value="{{ s }}" {% if proj.stage == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Update</button>
+      </form>
+    </div>
+    {% endif %}
+
+    <div class="card" style="margin-top:0">
+      <div class="card-title">Payment summary</div>
+      <div style="font-size:22px;font-weight:500;margin-bottom:4px">{{ proj.collected_amount | inr }}</div>
+      <div style="font-size:12px;color:var(--muted)">of {{ proj.total_amount | inr }}</div>
+      <div class="progress-wrap" style="margin:10px 0">
+        <div class="progress-bar" style="width:{{ proj.payment_pct }}%"></div>
+      </div>
+      <div style="font-size:12px;color:var(--hint)">
+        {{ proj.payment_pct }}% collected · {{ proj.pending_amount | inr }} pending
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── QUICK LINKS ── #}
+<div class="card" style="margin-bottom:16px;padding:12px 20px">
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a href="#payments" class="btn btn-sm">Payments</a>
+    <a href="#documents" class="btn btn-sm">Documents</a>
+    <a href="#workers" class="btn btn-sm">Workers</a>
+    
+    <a href="{{ url_for('subsidy', pid=proj.id) }}" class="btn btn-sm">Subsidy</a>
+    {% if current_user.role in ['admin'] or
+         (current_user.role == 'documents' and proj.doc_staff_id == current_user.id) %}
+    <a href="{{ url_for('documents', pid=proj.id) }}" class="btn btn-sm">Doc Timeline</a>
+    {% endif %}
+  </div>
+</div>
+
+{# ── PAYMENTS ── #}
+<div class="card" id="payments">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div class="card-title" style="margin:0">Payment history</div>
+    <span class="badge badge-{{ proj.project_type }}">{{ proj.project_type }} project</span>
+  </div>
+
+  {% if proj.project_type == 'Loan' %}
+  {% set instalments = proj.bank_instalments %}
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+    <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">First bank payment</div>
+      {% if 'First' in instalments %}
+        {% set p1 = instalments['First'] %}
+        <div style="font-size:18px;font-weight:500;color:var(--green-600)">{{ p1.amount | inr }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">{{ p1.payment_date | date_fmt }}</div>
+        {% if p1.reference_no %}<div style="font-size:11px;color:var(--hint)">Ref: {{ p1.reference_no }}</div>{% endif %}
+        <span class="badge badge-Completed" style="margin-top:6px;display:inline-block">Received</span>
+      {% else %}
+        <div style="font-size:15px;font-weight:500;color:var(--hint)">—</div>
+        <span class="badge badge-Pending" style="margin-top:6px;display:inline-block">Awaiting</span>
+      {% endif %}
+    </div>
+
+    <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Second bank payment (balance)</div>
+      {% if 'Second' in instalments %}
+        {% set p2 = instalments['Second'] %}
+        <div style="font-size:18px;font-weight:500;color:var(--green-600)">{{ p2.amount | inr }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">{{ p2.payment_date | date_fmt }}</div>
+        {% if p2.reference_no %}<div style="font-size:11px;color:var(--hint)">Ref: {{ p2.reference_no }}</div>{% endif %}
+        <span class="badge badge-Completed" style="margin-top:6px;display:inline-block">Received</span>
+      {% elif 'First' in instalments %}
+        <div style="font-size:15px;font-weight:500;color:var(--hint)">—</div>
+        <span class="badge badge-Created" style="margin-top:6px;display:inline-block">Pending</span>
+      {% else %}
+        <div style="font-size:15px;font-weight:500;color:var(--hint)">—</div>
+        <span class="badge badge-Closed" style="margin-top:6px;display:inline-block">Locked</span>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if current_user.role in ['admin','payments'] and proj.next_bank_instalment %}
+  <div style="border-top:0.5px solid var(--border);padding-top:16px">
+    <div style="font-size:13px;font-weight:500;margin-bottom:10px">
+      Record <span style="color:var(--amber-600)">{{ proj.next_bank_instalment }} bank payment</span>
+    </div>
+    <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}">
+      <input type="hidden" name="instalment" value="{{ proj.next_bank_instalment }}"/>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Amount (₹)</label>
+          <input type="number" name="amount" step="0.01" min="1" required placeholder="0"/>
+        </div>
+        <div class="form-group">
+          <label>Payment date</label>
+          <input type="date" name="payment_date" required/>
+        </div>
+        <div class="form-group">
+          <label>Payment type</label>
+          <select name="payment_type">
+            <option>Bank</option><option>Cheque</option><option>Online</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Bank reference no.</label>
+          <input type="text" name="reference_no" placeholder="Ref / UTR number"/>
+        </div>
+        <div class="form-group full">
+          <label>Notes</label>
+          <input type="text" name="notes" placeholder="Optional"/>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary">Save {{ proj.next_bank_instalment }} payment</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% else %}
+  {% if proj.payments %}
+  <table>
+    <thead><tr><th>Date</th><th>Amount</th><th>Type</th><th>Ref No.</th><th>Notes</th></tr></thead>
+    <tbody>
+      {% for pay in proj.payments | sort(attribute='payment_date', reverse=True) %}
+      <tr>
+        <td>{{ pay.payment_date | date_fmt }}</td>
+        <td style="font-weight:500">{{ pay.amount | inr }}</td>
+        <td><span class="tag">{{ pay.payment_type }}</span></td>
+        <td style="font-size:12px;color:var(--muted)">{{ pay.reference_no or '—' }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ pay.notes or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="color:var(--hint);font-size:13px;padding:8px 0">No payments recorded yet.</div>
+  {% endif %}
+
+  {% if current_user.role in ['admin','payments'] %}
+  <div style="margin-top:16px;border-top:0.5px solid var(--border);padding-top:16px">
+    <div style="font-size:13px;font-weight:500;margin-bottom:10px">Record customer payment</div>
+    <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Amount (₹)</label>
+          <input type="number" name="amount" step="0.01" min="1" required placeholder="0"/>
+        </div>
+        <div class="form-group">
+          <label>Payment type</label>
+          <select name="payment_type">
+            <option>Cash</option><option>Bank</option><option>Cheque</option><option>Online</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Payment date</label>
+          <input type="date" name="payment_date" required/>
+        </div>
+        <div class="form-group">
+          <label>Reference No.</label>
+          <input type="text" name="reference_no" placeholder="Optional"/>
+        </div>
+        <div class="form-group full">
+          <label>Notes</label>
+          <input type="text" name="notes" placeholder="Optional"/>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary">Save payment</button>
+    </form>
+  </div>
+  {% endif %}
+  {% endif %}
+</div>
+
+{# ── DOCUMENTS SUMMARY ── #}
+<div class="card" id="documents">
+  <div class="card-title">Documents</div>
+  {% if proj.documents %}
+  <table>
+    <thead><tr><th>Document</th><th>Status</th><th>Date</th><th>Notes</th></tr></thead>
+    <tbody>
+      {% for doc in proj.documents %}
+      <tr>
+        <td>{{ doc.doc_type }}</td>
+        <td><span class="badge badge-{{ doc.status }}">{{ doc.status }}</span></td>
+        <td style="font-size:12px;color:var(--muted)">{{ doc.received_date | date_fmt }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ doc.notes or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="color:var(--hint);font-size:13px;padding:4px 0">No documents yet.</div>
+  {% endif %}
+  {% if current_user.role == 'admin' or
+       (current_user.role == 'documents' and proj.doc_staff_id == current_user.id) %}
+  <div style="margin-top:12px">
+    <a href="{{ url_for('documents', pid=proj.id) }}" class="btn btn-sm btn-primary">
+      Manage documents
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+{# ── WORKER ASSIGNMENTS ── #}
+<div class="card" id="workers">
+  <div class="card-title">Worker assignments</div>
+
+  {% if proj.assignments %}
+  <table>
+    <thead>
+      <tr>
+        <th>Worker</th>
+        <th>Skill</th>
+        <th>Start date</th>
+        <th>End date</th>
+        <th>Days</th>
+        <th>Amount paid</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in proj.assignments %}
+      <tr>
+        <td style="font-weight:500">{{ a.worker.name }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ a.worker.skill }}</td>
+        <td>{{ a.start_date | date_fmt }}</td>
+        <td>{{ a.end_date | date_fmt }}</td>
+        <td>
+          {% if a.days_worked %}{{ a.days_worked }} days
+          {% else %}<span style="color:var(--hint)">—</span>{% endif %}
+        </td>
+        <td>
+          {% if a.amount_paid %}{{ a.amount_paid | inr }}
+          {% else %}<span style="color:var(--hint)">—</span>{% endif %}
+        </td>
+        <td><span class="badge badge-{{ a.status }}">{{ a.status }}</span></td>
+        <td>
+          {% if current_user.role in ['admin','onsite'] %}
+          <button class="btn btn-sm edit-btn" data-aid="{{a.id}}">Edit</button>
+          {% endif %}
+        </td>
+      </tr>
+
+      {% if current_user.role in ['admin','onsite'] %}
+      <tr id="update-form-{{ a.id }}" style="display:none;background:var(--bg)">
+        <td colspan="8" style="padding:12px 14px">
+          <form method="POST" action="{{ url_for('update_assignment', pid=proj.id, aid=a.id) }}">
+            <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) auto;gap:10px;align-items:flex-end">
+              <div>
+                <label>Start date</label>
+                <input type="date" name="start_date" value="{{ a.start_date or '' }}"/>
+              </div>
+              <div>
+                <label>End date</label>
+                <input type="date" name="end_date" value="{{ a.end_date or '' }}"/>
+              </div>
+              <div>
+                <label>Days worked</label>
+                <input type="number" name="days_worked" min="0"
+                       value="{{ a.days_worked or 0 }}" placeholder="Auto-calculated"/>
+              </div>
+              <div>
+                <label>Amount paid (₹)</label>
+                <input type="number" name="amount_paid" min="0" step="0.01"
+                       value="{{ a.amount_paid or 0 }}"/>
+              </div>
+              <div>
+                <label>Status</label>
+                <select name="status">
+                  {% for s in ['Assigned','Completed','Paid'] %}
+                  <option {% if a.status == s %}selected{% endif %}>{{ s }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+              </div>
+            </div>
+          </form>
+        </td>
+      </tr>
+      {% endif %}
+
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="color:var(--hint);font-size:13px;padding:4px 0">No workers assigned yet.</div>
+  {% endif %}
+
+  {% if current_user.role in ['admin','onsite'] %}
+  <div style="margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
+    <div style="font-size:13px;font-weight:500;margin-bottom:10px">Assign worker</div>
+    <form method="POST" action="{{ url_for('assign_worker', pid=proj.id) }}">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
+        <div>
+          <label>Worker</label>
+          <select name="worker_id" id="worker-select">
+            {% for w in all_workers %}
+            <option value="{{ w.id }}" data-rate="{{w.rate_per_day | int}}">{{ w.name }} — {{ w.skill }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Start date</label>
+          <input type="date" name="start_date"/>
+        </div>
+        <div>
+          <label>End date</label>
+          <input type="date" name="end_date"/>
+        </div>
+        <div>
+          <label>Rate/day</label>
+          <input type="text" id="rate-display" disabled
+                 style="background:var(--bg);color:var(--muted);cursor:not-allowed"
+                 placeholder="Auto from worker"/>
+        </div>
+        <div>
+          <button type="submit" class="btn btn-primary btn-sm" style="margin-bottom:1px">
+            Assign
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+{# ── ACTIVITY LOG ── #}
+<div class="card">
+  <div class="card-title">Activity log</div>
+  {% set seen = [] %}
+  {% if logs %}
+  <div style="display:flex;flex-direction:column;gap:0">
+    {% for log in logs %}
+      {% set key = log.action ~ '|' ~ log.created_at|string %}
+      {% if key not in seen %}
+        {% if seen.append(key) %}{% endif %}
+        <div style="display:flex;gap:12px;padding:8px 0;border-bottom:0.5px solid var(--border)">
+          <div style="font-size:12px;color:var(--hint);white-space:nowrap;padding-top:1px;min-width:120px">
+            {{ log.created_at | date_fmt }}
+          </div>
+          <div style="flex:1">
+            <span style="font-size:13px">{{ log.action }}</span>
+            {% if log.old_value and log.new_value %}
+            <span style="font-size:11px;color:var(--muted);margin-left:6px">
+              {{ log.old_value }} → {{ log.new_value }}
+            </span>
+            {% endif %}
+          </div>
+          <div style="font-size:12px;color:var(--hint)">
+            {{ log.user.full_name if log.user else '—' }}
+          </div>
+        </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="color:var(--hint);font-size:13px">No activity logged yet.</div>
+  {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+  // Handle all Edit buttons
+  document.querySelectorAll('.edit-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var aid = this.getAttribute('data-aid');
+      var row = document.getElementById('update-form-' + aid);
+      if (row) {
+        row.style.display = (row.style.display === 'none' || row.style.display === '')
+          ? 'table-row'
+          : 'none';
+      }
+    });
+  });
+
+  // Auto-fill rate/day from data-rate on option
+  var workerSelect = document.getElementById('worker-select');
+  var rateDisplay  = document.getElementById('rate-display');
+
+  function updateRate() {
+    var selected = workerSelect.options[workerSelect.selectedIndex];
+    var rate     = selected ? selected.getAttribute('data-rate') : null;
+    rateDisplay.value = rate && rate > 0 ? '\u20b9' + rate + '/day' : '\u2014';
+  }
+
+  if (workerSelect && rateDisplay) {
+    workerSelect.addEventListener('change', updateRate);
+    updateRate();
+  }
+
+});
+</script>
+
+{% endblock %}

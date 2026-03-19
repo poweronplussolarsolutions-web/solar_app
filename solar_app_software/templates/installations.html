@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Installations — Solar App{% endblock %}
+{% block page_title %}App Installations{% endblock %}
+{% block content %}
+<div class="two-col">
+  <div class="card">
+    <div class="card-title">Pending installations ({{ pending | length }})</div>
+    {% if pending %}
+    <table>
+      <thead><tr><th>Project</th><th>Customer</th><th>Scheduled</th><th></th></tr></thead>
+      <tbody>
+        {% for i in pending %}
+        <tr>
+          <td style="font-weight:500">{{ i.project.project_code }}</td>
+          <td>{{ i.project.customer.name }}</td>
+          <td>{{ i.scheduled_date | date_fmt }}</td>
+          <td>
+            <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}">
+              <input type="hidden" name="status" value="Completed"/>
+              <button type="submit" class="btn btn-sm btn-primary">Mark done</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="color:var(--hint);font-size:13px;padding:12px 0">No pending installations.</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Completed ({{ completed | length }})</div>
+    {% if completed %}
+    <table>
+      <thead><tr><th>Project</th><th>Customer</th><th>Completed</th></tr></thead>
+      <tbody>
+        {% for i in completed %}
+        <tr>
+          <td style="font-weight:500">{{ i.project.project_code }}</td>
+          <td>{{ i.project.customer.name }}</td>
+          <td>{{ i.completed_date | date_fmt }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="color:var(--hint);font-size:13px;padding:12px 0">None yet.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

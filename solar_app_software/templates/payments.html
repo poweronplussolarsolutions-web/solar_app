@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Payments — Solar App{% endblock %}
+{% block page_title %}Payments Dashboard{% endblock %}
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total value</div>
+    <div class="stat-value">{{ total_value | inr }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Collected</div>
+    <div class="stat-value" style="color:var(--teal-600)">{{ total_collected | inr }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Pending</div>
+    <div class="stat-value" style="color:var(--red-600)">{{ total_pending | inr }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Collection %</div>
+    <div class="stat-value">
+      {% if total_value > 0 %}{{ (total_collected / total_value * 100) | int }}%{% else %}0%{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Project payment status</div>
+  <table>
+    <thead><tr><th>Project</th><th>Customer</th><th>Type</th><th>Collected</th><th>Total</th><th>Pending</th><th>Progress</th></tr></thead>
+    <tbody>
+      {% for p in pending_projs %}
+      <tr>
+        <td><a href="{{ url_for('project_detail', pid=p.id) }}" style="font-weight:500;color:var(--amber-600)">{{ p.project_code }}</a></td>
+        <td>{{ p.customer.name }}</td>
+        <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
+        <td>{{ p.collected_amount | inr }}</td>
+        <td>{{ p.total_amount | inr }}</td>
+        <td style="color:{% if p.pending_amount > 0 %}var(--red-600){% else %}var(--green-600){% endif %}">
+          {{ p.pending_amount | inr }}
+        </td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div class="progress-wrap" style="width:70px"><div class="progress-bar" style="width:{{ p.payment_pct }}%"></div></div>
+            <span style="font-size:11px">{{ p.payment_pct }}%</span>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <div class="card-title">Recent payment transactions</div>
+  {% if recent_payments %}
+  <table>
+    <thead><tr><th>Date</th><th>Project</th><th>Customer</th><th>Amount</th><th>Type</th><th>Ref</th></tr></thead>
+    <tbody>
+      {% for pay in recent_payments %}
+      <tr>
+        <td>{{ pay.payment_date | date_fmt }}</td>
+        <td><a href="{{ url_for('project_detail', pid=pay.project_id) }}" style="color:var(--amber-600)">{{ pay.project.project_code }}</a></td>
+        <td>{{ pay.project.customer.name }}</td>
+        <td style="font-weight:500">{{ pay.amount | inr }}</td>
+        <td><span class="tag">{{ pay.payment_type }}</span></td>
+        <td style="font-size:12px;color:var(--muted)">{{ pay.reference_no or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center;padding:24px;color:var(--hint)">No payments recorded yet.</div>
+  {% endif %}
+</div>
+{% endblock %}

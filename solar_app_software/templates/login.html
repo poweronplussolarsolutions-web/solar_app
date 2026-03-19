@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login — Power on Plus Solar</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', sans-serif; background: #f7f6f2;
+      display: flex; align-items: center; justify-content: center; min-height: 100vh;
+    }
+    .login-wrap { width: 380px; }
+    .brand {
+      display: flex; align-items: center; gap: 10px;
+      justify-content: center; margin-bottom: 32px;
+    }
+    .brand-icon {
+      width: 40px; height: 40px;  border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .brand-icon img { width: 45px; height: 45px; }
+    .brand-name { font-size: 18px; font-weight: 600; color: #1a1a18; }
+    .brand-sub  { font-size: 12px; color: #6b6b66; }
+    .card {
+      background: #fff; border: 0.5px solid #e4e2da;
+      border-radius: 14px; padding: 28px 32px;
+    }
+    h2 { font-size: 18px; font-weight: 500; margin-bottom: 4px; }
+    .subtitle { font-size: 13px; color: #6b6b66; margin-bottom: 24px; }
+    .form-group { margin-bottom: 16px; }
+    label { font-size: 12px; color: #6b6b66; display: block; margin-bottom: 4px; }
+    input {
+      width: 100%; padding: 9px 13px; border: 0.5px solid #e4e2da;
+      border-radius: 8px; font-size: 14px; font-family: inherit;
+      background: #fff; color: #1a1a18; outline: none;
+    }
+    input:focus { border-color: #fac775; }
+    .btn-login {
+      width: 100%; padding: 10px; background: #fac775; border: none;
+      border-radius: 8px; font-size: 14px; font-weight: 500; color: #633806;
+      cursor: pointer; margin-top: 4px;
+    }
+    .btn-login:hover { background: #faeeda; }
+    .alert {
+      padding: 9px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px;
+      background: #fcebeb; color: #a32d2d; border: 0.5px solid #f7c1c1;
+    }
+    .hint {
+      margin-top: 20px; padding: 14px; background: #f7f6f2;
+      border-radius: 8px; font-size: 12px; color: #6b6b66;
+    }
+    .hint strong { color: #1a1a18; }
+    .hint-row { display: flex; justify-content: space-between; padding: 2px 0; }
+  </style>
+</head>
+<body>
+<div class="login-wrap">
+  <div class="brand">
+    <div class="brand-icon">
+      <img src="{{url_for('static',filename='logo.webp')}}" alt="">
+      <!-- <svg viewBox="0 0 18 18" fill="none">
+        <circle cx="9" cy="9" r="4" fill="#854f0b"/>
+        <line x1="9" y1="1"  x2="9"  y2="3"  stroke="#854f0b" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="9" y1="15" x2="9"  y2="17" stroke="#854f0b" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="1" y1="9"  x2="3"  y2="9"  stroke="#854f0b" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="15" y1="9" x2="17" y2="9"  stroke="#854f0b" stroke-width="1.5" stroke-linecap="round"/>
+      </svg> -->
+    </div>
+    <div>
+      <div class="brand-name">Power on Plus</div>
+      <div class="brand-sub">Solar Solutions</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Sign in</h2>
+    <p class="subtitle">Access your role-based dashboard</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}
+        <div class="alert">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('login') }}">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" placeholder="Enter username" required autofocus/>
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" placeholder="Enter password" required/>
+      </div>
+      <button type="submit" class="btn-login">Sign in →</button>
+    </form>
+
+    <div class="hint">
+      <strong>Demo credentials:</strong>
+      <div class="hint-row"><span>admin</span><span>admin123</span></div>
+      <div class="hint-row"><span>anita (coordinator)</span><span>coord123</span></div>
+      <div class="hint-row"><span>sreeja (documents)</span><span>docs123</span></div>
+      <div class="hint-row"><span>rajan (payments)</span><span>pay123</span></div>
+      <div class="hint-row"><span>suresh (onsite)</span><span>site123</span></div>
+      <div class="hint-row"><span>appteam (app install)</span><span>app123</span></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

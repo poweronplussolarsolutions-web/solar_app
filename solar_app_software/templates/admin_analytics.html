@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% block title %}Admin Analytics — Solar App{% endblock %}
+{% block page_title %}Analytics{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('dashboard') }}" class="btn btn-sm">← Dashboard</a>
+{% endblock %}
+
+{% block head %}
+<style>
+  .metric-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .chart-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .chart-grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .chart-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .period-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+  .period-tab {
+    padding: 5px 14px;
+    font-size: 12px;
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    background: transparent;
+    color: var(--muted);
+  }
+  .period-tab.active {
+    background: var(--amber-50);
+    border-color: var(--amber-100);
+    color: var(--amber-800);
+    font-weight: 500;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── SUMMARY ── #}
+<div class="metric-row">
+  <div class="stat-card">
+    <div class="stat-label">Total projects</div>
+    <div class="stat-value">{{ total_projects }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total value</div>
+    <div class="stat-value">{{ total_value | inr }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Collected</div>
+    <div class="stat-value" style="color:var(--teal-600)">{{ total_collected | inr }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Pending</div>
+    <div class="stat-value" style="color:var(--red-600)">{{ total_pending | inr }}</div>
+  </div>
+</div>
+
+{# ── PROJECTS & PAYMENTS OVER TIME ── #}
+<div class="card" style="margin-bottom:20px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+    <div class="chart-label" style="margin:0">Projects created & payments received</div>
+    <div class="period-tabs">
+      <button class="period-tab active" data-period="weekly">Weekly</button>
+      <button class="period-tab" data-period="monthly">Monthly</button>
+      <button class="period-tab" data-period="yearly">Yearly</button>
+    </div>
+  </div>
+  <canvas id="timelineChart" height="100"></canvas>
+</div>
+
+{# ── PAYMENTS AMOUNT OVER TIME ── #}
+<div class="card" style="margin-bottom:20px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+    <div class="chart-label" style="margin:0">Payment amounts collected (₹)</div>
+    <div class="period-tabs">
+      <button class="period-tab active" data-period="weekly" data-chart="payments">Weekly</button>
+      <button class="period-tab" data-period="monthly" data-chart="payments">Monthly</button>
+      <button class="period-tab" data-period="yearly" data-chart="payments">Yearly</button>
+    </div>
+  </div>
+  <canvas id="paymentsChart" height="100"></canvas>
+</div>
+
+{# ── BREAKDOWN CHARTS ── #}
+<div class="chart-grid-2" style="margin-bottom:20px">
+  <div class="card">
+    <div class="chart-label">Project status breakdown</div>
+    <canvas id="statusChart" height="260"></canvas>
+  </div>
+  <div class="card">
+    <div class="chart-label">Loan vs cash projects</div>
+    <canvas id="typeChart" height="260"></canvas>
+  </div>
+</div>
+
+{# ── COORDINATOR PERFORMANCE ── #}
+<div class="card" style="margin-bottom:20px">
+  <div class="chart-label">Projects by coordinator</div>
+  <canvas id="coordChart" height="100"></canvas>
+</div>
+
+{# ── COORDINATOR TABLE ── #}
+<div class="card">
+  <div class="chart-label" style="margin-bottom:14px">Coordinator performance summary</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Coordinator</th>
+        <th>Total projects</th>
+        <th>Completed</th>
+        <th>Delayed</th>
+        <th>Completion rate</th>
+        <th>Collected</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in coord_stats %}
+      <tr>
+        <td style="font-weight:500">{{ c.name }}</td>
+        <td>{{ c.total }}</td>
+        <td style="color:var(--green-600)">{{ c.completed }}</td>
+        <td style="color:{% if c.delayed > 0 %}var(--red-600){% else %}var(--hint){% endif %}">
+          {{ c.delayed }}
+        </td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="progress-wrap" style="width:80px">
+              <div class="progress-bar"
+                   style="width:{{ (c.completed / c.total * 100) | int if c.total > 0 else 0 }}%">
+              </div>
+            </div>
+            <span style="font-size:12px">
+              {{ (c.completed / c.total * 100) | int if c.total > 0 else 0 }}%
+            </span>
+          </div>
+        </td>
+        <td>{{ c.collected | inr }}</td>
+      </tr>
+      {% endfor %}
+      {% if not coord_stats %}
+      <tr>
+        <td colspan="6" style="text-align:center;color:var(--hint);padding:24px">
+          No coordinators found.
+        </td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<div id="chart-data" data-json='{{ chart_data | tojson }}'' style="display:none"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+  var cd          = JSON.parse(document.getElementById('chart-data').getAttribute('data-json'));
+  var isDark      = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var textColor   = isDark ? '#c2c0b6' : '#6b6b66';
+  var borderColor = isDark ? '#2c2c2a' : '#e4e2da';
+
+  Chart.defaults.font.family = 'DM Sans, sans-serif';
+  Chart.defaults.font.size   = 12;
+  Chart.defaults.color       = textColor;
+
+  // ── Timeline chart (projects) ──
+  var timelineChart = new Chart(document.getElementById('timelineChart'), {
+    type: 'bar',
+    data: {
+      labels: cd.weekly_labels,
+      datasets: [{
+        label: 'Projects created',
+        data: cd.weekly_projects,
+        backgroundColor: '#b5d4f4',
+        borderRadius: 4,
+        yAxisID: 'y',
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        x: { grid: { color: borderColor } },
+        y: { grid: { color: borderColor }, ticks: { stepSize: 1 }, beginAtZero: true }
+      }
+    }
+  });
+
+  // ── Payments amount chart ──
+  var paymentsChart = new Chart(document.getElementById('paymentsChart'), {
+    type: 'bar',
+    data: {
+      labels: cd.weekly_labels,
+      datasets: [{
+        label: 'Amount collected (₹)',
+        data: cd.weekly_payments,
+        backgroundColor: '#9fe1cb',
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        x: { grid: { color: borderColor } },
+        y: {
+          grid: { color: borderColor },
+          beginAtZero: true,
+          ticks: {
+            callback: function(v) {
+              return v >= 100000
+                ? '\u20b9' + (v/100000).toFixed(1) + 'L'
+                : '\u20b9' + (v/1000).toFixed(0) + 'k';
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // ── Period tab switching ──
+  var periods = {
+    weekly:  { labels: cd.weekly_labels,  projects: cd.weekly_projects,  payments: cd.weekly_payments },
+    monthly: { labels: cd.monthly_labels, projects: cd.monthly_projects, payments: cd.monthly_payments },
+    yearly:  { labels: cd.yearly_labels,  projects: cd.yearly_projects,  payments: cd.yearly_payments },
+  };
+
+  function switchPeriod(chart, period, dataKey) {
+    chart.data.labels            = periods[period].labels;
+    chart.data.datasets[0].data  = periods[period][dataKey];
+    chart.update();
+  }
+
+  // Timeline tabs
+  document.querySelectorAll('.period-tab:not([data-chart])').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.period-tab:not([data-chart])').forEach(function(t) {
+        t.classList.remove('active');
+      });
+      this.classList.add('active');
+      switchPeriod(timelineChart, this.getAttribute('data-period'), 'projects');
+    });
+  });
+
+  // Payments tabs
+  document.querySelectorAll('.period-tab[data-chart="payments"]').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.period-tab[data-chart="payments"]').forEach(function(t) {
+        t.classList.remove('active');
+      });
+      this.classList.add('active');
+      switchPeriod(paymentsChart, this.getAttribute('data-period'), 'payments');
+    });
+  });
+
+  // ── Status donut ──
+  new Chart(document.getElementById('statusChart'), {
+    type: 'doughnut',
+    data: {
+      labels: cd.status_labels,
+      datasets: [{
+        data: cd.status_counts,
+        backgroundColor: ['#b5d4f4','#fac775','#9fe1cb','#f7c1c1','#d3d1c7','#cecbf6'],
+        borderWidth: 0,
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '65%',
+      plugins: {
+        legend: { position: 'bottom' }
+      }
+    }
+  });
+
+  // ── Type donut ──
+  new Chart(document.getElementById('typeChart'), {
+    type: 'doughnut',
+    data: {
+      labels: cd.type_labels,
+      datasets: [{
+        data: cd.type_counts,
+        backgroundColor: ['#9fe1cb','#fac775'],
+        borderWidth: 0,
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '65%',
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+
+  // ── Coordinator bar ──
+  new Chart(document.getElementById('coordChart'), {
+    type: 'bar',
+    data: {
+      labels: cd.coord_names,
+      datasets: [
+        { label: 'Total',     data: cd.coord_total,     backgroundColor: '#b5d4f4', borderRadius: 4 },
+        { label: 'Completed', data: cd.coord_completed, backgroundColor: '#9fe1cb', borderRadius: 4 },
+        { label: 'Delayed',   data: cd.coord_delayed,   backgroundColor: '#f7c1c1', borderRadius: 4 },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        x: { grid: { color: borderColor } },
+        y: { grid: { color: borderColor }, ticks: { stepSize: 1 }, beginAtZero: true }
+      }
+    }
+  });
+
+});
+</script>
+
+{% endblock %}

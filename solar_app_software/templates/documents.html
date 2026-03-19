@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+{% block title %}Documents — {{ proj.project_code }}{% endblock %}
+{% block page_title %}Document Timeline — {{ proj.project_code }}{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('project_detail', pid=proj.id) }}" class="btn btn-sm">← Project</a>
+{% endblock %}
+
+{% block head %}
+<style>
+  .timeline { position: relative; padding-left: 36px; }
+  .timeline::before {
+    content: ''; position: absolute; left: 11px; top: 8px;
+    bottom: 8px; width: 2px; background: var(--border);
+  }
+  .tl-stage { position: relative; margin-bottom: 8px; }
+  .tl-dot {
+    position: absolute; left: -29px; top: 14px;
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 2px solid var(--border); background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1;
+  }
+  .tl-dot.done    { background: var(--teal-100);  border-color: var(--teal-600); }
+  .tl-dot.partial { background: var(--amber-100); border-color: var(--amber-600); }
+  .tl-dot.active  { background: var(--blue-50);   border-color: var(--blue-600); box-shadow: 0 0 0 3px var(--blue-50); }
+  .tl-dot.locked  { background: var(--bg);        border-color: var(--border); }
+  .tl-dot svg { width: 8px; height: 8px; }
+
+  .tl-card {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg); overflow: hidden; transition: border-color .15s;
+  }
+  .tl-card.active { border-color: var(--blue-100); }
+  .tl-card.done   { border-color: var(--teal-100); }
+
+  .tl-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; cursor: pointer; user-select: none;
+  }
+  .tl-header:hover { background: var(--bg); }
+  .tl-title { font-size: 13px; font-weight: 500; }
+  .tl-meta  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .tl-pills { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+  .tl-body      { padding: 0 16px 14px; display: none; }
+  .tl-body.open { display: block; }
+
+  .doc-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 0; border-bottom: 0.5px solid var(--border); font-size: 13px;
+  }
+  .doc-row:last-child { border-bottom: none; }
+  .doc-status-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--border);
+  }
+  .doc-status-dot.received { background: var(--teal-600); }
+  .doc-status-dot.verified { background: var(--green-600); }
+  .doc-status-dot.sent     { background: var(--blue-600); }
+  .doc-status-dot.pending  { background: var(--amber-100); border: 1.5px solid var(--amber-600); }
+
+  .doc-name    { flex: 1; }
+  .doc-date    { font-size: 11px; color: var(--hint); white-space: nowrap; }
+  .doc-actions { display: flex; gap: 4px; align-items: center; }
+
+  .pill-count   { font-size: 10px; padding: 2px 7px; border-radius: 20px; font-weight: 500; }
+  .pill-done    { background: var(--teal-50);  color: var(--teal-800); }
+  .pill-pending { background: var(--amber-50); color: var(--amber-800); }
+
+  .add-form      { margin-top: 10px; padding: 12px; background: var(--bg); border-radius: var(--radius); display: none; }
+  .add-form.open { display: block; }
+  .add-form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; align-items: flex-end; }
+
+  .chevron      { transition: transform .2s; color: var(--hint); }
+  .chevron.open { transform: rotate(180deg); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% set doc_map = {} %}
+{% for d in proj.documents %}
+  {% if doc_map.update({d.doc_type: d}) %}{% endif %}
+{% endfor %}
+
+{% set stages = [
+  {
+    'name': 'Customer KYC',
+    'stage': 'Documentation',
+    'condition': 'always',
+    'docs': ['ID Proof', 'Pass Book', 'Electricity Bill'],
+    'statuses':['Pending','Received']
+  },
+  {
+    'name': 'Bank / Loan file',
+    'stage': 'Bank/Feasibility',
+    'condition': 'loan',
+    'docs': ['GEO Tag Photo', 'Bank Stamp Paper', 'Bank File'],
+    'statuses':['Pending','Sent','Received']
+  },
+  {
+    'name': 'Feasibility',
+    'stage': 'Bank/Feasibility',
+    'condition': 'always',
+    'docs': ['Feasibility Receipt'],
+    'statuses':['Pending','Received']
+  },
+  {
+    'name': 'KSEB filing',
+    'stage': 'KSEB Processing',
+    'condition': 'always',
+    'docs': ['KSEB Stamp Paper', 'B-Class Licence', 'KSEB File'],
+    'statuses':['Pending','Received','Sent']
+  },
+  {
+    'name': 'Inspection & connection',
+    'stage': 'Inspection',
+    'condition': 'always',
+    'docs': ['Inspection', 'CD Payment Receipt', 'KSEB Connection'],
+    'statuses':['Pending','Completed']
+  },
+  {
+    'name': 'Subsidy',
+    'stage': 'Subsidy',
+    'condition': 'always',
+    'docs': ['Subsidy Request', 'Subsidy Redeem'],
+    'statuses':['Pending','Completed']
+  },
+  {
+    'name': 'Project closure',
+    'stage': 'Final Payment',
+    'condition': 'always',
+    'docs': ['Payment Completion','Warranty Card', 'Final Invoice'],
+    'statuses':['Pending','Completed']
+  }
+] %}
+
+<div class="timeline">
+{% for stage in stages %}
+  {% if stage.condition != 'loan' or proj.project_type == 'Loan' %}
+
+    {% set ns = namespace(done=0) %}
+    {% for doc_name in stage.docs %}
+      {% if doc_name in doc_map and doc_map[doc_name].status in ['Received','Completed','Sent'] %}
+        {% set ns.done = ns.done + 1 %}
+      {% endif %}
+    {% endfor %}
+    {% set total = stage.docs | length %}
+
+    {% if ns.done == total %}
+      {% set dot_cls  = 'done' %}
+      {% set card_cls = 'done' %}
+    {% elif ns.done > 0 %}
+      {% set dot_cls  = 'partial' %}
+      {% set card_cls = 'active' %}
+    {% elif proj.stage == stage.stage %}
+      {% set dot_cls  = 'active' %}
+      {% set card_cls = 'active' %}
+    {% else %}
+      {% set dot_cls  = 'locked' %}
+      {% set card_cls = '' %}
+    {% endif %}
+
+    <div class="tl-stage">
+      <div class="tl-dot {{ dot_cls }}">
+        {% if ns.done == total %}
+          <svg viewBox="0 0 10 10" fill="none">
+            <path d="M2 5l2.5 2.5L8 3" stroke="#0f6e56" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        {% elif dot_cls == 'active' %}
+          <div style="width:5px;height:5px;border-radius:50%;background:var(--blue-600)"></div>
+        {% endif %}
+      </div>
+
+      <div class="tl-card {{ card_cls }}">
+        <div class="tl-header" onclick="toggleStage(this)">
+          <div>
+            <div class="tl-title">{{ stage.name }}</div>
+            <div class="tl-meta">
+              {{ stage.stage }}{% if stage.condition == 'loan' %} · Loan only{% endif %}
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="tl-pills">
+              {% if ns.done > 0 %}
+                <span class="pill-count pill-done">{{ ns.done }} done</span>
+              {% endif %}
+              {% if ns.done < total %}
+                <span class="pill-count pill-pending">{{ total - ns.done }} pending</span>
+              {% endif %}
+            </div>
+            <svg class="chevron" viewBox="0 0 10 10" width="14" height="14" fill="none">
+              <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="tl-body {% if dot_cls in ['active','partial'] %}open{% endif %}">
+
+          {% for doc_name in stage.docs %}
+            {% set doc = doc_map.get(doc_name) %}
+      {% set final_status = stage.statuses[-1] %}
+{% set is_done = doc and doc.status in ['Received','Sent','Completed'] and doc.status != 'Pending' %}
+<div class="doc-row">
+  <div class="doc-status-dot
+    {% if doc and doc.status in ['Received','Completed'] %}received
+    {% elif doc and doc.status == 'Sent' %}sent
+    {% else %}pending{% endif %}">
+  </div>
+  <div class="doc-name">{{ doc_name }}</div>
+  <div class="doc-date">
+    {% if doc and doc.received_date %}{{ doc.received_date | date_fmt }}{% endif %}
+  </div>
+  <div class="doc-actions">
+    {% if is_done %}
+      <span class="badge
+        {% if doc.status == 'Sent' %}badge-InProgress
+        {% else %}badge-Completed{% endif %}">
+        {{ doc.status }}
+      </span>
+      {% if current_user.role in ['admin','documents'] %}
+      <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline">
+        <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
+        <input type="hidden" name="status"   value="Pending"/>
+        <button type="submit" class="btn btn-sm" title="Revert to Pending">↩</button>
+      </form>
+      {% endif %}
+    {% elif doc and doc.status == 'Pending' %}
+      <span class="badge badge-Pending">Pending</span>
+      {% if current_user.role in ['admin','documents'] %}
+      <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline">
+        <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
+        <input type="hidden" name="status"   value="{{ final_status }}"/>
+        <button type="submit" class="btn btn-sm btn-primary">Mark {{ final_status }}</button>
+      </form>
+      {% endif %}
+    {% else %}
+      <span style="font-size:11px;color:var(--hint)">Not recorded</span>
+      {% if current_user.role in ['admin','documents'] %}
+      <button class="btn btn-sm btn-primary"
+              onclick="openAddForm(this, '{{ doc_name }}', '{{ stage.name }}')">
+        + Add
+      </button>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+          {% if current_user.role in ['admin','documents'] %}
+          <div class="add-form" id="form-{{ stage.name | replace(' ','_') | replace('/','_') }}">
+  <form method="POST" action="{{ url_for('documents', pid=proj.id) }}">
+    <div class="add-form-grid">
+      <div>
+        <label>Document</label>
+        <input type="text" name="doc_type" readonly style="background:var(--surface)"/>
+      </div>
+      <div>
+        <label>Status</label>
+        <select name="status">
+          {% for s in stage.statuses %}
+          <option {% if loop.last %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      
+      <div>
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+      </div>
+    </div>
+    <div style="margin-top:6px">
+      <label>Notes</label>
+      <input type="text" name="notes" placeholder="Optional"/>
+    </div>
+  </form>
+</div>
+          {% endif %}
+
+        </div>
+      </div>
+    </div>
+     {% endif %}
+  {% endfor %}
+</div>
+
+<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px;font-size:12px;color:var(--muted)">
+  <span><span class="doc-status-dot received" style="display:inline-block;vertical-align:middle;margin-right:4px"></span>Received</span>
+  <span><span class="doc-status-dot verified" style="display:inline-block;vertical-align:middle;margin-right:4px"></span>Verified</span>
+  <span><span class="doc-status-dot sent"     style="display:inline-block;vertical-align:middle;margin-right:4px"></span>Sent</span>
+  <span><span class="doc-status-dot pending"  style="display:inline-block;vertical-align:middle;margin-right:4px"></span>Pending</span>
+</div>
+
+<script>
+function toggleStage(header) {
+  const body    = header.nextElementSibling;
+  const chevron = header.querySelector('.chevron');
+  body.classList.toggle('open');
+  chevron.classList.toggle('open');
+}
+
+function openAddForm(btn, docName, stageName) {
+  const stageKey = stageName.replace(/ /g, '_').replace(/\//g, '_');
+  const form     = document.getElementById('form-' + stageKey);
+  const input    = form.querySelector('input[name="doc_type"]');
+  input.value    = docName;
+  form.classList.add('open');
+  btn.style.display = 'none';
+  form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+</script>
+
+{% endblock %}

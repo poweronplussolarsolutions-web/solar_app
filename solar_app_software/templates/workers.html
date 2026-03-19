@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Workers — Solar App{% endblock %}
+{% block page_title %}Workers{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-title">On-site workers</div>
+  <table>
+    <thead><tr><th>Name</th><th>Phone</th><th>Skill</th><th>Rate/day</th><th>Active assignments</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for w in workers %}
+      <tr>
+        <td style="font-weight:500">{{ w.name }}</td>
+        <td>{{ w.phone or '—' }}</td>
+        <td><span class="tag">{{ w.skill or '—' }}</span></td>
+        <td>{{ w.rate_per_day | inr }}</td>
+        <td>
+          {% set active = w.assignments | selectattr('status', 'in', ['Assigned','Active']) | list %}
+          {% if active %}
+            {% for a in active %}
+            <span class="tag" style="margin-right:3px">{{ a.project.project_code }}</span>
+            {% endfor %}
+          {% else %}
+            <span style="color:var(--hint);font-size:12px">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if w.is_active %}
+          <span class="badge badge-Completed">Active</span>
+          {% else %}
+          <span class="badge badge-Closed">Inactive</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

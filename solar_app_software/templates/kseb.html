@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}KSEB — {{ proj.project_code }}{% endblock %}
+{% block page_title %}KSEB Tasks — {{ proj.project_code }}{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('project_detail', pid=proj.id) }}" class="btn btn-sm">← Project</a>
+{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px">
+  <form method="POST">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>KSEB stamp paper</label>
+        <select name="stamp_paper">
+          {% for s in ['Pending','Requested','Received'] %}
+          <option {% if task.stamp_paper == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>B-Class licence</label>
+        <select name="b_class_licence">
+          {% for s in ['Pending','Requested','Received'] %}
+          <option {% if task.b_class_licence == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;margin:8px 0 16px">
+      {% set checks = [
+        ('file_sent',       task.file_sent,       'KSEB file sent'),
+        ('inspection_done', task.inspection_done, 'Inspection done'),
+        ('cd_payment_done', task.cd_payment_done, 'CD payment done'),
+        ('connection_done', task.connection_done, 'KSEB connection done'),
+        ('meter_available', task.meter_available, 'Meter available'),
+        ('ae_completed',    task.ae_completed,    'AE completion done'),
+      ] %}
+      {% for name, val, label in checks %}
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer">
+        <input type="checkbox" name="{{ name }}" {% if val %}checked{% endif %} style="width:15px;height:15px"/>
+        {{ label }}
+      </label>
+      {% endfor %}
+    </div>
+
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea name="notes" rows="3">{{ task.notes or '' }}</textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Save KSEB tasks</button>
+  </form>
+</div>
+{% endblock %}

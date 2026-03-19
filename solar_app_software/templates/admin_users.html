@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Users — Admin{% endblock %}
+{% block page_title %}Manage Users{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('new_user') }}" class="btn btn-primary">+ New User</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <table>
+    <thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th></tr></thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td style="font-weight:500">{{ u.full_name }}</td>
+        <td style="font-family:monospace;font-size:12px">{{ u.username }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ u.email }}</td>
+        <td>
+          <span class="badge
+            {% if u.role == 'admin' %}badge-Delayed
+            {% elif u.role == 'coordinator' %}badge-Created
+            {% elif u.role == 'documents' %}badge-InProgress
+            {% elif u.role == 'payments' %}badge-Completed
+            {% elif u.role == 'onsite' %}badge-Loan
+            {% else %}badge-Cash{% endif %}">{{ u.role }}</span>
+        </td>
+        <td>
+          {% if u.is_active %}<span class="badge badge-Completed">Active</span>
+          {% else %}<span class="badge badge-Closed">Inactive</span>{% endif %}
+        </td>
+        <td style="font-size:12px;color:var(--muted)">{{ u.created_at | date_fmt }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

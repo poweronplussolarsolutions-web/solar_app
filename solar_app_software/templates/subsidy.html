@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Subsidy — {{ proj.project_code }}{% endblock %}
+{% block page_title %}Subsidy — {{ proj.project_code }}{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('project_detail', pid=proj.id) }}" class="btn btn-sm">← Project</a>
+{% endblock %}
+{% block content %}
+<div class="card" style="max-width:540px">
+  <form method="POST">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Status</label>
+        <select name="status">
+          {% for s in ['NotStarted','Requested','Processing','Received'] %}
+          <option {% if sub and sub.status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Request date</label>
+        <input type="date" name="request_date" value="{{ sub.request_date if sub and sub.request_date else '' }}"/>
+      </div>
+      <div class="form-group">
+        <label>Expected amount (₹)</label>
+        <input type="number" name="expected_amount" step="1" value="{{ sub.expected_amount if sub else 0 }}"/>
+      </div>
+      <div class="form-group">
+        <label>Received amount (₹)</label>
+        <input type="number" name="received_amount" step="1" value="{{ sub.received_amount if sub else 0 }}"/>
+      </div>
+      <div class="form-group full">
+        <label>Notes</label>
+        <textarea name="notes" rows="3">{{ sub.notes if sub else '' }}</textarea>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Save subsidy record</button>
+  </form>
+</div>
+{% endblock %}
