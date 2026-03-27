@@ -74,218 +74,136 @@
   {% include '_project_table.html' with context %}
 </div>
 
-{# ── COORDINATOR ── #}
 {% elif current_user.role == 'coordinator' %}
-<div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+
+<div class="stats-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
   <div class="stat-card">
     <div class="stat-label">My projects</div>
     <div class="stat-value">{{ data.projects | length }}</div>
   </div>
   <div class="stat-card">
-    <div class="stat-label">Total collected</div>
-    <div class="stat-value" style="color:var(--amber-600)">{{ data.total_collected | inr }}</div>
-    <div class="stat-sub">of {{data.total_value | inr}}</div>
+    <div class="stat-label">Collected</div>
+    <div class="stat-value" style="color:var(--teal-600)">{{ data.total_collected | inr }}</div>
+    <div class="stat-sub">of {{ data.total_value | inr }}</div>
   </div>
   <div class="stat-card">
-    <div class="stat-label">Payment Pending</div>
-    <div class="stat-value" style="color:var(--amber-600)">{{ data.total_pending | inr }}</div>
+    <div class="stat-label">Pending</div>
+    <div class="stat-value" style="color:var(--red-600)">{{ data.total_pending | inr }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-label">Delayed</div>
-    <div class="stat-value" style="color:var(--red-600)">{{ data.delayed }}</div>
+    <div class="stat-value" style="color:var(--amber-600)">{{ data.projects | selectattr('status','eq','Delayed') | list | length }}</div>
+    <div class="stat-sub">needs attention</div>
   </div>
-</div>
-<div class="card">
-  <div class="card-title">My projects</div>
-  {% if data.projects %}
-  <table>
-    <thead>
-      <tr>
-        <th>Project</th>
-        <th>Customer</th>
-        <th>Type</th>
-        <th>Size</th>
-        <th>Stage</th>
-        <th>Assigned to</th>
-        <th>Status</th>
-        <th>Days</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for p in data.projects %}
-      <tr>
-        <td style="font-weight:500">{{ p.project_code }}</td>
-        <td>{{ p.customer.name }}</td>
-        <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
-        <td>{{ p.system_kw }} kW</td>
-        <td style="font-size:12px;color:var(--muted)">{{ p.stage }}</td>
-        <td>
-          {% if p.doc_staff %}
-          <div style="display:flex;align-items:center;gap:6px">
-            <div style="width:22px;height:22px;border-radius:50%;
-                        background:var(--teal-50);color:var(--teal-800);
-                        display:flex;align-items:center;justify-content:center;
-                        font-size:10px;font-weight:500;flex-shrink:0">
-              {{ p.doc_staff.full_name[:1] }}
-            </div>
-            <span style="font-size:12px">{{ p.doc_staff.full_name }}</span>
-          </div>
-          {% else %}
-          <span style="font-size:12px;color:var(--red-600)">Unassigned</span>
-          {% endif %}
-        </td>
-        <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
-        <td style="font-size:12px;color:var(--hint)">{{ p.days_open }}d</td>
-        <td><a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <div style="text-align:center;padding:24px;color:var(--hint)">No projects yet.</div>
-  {% endif %}
-</div>
-{% if data.site_visits %}
-<div class="card">
-  <div class="card-title">Upcoming site visits</div>
-  <table>
-    <thead><tr><th>Project</th><th>Customer</th><th>Date</th><th>Status</th></tr></thead>
-    <tbody>
-      {% for v in data.site_visits %}
-      <tr>
-        <td>{{ v.project.project_code }}</td>
-        <td>{{ v.project.customer.name }}</td>
-        <td>{{ v.scheduled_date | date_fmt }}</td>
-        <td><span class="badge badge-{{ v.status }}">{{ v.status }}</span></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-<div class="card">
-  <div class="card-title">Payment status — my projects</div>
-  {% if data.projects %}
-  <table>
-    <thead>
-      <tr>
-        <th>Project</th>
-        <th>Customer</th>
-        <th>Type</th>
-        <th>Assigned to</th>
-        <th>Collected</th>
-        <th>Total</th>
-        <th>Pending</th>
-        <th>Progress</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for p in data.projects %}
-      <tr>
-        <td>
-          <a href="{{ url_for('project_detail', pid=p.id) }}"
-             style="font-weight:500;color:var(--amber-600)">{{ p.project_code }}</a>
-        </td>
-        <td>{{ p.customer.name }}</td>
-        <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
-        <td>{% if p.doc_staff %}
-          <div style="display:flex;align-items:center;gap:6px">
-            <div style="width:22px;height:22px;border-radius:50%;background:var(--teal-50);
-                        display:flex;align-items:center;justify-content:center;
-                        font-size:10px;font-weight:500;color:var(--teal-800);flex-shrink:0">
-              {{ p.doc_staff.full_name[:1] }}
-            </div>
-            <span style="font-size:12px">{{ p.doc_staff.full_name }}</span>
-          </div>
-          {% else %}
-          <span style="font-size:12px;color:var(--red-600)">Unassigned</span>
-          {% endif %}
-        </td>
-        <td>{{ p.collected_amount | inr }}</td>
-        <td>{{ p.total_amount | inr }}</td>
-        <td style="color:{% if p.pending_amount > 0 %}var(--red-600){% else %}var(--green-600){% endif %}">
-          {{ p.pending_amount | inr }}
-        </td>
-        <td>
-          <div style="display:flex;align-items:center;gap:6px">
-            <div class="progress-wrap" style="width:60px">
-              <div class="progress-bar" style="width:{{ p.payment_pct }}%"></div>
-            </div>
-            <span style="font-size:11px">{{ p.payment_pct }}%</span>
-          </div>
-          </td>
-        <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <div style="text-align:center;padding:24px;color:var(--hint)">No projects yet.</div>
-  {% endif %}
-</div>
-<div class="card">
-  <div class="card-title">Subsidy status — my projects</div>
-  <div class="stats-grid" style="grid-template-columns:1fr 1fr;margin-bottom:16px">
-    <div class="stat-card">
-      <div class="stat-label">Subsidy received</div>
-      <div class="stat-value" style="color:var(--green-600)">{{ data.subsidy_received | inr }}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Subsidy pending</div>
-      <div class="stat-value" style="color:var(--amber-600)">{{ data.subsidy_pending | inr }}</div>
-    </div>
-  </div>
-  {% if data.subsidy_list %}
-  <table>
-    <thead>
-      <tr>
-        <th>Project</th>
-        <th>Customer</th>
-        <th>Requested</th>
-        <th>Expected</th>
-        <th>Received</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for s in data.subsidy_list %}
-      <tr>
-        <td>
-          <a href="{{ url_for('project_detail', pid=s.project_id) }}"
-             style="font-weight:500;color:var(--amber-600)">{{ s.project.project_code }}</a>
-        </td>
-        <td>{{ s.project.customer.name }}</td>
-        <td style="font-size:12px;color:var(--muted)">{{ s.request_date | date_fmt }}</td>
-        <td>{{ s.expected_amount | inr }}</td>
-        <td style="color:{% if s.received_amount > 0 %}var(--green-600){% else %}var(--hint){% endif %}">
-          {{ s.received_amount | inr }}
-        </td>
-        <td>
-          <span class="badge
-            {% if s.status == 'Received' %}badge-Completed
-            {% elif s.status == 'Processing' %}badge-InProgress
-            {% elif s.status == 'Requested' %}badge-Created
-            {% else %}badge-Closed{% endif %}">
-            {{ s.status }}
-          </span>
-        </td>
-      </tr>
-      {% endfor %}
-      </tbody>
-  </table>
-  {% else %}
-  <div style="color:var(--hint);font-size:13px;padding:4px 0">
-    No subsidy records for your projects yet.
-  </div>
-  {% endif %}
 </div>
 
+{# ── NEEDS ATTENTION ── #}
+{% set delayed = data.projects | selectattr('status', 'eq', 'Delayed') | list %}
+{% set unassigned = data.projects | selectattr('doc_staff', 'none') | list %}
+{% if delayed or unassigned %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-title">Needs attention</div>
+  {% for p in delayed %}
+  <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border)">
+    <span style="font-size:11px;font-weight:600;background:var(--red-50);color:var(--red-600);padding:2px 8px;border-radius:20px">Delayed</span>
+    <span style="font-weight:500;font-size:13px">{{ p.project_code }}</span>
+    <span style="font-size:13px;color:var(--muted)">{{ p.customer.name }}</span>
+    <span style="font-size:11px;color:var(--hint);margin-left:auto">{{ p.days_open }}d open</span>
+    <a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a>
+  </div>
+  {% endfor %}
+  {% for p in unassigned %}
+  <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border)">
+    <span style="font-size:11px;font-weight:600;background:var(--amber-50);color:var(--amber-600);padding:2px 8px;border-radius:20px">No docs staff</span>
+    <span style="font-weight:500;font-size:13px">{{ p.project_code }}</span>
+    <span style="font-size:13px;color:var(--muted)">{{ p.customer.name }}</span>
+    <span style="font-size:11px;color:var(--hint);margin-left:auto">{{ p.stage }}</span>
+    <a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── STAGE SUMMARY ── #}
+<div class="two-col" style="margin-bottom:16px">
+  <div class="card">
+    <div class="card-title">Projects by stage</div>
+    {% set stage_order = ['Lead','Site Visit','Documentation','Onsite Work','Connection','Subsidy','Payment'] %}
+    {% for stage in stage_order %}
+      {% set count = data.projects | selectattr('stage', 'eq', stage) | list | length %}
+      {% if count > 0 %}
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:0.5px solid var(--border)">
+        <span style="font-size:13px">{{ stage }}</span>
+        <span style="font-size:13px;font-weight:600">{{ count }}</span>
+      </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Upcoming site visits</div>
+    {% if data.site_visits %}
+    {% for v in data.site_visits %}
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border)">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:500">{{ v.project.project_code }} — {{ v.project.customer.name }}</div>
+        <div style="font-size:11px;color:var(--muted)">{{ v.scheduled_date | date_fmt }}</div>
+      </div>
+      <span class="badge badge-{{ v.status }}">{{ v.status }}</span>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div style="color:var(--hint);font-size:13px;padding:8px 0">No upcoming visits.</div>
+    {% endif %}
+
+    <div class="card-title" style="margin-top:16px">Quick actions</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+      <a href="{{ url_for('projects') }}" class="btn" style="justify-content:center">All projects →</a>
+      <a href="{{ url_for('coordinator_analytics') }}" class="btn" style="justify-content:center">Analytics →</a>
+      <a href="{{ url_for('new_project') }}" class="btn btn-primary" style="justify-content:center">+ New project</a>
+    </div>
+  </div>
+</div>
 
 {# ── DOCUMENTS ── #}
 {% elif current_user.role == 'documents' %}
-
+{# ── ASSIGNMENT NOTIFICATIONS ── #}
+{% if data.notifications %}
+<div style="margin-bottom:16px;display:flex;flex-direction:column;gap:8px">
+  {% for n in data.notifications %}
+  <div style="background:{% if n.notif_type == 'task' %}var(--teal-50){% else %}var(--surface){% endif %};
+              border:0.5px solid {% if n.notif_type == 'task' %}var(--teal-100){% else %}var(--border){% endif %};
+              border-radius:var(--radius-lg);padding:12px 16px;
+              display:flex;align-items:center;gap:12px">
+    <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;
+                background:{% if n.notif_type == 'task' %}var(--teal-600){% else %}var(--muted){% endif %}">
+    </div>
+    <div style="flex:1">
+      <div style="font-size:13px;font-weight:500;color:{% if n.notif_type == 'task' %}var(--teal-800){% else %}var(--fg){% endif %}">
+        {{ n.message }}
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">
+        {{ n.created_at | date_fmt }}
+      </div>
+    </div>
+    <a href="{{ url_for('project_detail', pid=n.project_id) }}" class="btn btn-sm"
+       onclick="markRead({{ n.id }})">
+      Open →
+    </a>
+     <button onclick="markRead({{ n.id }}, this.closest('div[style]'))"
+            style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:0 4px">
+      ×
+    </button>
+  </div>
+  {% endfor %}
+</div>
+<script>
+function markRead(id, el) {
+  fetch('/api/notifications/read/' + id, { method: 'POST' });
+  if (el) el.remove();
+}
+</script>
+{% endif %}
 {% if data.new_count > 0 %}
 <div style="
   background: var(--amber-50); border: 0.5px solid var(--amber-100);

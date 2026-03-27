@@ -1,86 +1,80 @@
 {% extends "base.html" %}
 {% block title %}Analytics — Solar App{% endblock %}
-{% block page_title %}Document & Team Analytics{% endblock %}
+{% block page_title %}Analytics{% endblock %}
 {% block topbar_actions %}
   <a href="{{ url_for('dashboard') }}" class="btn btn-sm">← Dashboard</a>
 {% endblock %}
 
 {% block head %}
 <style>
-  .metric-row {
+  .big-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
     margin-bottom: 24px;
   }
-  .chart-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    margin-bottom: 20px;
-  }
-  .chart-label {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--muted);
-    margin-bottom: 12px;
-  }
-  .staff-card {
+  .big-card {
     background: var(--surface);
     border: 0.5px solid var(--border);
     border-radius: var(--radius-lg);
-    padding: 16px 20px;
-    margin-bottom: 12px;
+    padding: 20px;
   }
-  .staff-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 14px;
-    cursor: pointer;
+  .big-card .label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .big-card .number { font-size: 32px; font-weight: 600; line-height: 1; }
+  .big-card .sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  .chart-sub { font-size: 11px; color: var(--muted); margin-bottom: 16px; }
+  .staff-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0; border-bottom: 0.5px solid var(--border);
   }
-  .staff-info { display: flex; align-items: center; gap: 10px; }
-  .staff-avatar {
+  .staff-row:last-child { border-bottom: none; }
+  .avatar {
     width: 36px; height: 36px; border-radius: 50%;
     background: var(--teal-50); color: var(--teal-800);
     display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 600; flex-shrink: 0;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
   }
-  .staff-stats {
-    display: flex; gap: 16px; flex-wrap: wrap;
+  .staff-name { font-size: 13px; font-weight: 500; }
+  .staff-meta { font-size: 11px; color: var(--muted); }
+  .tag {
+    font-size: 11px; font-weight: 500; padding: 3px 10px;
+    border-radius: 20px; white-space: nowrap;
   }
-  .mini-stat { text-align: center; }
-  .mini-stat .val { font-size: 18px; font-weight: 500; }
-  .mini-stat .lbl { font-size: 10px; color: var(--muted); }
-  .proj-list { display: none; margin-top: 12px; }
-  .proj-list.open { display: block; }
-  .chevron { transition: transform .2s; color: var(--hint); }
-  .chevron.open { transform: rotate(180deg); }
+  .tag-red    { background: var(--red-50);   color: var(--red-600); }
+  .tag-amber  { background: var(--amber-50); color: var(--amber-600); }
+  .tag-green  { background: var(--teal-50);  color: var(--teal-800); }
 </style>
 {% endblock %}
 
 {% block content %}
 
-{# ── SUMMARY METRICS ── #}
-<div class="metric-row">
-  <div class="stat-card">
-    <div class="stat-label">Total projects</div>
-    <div class="stat-value">{{ my_projects | length }}</div>
+{# ── BIG NUMBERS ── #}
+<div class="big-grid">
+  <div class="big-card">
+    <div class="label">My projects</div>
+    <div class="number">{{ my_projects | length }}</div>
+    <div class="sub">all time</div>
   </div>
-  <div class="stat-card">
-    <div class="stat-label">Unassigned</div>
-    <div class="stat-value" style="color:var(--red-600)">{{ unassigned_projects | length }}</div>
-    <div class="stat-sub">No docs staff</div>
+  <div class="big-card">
+    <div class="label">Added this month</div>
+    <div class="number" style="color:var(--teal-600)">{{ this_month_count }}</div>
+    <div class="sub">new projects</div>
   </div>
-  <!-- <div class="stat-card">
-    <div class="stat-label">Docs staff active</div>
-    <div class="stat-value">{{ doc_analytics | length }}</div>
-  </div> -->
-  <div class="stat-card">
-    <div class="stat-label">Completed</div>
-    <div class="stat-value" style="color:var(--green-600)">
+  <div class="big-card">
+    <div class="label">Delayed</div>
+    <div class="number" style="color:var(--red-600)">
+      {{ my_projects | selectattr('status', 'eq', 'Delayed') | list | length }}
+    </div>
+    <div class="sub">needs attention</div>
+  </div>
+  <div class="big-card">
+    <div class="label">Completed</div>
+    <div class="number" style="color:var(--green-600)">
       {{ my_projects | selectattr('status', 'in', ['Completed', 'Closed']) | list | length }}
     </div>
+    <div class="sub">finished projects</div>
   </div>
 </div>
 
@@ -88,170 +82,92 @@
 {% if unassigned_projects %}
 <div style="background:var(--red-50);border:0.5px solid var(--red-100);
             border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:20px;
-            display:flex;align-items:center;gap:12px">
-  <svg width="18" height="18" viewBox="0 0 16 16" fill="none" style="flex-shrink:0">
-    <path d="M8 2a6 6 0 100 12A6 6 0 008 2zm0 3.5v3m0 2v.5"
-          stroke="#a32d2d" stroke-width="1.5" stroke-linecap="round"/>
-  </svg>
-  <span style="font-size:13px;color:var(--red-600);font-weight:500;flex:1">
-    {{ unassigned_projects | length }} project{{ 's' if unassigned_projects | length != 1 }}
-    have no documents staff assigned
+            display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+  <span style="font-size:13px;color:var(--red-600);font-weight:500">
+    ⚠️ These projects have no documents staff assigned:
   </span>
-  <div style="display:flex;gap:6px;flex-wrap:wrap">
-    {% for p in unassigned_projects %}
-    <a href="{{ url_for('project_detail', pid=p.id) }}"
-       style="font-size:11px;font-weight:500;color:var(--red-600);
-              background:var(--surface);border:0.5px solid var(--red-100);
-              padding:3px 10px;border-radius:20px">
-      {{ p.project_code }} — {{ p.customer.name }}
-    </a>
-    {% endfor %}
-  </div>
+  {% for p in unassigned_projects %}
+  <a href="{{ url_for('project_detail', pid=p.id) }}"
+     style="font-size:11px;font-weight:500;color:var(--red-600);
+            background:var(--surface);border:0.5px solid var(--red-100);
+            padding:3px 10px;border-radius:20px">
+    {{ p.project_code }} — {{ p.customer.name }}
+  </a>
+  {% endfor %}
 </div>
 {% endif %}
 
-{# ── CHARTS ── #}
-<div class="chart-grid">
+{# ── TWO CHARTS ── #}
+<div class="two-col">
   <div class="card">
-    <div class="chart-label">Documents completion by staff</div>
-    <canvas id="docStaffChart" height="220"></canvas>
+    <div class="chart-title">New projects each week</div>
+    <div class="chart-sub">How many projects were added in the last 12 weeks</div>
+    <canvas id="weeklyProjects" height="160"></canvas>
   </div>
   <div class="card">
-    <div class="chart-label">Project status by staff</div>
-    <canvas id="staffStatusChart" height="220"></canvas>
+    <div class="chart-title">Money received each month</div>
+    <div class="chart-sub">Payments collected over the last 6 months (in ₹ thousands)</div>
+    <canvas id="monthlyPayments" height="160"></canvas>
   </div>
 </div>
 
+{# ── DOCS STAFF WORKLOAD ── #}
 <div class="card" style="margin-bottom:20px">
-  <div class="chart-label">Projects at each workflow stage</div>
-  <canvas id="stageChart" height="90"></canvas>
-</div>
+  <div class="chart-title" style="margin-bottom:4px">Documents staff — project workload</div>
+  <div class="chart-sub">How many projects each staff member is handling</div>
 
-{# ── PER-STAFF BREAKDOWN ── #}
-<div style="font-size:14px;font-weight:500;margin-bottom:12px">Staff breakdown</div>
-
-{% for a in doc_analytics %}
-<div class="staff-card">
-  <div class="staff-header" data-idx="{{ loop.index }}">
-    <div class="staff-info">
-      <div class="staff-avatar">{{ a.staff.full_name[:2].upper() }}</div>
-      <div>
-        <div style="font-weight:500;font-size:14px">{{ a.staff.full_name }}</div>
-        <div style="font-size:11px;color:var(--muted)">{{ a.staff.username }}</div>
+  {% for a in doc_analytics %}
+  <div class="staff-row">
+    <div class="avatar">{{ a.staff.full_name[:2].upper() }}</div>
+    <div style="flex:1;min-width:0">
+      <div class="staff-name">{{ a.staff.full_name }}</div>
+      <div class="staff-meta">{{ a.assigned }} projects total</div>
+      <div style="margin-top:6px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:3px">
+          <span>Projects completed</span>
+          <span>{{ a.completed }} of {{ a.assigned }}</span>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-bar" style="width:{% if a.assigned > 0 %}{{ (a.completed / a.assigned * 100) | int }}{% else %}0{% endif %}%;
+            background:{% if a.assigned > 0 and a.completed == a.assigned %}var(--teal-100)
+            {% elif a.completed > 0 %}var(--amber-100)
+            {% else %}var(--red-100){% endif %}">
+          </div>
+        </div>
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:20px">
-      <div class="staff-stats">
-        <div class="mini-stat">
-          <div class="val">{{ a.assigned }}</div>
-          <div class="lbl">Assigned</div>
-        </div>
-        <div class="mini-stat">
-          <div class="val" style="color:var(--red-600)">{{ a.not_started }}</div>
-          <div class="lbl">Not started</div>
-        </div>
-        <div class="mini-stat">
-          <div class="val" style="color:var(--amber-600)">{{ a.inprog }}</div>
-          <div class="lbl">In progress</div>
-        </div>
-        <div class="mini-stat">
-          <div class="val" style="color:var(--green-600)">{{ a.completed }}</div>
-          <div class="lbl">Completed</div>
-        </div>
-        <div class="mini-stat">
-          <div class="val">{{ a.doc_pct }}%</div>
-          <div class="lbl">Docs done</div>
-        </div>
-      </div>
-      <svg class="chevron" id="chevron-{{ loop.index }}"
-           viewBox="0 0 10 10" width="16" height="16" fill="none">
-        <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor"
-              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center">
+      {% if a.not_started > 0 %}
+      <span class="tag tag-red">{{ a.not_started }} not started</span>
+      {% endif %}
+      {% if a.inprog > 0 %}
+      <span class="tag tag-amber">{{ a.inprog }} in progress</span>
+      {% endif %}
+      {% if a.completed > 0 %}
+      <span class="tag tag-green">{{ a.completed }} done</span>
+      {% endif %}
     </div>
   </div>
+  {% endfor %}
 
-  {# Doc completion bar #}
-  <div style="margin-bottom:12px">
-    <div style="display:flex;justify-content:space-between;
-                font-size:11px;color:var(--muted);margin-bottom:4px">
-      <span>Document completion</span>
-      <span>{{ a.done_docs }} / {{ a.total_docs }} documents</span>
-    </div>
-    <div class="progress-wrap">
-      <div class="progress-bar" style="width:{{ a.doc_pct }}%;
-        background:{% if a.doc_pct == 100 %}var(--teal-100)
-        {% elif a.doc_pct > 50 %}var(--amber-100)
-        {% else %}var(--red-100){% endif %}">
-      </div>
-    </div>
-  </div>
-
-  {# Expandable project list #}
-  <div class="proj-list" id="proj-list-{{ loop.index }}">
-    {% if a.projects %}
-    <table>
-      <thead>
-        <tr>
-          <th>Project</th>
-          <th>Customer</th>
-          <th>Type</th>
-          <th>Stage</th>
-          <th>Docs</th>
-          <th>Status</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for item in a.project_details %}
-{% set p = item.project %}
-<tr>
-  <td style="font-weight:500">{{ p.project_code }}</td>
-  <td>{{ p.customer.name }}</td>
-  <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
-  <td style="font-size:12px;color:var(--muted)">{{ p.stage }}</td>
-  <td>
-    <div style="display:flex;align-items:center;gap:6px">
-      <div class="progress-wrap" style="width:50px">
-        <div class="progress-bar" style="width:{{ item.doc_pct }}%"></div>
-      </div>
-      <span style="font-size:11px">{{ item.done_docs }}/{{ item.total_docs }}</span>
-    </div>
-  </td>
-  <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
-  <td><a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a></td>
-</tr>
-{% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <div style="color:var(--hint);font-size:13px;padding:8px 0">
-      No projects assigned.
-    </div>
-    {% endif %}
-  </div>
+  {% if not doc_analytics %}
+  <div style="text-align:center;padding:30px;color:var(--hint);font-size:13px">No documents staff found.</div>
+  {% endif %}
 </div>
-{% endfor %}
 
-{% if not doc_analytics %}
-<div class="card" style="text-align:center;padding:40px;color:var(--hint)">
-  No documents staff found.
-</div>
-{% endif %}
-
-{# ── STAGE TABLE ── #}
+{# ── WHERE ARE PROJECTS NOW ── #}
 <div class="card">
-  <div class="chart-label" style="margin-bottom:14px">Stage distribution — all my projects</div>
+  <div class="chart-title" style="margin-bottom:4px">Where are projects right now?</div>
+  <div class="chart-sub" style="margin-bottom:14px">Number of projects at each stage of the process</div>
   <table>
     <thead>
-      <tr><th>Stage</th><th>Projects</th><th>Distribution</th></tr>
+      <tr><th>Stage</th><th>Projects</th><th>Progress bar</th></tr>
     </thead>
     <tbody>
-      {% for s in stage_data %}
-      {% if s.count > 0 %}
+      {% for s in stage_data %}{% if s.count > 0 %}
       <tr>
         <td>{{ s.stage }}</td>
-        <td style="font-weight:500">{{ s.count }}</td>
+        <td style="font-weight:600">{{ s.count }}</td>
         <td style="min-width:200px">
           <div class="progress-wrap">
             <div class="progress-bar"
@@ -260,96 +176,75 @@
           </div>
         </td>
       </tr>
-      {% endif %}
-      {% endfor %}
+      {% endif %}{% endfor %}
     </tbody>
   </table>
 </div>
-<div id="chart-data" data-json='{{ chart_data | tojson }}'' style="display:none"></div>
+
+<div id="chart-data" data-json='{{ chart_data | tojson }}' style="display:none"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-
-  document.querySelectorAll('.staff-header').forEach(function(header) {
-    header.addEventListener('click', function() {
-      var idx     = this.getAttribute('data-idx');
-      var list    = document.getElementById('proj-list-' + idx);
-      var chevron = document.getElementById('chevron-' + idx);
-      if (list)    list.classList.toggle('open');
-      if (chevron) chevron.classList.toggle('open');
-    });
-  });                                              
-
-  var cd          = JSON.parse(document.getElementById('chart-data').getAttribute('data-json'));
-  var isDark      = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  var textColor   = isDark ? '#c2c0b6' : '#6b6b66';
-  var borderColor = isDark ? '#2c2c2a' : '#e4e2da';
+document.addEventListener('DOMContentLoaded', function () {
+  var cd        = JSON.parse(document.getElementById('chart-data').getAttribute('data-json'));
+  var isDark    = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var gridColor = isDark ? '#2c2c2a' : '#e4e2da';
+  var textColor = isDark ? '#c2c0b6' : '#6b6b66';
 
   Chart.defaults.font.family = 'DM Sans, sans-serif';
-  Chart.defaults.font.size   = 12;
+  Chart.defaults.font.size   = 11;
   Chart.defaults.color       = textColor;
 
-  new Chart(document.getElementById('docStaffChart'), {
-    type: 'bar',
+  /* New projects per week */
+  new Chart(document.getElementById('weeklyProjects'), {
+    type: 'line',
     data: {
-      labels: cd.staff_names,
-      datasets: [
-        { label: 'Done',    data: cd.done_docs,    backgroundColor: '#9fe1cb', borderRadius: 4 },
-        { label: 'Pending', data: cd.pending_docs, backgroundColor: '#fac775', borderRadius: 4 }
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { position: 'bottom' } },
-      scales: {
-        x: { stacked: true, grid: { color: borderColor } },
-        y: { stacked: true, grid: { color: borderColor }, ticks: { stepSize: 1 } }
-      }
-    }
-  });
-
-  new Chart(document.getElementById('staffStatusChart'), {
-    type: 'bar',
-    data: {
-      labels: cd.staff_names,
-      datasets: [
-        { label: 'Completed',   data: cd.completed,   backgroundColor: '#9fe1cb', borderRadius: 4 },
-        { label: 'In progress', data: cd.inprog,      backgroundColor: '#fac775', borderRadius: 4 },
-        { label: 'Not started', data: cd.not_started, backgroundColor: '#f7c1c1', borderRadius: 4 }
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { position: 'bottom' } },
-      scales: {
-        x: { stacked: true, grid: { color: borderColor } },
-        y: { stacked: true, grid: { color: borderColor }, ticks: { stepSize: 1 } }
-      }
-    }
-  });
-
-  new Chart(document.getElementById('stageChart'), {
-    type: 'bar',
-    data: {
-      labels: cd.stage_labels,
+      labels: cd.week_labels,
       datasets: [{
-        label: 'Projects',
-        data: cd.stage_counts,
-        backgroundColor: '#b5d4f4',
-        borderRadius: 4
+        label: 'New projects',
+        data: cd.week_projects,
+        borderColor: '#5ec4a8',
+        backgroundColor: 'rgba(94,196,168,0.1)',
+        fill: true, tension: 0.35,
+        pointBackgroundColor: '#5ec4a8', pointRadius: 4
       }]
     },
     options: {
       responsive: true,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid: { color: borderColor } },
-        y: { grid: { color: borderColor }, ticks: { stepSize: 1 } }
+        x: { grid: { color: gridColor } },
+        y: { grid: { color: gridColor }, ticks: { stepSize: 1 }, beginAtZero: true }
       }
     }
   });
 
+  /* Payments per month */
+  new Chart(document.getElementById('monthlyPayments'), {
+    type: 'line',
+    data: {
+      labels: cd.pay_month_labels,
+      datasets: [{
+        label: 'Payments (₹k)',
+        data: cd.pay_month_values,
+        borderColor: '#f5a623',
+        backgroundColor: 'rgba(245,166,35,0.1)',
+        fill: true, tension: 0.35,
+        pointBackgroundColor: '#f5a623', pointRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: gridColor } },
+        y: {
+          grid: { color: gridColor },
+          beginAtZero: true,
+          ticks: { callback: function(v) { return '₹' + v + 'k'; } }
+        }
+      }
+    }
+  });
 });
 </script>
-
 {% endblock %}

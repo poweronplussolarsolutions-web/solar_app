@@ -6,7 +6,7 @@
 <div class="card" style="max-width:720px">
   <form method="POST" action="{{ url_for('new_project') }}">
     <div style="font-size:13px;font-weight:500;margin-bottom:14px;color:var(--muted)">Customer details</div>
-    <div class="form-grid">
+    <!-- <div class="form-grid">
       <div class="form-group full">
         <label>Existing customer</label>
         <select name="customer_id" id="cust_select" onchange="toggleNew(this.value)">
@@ -16,7 +16,7 @@
           {% endfor %}
         </select>
       </div>
-    </div>
+    </div> -->
 
     <div id="new-cust-fields">
       <div class="form-grid">
@@ -86,7 +86,7 @@
       <div class="form-group">
         <label>Documents staff</label>
         <select name="doc_staff_id">
-          <option value="">— Assign later —</option>
+          <option value="">— Assign staff —</option>
           {% for u in doc_staff %}
           <option value="{{ u.id }}">{{ u.full_name }}</option>
           {% endfor %}

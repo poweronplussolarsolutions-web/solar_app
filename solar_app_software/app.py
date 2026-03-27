@@ -50,6 +50,24 @@ DOCUMENT_STAGES = [
         'docs':['Payment Completion','Warranty Card','Final Invoice']
     },
 ]
+PROJECT_STAGES=[
+    'Lead',
+    'Site Visit',
+    'Documentation',
+    'Onsite Work',
+    'Connection',
+    'Subsidy',
+    'Payment',
+]
+STAGE_STATUS_MAP={
+    'Lead':'Created',
+    'Site Visit':'Created',
+    'Documentation':'InProgress',
+    'Onsite Work':'InProgress',
+    'Connection':'InProgress',
+    'Subsidy':'InProgress',
+    'Payment':'InProgress',
+}
 def get_expected_docs(project_type):
     """Return full list of expected document names for a project type."""
     docs = []
@@ -222,11 +240,26 @@ class WorkerAssignment(db.Model):
     start_date  = db.Column(db.Date)
     end_date    = db.Column(db.Date)
     days_worked = db.Column(db.Integer, default=0)
-    amount_paid = db.Column(db.Numeric(10, 2), default=0)
+    work_phase=db.Column(db.Enum('Structure','Installation'),default='Structure')
     status      = db.Column(db.Enum('Assigned','Active','Completed','Paid'), default='Assigned')
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)
-
-
+    payments=db.relationship('WorkerPayment',backref='assignement',lazy=True)
+class WorkerPayment(db.Model):
+    __tablename__ = 'worker_payments'
+    id            = db.Column(db.Integer, primary_key=True)
+    assignment_id = db.Column(db.Integer, db.ForeignKey('worker_assignments.id'), nullable=False)
+    project_id    = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    week_start    = db.Column(db.Date, nullable=False)
+    week_end      = db.Column(db.Date, nullable=False)
+    days_worked   = db.Column(db.Integer, default=0)
+    rate_per_day  = db.Column(db.Numeric(8, 2), default=0)
+    amount        = db.Column(db.Numeric(10, 2), nullable=False)
+    paid_date     = db.Column(db.Date, nullable=False)
+    paid_by       = db.Column(db.Integer, db.ForeignKey('users.id'))
+    notes         = db.Column(db.Text)
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
+    project       = db.relationship('Project', foreign_keys=[project_id])
+    payer         = db.relationship('User', foreign_keys=[paid_by])
 class KSEBTask(db.Model):
     __tablename__ = 'kseb_tasks'
     id              = db.Column(db.Integer, primary_key=True)
@@ -312,6 +345,31 @@ class Material(db.Model):
     notes           = db.Column(db.Text)
     created_at      = db.Column(db.DateTime, default=datetime.utcnow)
 
+class Notification(db.Model):
+    __tablename__ = 'notifications'
+    id         = db.Column(db.Integer, primary_key=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    message    = db.Column(db.String(255), nullable=False)
+    notif_type = db.Column(db.String(80), default='info')   # 'task', 'info', 'warning'
+    is_read    = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user       = db.relationship('User', foreign_keys=[user_id])
+    project    = db.relationship('Project', foreign_keys=[project_id])
+
+class OnsiteProgress(db.Model):
+    __tablename__ = 'onsite_progress'
+    id                    = db.Column(db.Integer, primary_key=True)
+    project_id            = db.Column(db.Integer, db.ForeignKey('projects.id'), unique=True, nullable=False)
+    structure_work_status = db.Column(db.Enum('NotStarted','InProgress','Completed'), default='NotStarted')
+    structure_start_date  = db.Column(db.Date)
+    structure_end_date    = db.Column(db.Date)
+    structure_notes       = db.Column(db.Text)
+    installation_status   = db.Column(db.Enum('NotStarted','InProgress','Completed'), default='NotStarted')
+    installation_notes    = db.Column(db.Text)
+    updated_at            = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by            = db.Column(db.Integer, db.ForeignKey('users.id'))
+    project               = db.relationship('Project', backref=db.backref('onsite_progress', uselist=False))
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
@@ -336,6 +394,17 @@ def roles_required(*roles):
 
 
 def log_action(project_id, action, old_val=None, new_val=None):
+    from datetime import timedelta
+    cutoff=datetime.utcnow() - timedelta(seconds=5)
+    duplicate = ProjectLog.query.filter_by(
+        project_id=project_id,
+        action=action,
+        old_value=str(old_val) if old_val else None,
+        new_value=str(new_val) if new_val else None,
+        done_by=current_user.id,
+    ).filter(ProjectLog.created_at>=cutoff).first()
+    if duplicate:
+        return
     entry = ProjectLog(
         project_id=project_id,
         action=action,
@@ -344,8 +413,18 @@ def log_action(project_id, action, old_val=None, new_val=None):
         done_by=current_user.id
     )
     db.session.add(entry)
-
-
+def create_notification(user_id,project_id,message,notif_type='info'):
+    notif=Notification(
+        user_id = user_id,
+        project_id=project_id,
+        message=message,
+        notif_type=notif_type,
+    )
+    db.session.add(notif)
+def notify_onsite_team(project_id,message,notif_type='task'):
+    onsite_users=User.query.filter_by(role='onsite',is_active=True).all()
+    for user in onsite_users:
+        create_notification(user.id,project_id,message,notif_type)
 def next_project_code():
     last = Project.query.order_by(Project.id.desc()).first()
     num = (last.id + 1) if last else 1
@@ -441,6 +520,10 @@ def dashboard():
             'total_docs': total,
             'doc_pct':   int(done / total * 100) if total > 0 else 0,
         })
+            notifications = Notification.query.filter_by(
+        user_id  = current_user.id,
+        is_read  = False,
+    ).order_by(Notification.created_at.desc()).all()
         data['projects']  = my_projects
         data['projects_with_counts']=projects_with_counts
         data['queue']     = len(data['projects'])
@@ -448,6 +531,7 @@ def dashboard():
         data['new_count']=len(new_projects)
         data['completed_projects']=completed_projects
         data['completed_count']=len(completed_projects)
+        data['notifications']=notifications
 
     elif role == 'payments':
         data['total_collected'] = float(db.session.query(db.func.sum(Payment.amount)).scalar() or 0)
@@ -456,8 +540,17 @@ def dashboard():
         data['projects']        = Project.query.filter(Project.status.notin_(['Closed'])).all()
 
     elif role == 'onsite':
-        data['projects']  = Project.query.filter(Project.status.in_(['InProgress','Delayed'])).all()
+        feasibility_project_ids=db.session.query(Document.project_id).filter(
+            Document.doc_type == 'Feasibility Receipt',
+            Document.status.in_(['Received', 'Completed']),
+        ).subquery()
+        data['projects']  = Project.query.filter(Project.status.in_(['InProgress','Delayed']),Project.id.in_(feasibility_project_ids),).all()
         data['workers']   = Worker.query.filter_by(is_active=True).all()
+        data['tasks'] = Notification.query.filter_by(
+            user_id = current_user.id,
+            notif_type='task',
+            is_read=False,
+        ).order_by(Notification.created_at.desc()).all()
 
     elif role == 'appinstall':
         data['installs']  = AppInstallation.query.filter_by(status='Pending').all()
@@ -476,6 +569,8 @@ def projects():
     status_filter = request.args.get('status', '')
     search        = request.args.get('q', '')
     q = Project.query.join(Customer)
+    if current_user.role=='coordinator':
+        q=q.filter(Project.coordinator_id==current_user.id)
     if status_filter:
         q = q.filter(Project.status == status_filter)
     if search:
@@ -515,7 +610,7 @@ def new_project():
             system_kw      = float(request.form['system_kw']),
             project_type   = request.form['project_type'],
             status         = 'Created',
-            stage          = 'Site Visit Done',
+            stage          = 'Lead',
             total_amount   = float(request.form.get('total_amount', 0)),
             coordinator_id = current_user.id,
             doc_staff_id   = request.form.get('doc_staff_id') or None,
@@ -524,6 +619,13 @@ def new_project():
         db.session.add(proj)
         db.session.flush()
         log_action(proj.id, 'Project created', new_val='Created')
+        if proj.doc_staff_id:
+            create_notification(
+                user_id= proj.doc_staff_id,
+                project_id=proj.id,
+                message=f'You have been assigned to {proj.project_code}-{proj.customer.name}({proj.project_type},{proj.system_kw} kW).',
+                notif_type='task',
+            )
         db.session.commit()
         flash(f'Project {proj.project_code} created successfully!', 'success')
         return redirect(url_for('project_detail', pid=proj.id))
@@ -536,7 +638,7 @@ def new_project():
 @login_required
 def project_detail(pid):
     proj     = Project.query.get_or_404(pid)
-    logs     = ProjectLog.query.filter_by(project_id=pid).order_by(ProjectLog.created_at.desc()).distinct(ProjectLog.id).all()
+    logs     = ProjectLog.query.filter_by(project_id=pid).order_by(ProjectLog.created_at.desc()).all()
     workers  = Worker.query.filter_by(is_active=True).all()
     all_workers = Worker.query.filter_by(is_active=True).all()
     worker_rate = {str(w.id):float(w.rate_per_day or 0) for w in all_workers}
@@ -551,13 +653,55 @@ def update_status(pid):
     new_status = request.form.get('status')
     new_stage  = request.form.get('stage')
     old_status = proj.status
-    if new_status:
-        proj.status = new_status
+    
     if new_stage:
         proj.stage = new_stage
-    log_action(pid, 'Status updated', old_val=old_status, new_val=new_status or proj.status)
+        if not new_status:
+            new_status=STAGE_STATUS_MAP.get(new_stage,proj.status)
+    if new_status:
+        proj.status = new_status
+    log_action(pid, 'Status updated', old_val=old_status, new_val= proj.status)
     db.session.commit()
     flash('Project status updated.', 'success')
+    return redirect(url_for('project_detail', pid=pid))
+@app.route('/projects/<int:pid>/assign_doc_staff', methods=['POST'])
+@login_required
+@roles_required('coordinator')
+def assign_doc_staff(pid):
+    proj         = Project.query.get_or_404(pid)
+    new_staff_id = request.form.get('doc_staff_id')
+
+    if not new_staff_id:
+        flash('Please select a staff member.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+
+    new_staff_id = int(new_staff_id)
+    old_staff    = proj.doc_staff
+
+    # Notify old staff if being replaced
+    if old_staff and old_staff.id != new_staff_id:
+        create_notification(
+            user_id    = old_staff.id,
+            project_id = pid,
+            message    = f'You have been unassigned from {proj.project_code} — {proj.customer.name}.',
+            notif_type = 'info',
+        )
+
+    proj.doc_staff_id = new_staff_id
+    new_staff = User.query.get(new_staff_id)
+
+    create_notification(
+        user_id    = new_staff_id,
+        project_id = pid,
+        message    = f'You have been assigned to {proj.project_code} — {proj.customer.name} ({proj.project_type}, {proj.system_kw} kW).',
+        notif_type = 'task',
+    )
+
+    log_action(pid, 'Doc staff assigned',
+               old_val = old_staff.full_name if old_staff else None,
+               new_val = new_staff.full_name if new_staff else None)
+    db.session.commit()
+    flash(f'{new_staff.full_name} assigned and notified.', 'success')
     return redirect(url_for('project_detail', pid=pid))
 
 @app.route('/coordinator/analytics')
@@ -565,10 +709,20 @@ def update_status(pid):
 @roles_required('coordinator')
 def coordinator_analytics():
     from collections import Counter
-    import json
-    my_projects     = Project.query.filter_by(coordinator_id=current_user.id).all()
-    my_project_ids  = [p.id for p in my_projects]
+    from datetime import timedelta
+    import calendar as cal_module
 
+    today          = date.today()
+    my_projects    = Project.query.filter_by(coordinator_id=current_user.id).all()
+    my_project_ids = [p.id for p in my_projects]
+
+    # Projects created this calendar month
+    this_month_count = sum(
+        1 for p in my_projects
+        if p.created_at.year == today.year and p.created_at.month == today.month
+    )
+
+    # Doc-staff analytics
     doc_staff_users = User.query.filter_by(role='documents', is_active=True).all()
     doc_analytics   = []
     for staff in doc_staff_users:
@@ -578,54 +732,106 @@ def coordinator_analytics():
         not_started = [p for p in assigned if p.status == 'InProgress' and len(p.documents) == 0]
         total_docs  = sum(len(get_expected_docs(p.project_type)) for p in assigned)
         done_docs   = sum(get_doc_completion(p)[0] for p in assigned)
-
-        # ── Build per-project details ──
-        project_details = []
-        for p in assigned:
-            done, total = get_doc_completion(p)
-            project_details.append({
-                'project':    p,
-                'done_docs':  done,
-                'total_docs': total,
-                'doc_pct':    int(done / total * 100) if total > 0 else 0,
-            })
-
         doc_analytics.append({
-            'staff':           staff,
-            'assigned':        len(assigned),
-            'completed':       len(completed),
-            'inprog':          len(inprog),
-            'not_started':     len(not_started),
-            'total_docs':      total_docs,
-            'done_docs':       done_docs,
-            'doc_pct':         int(done_docs / total_docs * 100) if total_docs > 0 else 0,
-            'project_details': project_details,
+            'staff':       staff,
+            'assigned':    len(assigned),
+            'completed':   len(completed),
+            'inprog':      len(inprog),
+            'not_started': len(not_started),
+            'total_docs':  total_docs,
+            'done_docs':   done_docs,
+            'doc_pct':     int(done_docs / total_docs * 100) if total_docs > 0 else 0,
         })
 
     unassigned_projects = [p for p in my_projects if not p.doc_staff_id]
 
-    stage_order  = [
-        'Lead', 'Site Visit', 'Project Confirmation', 'Documentation',
-        'Bank/Feasibility', 'Structure Work', 'Material Delivery',
-        'KSEB Processing', 'Inspection', 'Connection',
-        'Subsidy', 'App Installation', 'Final Payment', 'Warranty Issued'
+    # Stage distribution
+    stage_order = [
+        'Lead', 'Site Visit', 'Documentation',
+        'Onsite Work','Connection','Subsidy','Payment'
     ]
-    stage_counts = Counter(p.stage for p in my_projects)
-    stage_data   = [{'stage': s, 'count': stage_counts.get(s, 0)} for s in stage_order]
+    stage_counts_raw = Counter(p.stage for p in my_projects)
+    stage_data       = [{'stage': s, 'count': stage_counts_raw.get(s, 0)} for s in stage_order]
 
-    total_value     = sum(float(p.total_amount or 0) for p in my_projects)
-    total_collected = sum(float(p.collected_amount or 0) for p in my_projects)
-    subsidy_list    = Subsidy.query.filter(Subsidy.project_id.in_(my_project_ids)).all() if my_project_ids else []
+    # All payments for my projects
+    payments_all = Payment.query.filter(
+        Payment.project_id.in_(my_project_ids)
+    ).all() if my_project_ids else []
+
+    # Weekly data — last 12 weeks
+    week_labels        = []
+    week_projects_data = []
+    week_payments_k    = []
+    for i in range(11, -1, -1):
+        wstart = today - timedelta(weeks=i + 1) + timedelta(days=1)
+        wend   = today - timedelta(weeks=i)
+        week_labels.append(wstart.strftime('%d %b'))
+        week_projects_data.append(sum(
+            1 for p in my_projects
+            if wstart <= p.created_at.date() <= wend
+        ))
+        week_payments_k.append(round(sum(
+            float(p.amount) for p in payments_all
+            if wstart <= p.payment_date <= wend
+        ) / 1000, 1))
+
+    # Daily activity — current month
+    days_in_month     = cal_module.monthrange(today.year, today.month)[1]
+    month_day_labels  = [str(d) for d in range(1, days_in_month + 1)]
+    month_day_projects = [
+        sum(1 for p in my_projects if p.created_at.date() == date(today.year, today.month, d))
+        for d in range(1, days_in_month + 1)
+    ]
+
+    # Payments per month — last 6 months
+    pay_month_labels = []
+    pay_month_values = []
+    for i in range(5, -1, -1):
+        month_date = today.replace(day=1)
+        for _ in range(i):
+            month_date = (month_date - timedelta(days=1)).replace(day=1)
+        pay_month_labels.append(month_date.strftime('%b %Y'))
+        pay_month_values.append(round(sum(
+            float(p.amount) for p in payments_all
+            if p.payment_date.year == month_date.year
+            and p.payment_date.month == month_date.month
+        ) / 1000, 1))
+
+    # Status cumulative trend — weekly
+    trend_inprog    = []
+    trend_completed = []
+    trend_delayed   = []
+    for i in range(11, -1, -1):
+        snap = today - timedelta(weeks=i)
+        trend_inprog.append(sum(
+            1 for p in my_projects
+            if p.status == 'InProgress' and p.created_at.date() <= snap
+        ))
+        trend_completed.append(sum(
+            1 for p in my_projects
+            if p.status in ['Completed', 'Closed'] and p.created_at.date() <= snap
+        ))
+        trend_delayed.append(sum(
+            1 for p in my_projects
+            if p.status == 'Delayed' and p.created_at.date() <= snap
+        ))
 
     chart_data = {
-        'staff_names':  [a['staff'].full_name.split()[0] for a in doc_analytics],
-        'done_docs':    [a['done_docs']                   for a in doc_analytics],
-        'pending_docs': [a['total_docs'] - a['done_docs'] for a in doc_analytics],
-        'completed':    [a['completed']                   for a in doc_analytics],
-        'inprog':       [a['inprog']                      for a in doc_analytics],
-        'not_started':  [a['not_started']                 for a in doc_analytics],
-        'stage_labels': [s['stage'] for s in stage_data if s['count'] > 0],
-        'stage_counts': [s['count'] for s in stage_data if s['count'] > 0],
+        'week_labels':         week_labels,
+        'week_projects':       week_projects_data,
+        'week_payments_k':     week_payments_k,
+        'month_day_labels':    month_day_labels,
+        'month_day_projects':  month_day_projects,
+        'pay_month_labels':    pay_month_labels,
+        'pay_month_values':    pay_month_values,
+        'staff_names':         [a['staff'].full_name.split()[0] for a in doc_analytics],
+        'staff_done':          [a['done_docs']                   for a in doc_analytics],
+        'staff_pending':       [a['total_docs'] - a['done_docs'] for a in doc_analytics],
+        'trend_inprog':        trend_inprog,
+        'trend_completed':     trend_completed,
+        'trend_delayed':       trend_delayed,
+        'stage_labels':        [s['stage'] for s in stage_data if s['count'] > 0],
+        'stage_counts':        [s['count'] for s in stage_data if s['count'] > 0],
     }
 
     return render_template('coordinator_analytics.html',
@@ -633,9 +839,7 @@ def coordinator_analytics():
         doc_analytics       = doc_analytics,
         unassigned_projects = unassigned_projects,
         stage_data          = stage_data,
-        total_value         = total_value,
-        total_collected     = total_collected,
-        subsidy_list        = subsidy_list,
+        this_month_count    = this_month_count,
         chart_data          = chart_data,
     )
 
@@ -707,22 +911,18 @@ def payments_dashboard():
 def documents(pid):
     proj = Project.query.get_or_404(pid)
     if current_user.role == 'documents' and proj.doc_staff_id != current_user.id:
-        flash('This project is not assigned to you.','danger')
+        flash('This project is not assigned to you.', 'danger')
         return redirect(url_for('dashboard'))
+
     if request.method == 'POST':
         doc_type = request.form['doc_type']
         status   = request.form.get('status', 'Pending')
 
-        # Update existing or create new
-        existing = Document.query.filter_by(
-            project_id=pid, doc_type=doc_type
-        ).first()
-
+        existing = Document.query.filter_by(project_id=pid, doc_type=doc_type).first()
         if existing:
             existing.status = status
             if status != 'Pending':
                 existing.received_date = date.today()
-            
             log_action(pid, f'Document updated: {doc_type}', new_val=status)
         else:
             doc = Document(
@@ -735,11 +935,25 @@ def documents(pid):
             db.session.add(doc)
             log_action(pid, f'Document received: {doc_type}', new_val=status)
 
+        # ── Feasibility trigger ──────────────────────────────────────────────
+        if doc_type == 'Feasibility Receipt' and status in ('Received', 'Completed'):
+            already_notified = Notification.query.filter_by(
+                project_id = pid,
+                notif_type = 'task',
+            ).filter(Notification.message.like('%Structure work%')).first()
+            if not already_notified:
+                notify_onsite_team(
+                    project_id = pid,
+                    message    = f'Feasibility done for {proj.project_code} — {proj.customer.name}. Start structure work.',
+                    notif_type = 'task',
+                )
+                log_action(pid, 'Onsite team notified: structure work', new_val='Notified')
+        # ────────────────────────────────────────────────────────────────────
+
         db.session.commit()
         flash(f'{doc_type} — {status}.', 'success')
+
     return render_template('documents.html', proj=proj)
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # KSEB
 # ─────────────────────────────────────────────────────────────────────────────
@@ -784,7 +998,14 @@ def workers():
 @login_required
 @roles_required('admin', 'onsite')
 def assign_worker(pid):
-    
+    if current_user.role=='onsite':
+        feasibility=Document.query.filter_by(
+            project_id=pid,
+            doc_type='Feasibility Receipt',
+        ).filter(Document.status.in_(['Received','Completed'])).first()
+        if not feasibility:
+            flash('Worker assignment is not allowed until the Feasibility Receipt is received','danger')
+            return redirect(url_for('project_detail',pid=pid))
     start=request.form.get('start_date')
     end=request.form.get('end_date')
     days=0
@@ -793,13 +1014,20 @@ def assign_worker(pid):
         d1 = date.fromisoformat(start)
         d2 = date.fromisoformat(end)
         days = max((d2 - d1).days + 1,0)
+    work_phase=request.form.get('work_phase','Structure')
+    if work_phase == 'Installation':
+        progress = Project.query.get_or_404(pid).onsite_progress
+        if not progress or progress.structure_work_status!='Completed':
+            flash('Panel installation workers cannot be assigned until structure work is marked completed.','danger')
+            return redirect(url_for('project_detail',pid=pid))
     wa = WorkerAssignment(
         project_id = pid,
         worker_id  = request.form['worker_id'],
         start_date = date.fromisoformat(start) if start else None,
         end_date = date.fromisoformat(end) if end else None,
         days_worked=days,
-        status     = 'Completed' if (end and end <= str(date.today())) else 'Active' if start else 'Assigned',
+        work_phase=work_phase,
+        status     = 'Assigned',
     )
     db.session.add(wa)
     log_action(pid, f'Worker assigned: ID {request.form["worker_id"]}',new_val=wa.status)
@@ -810,6 +1038,14 @@ def assign_worker(pid):
 @login_required
 @roles_required('admin','onsite')
 def update_assignment(pid,aid):
+    if current_user.role=='onsite':
+        feasibility=Document.query.filter_by(
+            project_id=pid,
+            doc_type='Feasibility Receipt',
+        ).filter(Document.status.in_(['Received','Completed'])).first()
+        if not feasibility:
+            flash('Worker assignment is not allowed until the Feasibility Receipt is received','danger')
+            return redirect(url_for('project_detail',pid=pid))
     wa = WorkerAssignment.query.get_or_404(aid)
     start = request.form.get('start_date')
     end = request.form.get('end_date')
@@ -820,14 +1056,137 @@ def update_assignment(pid,aid):
         wa.end_date=date.fromisoformat(end)
     if start and end:
         wa.days_worked=max((date.fromisoformat(end) - date.fromisoformat(start)).days + 1,0)
+    new_status=request.form.get('status',wa.status)
+    if new_status=='Paid' and wa.status != 'Completed':
+        flash(f'Worker must be marked Completed before payment can be recorded.','danger')
+        return redirect(url_for('project_detail',pid=pid))
     wa.status = request.form.get('status',wa.status)
-    wa.amount_paid=float(request.form.get('amount_paid',wa.amount_paid or 0))
     log_action(pid, f'Worker assignment updated: {wa.worker.name}', new_val=wa.status)
     db.session.commit()
     flash(f'Assignment for {wa.worker.name} updated.', 'success')
     return redirect(url_for('project_detail', pid=pid))
+@app.route('/projects/<int:pid>/worker_payment', methods=['POST'])
+@login_required
+@roles_required('admin', 'onsite', 'payments')
+def add_worker_payment(pid):
+    assignment_id = int(request.form['assignment_id'])
+    wa            = WorkerAssignment.query.get_or_404(assignment_id)
+    days          = int(request.form.get('days_worked') or 0)
+    rate          = float(request.form.get('rate_per_day') or wa.worker.rate_per_day or 0)
+    amount        = float(request.form.get('amount') or (days * rate))
+
+    wp = WorkerPayment(
+        assignment_id = assignment_id,
+        project_id    = pid,
+        week_start    = date.fromisoformat(request.form['week_start']),
+        week_end      = date.fromisoformat(request.form['week_end']),
+        days_worked   = days,
+        rate_per_day  = rate,
+        amount        = amount,
+        paid_date     = date.fromisoformat(request.form['paid_date']),
+        paid_by       = current_user.id,
+        notes         = request.form.get('notes'),
+    )
+    db.session.add(wp)
+    log_action(pid, f'Worker payment: {wa.worker.name} ₹{amount:,.0f}', new_val=str(amount))
+    db.session.commit()
+    flash(f'Payment of ₹{amount:,.0f} recorded for {wa.worker.name}.', 'success')
+    return redirect(url_for('project_detail', pid=pid))
+@app.route('/projects/<int:pid>/onsite_progress', methods=['GET', 'POST'])
+@login_required
+@roles_required('admin', 'onsite')
+def onsite_progress(pid):
+    proj     = Project.query.get_or_404(pid)
+    progress = proj.onsite_progress or OnsiteProgress(project_id=pid)
+
+    if request.method == 'POST':
+        old_structure = progress.structure_work_status
+        progress.structure_work_status = request.form.get('structure_work_status', progress.structure_work_status)
+        progress.structure_notes       = request.form.get('structure_notes', progress.structure_notes)
+        raw_install_status = request.form.get('installation_status', '')
+        if raw_install_status and raw_install_status != 'None':
+            progress.installation_status = raw_install_status
+        elif not progress.installation_status or progress.installation_status == 'None':
+            progress.installation_status = 'NotStarted'
+        progress.installation_notes    = request.form.get('installation_notes', progress.installation_notes)
+        progress.updated_by            = current_user.id
+
+        if request.form.get('structure_start_date'):
+            progress.structure_start_date = date.fromisoformat(request.form['structure_start_date'])
+        if request.form.get('structure_end_date'):
+            progress.structure_end_date = date.fromisoformat(request.form['structure_end_date'])
+
+        if not progress.id:
+            db.session.add(progress)
+
+        log_action(pid, 'Onsite progress updated',
+                   old_val=old_structure,
+                   new_val=progress.structure_work_status)
+        db.session.commit()
+        flash('Onsite progress updated.', 'success')
+
+    return render_template('onsite_progress.html', proj=proj, progress=progress)
+@app.route('/projects/<int:pid>/materials/dispatch/<int:mid>', methods=['POST'])
+@login_required
+@roles_required('admin', 'onsite')
+def dispatch_material(pid, mid):
+    proj     = Project.query.get_or_404(pid)
+    material = Material.query.get_or_404(mid)
+    progress = proj.onsite_progress
+
+    # ── Hard lock ────────────────────────────────────────────────────────────
+    if not progress or progress.structure_work_status != 'Completed':
+        flash(
+            'Materials cannot be dispatched until structure work is marked Completed.',
+            'danger'
+        )
+        return redirect(url_for('project_detail', pid=pid))
+    # ─────────────────────────────────────────────────────────────────────────
+
+    material.dispatch_status = 'Dispatched'
+    material.dispatch_date   = date.today()
+    log_action(pid, f'Material dispatched: {material.item_name}', new_val='Dispatched')
+    db.session.commit()
+    flash(f'{material.item_name} marked as dispatched.', 'success')
+    return redirect(url_for('project_detail', pid=pid))
+@app.route('/projects/<int:pid>/materials/update/<int:mid>', methods=['POST'])
+@login_required
+@roles_required('admin', 'onsite')
+def update_material(pid, mid):
+    material = Material.query.get_or_404(mid)
+    material.dispatch_status = request.form.get('dispatch_status', material.dispatch_status)
+    if material.dispatch_status == 'Dispatched' and not material.dispatch_date:
+        material.dispatch_date = date.today()
+    if material.dispatch_status == 'Delivered':
+        material.received_date = date.fromisoformat(request.form['received_date']) if request.form.get('received_date') else date.today()
+    material.notes = request.form.get('notes', material.notes)
+    log_action(pid, f'Material updated: {material.item_name}', new_val=material.dispatch_status)
+    db.session.commit()
+    flash(f'{material.item_name} updated to {material.dispatch_status}.', 'success')
+    return redirect(url_for('project_detail', pid=pid))
 
 
+@app.route('/projects/<int:pid>/materials/add', methods=['POST'])
+@login_required
+@roles_required('admin', 'onsite')
+def add_material(pid):
+    proj     = Project.query.get_or_404(pid)
+    progress = proj.onsite_progress
+    if not progress or progress.structure_work_status != 'Completed':
+        flash('Materials cannot be added until structure work is marked Completed.', 'danger')
+        return redirect(url_for('onsite_progress', pid=pid))
+    material = Material(
+        project_id      = pid,
+        item_name       = request.form['item_name'],
+        quantity        = float(request.form.get('quantity') or 0),
+        dispatch_status = 'Pending',
+        notes           = request.form.get('notes'),
+    )
+    db.session.add(material)
+    log_action(pid, f'Material added: {material.item_name}', new_val='Pending')
+    db.session.commit()
+    flash(f'{material.item_name} added.', 'success')
+    return redirect(url_for('onsite_progress', pid=pid))
 # ─────────────────────────────────────────────────────────────────────────────
 # SUBSIDY
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1059,7 +1418,39 @@ def api_dashboard_stats():
         'delayed':   Project.query.filter_by(status='Delayed').count(),
         'collected': float(db.session.query(db.func.sum(Payment.amount)).scalar() or 0),
     })
+@app.route('/api/notifications')
+@login_required
+def api_notifications():
+    notifs = Notification.query.filter_by(
+        user_id=current_user.id, is_read=False
+    ).order_by(Notification.created_at.desc()).limit(20).all()
+    return jsonify([{
+        'id':         n.id,
+        'message':    n.message,
+        'type':       n.notif_type,
+        'project_id': n.project_id,
+        'code':       n.project.project_code,
+        'created_at': n.created_at.strftime('%d %b %H:%M'),
+    } for n in notifs])
 
+
+@app.route('/api/notifications/read/<int:nid>', methods=['POST'])
+@login_required
+def mark_notification_read(nid):
+    n = Notification.query.get_or_404(nid)
+    if n.user_id != current_user.id:
+        return jsonify({'error': 'forbidden'}), 403
+    n.is_read = True
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/notifications/read_all', methods=['POST'])
+@login_required
+def mark_all_read():
+    Notification.query.filter_by(user_id=current_user.id, is_read=False).update({'is_read': True})
+    db.session.commit()
+    return jsonify({'ok': True})
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TEMPLATE FILTERS

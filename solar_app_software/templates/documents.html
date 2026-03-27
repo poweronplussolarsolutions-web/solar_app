@@ -133,7 +133,44 @@
     'statuses':['Pending','Completed']
   }
 ] %}
-
+{% set op = proj.onsite_progress %}
+<div class="card mb-4 border-0 bg-light">
+  <div class="card-body">
+    <h6 class="mb-3 text-muted">Onsite progress (read-only)</h6>
+    <div class="d-flex gap-4 flex-wrap">
+      <div>
+        <small class="text-muted d-block">Structure work</small>
+        {% if op and op.structure_work_status == 'Completed' %}
+          <span class="badge bg-success">Completed</span>
+          {% if op.structure_end_date %}<small class="ms-1 text-muted">{{ op.structure_end_date }}</small>{% endif %}
+        {% elif op and op.structure_work_status == 'InProgress' %}
+          <span class="badge bg-warning text-dark">In Progress</span>
+        {% else %}
+          <span class="badge bg-secondary">Not Started</span>
+        {% endif %}
+      </div>
+      <div>
+        <small class="text-muted d-block">Panel installation</small>
+        {% if op and op.installation_status == 'Completed' %}
+          <span class="badge bg-success">Completed</span>
+        {% elif op and op.installation_status == 'InProgress' %}
+          <span class="badge bg-warning text-dark">In Progress</span>
+        {% else %}
+          <span class="badge bg-secondary">Not Started</span>
+        {% endif %}
+      </div>
+      <div>
+        <small class="text-muted d-block">Materials</small>
+        {% set dispatched = proj.materials | selectattr('dispatch_status','eq','Dispatched') | list %}
+        {% set total = proj.materials | list %}
+        <span class="badge bg-info text-dark">{{ dispatched|length }} / {{ total|length }} dispatched</span>
+      </div>
+    </div>
+    {% if op and op.structure_notes %}
+      <p class="mt-2 mb-0 text-muted small"><strong>Notes:</strong> {{ op.structure_notes }}</p>
+    {% endif %}
+  </div>
+</div>
 <div class="timeline">
 {% for stage in stages %}
   {% if stage.condition != 'loan' or proj.project_type == 'Loan' %}

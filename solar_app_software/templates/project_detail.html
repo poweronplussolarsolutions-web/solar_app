@@ -32,27 +32,40 @@
     {% if current_user.role in ['admin','coordinator','documents'] %}
     <div class="card">
       <div class="card-title">Update status</div>
-      <form method="POST" action="{{ url_for('update_status', pid=proj.id) }}">
-        <div class="form-group">
-          <label>Status</label>
-          <select name="status">
-            {% for s in ['Lead','Created','InProgress','Completed','Delayed','Pending','Closed'] %}
-            <option value="{{ s }}" {% if proj.status == s %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Stage</label>
-          <select name="stage">
-            {% for s in ['Lead','Site Visit','Project Confirmation','Documentation','Bank/Feasibility','Structure Work','Material Delivery','KSEB Processing','Inspection','Connection','Subsidy','App Installation','Final Payment','Warranty Issued'] %}
-            <option value="{{ s }}" {% if proj.stage == s %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <button type="submit" class="btn btn-primary btn-sm">Update</button>
-      </form>
+      <form method="POST" action="{{ url_for('update_status', pid=proj.id) }}"
+      style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+<p>Stage: </p>
+  <select name="stage" onchange="syncStatus(this)">
+    {% for s in ['Lead','Site Visit','Documentation','Onsite Work','Connection','Subsidy','Payment'] %}
+    <option value="{{ s }}" {% if proj.stage == s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+<p>Status: </p>
+  <select name="status" id="statusSelect">
+    {% for s in ['Created','InProgress','Delayed','Completed','Closed'] %}
+    <option value="{{ s }}" {% if proj.status == s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+
+  <button type="submit" class="btn btn-primary btn-sm">Update</button>
+</form>
     </div>
     {% endif %}
+    <script>
+const stageStatusMap = {
+  'Lead':          'Created',
+  'Site Visit':    'Created',
+  'Documentation': 'InProgress',
+  'Onsite Work':   'InProgress',
+  'Connection':    'InProgress',
+  'Subsidy':       'InProgress',
+  'Payment':       'InProgress',
+};
+function syncStatus(stageSelect) {
+  const auto = stageStatusMap[stageSelect.value];
+  if (auto) document.getElementById('statusSelect').value = auto;
+}
+</script>
 
     <div class="card" style="margin-top:0">
       <div class="card-title">Payment summary</div>
@@ -248,8 +261,11 @@
 </div>
 
 {# ── WORKER ASSIGNMENTS ── #}
+{# ── WORKER ASSIGNMENTS ── #}
 <div class="card" id="workers">
   <div class="card-title">Worker assignments</div>
+
+  {% set structure_done = proj.onsite_progress and proj.onsite_progress.structure_work_status == 'Completed' %}
 
   {% if proj.assignments %}
   <table>
@@ -257,42 +273,51 @@
       <tr>
         <th>Worker</th>
         <th>Skill</th>
-        <th>Start date</th>
-        <th>End date</th>
+        <th>Phase</th>
+        <th>Start</th>
+        <th>End</th>
         <th>Days</th>
-        <th>Amount paid</th>
         <th>Status</th>
+        <th>Total paid</th>
         <th></th>
       </tr>
     </thead>
     <tbody>
       {% for a in proj.assignments %}
+      {% set total_paid = a.payments | sum(attribute='amount') %}
       <tr>
         <td style="font-weight:500">{{ a.worker.name }}</td>
         <td style="font-size:12px;color:var(--muted)">{{ a.worker.skill }}</td>
+        <td>
+          {% if a.work_phase == 'Installation' %}
+            <span class="badge badge-InProgress">Installation</span>
+          {% else %}
+            <span class="badge badge-Created">Structure</span>
+          {% endif %}
+        </td>
         <td>{{ a.start_date | date_fmt }}</td>
         <td>{{ a.end_date | date_fmt }}</td>
-        <td>
-          {% if a.days_worked %}{{ a.days_worked }} days
-          {% else %}<span style="color:var(--hint)">—</span>{% endif %}
-        </td>
-        <td>
-          {% if a.amount_paid %}{{ a.amount_paid | inr }}
-          {% else %}<span style="color:var(--hint)">—</span>{% endif %}
-        </td>
+        <td>{{ a.days_worked or '—' }}</td>
         <td><span class="badge badge-{{ a.status }}">{{ a.status }}</span></td>
-        <td>
+        <td>{{ total_paid | inr if total_paid else '—' }}</td>
+        <td style="display:flex;gap:6px">
           {% if current_user.role in ['admin','onsite'] %}
-          <button class="btn btn-sm edit-btn" data-aid="{{a.id}}">Edit</button>
+          <button class="btn btn-sm edit-btn" data-aid="{{ a.id }}">Edit</button>
+          {% endif %}
+          {% if current_user.role in ['admin','onsite','payments'] %}
+          <button class="btn btn-sm btn-primary pay-btn" data-aid="{{ a.id }}"
+                  data-name="{{ a.worker.name }}"
+                  data-rate="{{ a.worker.rate_per_day | int }}">Pay</button>
           {% endif %}
         </td>
       </tr>
 
+      {# Edit row #}
       {% if current_user.role in ['admin','onsite'] %}
       <tr id="update-form-{{ a.id }}" style="display:none;background:var(--bg)">
-        <td colspan="8" style="padding:12px 14px">
+        <td colspan="9" style="padding:12px 14px">
           <form method="POST" action="{{ url_for('update_assignment', pid=proj.id, aid=a.id) }}">
-            <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) auto;gap:10px;align-items:flex-end">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
               <div>
                 <label>Start date</label>
                 <input type="date" name="start_date" value="{{ a.start_date or '' }}"/>
@@ -303,18 +328,12 @@
               </div>
               <div>
                 <label>Days worked</label>
-                <input type="number" name="days_worked" min="0"
-                       value="{{ a.days_worked or 0 }}" placeholder="Auto-calculated"/>
-              </div>
-              <div>
-                <label>Amount paid (₹)</label>
-                <input type="number" name="amount_paid" min="0" step="0.01"
-                       value="{{ a.amount_paid or 0 }}"/>
+                <input type="number" name="days_worked" min="0" value="{{ a.days_worked or 0 }}"/>
               </div>
               <div>
                 <label>Status</label>
                 <select name="status">
-                  {% for s in ['Assigned','Completed','Paid'] %}
+                  {% for s in ['Assigned','Active','Completed'] %}
                   <option {% if a.status == s %}selected{% endif %}>{{ s }}</option>
                   {% endfor %}
                 </select>
@@ -322,6 +341,91 @@
               <div>
                 <button type="submit" class="btn btn-primary btn-sm">Save</button>
               </div>
+            </div>
+          </form>
+        </td>
+      </tr>
+      {% endif %}
+
+      {# Weekly payment row #}
+      {% if current_user.role in ['admin','onsite','payments'] %}
+      <tr id="pay-form-{{ a.id }}" style="display:none;background:var(--bg)">
+        <td colspan="9" style="padding:12px 14px">
+
+          {# Payment history for this assignment #}
+          {% if a.payments %}
+          <div style="margin-bottom:12px">
+            <div style="font-size:12px;font-weight:500;margin-bottom:6px;color:var(--muted)">Payment history</div>
+            <table style="font-size:12px;width:100%">
+              <thead>
+                <tr>
+                  <th>Week</th>
+                  <th>Days</th>
+                  <th>Rate/day</th>
+                  <th>Amount</th>
+                  <th>Paid on</th>
+                  <th>By</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for wp in a.payments | sort(attribute='week_start', reverse=True) %}
+                <tr>
+                  <td>{{ wp.week_start | date_fmt }} → {{ wp.week_end | date_fmt }}</td>
+                  <td>{{ wp.days_worked }}</td>
+                  <td>{{ wp.rate_per_day | inr }}</td>
+                  <td style="font-weight:500">{{ wp.amount | inr }}</td>
+                  <td>{{ wp.paid_date | date_fmt }}</td>
+                  <td style="color:var(--hint)">{{ wp.payer.full_name if wp.payer else '—' }}</td>
+                  <td style="color:var(--hint)">{{ wp.notes or '—' }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
+
+          {# New weekly payment form #}
+          <div style="font-size:12px;font-weight:500;margin-bottom:8px;color:var(--muted)">Record weekly payment</div>
+          <form method="POST" action="{{ url_for('add_worker_payment', pid=proj.id) }}">
+            <input type="hidden" name="assignment_id" value="{{ a.id }}"/>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
+              <div>
+                <label>Week start</label>
+                <input type="date" name="week_start" required/>
+              </div>
+              <div>
+                <label>Week end</label>
+                <input type="date" name="week_end" required/>
+              </div>
+             <div>
+                <label>Days worked</label>
+                <input type="number" name="days_worked" min="0" max="7"
+                       id="days-{{ a.id }}" placeholder="0"
+                       class="calc-input" data-aid="{{ a.id }}"/>
+              </div>
+              <div>
+                <label>Rate/day (₹)</label>
+                <input type="number" name="rate_per_day" min="0" step="0.01"
+                       id="rate-{{ a.id }}" value="{{ (a.worker.rate_per_day or 0) | int }}"
+                       class="calc-input" data-aid="{{ a.id }}"/>
+              </div>
+              <div>
+                <label>Amount (₹)</label>
+                <input type="number" name="amount" min="0" step="0.01"
+                       id="amt-{{ a.id }}" placeholder="Auto" required/>
+              </div>
+              <div>
+                <label>Paid date</label>
+                <input type="date" name="paid_date" required/>
+              </div>
+              <div>
+                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+              </div>
+            </div>
+            <div style="margin-top:8px">
+              <label>Notes</label>
+              <input type="text" name="notes" placeholder="Optional" style="width:100%"/>
             </div>
           </form>
         </td>
@@ -342,10 +446,19 @@
       <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
         <div>
           <label>Worker</label>
-          <select name="worker_id" id="worker-select">
+          <select name="worker_id">
             {% for w in all_workers %}
-            <option value="{{ w.id }}" data-rate="{{w.rate_per_day | int}}">{{ w.name }} — {{ w.skill }}</option>
+            <option value="{{ w.id }}">{{ w.name }} — {{ w.skill }}</option>
             {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Phase</label>
+          <select name="work_phase">
+            <option value="Structure">Structure</option>
+            <option value="Installation" {% if not structure_done %}disabled{% endif %}>
+              Installation{% if not structure_done %} (locked){% endif %}
+            </option>
           </select>
         </div>
         <div>
@@ -357,22 +470,23 @@
           <input type="date" name="end_date"/>
         </div>
         <div>
-          <label>Rate/day</label>
-          <input type="text" id="rate-display" disabled
-                 style="background:var(--bg);color:var(--muted);cursor:not-allowed"
-                 placeholder="Auto from worker"/>
-        </div>
-        <div>
-          <button type="submit" class="btn btn-primary btn-sm" style="margin-bottom:1px">
-            Assign
-          </button>
+          <button type="submit" class="btn btn-primary btn-sm" style="margin-bottom:1px">Assign</button>
         </div>
       </div>
+      {% if not structure_done %}
+      <div style="margin-top:8px;font-size:12px;color:var(--hint)">
+        ⚠ Installation phase unlocks once structure work is marked Completed.
+      </div>
+      {% endif %}
     </form>
   </div>
   {% endif %}
 </div>
-
+{% if current_user.role in ['admin', 'onsite'] %}
+<a href="{{ url_for('onsite_progress', pid=proj.id) }}" class="btn btn-outline-warning btn-sm">
+  Onsite Progress
+</a>
+{% endif %}
 {# ── ACTIVITY LOG ── #}
 <div class="card">
   <div class="card-title">Activity log</div>
@@ -408,36 +522,35 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+function calcAmount(aid) {
+  var days = parseFloat(document.getElementById('days-' + aid).value) || 0;
+  var rate = parseFloat(document.getElementById('rate-' + aid).value) || 0;
+  var amt  = document.getElementById('amt-' + aid);
+  if (amt && days > 0 && rate > 0) amt.value = (days * rate).toFixed(2);
+}
 
-  // Handle all Edit buttons
+document.addEventListener('input', function(e) {
+  if (e.target.classList.contains('calc-input')) {
+    calcAmount(e.target.getAttribute('data-aid'));
+  }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.edit-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var aid = this.getAttribute('data-aid');
       var row = document.getElementById('update-form-' + aid);
-      if (row) {
-        row.style.display = (row.style.display === 'none' || row.style.display === '')
-          ? 'table-row'
-          : 'none';
-      }
+      if (row) row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'table-row' : 'none';
     });
   });
 
-  // Auto-fill rate/day from data-rate on option
-  var workerSelect = document.getElementById('worker-select');
-  var rateDisplay  = document.getElementById('rate-display');
-
-  function updateRate() {
-    var selected = workerSelect.options[workerSelect.selectedIndex];
-    var rate     = selected ? selected.getAttribute('data-rate') : null;
-    rateDisplay.value = rate && rate > 0 ? '\u20b9' + rate + '/day' : '\u2014';
-  }
-
-  if (workerSelect && rateDisplay) {
-    workerSelect.addEventListener('change', updateRate);
-    updateRate();
-  }
-
+  document.querySelectorAll('.pay-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var aid = this.getAttribute('data-aid');
+      var row = document.getElementById('pay-form-' + aid);
+      if (row) row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'table-row' : 'none';
+    });
+  });
 });
 </script>
 
