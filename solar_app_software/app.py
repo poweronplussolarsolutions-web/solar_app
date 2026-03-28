@@ -240,7 +240,7 @@ class WorkerAssignment(db.Model):
     start_date  = db.Column(db.Date)
     end_date    = db.Column(db.Date)
     days_worked = db.Column(db.Integer, default=0)
-    work_phase=db.Column(db.Enum('Structure','Installation'),default='Structure')
+    work_phase=db.Column(db.Enum('Structure','Installation','Electrical'),default='Structure')
     status      = db.Column(db.Enum('Assigned','Active','Completed','Paid'), default='Assigned')
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)
     payments=db.relationship('WorkerPayment',backref='assignement',lazy=True)
@@ -366,7 +366,13 @@ class OnsiteProgress(db.Model):
     structure_end_date    = db.Column(db.Date)
     structure_notes       = db.Column(db.Text)
     installation_status   = db.Column(db.Enum('NotStarted','InProgress','Completed'), default='NotStarted')
+    installation_start_date=db.Column(db.Date)
+    installation_end_date=db.Column(db.Date)
     installation_notes    = db.Column(db.Text)
+    electrical_status=db.Column(db.Enum('NotStarted','InProgress','Completed'),default='NotStarted')
+    electrical_start_date=db.Column(db.Date)
+    electrical_end_date=db.Column(db.Date)
+    electrical_notes=db.Column(db.Text)
     updated_at            = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by            = db.Column(db.Integer, db.ForeignKey('users.id'))
     project               = db.relationship('Project', backref=db.backref('onsite_progress', uselist=False))
@@ -1009,16 +1015,20 @@ def assign_worker(pid):
     start=request.form.get('start_date')
     end=request.form.get('end_date')
     days=0
-    if start and end:
-        
+    if start and end:     
         d1 = date.fromisoformat(start)
         d2 = date.fromisoformat(end)
         days = max((d2 - d1).days + 1,0)
     work_phase=request.form.get('work_phase','Structure')
+    progress = Project.query.get_or_404(pid).onsite_progress
     if work_phase == 'Installation':
-        progress = Project.query.get_or_404(pid).onsite_progress
+        
         if not progress or progress.structure_work_status!='Completed':
             flash('Panel installation workers cannot be assigned until structure work is marked completed.','danger')
+            return redirect(url_for('project_detail',pid=pid))
+    if work_phase == 'Electrical':
+        if not progress or progress.structure_work_status !='Completed':
+            flash('Electrical workers cannot be assigned until structure work is marked Completed.','danger')
             return redirect(url_for('project_detail',pid=pid))
     wa = WorkerAssignment(
         project_id = pid,
@@ -1034,36 +1044,42 @@ def assign_worker(pid):
     db.session.commit()
     flash('Worker assigned.', 'success')
     return redirect(url_for('project_detail', pid=pid))
-@app.route('/projects/<int:pid>/update_assignment/<int:aid>',methods=['POST'])
+@app.route('/projects/<int:pid>/update_assignment/<int:aid>', methods=['POST'])
 @login_required
-@roles_required('admin','onsite')
-def update_assignment(pid,aid):
-    if current_user.role=='onsite':
-        feasibility=Document.query.filter_by(
+@roles_required('admin', 'onsite')
+def update_assignment(pid, aid):
+    if current_user.role == 'onsite':
+        feasibility = Document.query.filter_by(
             project_id=pid,
             doc_type='Feasibility Receipt',
-        ).filter(Document.status.in_(['Received','Completed'])).first()
+        ).filter(Document.status.in_(['Received', 'Completed'])).first()
         if not feasibility:
-            flash('Worker assignment is not allowed until the Feasibility Receipt is received','danger')
-            return redirect(url_for('project_detail',pid=pid))
-    wa = WorkerAssignment.query.get_or_404(aid)
-    start = request.form.get('start_date')
-    end = request.form.get('end_date')
+            flash('Worker assignment is not allowed until the Feasibility Receipt is received', 'danger')
+            return redirect(url_for('project_detail', pid=pid))
 
-    if start:
-        wa.start_date=date.fromisoformat(start)
-    if end:
-        wa.end_date=date.fromisoformat(end)
-    if start and end:
-        wa.days_worked=max((date.fromisoformat(end) - date.fromisoformat(start)).days + 1,0)
-    new_status=request.form.get('status',wa.status)
-    if new_status=='Paid' and wa.status != 'Completed':
-        flash(f'Worker must be marked Completed before payment can be recorded.','danger')
-        return redirect(url_for('project_detail',pid=pid))
-    wa.status = request.form.get('status',wa.status)
+    wa = WorkerAssignment.query.get_or_404(aid)
+
+    new_worker_id = request.form.get('worker_id')
+    if new_worker_id:
+        wa.worker_id = int(new_worker_id)
+
+    new_phase = request.form.get('work_phase', wa.work_phase)
+    if new_phase == 'Installation' or new_phase == 'Electrical':
+        progress = Project.query.get_or_404(pid).onsite_progress
+        if not progress or progress.structure_work_status != 'Completed':
+            flash('Installation and Electrical phases require structure work to be Completed.', 'danger')
+            return redirect(url_for('project_detail', pid=pid))
+    wa.work_phase = new_phase
+
+    new_status = request.form.get('status', wa.status)
+    if new_status == 'Paid' and wa.status != 'Completed':
+        flash('Worker must be marked Completed before payment can be recorded.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+    wa.status = new_status
+
     log_action(pid, f'Worker assignment updated: {wa.worker.name}', new_val=wa.status)
     db.session.commit()
-    flash(f'Assignment for {wa.worker.name} updated.', 'success')
+    flash(f'Assignment updated.', 'success')
     return redirect(url_for('project_detail', pid=pid))
 @app.route('/projects/<int:pid>/worker_payment', methods=['POST'])
 @login_required
@@ -1100,28 +1116,86 @@ def onsite_progress(pid):
     progress = proj.onsite_progress or OnsiteProgress(project_id=pid)
 
     if request.method == 'POST':
-        old_structure = progress.structure_work_status
-        progress.structure_work_status = request.form.get('structure_work_status', progress.structure_work_status)
+        new_structure_status  = request.form.get('structure_work_status', progress.structure_work_status)
+        new_install_status    = request.form.get('installation_status', '')
+        new_electrical_status = request.form.get('electrical_status', '')
+
+        # ── Worker guards ────────────────────────────────────────────────────
+        structure_workers = [
+            a for a in proj.assignments
+            if a.work_phase == 'Structure' and a.status != 'Paid'
+        ]
+        installation_workers = [
+            a for a in proj.assignments
+            if a.work_phase == 'Installation' and a.status != 'Paid'
+        ]
+        electrical_workers = [
+            a for a in proj.assignments
+            if a.work_phase == 'Electrical' and a.status != 'Paid'
+        ]
+
+        if new_structure_status in ('InProgress', 'Completed') and not structure_workers:
+            flash('Assign at least one Structure worker before updating structure work status.', 'danger')
+            return redirect(url_for('onsite_progress', pid=pid))
+        if new_install_status in ('InProgress', 'Completed') and not installation_workers:
+            flash('Assign at least one Installation worker before updating panel installation status.', 'danger')
+            return redirect(url_for('onsite_progress', pid=pid))
+        if new_electrical_status in ('InProgress', 'Completed') and not electrical_workers:
+            flash('Assign at least one Electrical worker before updating electrical work status.', 'danger')
+            return redirect(url_for('onsite_progress', pid=pid))
+
+        # ── Capture old values before updating ───────────────────────────────
+        old_structure  = progress.structure_work_status
+        old_install    = progress.installation_status or 'NotStarted'
+        old_electrical = progress.electrical_status   or 'NotStarted'
+
+        # ── Apply updates ────────────────────────────────────────────────────
+        progress.structure_work_status = new_structure_status
         progress.structure_notes       = request.form.get('structure_notes', progress.structure_notes)
-        raw_install_status = request.form.get('installation_status', '')
-        if raw_install_status and raw_install_status != 'None':
-            progress.installation_status = raw_install_status
+
+        if new_install_status and new_install_status != 'None':
+            progress.installation_status = new_install_status
         elif not progress.installation_status or progress.installation_status == 'None':
             progress.installation_status = 'NotStarted'
-        progress.installation_notes    = request.form.get('installation_notes', progress.installation_notes)
-        progress.updated_by            = current_user.id
+        progress.installation_notes = request.form.get('installation_notes', progress.installation_notes)
 
-        if request.form.get('structure_start_date'):
-            progress.structure_start_date = date.fromisoformat(request.form['structure_start_date'])
-        if request.form.get('structure_end_date'):
-            progress.structure_end_date = date.fromisoformat(request.form['structure_end_date'])
+        if new_electrical_status and new_electrical_status != 'None':
+            progress.electrical_status = new_electrical_status
+        elif not progress.electrical_status or progress.electrical_status == 'None':
+            progress.electrical_status = 'NotStarted'
+        progress.electrical_notes = request.form.get('electrical_notes', progress.electrical_notes)
+
+        progress.updated_by = current_user.id
+
+        for field, col in [
+            ('structure_start_date',    'structure_start_date'),
+            ('structure_end_date',      'structure_end_date'),
+            ('installation_start_date', 'installation_start_date'),
+            ('installation_end_date',   'installation_end_date'),
+            ('electrical_start_date',   'electrical_start_date'),
+            ('electrical_end_date',     'electrical_end_date'),
+        ]:
+            val = request.form.get(field)
+            if val:
+                setattr(progress, col, date.fromisoformat(val))
 
         if not progress.id:
             db.session.add(progress)
 
-        log_action(pid, 'Onsite progress updated',
-                   old_val=old_structure,
-                   new_val=progress.structure_work_status)
+        # ── Build meaningful log message ─────────────────────────────────────
+        changes = []
+        if old_structure != progress.structure_work_status:
+            changes.append(f'Structure: {old_structure} → {progress.structure_work_status}')
+        if old_install != progress.installation_status:
+            changes.append(f'Installation: {old_install} → {progress.installation_status}')
+        if old_electrical != progress.electrical_status:
+            changes.append(f'Electrical: {old_electrical} → {progress.electrical_status}')
+
+        if changes:
+            log_action(pid, 'Onsite: ' + ', '.join(changes))
+        else:
+            log_action(pid, 'Onsite dates/notes updated')
+
         db.session.commit()
         flash('Onsite progress updated.', 'success')
 
@@ -1153,17 +1227,25 @@ def dispatch_material(pid, mid):
 @login_required
 @roles_required('admin', 'onsite')
 def update_material(pid, mid):
+    proj = Project.query.get_or_404(pid)
     material = Material.query.get_or_404(mid)
+
+    material.item_name = request.form.get('item_name', material.item_name)
+    material.quantity  = float(request.form.get('quantity') or material.quantity or 0)
+
+    if request.form.get('dispatch_date'):
+        material.dispatch_date = date.fromisoformat(request.form['dispatch_date'])
+
+    # preserve status — passed as hidden field, no change in logic
     material.dispatch_status = request.form.get('dispatch_status', material.dispatch_status)
-    if material.dispatch_status == 'Dispatched' and not material.dispatch_date:
-        material.dispatch_date = date.today()
-    if material.dispatch_status == 'Delivered':
-        material.received_date = date.fromisoformat(request.form['received_date']) if request.form.get('received_date') else date.today()
+    if material.dispatch_status == 'Delivered' and not material.received_date:
+        material.received_date = date.today()
+
     material.notes = request.form.get('notes', material.notes)
     log_action(pid, f'Material updated: {material.item_name}', new_val=material.dispatch_status)
     db.session.commit()
-    flash(f'{material.item_name} updated to {material.dispatch_status}.', 'success')
-    return redirect(url_for('project_detail', pid=pid))
+    flash(f'{material.item_name} updated.', 'success')
+    return redirect(url_for('onsite_progress', pid=pid))
 
 
 @app.route('/projects/<int:pid>/materials/add', methods=['POST'])
@@ -1184,6 +1266,12 @@ def add_material(pid):
     )
     db.session.add(material)
     log_action(pid, f'Material added: {material.item_name}', new_val='Pending')
+    all_delivered=(
+        len(proj.materials)>0 and all(m.dispatch_status == 'Delivered' for m in proj.materials)
+    )
+    if all_delivered:
+        flash('All materials are already delivered. No new materials can be added.','danger')
+        return redirect(url_for('onsite_progress',pid=pid))
     db.session.commit()
     flash(f'{material.item_name} added.', 'success')
     return redirect(url_for('onsite_progress', pid=pid))

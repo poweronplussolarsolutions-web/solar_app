@@ -153,6 +153,7 @@
         <small class="text-muted d-block">Panel installation</small>
         {% if op and op.installation_status == 'Completed' %}
           <span class="badge bg-success">Completed</span>
+          {% if op.installation_end_date %}<small class="ms-1 text-muted">{{ op.installation_end_date }}</small>{% endif %}
         {% elif op and op.installation_status == 'InProgress' %}
           <span class="badge bg-warning text-dark">In Progress</span>
         {% else %}
@@ -160,11 +161,19 @@
         {% endif %}
       </div>
       <div>
-        <small class="text-muted d-block">Materials</small>
-        {% set dispatched = proj.materials | selectattr('dispatch_status','eq','Dispatched') | list %}
-        {% set total = proj.materials | list %}
-        <span class="badge bg-info text-dark">{{ dispatched|length }} / {{ total|length }} dispatched</span>
-      </div>
+  <small class="text-muted d-block">Materials</small>
+  {% set total     = proj.materials | list %}
+  {% set delivered = proj.materials | selectattr('dispatch_status','eq','Delivered') | list %}
+  {% set dispatched = proj.materials | selectattr('dispatch_status','eq','Dispatched') | list %}
+  {% set done      = delivered | length + dispatched | length %}
+  {% if total | length == 0 %}
+    <span class="badge bg-secondary">No materials</span>
+  {% elif delivered | length == total | length %}
+    <span class="badge bg-success">Delivered</span>
+  {% else %}
+    <span class="badge bg-info text-dark">{{ done }} / {{ total | length }} dispatched or delivered</span>
+  {% endif %}
+</div>
     </div>
     {% if op and op.structure_notes %}
       <p class="mt-2 mb-0 text-muted small"><strong>Notes:</strong> {{ op.structure_notes }}</p>

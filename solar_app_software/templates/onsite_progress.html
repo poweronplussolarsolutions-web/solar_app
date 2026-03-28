@@ -130,6 +130,12 @@
   <div class="phase-block done">
     <div class="phase-label">③ Panel installation</div>
     <div class="phase-status"><span class="phase-dot dot-done"></span> Completed</div>
+    {% if progress.installation_start_date %}
+    <div class="phase-meta">
+      {{ progress.installation_start_date | date_fmt }}
+      {% if progress.installation_end_date %} → {{ progress.installation_end_date | date_fmt }}{% endif %}
+    </div>
+    {% endif %}
   </div>
   {% elif progress.installation_status == 'InProgress' %}
   <div class="phase-block active">
@@ -148,7 +154,38 @@
     {% endif %}
   </div>
   {% endif %}
-
+{# ④ Electrical work #}
+  {% if progress.electrical_status == 'Completed' %}
+  <div class="phase-block done">
+    <div class="phase-label">④ Electrical work</div>
+    <div class="phase-status"><span class="phase-dot dot-done"></span> Completed</div>
+    {% if progress.electrical_start_date %}
+    <div class="phase-meta">
+      {{ progress.electrical_start_date | date_fmt }}
+      {% if progress.electrical_end_date %} → {{ progress.electrical_end_date | date_fmt }}{% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% elif progress.electrical_status == 'InProgress' %}
+  <div class="phase-block active">
+    <div class="phase-label">④ Electrical work</div>
+    <div class="phase-status"><span class="phase-dot dot-active"></span> In Progress</div>
+    {% if progress.electrical_start_date %}
+    <div class="phase-meta">Started {{ progress.electrical_start_date | date_fmt }}</div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="phase-block {% if not struct_done %}locked{% endif %}">
+    <div class="phase-label">④ Electrical work</div>
+    <div class="phase-status">
+      <span class="phase-dot dot-pending"></span>
+      {% if struct_done %}Not Started{% else %}Locked{% endif %}
+    </div>
+    {% if not struct_done %}
+    <div class="phase-meta">Requires structure completion</div>
+    {% endif %}
+  </div>
+  {% endif %}
 </div>
 
 {# ══════════════════════════════════════════════════════ #}
@@ -189,6 +226,18 @@
 
   {# ── Edit form (hidden by default) ── #}
   <div id="struct-form" style="display:none">
+   
+{% set struct_workers = proj.assignments | selectattr('work_phase','eq','Structure') | selectattr('status','ne','Paid') | list %}
+{% if not struct_workers %}
+<div class="lock-banner" style="margin-bottom:14px">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+       stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+    <line x1="12" y1="16" x2="12.01" y2="16"/>
+  </svg>
+  No Structure workers assigned. Assign a worker before updating progress.
+</div>
+{% endif %}
     <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
       <div class="form-grid">
         <div class="form-group">
@@ -219,6 +268,12 @@
              value="{{ progress.installation_status if progress.installation_status and progress.installation_status != 'None' else 'NotStarted' }}"/>
       <input type="hidden" name="installation_notes"
              value="{{ progress.installation_notes or '' }}"/>
+      <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
+<input type="hidden" name="installation_end_date"   value="{{ progress.installation_end_date or '' }}"/>
+<input type="hidden" name="electrical_status"       value="{{ progress.electrical_status or 'NotStarted' }}"/>
+<input type="hidden" name="electrical_start_date"   value="{{ progress.electrical_start_date or '' }}"/>
+<input type="hidden" name="electrical_end_date"     value="{{ progress.electrical_end_date or '' }}"/>
+<input type="hidden" name="electrical_notes"        value="{{ progress.electrical_notes or '' }}"/>
       <div style="display:flex;gap:8px;margin-top:14px">
         <button type="submit" class="btn btn-primary btn-sm">Save</button>
         <button type="button" class="btn btn-sm" id="struct-cancel-btn">Cancel</button>
@@ -256,8 +311,14 @@
     </div>
     <input type="hidden" name="installation_status"
            value="{{ progress.installation_status if progress.installation_status and progress.installation_status != 'None' else 'NotStarted' }}"/>
+    <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
+    <input type="hidden" name="installation_end_date"   value="{{ progress.installation_end_date or '' }}"/>
     <input type="hidden" name="installation_notes"
            value="{{ progress.installation_notes or '' }}"/>
+    <input type="hidden" name="electrical_status"     value="{{ progress.electrical_status or 'NotStarted' }}"/>
+    <input type="hidden" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
+    <input type="hidden" name="electrical_end_date"   value="{{ progress.electrical_end_date or '' }}"/>
+    <input type="hidden" name="electrical_notes"      value="{{ progress.electrical_notes or '' }}"/>
     <div style="margin-top:14px">
       <button type="submit" class="btn btn-primary btn-sm">Save structure</button>
     </div>
@@ -306,47 +367,50 @@
     <div><span class="badge badge-{{ m.dispatch_status }}">{{ m.dispatch_status }}</span></div>
     <div>
       {% if struct_done %}
+      {% if all_delivered %}
         {% if m.dispatch_status == 'Delivered' %}
           <button class="btn btn-sm mat-edit-btn" data-mid="{{ m.id }}">Edit</button>
+          {% endif %}
         {% else %}
+          {% if m.dispatch_status == 'Delivered' %}
+          <button class="btn btn-sm mat-edit-btn" data-mid="{{m.id}}">Edit</button>
+          {% else %}
           <button class="btn btn-sm mat-edit-btn" data-mid="{{ m.id }}">Update</button>
         {% endif %}
+      {% endif %}
       {% endif %}
     </div>
   </div>
 
   {# ── Edit / update form row ── #}
-  {% if struct_done %}
-  <div id="mat-form-{{ m.id }}"
-       style="display:none;padding:12px 0 14px;border-bottom:0.5px solid var(--border)">
-    <form method="POST" action="{{ url_for('update_material', pid=proj.id, mid=m.id) }}">
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:10px;align-items:flex-end">
-        <div>
-          <label>Status</label>
-          <select name="dispatch_status">
-            {% for s in ['Pending','Dispatched','Delivered'] %}
-            <option value="{{ s }}" {% if m.dispatch_status == s %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label>Received date</label>
-          <input type="date" name="received_date" value="{{ m.received_date or '' }}"/>
-        </div>
-        <div>
-          <label>Notes</label>
-          <input type="text" name="notes" value="{{ m.notes or '' }}" placeholder="Optional"/>
-        </div>
-        <div>
-          <button type="submit" class="btn btn-primary btn-sm">Save</button>
-        </div>
-        <div>
-          <button type="button" class="btn btn-sm mat-cancel-btn" data-mid="{{ m.id }}">Cancel</button>
-        </div>
+{% if struct_done %}
+<div id="mat-form-{{ m.id }}"
+     style="display:none;padding:12px 0 14px;border-bottom:0.5px solid var(--border)">
+  <form method="POST" action="{{ url_for('update_material', pid=proj.id, mid=m.id) }}">
+    <input type="hidden" name="dispatch_status" value="{{ m.dispatch_status }}"/>
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto auto;gap:10px;align-items:flex-end">
+      <div>
+        <label>Item name</label>
+        <input type="text" name="item_name" value="{{ m.item_name }}"/>
       </div>
-    </form>
-  </div>
-  {% endif %}
+      <div>
+        <label>Quantity</label>
+        <input type="number" name="quantity" min="0" step="0.01" value="{{ m.quantity or '' }}"/>
+      </div>
+      <div>
+        <label>Dispatch date</label>
+        <input type="date" name="dispatch_date" value="{{ m.dispatch_date or '' }}"/>
+      </div>
+      <div>
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+      </div>
+      <div>
+        <button type="button" class="btn btn-sm mat-cancel-btn" data-mid="{{ m.id }}">Cancel</button>
+      </div>
+    </div>
+  </form>
+</div>
+{% endif %}
 
   {% endfor %}
   {% else %}
@@ -354,9 +418,10 @@
   {% endif %}
 
 {# Add material #}
+  {# Add material #}
   {% if current_user.role in ['admin','onsite'] %}
   <div style="margin-top:16px;border-top:0.5px solid var(--border);padding-top:14px">
-    {% if struct_done %}
+    {% if struct_done and not all_delivered %}
       <div style="font-size:13px;font-weight:500;margin-bottom:10px">Add material</div>
       <form method="POST" action="{{ url_for('add_material', pid=proj.id) }}">
         <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:flex-end">
@@ -373,6 +438,15 @@
           </div>
         </div>
       </form>
+    {% elif struct_done and all_delivered %}
+      <div class="lock-banner">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <rect x="3" y="11" width="18" height="11" rx="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        All materials have been delivered. Dispatch is closed.
+      </div>
     {% else %}
       <div class="lock-banner">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
@@ -387,7 +461,6 @@
   </div>
   {% endif %}
 </div>
-
 {# ══════════════════════════════════════════════════════ #}
 {# ③ PANEL INSTALLATION                                   #}
 {# ══════════════════════════════════════════════════════ #}
@@ -407,7 +480,7 @@
       <rect x="3" y="11" width="18" height="11" rx="2"/>
       <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
     </svg>
-    Locked until structure work is marked <strong style="margin-left:2px">Completed</strong>.
+    Locked until materials dispatch is marked <strong style="margin-left:2px">Completed</strong>.
   </div>
 
   {% elif progress.installation_status == 'Completed' %}
@@ -418,6 +491,14 @@
         <td style="color:var(--muted);width:120px;padding:5px 0">Status</td>
         <td><span class="badge badge-Completed">Completed</span></td>
       </tr>
+      <tr>
+      <td style="color:var(--muted);padding:5px 0">Start date</td>
+      <td>{{ progress.installation_start_date | date_fmt }}</td>
+    </tr>
+    <tr>
+      <td style="color:var(--muted);padding:5px 0">End date</td>
+      <td>{{ progress.installation_end_date | date_fmt }}</td>
+    </tr>
       {% if progress.installation_notes %}
       <tr>
         <td style="color:var(--muted);padding:5px 0">Notes</td>
@@ -426,7 +507,17 @@
       {% endif %}
     </table>
   </div>
-
+{% set install_workers = proj.assignments | selectattr('work_phase','eq','Installation') | selectattr('status','ne','Paid') | list %}
+{% if struct_done and not install_workers %}
+<div class="lock-banner" style="margin-bottom:14px">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+       stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+    <line x1="12" y1="16" x2="12.01" y2="16"/>
+  </svg>
+  No Installation workers assigned. Assign a worker before updating installation status.
+</div>
+{% endif %}
   {# Edit form (hidden by default) #}
   <div id="install-form" style="display:none">
     <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
@@ -439,6 +530,16 @@
             {% endfor %}
           </select>
         </div>
+        <div class="form-group">
+  <label>Start date</label>
+  <input type="date" name="installation_start_date"
+         value="{{ progress.installation_start_date or '' }}"/>
+</div>
+<div class="form-group">
+  <label>End date</label>
+  <input type="date" name="installation_end_date"
+         value="{{ progress.installation_end_date or '' }}"/>
+</div>
         <div class="form-group full">
           <label>Notes</label>
           <textarea name="installation_notes" rows="2"
@@ -449,6 +550,10 @@
       <input type="hidden" name="structure_start_date"  value="{{ progress.structure_start_date or '' }}"/>
       <input type="hidden" name="structure_end_date"    value="{{ progress.structure_end_date or '' }}"/>
       <input type="hidden" name="structure_notes"       value="{{ progress.structure_notes or '' }}"/>
+      <input type="hidden" name="electrical_status"     value="{{ progress.electrical_status or 'NotStarted' }}"/>
+      <input type="hidden" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
+      <input type="hidden" name="electrical_end_date"   value="{{ progress.electrical_end_date or '' }}"/>
+      <input type="hidden" name="electrical_notes"      value="{{ progress.electrical_notes or '' }}"/>
       <div style="display:flex;gap:8px;margin-top:14px">
         <button type="submit" class="btn btn-primary btn-sm">Save</button>
         <button type="button" class="btn btn-sm" id="install-cancel-btn">Cancel</button>
@@ -478,6 +583,12 @@
     <input type="hidden" name="structure_start_date"  value="{{ progress.structure_start_date or '' }}"/>
     <input type="hidden" name="structure_end_date"    value="{{ progress.structure_end_date or '' }}"/>
     <input type="hidden" name="structure_notes"       value="{{ progress.structure_notes or '' }}"/>
+    <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
+    <input type="hidden" name="installation_end_date"   value="{{ progress.installation_end_date or '' }}"/>
+    <input type="hidden" name="electrical_status"       value="{{ progress.electrical_status or 'NotStarted' }}"/>
+    <input type="hidden" name="electrical_start_date"   value="{{ progress.electrical_start_date or '' }}"/>
+    <input type="hidden" name="electrical_end_date"     value="{{ progress.electrical_end_date or '' }}"/>
+    <input type="hidden" name="electrical_notes"        value="{{ progress.electrical_notes or '' }}"/>
     <div style="margin-top:14px">
       <button type="submit" class="btn btn-primary btn-sm">Save installation</button>
     </div>
@@ -485,18 +596,178 @@
   {% endif %}
 
 </div>
+{# ══════════════════════════════════════════════════════ #}
+{# ④ ELECTRICAL WORK                                      #}
+{# ══════════════════════════════════════════════════════ #}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--border)">
+    <div class="section-label" style="margin:0;padding:0;border:none">④ Electrical work</div>
+    {% if progress.electrical_status == 'Completed' %}
+      <button class="btn btn-sm" id="elec-edit-btn">Edit</button>
+    {% endif %}
+  </div>
+
+  {% if not struct_done %}
+  <div class="lock-banner">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <rect x="3" y="11" width="18" height="11" rx="2"/>
+      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+    </svg>
+    Locked until structure work is marked <strong style="margin-left:2px">Completed</strong>.
+  </div>
+
+  {% elif progress.electrical_status == 'Completed' %}
+  {# Read-only view #}
+  <div id="elec-view">
+    <table style="font-size:13px;width:100%">
+      <tr>
+        <td style="color:var(--muted);width:120px;padding:5px 0">Status</td>
+        <td><span class="badge badge-Completed">Completed</span></td>
+      </tr>
+      <tr>
+        <td style="color:var(--muted);padding:5px 0">Start date</td>
+        <td>{{ progress.electrical_start_date | date_fmt }}</td>
+      </tr>
+      <tr>
+        <td style="color:var(--muted);padding:5px 0">End date</td>
+        <td>{{ progress.electrical_end_date | date_fmt }}</td>
+      </tr>
+      {% if progress.electrical_notes %}
+      <tr>
+        <td style="color:var(--muted);padding:5px 0">Notes</td>
+        <td style="font-size:12px">{{ progress.electrical_notes }}</td>
+      </tr>
+      {% endif %}
+    </table>
+  </div>
+
+  {% set elec_workers = proj.assignments | selectattr('work_phase','eq','Electrical') | selectattr('status','ne','Paid') | list %}
+  {% if not elec_workers %}
+  <div class="lock-banner" style="margin-top:12px">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    No Electrical workers assigned. Assign a worker before updating.
+  </div>
+  {% endif %}
+
+  {# Edit form (hidden) #}
+  <div id="elec-form" style="display:none">
+    <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Status</label>
+          <select name="electrical_status">
+            {% for s in ['NotStarted','InProgress','Completed'] %}
+            <option value="{{ s }}" {% if progress.electrical_status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Start date</label>
+          <input type="date" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
+        </div>
+        <div class="form-group">
+          <label>End date</label>
+          <input type="date" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
+        </div>
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea name="electrical_notes" rows="2" placeholder="Optional notes">{{ progress.electrical_notes or '' }}</textarea>
+        </div>
+      </div>
+      <input type="hidden" name="structure_work_status"   value="{{ progress.structure_work_status or 'NotStarted' }}"/>
+      <input type="hidden" name="structure_start_date"    value="{{ progress.structure_start_date or '' }}"/>
+      <input type="hidden" name="structure_end_date"      value="{{ progress.structure_end_date or '' }}"/>
+      <input type="hidden" name="structure_notes"         value="{{ progress.structure_notes or '' }}"/>
+      <input type="hidden" name="installation_status"     value="{{ progress.installation_status or 'NotStarted' }}"/>
+      <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
+      <input type="hidden" name="installation_end_date"   value="{{ progress.installation_end_date or '' }}"/>
+      <input type="hidden" name="installation_notes"      value="{{ progress.installation_notes or '' }}"/>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        <button type="button" class="btn btn-sm" id="elec-cancel-btn">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  {% else %}
+  {# Active form #}
+  {% set elec_workers = proj.assignments | selectattr('work_phase','eq','Electrical') | selectattr('status','ne','Paid') | list %}
+  {% if not elec_workers %}
+  <div class="lock-banner" style="margin-bottom:14px">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    No Electrical workers assigned. Assign a worker before updating.
+  </div>
+  {% endif %}
+  <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Status</label>
+        <select name="electrical_status">
+          {% for s in ['NotStarted','InProgress','Completed'] %}
+          <option value="{{ s }}" {% if progress.electrical_status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Start date</label>
+        <input type="date" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
+      </div>
+      <div class="form-group">
+        <label>End date</label>
+        <input type="date" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
+      </div>
+      <div class="form-group full">
+        <label>Notes</label>
+        <textarea name="electrical_notes" rows="2" placeholder="Optional notes">{{ progress.electrical_notes or '' }}</textarea>
+      </div>
+    </div>
+    <input type="hidden" name="structure_work_status"   value="{{ progress.structure_work_status or 'NotStarted' }}"/>
+    <input type="hidden" name="structure_start_date"    value="{{ progress.structure_start_date or '' }}"/>
+    <input type="hidden" name="structure_end_date"      value="{{ progress.structure_end_date or '' }}"/>
+    <input type="hidden" name="structure_notes"         value="{{ progress.structure_notes or '' }}"/>
+    <input type="hidden" name="installation_status"     value="{{ progress.installation_status or 'NotStarted' }}"/>
+    <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
+    <input type="hidden" name="installation_end_date"   value="{{ progress.installation_end_date or '' }}"/>
+    <input type="hidden" name="installation_notes"      value="{{ progress.installation_notes or '' }}"/>
+    
+    <div style="margin-top:14px">
+      <button type="submit" class="btn btn-primary btn-sm">Save electrical</button>
+    </div>
+  </form>
+  {% endif %}
+</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
 
   // Material toggle
   document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('mat-toggle-btn')) {
-      var mid = e.target.getAttribute('data-mid');
-      var el  = document.getElementById('mat-form-' + mid);
-      if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
-    }
-  });
+  if (e.target.classList.contains('mat-edit-btn')) {
+    var mid  = e.target.getAttribute('data-mid');
+    var form = document.getElementById('mat-form-' + mid);
+    var view = document.getElementById('mat-view-' + mid);
+    if (form) form.style.display = 'block';
+    if (view) view.style.display = 'none';
+  }
+});
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('mat-cancel-btn')) {
+    var mid  = e.target.getAttribute('data-mid');
+    var form = document.getElementById('mat-form-' + mid);
+    var view = document.getElementById('mat-view-' + mid);
+    if (form) form.style.display = 'none';
+    if (view) view.style.display = 'grid';
+  }
+});
 
   // Structure edit/cancel
   var structEditBtn   = document.getElementById('struct-edit-btn');
@@ -537,7 +808,25 @@ document.addEventListener('DOMContentLoaded', function() {
       installEditBtn.style.display = 'inline-block';
     });
   }
-
+// Electrical edit/cancel
+  var elecEditBtn   = document.getElementById('elec-edit-btn');
+  var elecCancelBtn = document.getElementById('elec-cancel-btn');
+  var elecView      = document.getElementById('elec-view');
+  var elecForm      = document.getElementById('elec-form');
+  if (elecEditBtn) {
+    elecEditBtn.addEventListener('click', function() {
+      elecView.style.display = 'none';
+      elecForm.style.display = 'block';
+      elecEditBtn.style.display = 'none';
+    });
+  }
+  if (elecCancelBtn) {
+    elecCancelBtn.addEventListener('click', function() {
+      elecForm.style.display = 'none';
+      elecView.style.display = 'block';
+      elecEditBtn.style.display = 'inline-block';
+    });
+  }
 });
 </script>
 

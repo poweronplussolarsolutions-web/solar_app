@@ -29,7 +29,7 @@
   </div>
 
   <div>
-    {% if current_user.role in ['admin','coordinator','documents'] %}
+    {% if current_user.role in ['admin','coordinator','documents','onsite'] %}
     <div class="card">
       <div class="card-title">Update status</div>
       <form method="POST" action="{{ url_for('update_status', pid=proj.id) }}"
@@ -93,6 +93,11 @@ function syncStatus(stageSelect) {
          (current_user.role == 'documents' and proj.doc_staff_id == current_user.id) %}
     <a href="{{ url_for('documents', pid=proj.id) }}" class="btn btn-sm">Doc Timeline</a>
     {% endif %}
+    {% if current_user.role in ['admin', 'onsite'] %}
+<a href="{{ url_for('onsite_progress', pid=proj.id) }}" class="btn btn-outline-warning btn-sm">
+  Onsite Progress
+</a>
+{% endif %}
   </div>
 </div>
 
@@ -259,13 +264,79 @@ function syncStatus(stageSelect) {
   </div>
   {% endif %}
 </div>
+{# ── ONSITE PROGRESS SUMMARY ── #}
+{% if proj.onsite_progress %}
+{% set op = proj.onsite_progress %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div class="card-title" style="margin:0">Onsite progress</div>
+    {% if current_user.role in ['admin','onsite'] %}
+    <a href="{{ url_for('onsite_progress', pid=proj.id) }}" class="btn btn-sm">Update →</a>
+    {% endif %}
+  </div>
+  <table style="font-size:13px;width:100%">
+    <thead>
+      <tr>
+        <th style="text-align:left;color:var(--muted);font-weight:600;padding-bottom:8px;font-size:11px">Phase</th>
+        <th style="text-align:left;color:var(--muted);font-weight:600;padding-bottom:8px;font-size:11px">Status</th>
+        <th style="text-align:left;color:var(--muted);font-weight:600;padding-bottom:8px;font-size:11px">Start</th>
+        <th style="text-align:left;color:var(--muted);font-weight:600;padding-bottom:8px;font-size:11px">End</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="padding:5px 0">① Structure</td>
+        <td><span class="badge badge-{{ op.structure_work_status }}">{{ op.structure_work_status }}</span></td>
+        <td style="color:var(--muted)">{{ op.structure_start_date | date_fmt }}</td>
+        <td style="color:var(--muted)">{{ op.structure_end_date | date_fmt }}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0">② Materials</td>
+        <td>
+          {% set total     = proj.materials | list %}
+          {% set delivered = proj.materials | selectattr('dispatch_status','eq','Delivered') | list %}
+          {% if total | length == 0 %}
+            <span class="badge badge-Created">None added</span>
+          {% elif delivered | length == total | length %}
+            <span class="badge badge-Completed">All delivered</span>
+          {% else %}
+            <span class="badge badge-InProgress">{{ delivered | length }}/{{ total | length }} delivered</span>
+          {% endif %}
+        </td>
+        <td style="color:var(--muted);font-size:12px">
+    {% set first_dispatch = proj.materials | selectattr('dispatch_date') | sort(attribute='dispatch_date') | first %}
+    {{ first_dispatch.dispatch_date | date_fmt if first_dispatch else '—' }}
+  </td>
+        <td style="color:var(--hint);font-size:12px">—</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0">③ Installation</td>
+        <td><span class="badge badge-{{ op.installation_status }}">{{ op.installation_status }}</span></td>
+        <td style="color:var(--muted)">{{ op.installation_start_date | date_fmt }}</td>
+        <td style="color:var(--muted)">{{ op.installation_end_date | date_fmt }}</td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0">④ Electrical</td>
+        <td><span class="badge badge-{{ op.electrical_status }}">{{ op.electrical_status }}</span></td>
+        <td style="color:var(--muted)">{{ op.electrical_start_date | date_fmt }}</td>
+        <td style="color:var(--muted)">{{ op.electrical_end_date | date_fmt }}</td>
+      </tr>
+      
+    </tbody>
+  </table>
+</div>
+{% endif %}
 
-{# ── WORKER ASSIGNMENTS ── #}
 {# ── WORKER ASSIGNMENTS ── #}
 <div class="card" id="workers">
   <div class="card-title">Worker assignments</div>
 
   {% set structure_done = proj.onsite_progress and proj.onsite_progress.structure_work_status == 'Completed' %}
+  {% set all_phases_assigned = (
+      proj.assignments | selectattr('work_phase','eq','Structure')    | list | length > 0 and
+      proj.assignments | selectattr('work_phase','eq','Installation') | list | length > 0 and
+      proj.assignments | selectattr('work_phase','eq','Electrical')   | list | length > 0
+  ) %}
 
   {% if proj.assignments %}
   <table>
@@ -274,162 +345,79 @@ function syncStatus(stageSelect) {
         <th>Worker</th>
         <th>Skill</th>
         <th>Phase</th>
-        <th>Start</th>
-        <th>End</th>
-        <th>Days</th>
+        
         <th>Status</th>
-        <th>Total paid</th>
-        <th></th>
+        {% if current_user.role in ['admin','onsite'] %}<th></th>{% endif %}
       </tr>
     </thead>
     <tbody>
       {% for a in proj.assignments %}
-      {% set total_paid = a.payments | sum(attribute='amount') %}
       <tr>
         <td style="font-weight:500">{{ a.worker.name }}</td>
         <td style="font-size:12px;color:var(--muted)">{{ a.worker.skill }}</td>
         <td>
           {% if a.work_phase == 'Installation' %}
             <span class="badge badge-InProgress">Installation</span>
+          {% elif a.work_phase == 'Electrical' %}
+            <span class="badge badge-Delayed">Electrical</span>
           {% else %}
             <span class="badge badge-Created">Structure</span>
           {% endif %}
         </td>
-        <td>{{ a.start_date | date_fmt }}</td>
-        <td>{{ a.end_date | date_fmt }}</td>
-        <td>{{ a.days_worked or '—' }}</td>
+        
         <td><span class="badge badge-{{ a.status }}">{{ a.status }}</span></td>
-        <td>{{ total_paid | inr if total_paid else '—' }}</td>
-        <td style="display:flex;gap:6px">
-          {% if current_user.role in ['admin','onsite'] %}
+        {% if current_user.role in ['admin','onsite'] %}
+        <td>
           <button class="btn btn-sm edit-btn" data-aid="{{ a.id }}">Edit</button>
-          {% endif %}
-          {% if current_user.role in ['admin','onsite','payments'] %}
-          <button class="btn btn-sm btn-primary pay-btn" data-aid="{{ a.id }}"
-                  data-name="{{ a.worker.name }}"
-                  data-rate="{{ a.worker.rate_per_day | int }}">Pay</button>
-          {% endif %}
         </td>
+        {% endif %}
       </tr>
 
-      {# Edit row #}
       {% if current_user.role in ['admin','onsite'] %}
       <tr id="update-form-{{ a.id }}" style="display:none;background:var(--bg)">
-        <td colspan="9" style="padding:12px 14px">
-          <form method="POST" action="{{ url_for('update_assignment', pid=proj.id, aid=a.id) }}">
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
-              <div>
-                <label>Start date</label>
-                <input type="date" name="start_date" value="{{ a.start_date or '' }}"/>
-              </div>
-              <div>
-                <label>End date</label>
-                <input type="date" name="end_date" value="{{ a.end_date or '' }}"/>
-              </div>
-              <div>
-                <label>Days worked</label>
-                <input type="number" name="days_worked" min="0" value="{{ a.days_worked or 0 }}"/>
-              </div>
-              <div>
-                <label>Status</label>
-                <select name="status">
-                  {% for s in ['Assigned','Active','Completed'] %}
-                  <option {% if a.status == s %}selected{% endif %}>{{ s }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div>
-                <button type="submit" class="btn btn-primary btn-sm">Save</button>
-              </div>
-            </div>
-          </form>
-        </td>
-      </tr>
-      {% endif %}
-
-      {# Weekly payment row #}
-      {% if current_user.role in ['admin','onsite','payments'] %}
-      <tr id="pay-form-{{ a.id }}" style="display:none;background:var(--bg)">
-        <td colspan="9" style="padding:12px 14px">
-
-          {# Payment history for this assignment #}
-          {% if a.payments %}
-          <div style="margin-bottom:12px">
-            <div style="font-size:12px;font-weight:500;margin-bottom:6px;color:var(--muted)">Payment history</div>
-            <table style="font-size:12px;width:100%">
-              <thead>
-                <tr>
-                  <th>Week</th>
-                  <th>Days</th>
-                  <th>Rate/day</th>
-                  <th>Amount</th>
-                  <th>Paid on</th>
-                  <th>By</th>
-                  <th>Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for wp in a.payments | sort(attribute='week_start', reverse=True) %}
-                <tr>
-                  <td>{{ wp.week_start | date_fmt }} → {{ wp.week_end | date_fmt }}</td>
-                  <td>{{ wp.days_worked }}</td>
-                  <td>{{ wp.rate_per_day | inr }}</td>
-                  <td style="font-weight:500">{{ wp.amount | inr }}</td>
-                  <td>{{ wp.paid_date | date_fmt }}</td>
-                  <td style="color:var(--hint)">{{ wp.payer.full_name if wp.payer else '—' }}</td>
-                  <td style="color:var(--hint)">{{ wp.notes or '—' }}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          {% endif %}
-
-          {# New weekly payment form #}
-          <div style="font-size:12px;font-weight:500;margin-bottom:8px;color:var(--muted)">Record weekly payment</div>
-          <form method="POST" action="{{ url_for('add_worker_payment', pid=proj.id) }}">
-            <input type="hidden" name="assignment_id" value="{{ a.id }}"/>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
-              <div>
-                <label>Week start</label>
-                <input type="date" name="week_start" required/>
-              </div>
-              <div>
-                <label>Week end</label>
-                <input type="date" name="week_end" required/>
-              </div>
-             <div>
-                <label>Days worked</label>
-                <input type="number" name="days_worked" min="0" max="7"
-                       id="days-{{ a.id }}" placeholder="0"
-                       class="calc-input" data-aid="{{ a.id }}"/>
-              </div>
-              <div>
-                <label>Rate/day (₹)</label>
-                <input type="number" name="rate_per_day" min="0" step="0.01"
-                       id="rate-{{ a.id }}" value="{{ (a.worker.rate_per_day or 0) | int }}"
-                       class="calc-input" data-aid="{{ a.id }}"/>
-              </div>
-              <div>
-                <label>Amount (₹)</label>
-                <input type="number" name="amount" min="0" step="0.01"
-                       id="amt-{{ a.id }}" placeholder="Auto" required/>
-              </div>
-              <div>
-                <label>Paid date</label>
-                <input type="date" name="paid_date" required/>
-              </div>
-              <div>
-                <button type="submit" class="btn btn-primary btn-sm">Save</button>
-              </div>
-            </div>
-            <div style="margin-top:8px">
-              <label>Notes</label>
-              <input type="text" name="notes" placeholder="Optional" style="width:100%"/>
-            </div>
-          </form>
-        </td>
-      </tr>
+  <td colspan="5" style="padding:12px 14px">
+    <form method="POST" action="{{ url_for('update_assignment', pid=proj.id, aid=a.id) }}">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
+        <div>
+          <label>Worker</label>
+          <select name="worker_id">
+            {% for w in all_workers %}
+            <option value="{{ w.id }}" {% if a.worker_id == w.id %}selected{% endif %}>
+              {{ w.name }} — {{ w.skill }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Phase</label>
+          <select name="work_phase">
+            <option value="Structure" {% if a.work_phase == 'Structure' %}selected{% endif %}>Structure</option>
+            <option value="Installation" {% if a.work_phase == 'Installation' %}selected{% endif %}
+                    {% if not structure_done %}disabled{% endif %}>
+              Installation{% if not structure_done %} (locked){% endif %}
+            </option>
+            <option value="Electrical" {% if a.work_phase == 'Electrical' %}selected{% endif %}
+                    {% if not structure_done %}disabled{% endif %}>
+              Electrical{% if not structure_done %} (locked){% endif %}
+            </option>
+          </select>
+        </div>
+        <div>
+          <label>Status</label>
+          <select name="status">
+            {% for s in ['Assigned','Active','Completed'] %}
+            <option {% if a.status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="display:flex;gap:6px;align-items:flex-end">
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          <button type="button" class="btn btn-sm edit-btn" data-aid="{{ a.id }}">Cancel</button>
+        </div>
+      </div>
+    </form>
+  </td>
+</tr>
       {% endif %}
 
       {% endfor %}
@@ -441,6 +429,16 @@ function syncStatus(stageSelect) {
 
   {% if current_user.role in ['admin','onsite'] %}
   <div style="margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
+    {% if all_phases_assigned %}
+    <div class="lock-banner" style="margin-bottom:0">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <rect x="3" y="11" width="18" height="11" rx="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      All three phases have workers assigned — Structure, Installation, and Electrical.
+    </div>
+    {% else %}
     <div style="font-size:13px;font-weight:500;margin-bottom:10px">Assign worker</div>
     <form method="POST" action="{{ url_for('assign_worker', pid=proj.id) }}">
       <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
@@ -459,15 +457,10 @@ function syncStatus(stageSelect) {
             <option value="Installation" {% if not structure_done %}disabled{% endif %}>
               Installation{% if not structure_done %} (locked){% endif %}
             </option>
+            <option value="Electrical" {% if not structure_done %}disabled{% endif %}>
+              Electrical{% if not structure_done %} (locked){% endif %}
+            </option>
           </select>
-        </div>
-        <div>
-          <label>Start date</label>
-          <input type="date" name="start_date"/>
-        </div>
-        <div>
-          <label>End date</label>
-          <input type="date" name="end_date"/>
         </div>
         <div>
           <button type="submit" class="btn btn-primary btn-sm" style="margin-bottom:1px">Assign</button>
@@ -475,18 +468,15 @@ function syncStatus(stageSelect) {
       </div>
       {% if not structure_done %}
       <div style="margin-top:8px;font-size:12px;color:var(--hint)">
-        ⚠ Installation phase unlocks once structure work is marked Completed.
+        ⚠ Installation and Electrical phases unlock once structure work is marked Completed.
       </div>
       {% endif %}
     </form>
+    {% endif %}
   </div>
   {% endif %}
 </div>
-{% if current_user.role in ['admin', 'onsite'] %}
-<a href="{{ url_for('onsite_progress', pid=proj.id) }}" class="btn btn-outline-warning btn-sm">
-  Onsite Progress
-</a>
-{% endif %}
+
 {# ── ACTIVITY LOG ── #}
 <div class="card">
   <div class="card-title">Activity log</div>
@@ -494,7 +484,7 @@ function syncStatus(stageSelect) {
   {% if logs %}
   <div style="display:flex;flex-direction:column;gap:0">
     {% for log in logs %}
-      {% set key = log.action ~ '|' ~ log.created_at|string %}
+      {% set key = log.action ~ '|' ~ (log.old_value or '') ~ '|' ~ (log.new_value or '') ~ '|' ~ (log.created_at | date_fmt) %}
       {% if key not in seen %}
         {% if seen.append(key) %}{% endif %}
         <div style="display:flex;gap:12px;padding:8px 0;border-bottom:0.5px solid var(--border)">
@@ -503,7 +493,7 @@ function syncStatus(stageSelect) {
           </div>
           <div style="flex:1">
             <span style="font-size:13px">{{ log.action }}</span>
-            {% if log.old_value and log.new_value %}
+            {% if log.old_value and log.new_value and log.old_value != log.new_value %}
             <span style="font-size:11px;color:var(--muted);margin-left:6px">
               {{ log.old_value }} → {{ log.new_value }}
             </span>
@@ -522,32 +512,11 @@ function syncStatus(stageSelect) {
 </div>
 
 <script>
-function calcAmount(aid) {
-  var days = parseFloat(document.getElementById('days-' + aid).value) || 0;
-  var rate = parseFloat(document.getElementById('rate-' + aid).value) || 0;
-  var amt  = document.getElementById('amt-' + aid);
-  if (amt && days > 0 && rate > 0) amt.value = (days * rate).toFixed(2);
-}
-
-document.addEventListener('input', function(e) {
-  if (e.target.classList.contains('calc-input')) {
-    calcAmount(e.target.getAttribute('data-aid'));
-  }
-});
-
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.edit-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var aid = this.getAttribute('data-aid');
       var row = document.getElementById('update-form-' + aid);
-      if (row) row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'table-row' : 'none';
-    });
-  });
-
-  document.querySelectorAll('.pay-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var aid = this.getAttribute('data-aid');
-      var row = document.getElementById('pay-form-' + aid);
       if (row) row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'table-row' : 'none';
     });
   });

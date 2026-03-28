@@ -1,11 +1,23 @@
 {% extends "base.html" %}
 {% block title %}Workers — Solar App{% endblock %}
 {% block page_title %}Workers{% endblock %}
+
 {% block content %}
+
+{# ── WORKER LIST ── #}
 <div class="card">
   <div class="card-title">On-site workers</div>
   <table>
-    <thead><tr><th>Name</th><th>Phone</th><th>Skill</th><th>Rate/day</th><th>Active assignments</th><th>Status</th></tr></thead>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Phone</th>
+        <th>Skill</th>
+        <th>Rate/day</th>
+        <th>Active assignments</th>
+        <th>Status</th>
+      </tr>
+    </thead>
     <tbody>
       {% for w in workers %}
       <tr>
@@ -13,16 +25,30 @@
         <td>{{ w.phone or '—' }}</td>
         <td><span class="tag">{{ w.skill or '—' }}</span></td>
         <td>{{ w.rate_per_day | inr }}</td>
-        <td>
-          {% set active = w.assignments | selectattr('status', 'in', ['Assigned','Active']) | list %}
-          {% if active %}
-            {% for a in active %}
-            <span class="tag" style="margin-right:3px">{{ a.project.project_code }}</span>
-            {% endfor %}
-          {% else %}
-            <span style="color:var(--hint);font-size:12px">—</span>
-          {% endif %}
-        </td>
+       <td>
+  {% set active = [] %}
+  {% for a in w.assignments %}
+    {% if a.status in ['Assigned', 'Active'] %}
+      {% set progress = a.project.onsite_progress %}
+      {% set work_done = progress and
+           progress.structure_work_status == 'Completed' and
+           progress.installation_status == 'Completed' %}
+      {% if not work_done %}
+        {% if active.append(a) %}{% endif %}
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+  {% if active %}
+    {% for a in active %}
+    <span class="tag" style="margin-right:3px">
+      {{ a.project.project_code }}
+      <span style="font-size:11px;color:var(--hint)"> · {{ a.work_phase }}</span>
+    </span>
+    {% endfor %}
+  {% else %}
+    <span class="badge badge-Completed" style="font-size:11px">Free</span>
+  {% endif %}
+</td>
         <td>
           {% if w.is_active %}
           <span class="badge badge-Completed">Active</span>
@@ -35,4 +61,142 @@
     </tbody>
   </table>
 </div>
+
+{# ── WEEKLY WORK LOG & PAYMENTS ── #}
+{% for w in workers %}
+{% set open_assignments = w.assignments | selectattr('status','in',['Assigned','Active','Completed']) | list %}
+{% if open_assignments %}
+<div class="card">
+  <div class="card-title" style="margin-bottom:16px">
+    {{ w.name }}
+    <span style="font-weight:400;font-size:13px;color:var(--muted);margin-left:8px">{{ w.skill }}</span>
+    <span style="font-weight:400;font-size:12px;color:var(--hint);margin-left:8px">{{ w.rate_per_day | inr }}/day</span>
+  </div>
+
+  {% for a in open_assignments %}
+  <div style="border:0.5px solid var(--border);border-radius:var(--radius);margin-bottom:16px;overflow:hidden">
+
+    {# Assignment header #}
+    <div style="background:var(--bg);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:13px;font-weight:500">{{ a.project.project_code }}</span>
+        <span style="font-size:12px;color:var(--muted)">{{ a.project.customer.name }}</span>
+        {% if a.work_phase == 'Installation' %}
+          <span class="badge badge-InProgress">Installation</span>
+        {% elif a.work_phase == 'Electrical' %}
+        <span class="badge badge-Delayed">Electrical</span>
+        {% else %}
+          <span class="badge badge-Created">Structure</span>
+        {% endif %}
+        <span class="badge badge-{{ a.status }}">{{ a.status }}</span>
+      </div>
+      <div style="font-size:12px;color:var(--hint)">
+        {{ a.start_date | date_fmt }} → {{ a.end_date | date_fmt }}
+        · {{ a.days_worked or 0 }} days assigned
+      </div>
+    </div>
+
+    {# Payment history #}
+    {% if a.payments %}
+    <div style="padding:12px 14px;border-bottom:0.5px solid var(--border)">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);margin-bottom:8px">Payment history</div>
+      <table style="font-size:12px;width:100%">
+        <thead>
+          <tr>
+            <th>Week</th>
+            <th>Days</th>
+            <th>Rate/day</th>
+            <th>Amount</th>
+            <th>Paid on</th>
+            <th>By</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for wp in a.payments | sort(attribute='week_start', reverse=True) %}
+          <tr>
+            <td>{{ wp.week_start | date_fmt }} → {{ wp.week_end | date_fmt }}</td>
+            <td>{{ wp.days_worked }}</td>
+            <td>{{ wp.rate_per_day | inr }}</td>
+            <td style="font-weight:500">{{ wp.amount | inr }}</td>
+            <td>{{ wp.paid_date | date_fmt }}</td>
+            <td style="color:var(--hint)">{{ wp.payer.full_name if wp.payer else '—' }}</td>
+            <td style="color:var(--hint)">{{ wp.notes or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div style="margin-top:8px;font-size:13px;font-weight:500;text-align:right">
+        Total paid: <span style="color:var(--green-600)">{{ a.payments | sum(attribute='amount') | inr }}</span>
+      </div>
+    </div>
+    {% endif %}
+
+    {# Weekly payment form #}
+    {% if current_user.role in ['admin','onsite','payments'] %}
+    <div style="padding:12px 14px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);margin-bottom:10px">Record weekly payment</div>
+      <form method="POST" action="{{ url_for('add_worker_payment', pid=a.project_id) }}">
+        <input type="hidden" name="assignment_id" value="{{ a.id }}"/>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
+          <div>
+            <label>Week start</label>
+            <input type="date" name="week_start" required/>
+          </div>
+          <div>
+            <label>Week end</label>
+            <input type="date" name="week_end" required/>
+          </div>
+          <div>
+            <label>Days worked</label>
+            <input type="number" name="days_worked" min="0" max="7" placeholder="0"
+                   id="days-{{ a.id }}" class="calc-input" data-aid="{{ a.id }}"/>
+          </div>
+          <div>
+            <label>Rate/day (₹)</label>
+            <input type="number" name="rate_per_day" min="0" step="0.01"
+                   id="rate-{{ a.id }}" class="calc-input" data-aid="{{ a.id }}"
+                   value="{{ (a.worker.rate_per_day or 0) | int }}"/>
+          </div>
+          <div>
+            <label>Amount (₹)</label>
+            <input type="number" name="amount" min="0" step="0.01"
+                   id="amt-{{ a.id }}" placeholder="Auto" required/>
+          </div>
+          <div>
+            <label>Paid date</label>
+            <input type="date" name="paid_date" required/>
+          </div>
+          <div>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          </div>
+        </div>
+        <div style="margin-top:8px">
+          <label>Notes</label>
+          <input type="text" name="notes" placeholder="Optional" style="width:100%"/>
+        </div>
+      </form>
+    </div>
+    {% endif %}
+
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endfor %}
+
+<script>
+function calcAmount(aid) {
+  var days = parseFloat(document.getElementById('days-' + aid).value) || 0;
+  var rate = parseFloat(document.getElementById('rate-' + aid).value) || 0;
+  var amt  = document.getElementById('amt-' + aid);
+  if (amt && days > 0 && rate > 0) amt.value = (days * rate).toFixed(2);
+}
+document.addEventListener('input', function(e) {
+  if (e.target.classList.contains('calc-input')) {
+    calcAmount(e.target.getAttribute('data-aid'));
+  }
+});
+</script>
+
 {% endblock %}
