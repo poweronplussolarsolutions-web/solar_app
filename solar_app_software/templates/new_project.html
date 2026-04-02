@@ -71,10 +71,17 @@
         </select>
       </div>
       <div class="form-group">
+  <label>Project subtype</label>
+  <select name="project_subtype">
+    <option value="DCR">DCR (with subsidy)</option>
+    <option value="Non-DCR">Non-DCR (no subsidy)</option>
+  </select>
+</div>
+      <div class="form-group">
         <label>Total contract amount (₹)</label>
         <input name="total_amount" type="number" step="1" min="0" placeholder="0"/>
       </div>
-      <div class="form-group"></div>
+      
       <div class="form-group">
         <label>Coordinator</label>
         <input type="text" value="{{ current_user.full_name }}" disabled

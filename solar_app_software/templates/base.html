@@ -205,6 +205,8 @@
     .badge-Pending    { background: var(--coral-50);  color: var(--coral-800); }
     .badge-Loan       { background: var(--purple-50); color: var(--purple-800); }
     .badge-Cash       { background: var(--teal-50);   color: var(--teal-800); }
+    .badge-OnHold    { background: #fef3c7; color: #92400e; }
+    .badge-Cancelled { background: #fee2e2; color: #991b1b; }
 
     .alert { padding: 10px 16px; border-radius: var(--radius); margin-bottom: 16px; font-size: 13px; }
     .alert-success { background: var(--green-50); color: var(--green-800); border: 0.5px solid var(--green-100); }
@@ -385,22 +387,32 @@
         const list  = document.getElementById('notifList');
         if (!count || !list) return;
 
-        if (data.length === 0) {
+        const unreadCount = data.filter(n => !n.is_read).length;
+
+        if (unreadCount === 0) {
           count.style.display = 'none';
-          list.innerHTML = '<div class="notif-empty">No new notifications</div>';
-          return;
+        } else {
+          count.style.display = 'flex';
+          count.textContent   = unreadCount > 99 ? '99+' : unreadCount;
         }
 
-        count.style.display = 'flex';
-        count.textContent   = data.length > 99 ? '99+' : data.length;
-
+        if (data.length === 0) {
+          list.innerHTML = '<div class="notif-empty">No notifications</div>';
+          return;
+        }
         list.innerHTML = data.map(n => `
-          <div class="notif-item" onclick="openNotif(${n.id}, ${n.project_id})">
+          <div class="notif-item" onclick="openNotif(${n.id}, ${n.project_id})"
+               style="${n.is_read
+                 ? 'opacity:0.5; background:var(--bg);'
+                 : 'background:var(--surface);'}">
             <div class="notif-item-top">
+              ${!n.is_read
+                ? '<span style="width:7px;height:7px;border-radius:50%;background:var(--red-600);display:inline-block;flex-shrink:0"></span>'
+                : '<span style="width:7px;height:7px;display:inline-block;flex-shrink:0"></span>'}
               <span class="notif-tag notif-tag-${n.type}">${n.type}</span>
               <span class="notif-code">${n.code}</span>
             </div>
-            <div class="notif-msg">${n.message}</div>
+            <div class="notif-msg" style="${n.is_read ? '' : 'color:var(--text);font-weight:500'}">${n.message}</div>
             <div class="notif-time">${n.created_at}</div>
           </div>`).join('');
       })

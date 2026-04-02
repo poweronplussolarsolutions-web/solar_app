@@ -79,7 +79,7 @@
 {# ── PROJECTS & PAYMENTS OVER TIME ── #}
 <div class="card" style="margin-bottom:20px">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-    <div class="chart-label" style="margin:0">Projects created & payments received</div>
+    <div class="chart-label" style="margin:0">Projects created</div>
     <div class="period-tabs">
       <button class="period-tab active" data-period="weekly">Weekly</button>
       <button class="period-tab" data-period="monthly">Monthly</button>
@@ -168,7 +168,60 @@
     </tbody>
   </table>
 </div>
+{# ── DOCS STAFF PERFORMANCE CHART ── #}
+<div class="card" style="margin-bottom:20px">
+  <div class="chart-label">Document completion by staff</div>
+  <canvas id="docStaffChart" height="100"></canvas>
+</div>
 
+{# ── DOCS STAFF TABLE ── #}
+<div class="card">
+  <div class="chart-label" style="margin-bottom:14px">Docs staff performance summary</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Staff</th>
+        <th>Assigned</th>
+        <th>Completed</th>
+        <th>In progress</th>
+        <th>Not started</th>
+        
+        <th>Completion rate</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in doc_staff_stats %}
+      <tr>
+        <td style="font-weight:500">{{ s.name }}</td>
+        <td>{{ s.assigned }}</td>
+        <td style="color:var(--green-600)">{{ s.completed }}</td>
+        <td style="color:var(--blue-600)">{{ s.inprog }}</td>
+        <td style="color:{% if s.not_started > 0 %}var(--red-600){% else %}var(--hint){% endif %}">
+          {{ s.not_started }}
+        </td>
+        
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="progress-wrap" style="width:80px">
+              <div class="progress-bar"
+                   style="width:{{ s.doc_pct }}%">
+              </div>
+            </div>
+            <span style="font-size:12px">{{ s.doc_pct }}%</span>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      {% if not doc_staff_stats %}
+      <tr>
+        <td colspan="7" style="text-align:center;color:var(--hint);padding:24px">
+          No docs staff found.
+        </td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
 <div id="chart-data" data-json='{{ chart_data | tojson }}'' style="display:none"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -333,7 +386,37 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-});
+
+  // ── Docs staff chart ──
+  new Chart(document.getElementById('docStaffChart'), {
+    type: 'bar',
+    data: {
+      labels: cd.staff_names,
+      datasets: [
+        {
+          label: 'Docs done',
+          data: cd.staff_done,
+          backgroundColor: '#b5d4f4',
+          borderRadius: 4,
+        },
+        {
+          label: 'Docs pending',
+          data: cd.staff_pending,
+          backgroundColor: '#f7c1c1',
+          borderRadius: 4,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        x: { stacked: true, grid: { color: borderColor } },
+        y: { stacked: true, grid: { color: borderColor }, ticks: { stepSize: 1 }, beginAtZero: true }
+      }
+    }
+  });
+  });
 </script>
 
 {% endblock %}

@@ -40,6 +40,22 @@
     <div class="stat-value" style="color:var(--red-600)">{{ data.delayed }}</div>
     <div class="stat-sub">Needs attention</div>
   </div>
+  <div class="col-md-3">
+  <div class="card border-warning">
+    <div class="card-body text-center">
+      <h4 class="text-warning">{{ data.onhold }}</h4>
+      <p class="mb-0">On Hold</p>
+    </div>
+  </div>
+</div>
+<div class="col-md-3">
+  <div class="card border-danger">
+    <div class="card-body text-center">
+      <h4 class="text-danger">{{ data.cancelled }}</h4>
+      <p class="mb-0">Cancelled</p>
+    </div>
+  </div>
+</div>
 </div>
 
 <div class="two-col">
@@ -71,7 +87,56 @@
 
 <div class="card">
   <div class="card-title">Recent projects</div>
-  {% include '_project_table.html' with context %}
+  <table>
+    <thead>
+      <tr>
+        <th>Project</th>
+        <th>Customer</th>
+        <th>Type</th>
+        <th>Stage</th>
+        <th>Status</th>
+        <th>Coordinator</th>
+        <th>Staff</th>
+        <th>Payment</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in data.projects %}
+      <tr>
+        <td>
+          <a href="{{ url_for('project_detail', pid=p.id) }}"
+             style="font-weight:500;color:var(--amber-600)">{{ p.project_code }}</a>
+        </td>
+        <td>{{ p.customer.name }}</td>
+        <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
+        <td style="font-size:12px;color:var(--muted)">{{ p.stage }}</td>
+        <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
+        <td style="font-size:12px">
+          {% if p.coordinator %}
+            {{ p.coordinator.full_name }}
+          {% else %}
+            <span style="color:var(--hint)">—</span>
+          {% endif %}
+        </td>
+        <td style="font-size:12px">
+          {% if p.doc_staff %}
+            {{ p.doc_staff.full_name }}
+          {% else %}
+            <span style="color:var(--red-600);font-size:11px">Unassigned</span>
+          {% endif %}
+        </td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div class="progress-wrap" style="width:50px">
+              <div class="progress-bar" style="width:{{ p.payment_pct }}%"></div>
+            </div>
+            <span style="font-size:11px;color:var(--muted)">{{ p.payment_pct }}%</span>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 
 {% elif current_user.role == 'coordinator' %}
@@ -186,11 +251,11 @@
         {{ n.created_at | date_fmt }}
       </div>
     </div>
-    <a href="{{ url_for('project_detail', pid=n.project_id) }}" class="btn btn-sm"
-       onclick="markRead({{ n.id }})">
+    <a href="{{ url_for('project_detail', pid=n.project_id) }}" class="btn btn-sm notif-open"
+       data-nid="{{n.id}}">
       Open →
     </a>
-     <button onclick="markRead({{ n.id }}, this.closest('div[style]'))"
+     <button class="notif-dismiss" data-nid="{{n.id}}"
             style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:0 4px">
       ×
     </button>
@@ -198,45 +263,18 @@
   {% endfor %}
 </div>
 <script>
-function markRead(id, el) {
-  fetch('/api/notifications/read/' + id, { method: 'POST' });
-  if (el) el.remove();
-}
+document.querySelectorAll('.notif-open').forEach(function(a) {
+  a.addEventListener('click', function() {
+    fetch('/api/notifications/read/' + this.dataset.nid, { method: 'POST' });
+  });
+});
+document.querySelectorAll('.notif-dismiss').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    fetch('/api/notifications/read/' + this.dataset.nid, { method: 'POST' });
+    this.closest('.notif-item').remove();
+  });
+});
 </script>
-{% endif %}
-{% if data.new_count > 0 %}
-<div style="
-  background: var(--amber-50); border: 0.5px solid var(--amber-100);
-  border-radius: var(--radius-lg); padding: 14px 18px; margin-bottom: 20px;
-  display: flex; align-items: flex-start; gap: 12px;">
-  <div style="
-    width: 32px; height: 32px; border-radius: 50%; background: var(--amber-100);
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;">
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M8 2a6 6 0 100 12A6 6 0 008 2zm0 3.5v3m0 2v.5" stroke="#633806" stroke-width="1.5" stroke-linecap="round"/>
-    </svg>
-  </div>
-  <div style="flex:1">
-    <div style="font-size:13px;font-weight:500;color:var(--amber-800);margin-bottom:6px">
-      {{ data.new_count }} new project{{ 's' if data.new_count != 1 }} assigned to you
-    </div>
-    <div style="display:flex;flex-direction:column;gap:4px">
-      {% for p in data.new_projects %}
-      <div style="display:flex;align-items:center;gap:8px;font-size:13px">
-        <span style="font-weight:500;color:var(--amber-800)">{{ p.project_code }}</span>
-        <span style="color:var(--amber-600)">{{ p.customer.name }}</span>
-        <span style="font-size:11px;color:var(--amber-600)">
-          · {{ p.project_type }} · {{ p.system_kw }} kW · assigned {{ p.created_at | date_fmt }}
-        </span>
-        <a href="{{ url_for('documents', pid=p.id) }}"
-           class="btn btn-sm btn-primary" style="margin-left:auto">
-          Start →
-        </a>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-</div>
 {% endif %}
 
 <div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
@@ -264,11 +302,6 @@ function markRead(id, el) {
 <div class="card">
   <div class="card-title">
     My work queue
-    {% if data.new_count > 0 %}
-    <span class="badge badge-InProgress" style="margin-left:6px">
-      {{ data.new_count }} new
-    </span>
-    {% endif %}
   </div>
   {% if data.projects %}
   <table>
@@ -286,12 +319,10 @@ function markRead(id, el) {
     <tbody>
   {% for item in data.projects_with_counts %}
   {% set p = item.project %}
-  <tr style="{% if p in data.new_projects %}background:var(--amber-50){% endif %}">
+  
     <td>
       <span style="font-weight:500">{{ p.project_code }}</span>
-      {% if p in data.new_projects %}
-      <span class="badge badge-InProgress" style="margin-left:4px;font-size:10px">New</span>
-      {% endif %}
+      
     </td>
     <td>{{ p.customer.name }}</td>
     <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
@@ -308,9 +339,8 @@ function markRead(id, el) {
       </div>
     </td>
     <td>
-      <a href="{{ url_for('documents', pid=p.id) }}" class="btn btn-sm
-        {% if p in data.new_projects %}btn-primary{% endif %}">
-        {% if p in data.new_projects %}Start →{% else %}Open{% endif %}
+      <a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">
+        Open
       </a>
     </td>
   </tr>
@@ -385,45 +415,117 @@ function markRead(id, el) {
   {% include '_project_table.html' with context %}
 </div>
 
-{# ── APP INSTALL ── #}
 {% elif current_user.role == 'appinstall' %}
-<div class="stats-grid" style="grid-template-columns:1fr 1fr">
+<div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
   <div class="stat-card">
-    <div class="stat-label">Pending installations</div>
-    <div class="stat-value" style="color:var(--amber-600)">{{ data.installs | length }}</div>
+    <div class="stat-label">Pending</div>
+    <div class="stat-value" style="color:var(--amber-600)">{{ data.pending_count }}</div>
+    <div class="stat-sub">Awaiting scheduling</div>
   </div>
   <div class="stat-card">
-    <div class="stat-label">Completed this run</div>
+    <div class="stat-label">Scheduled</div>
+    <div class="stat-value" style="color:var(--blue-600)">{{ data.scheduled_count }}</div>
+    <div class="stat-sub">Date confirmed</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Completed</div>
     <div class="stat-value" style="color:var(--green-600)">{{ data.completed }}</div>
+    <div class="stat-sub">All time</div>
   </div>
 </div>
-<div class="card">
-  <div class="card-title">Pending app installations</div>
-  {% if data.installs %}
+
+{# ── PENDING — needs scheduling ── #}
+{% if data.installs %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-title">
+    Needs scheduling
+    <span class="badge badge-Delayed" style="margin-left:6px">{{ data.pending_count }}</span>
+  </div>
   <table>
-    <thead><tr><th>Project</th><th>Customer</th><th>Scheduled</th><th>Status</th><th></th></tr></thead>
+    <thead>
+      <tr>
+        <th>Project</th><th>Customer</th><th>kW</th><th>Type</th><th>Schedule date</th><th></th>
+      </tr>
+    </thead>
     <tbody>
       {% for i in data.installs %}
       <tr>
-        <td style="font-weight:500">{{ i.project.project_code }}</td>
-        <td>{{ i.project.customer.name }}</td>
-        <td>{{ i.scheduled_date | date_fmt }}</td>
-        <td><span class="badge badge-{{ i.status }}">{{ i.status }}</span></td>
         <td>
-          <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}" style="display:inline">
+          <a href="{{ url_for('project_detail', pid=i.project_id) }}"
+             style="font-weight:500;color:var(--amber-600)">
+            {{ i.project.project_code }}
+          </a>
+        </td>
+        <td>{{ i.project.customer.name }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ i.project.system_kw }} kW</td>
+        <td><span class="badge badge-{{ i.project.project_type }}">{{ i.project.project_type }}</span></td>
+        <td>
+          <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}"
+                style="display:flex;gap:6px;align-items:center">
+            <input type="hidden" name="status" value="Scheduled">
+            <input type="date" name="scheduled_date" required
+                   style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border);
+                          border-radius:var(--radius);background:transparent;color:var(--fg)">
+            <button type="submit" class="btn btn-sm">Set date</button>
+          </form>
+        </td>
+        <td>
+          <a href="{{ url_for('project_detail', pid=i.project_id) }}"
+             class="btn btn-sm">View</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ── SCHEDULED — ready to complete ── #}
+{% if data.scheduled %}
+<div class="card">
+  <div class="card-title">
+    Scheduled installs
+    <span class="badge badge-InProgress" style="margin-left:6px">{{ data.scheduled_count }}</span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Project</th><th>Customer</th><th>kW</th><th>Scheduled date</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for i in data.scheduled %}
+      <tr>
+        <td>
+          <a href="{{ url_for('project_detail', pid=i.project_id) }}"
+             style="font-weight:500;color:var(--amber-600)">
+            {{ i.project.project_code }}
+          </a>
+        </td>
+        <td>{{ i.project.customer.name }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ i.project.system_kw }} kW</td>
+        <td>{{ i.scheduled_date | date_fmt }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}"
+                style="display:inline">
             <input type="hidden" name="status" value="Completed">
-            <input type="hidden" name="completed_date" value="{{ now.strftime('%Y-%m-%d') if now else '' }}">
-            <button type="submit" class="btn btn-sm btn-primary">Mark Done</button>
+            <input type="hidden" name="completed_date"
+                   value="{{ now.strftime('%Y-%m-%d') if now else '' }}">
+            <button type="submit" class="btn btn-sm btn-primary">Mark done</button>
           </form>
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  {% else %}
-  <div style="text-align:center;padding:32px;color:var(--hint)">No pending installations.</div>
-  {% endif %}
 </div>
+{% endif %}
+
+{% if not data.installs and not data.scheduled %}
+<div class="card" style="text-align:center;padding:48px;color:var(--hint)">
+  All caught up — no pending or scheduled installations.
+</div>
+{% endif %}
 {% endif %}
 
 {% endblock %}

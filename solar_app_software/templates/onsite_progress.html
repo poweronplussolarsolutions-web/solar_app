@@ -341,21 +341,57 @@
     </svg>
     Locked until structure work is marked <strong style="margin-left:2px">Completed</strong>.
   </div>
+
+  {% else %}
+
+  {# ── Bulk dispatch form ── #}
+  {% if struct_done and not all_delivered %}
+  {% if current_user.role in ['admin','onsite'] %}
+  <div style="background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:16px">
+    <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.05em">
+      Bulk update all materials
+    </div>
+    <form method="POST" action="{{ url_for('bulk_update_materials', pid=proj.id) }}">
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:flex-end">
+        <div>
+          <label>Status</label>
+          <select name="dispatch_status">
+            <option value="Dispatched">Dispatched</option>
+            <option value="Delivered">Delivered</option>
+          </select>
+        </div>
+        <div>
+          <label>Date</label>
+          <input type="date" name="dispatch_date" required/>
+        </div>
+        <div>
+          <button type="submit" class="btn btn-primary btn-sm">Apply to all</button>
+        </div>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  {% if all_delivered %}
+  <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:color-mix(in srgb,#16a34a 6%,var(--surface));border:0.5px solid color-mix(in srgb,#16a34a 20%,var(--border));border-radius:var(--radius);margin-bottom:14px;font-size:13px;color:#15803d">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    All {{ proj.materials | length }} materials delivered.
+  </div>
   {% endif %}
 
   {% if proj.materials %}
-  {# Header #}
   <div class="material-row material-row-head">
     <div>Item</div>
     <div>Qty</div>
-    <div>Dispatch date</div>
+    <div>Date</div>
     <div>Status</div>
     <div></div>
   </div>
 
   {% for m in proj.materials %}
-
-  {# ── Read-only row ── #}
   <div class="material-row" id="mat-view-{{ m.id }}">
     <div style="font-weight:500">{{ m.item_name }}</div>
     <div style="color:var(--muted)">{{ m.quantity or '—' }}</div>
@@ -366,58 +402,51 @@
     </div>
     <div><span class="badge badge-{{ m.dispatch_status }}">{{ m.dispatch_status }}</span></div>
     <div>
-      {% if struct_done %}
-      {% if all_delivered %}
-        {% if m.dispatch_status == 'Delivered' %}
-          <button class="btn btn-sm mat-edit-btn" data-mid="{{ m.id }}">Edit</button>
-          {% endif %}
-        {% else %}
-          {% if m.dispatch_status == 'Delivered' %}
-          <button class="btn btn-sm mat-edit-btn" data-mid="{{m.id}}">Edit</button>
-          {% else %}
-          <button class="btn btn-sm mat-edit-btn" data-mid="{{ m.id }}">Update</button>
-        {% endif %}
-      {% endif %}
-      {% endif %}
+      <button class="btn btn-sm mat-edit-btn" data-mid="{{ m.id }}">Edit</button>
     </div>
   </div>
 
-  {# ── Edit / update form row ── #}
-{% if struct_done %}
-<div id="mat-form-{{ m.id }}"
-     style="display:none;padding:12px 0 14px;border-bottom:0.5px solid var(--border)">
-  <form method="POST" action="{{ url_for('update_material', pid=proj.id, mid=m.id) }}">
-    <input type="hidden" name="dispatch_status" value="{{ m.dispatch_status }}"/>
-    <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto auto;gap:10px;align-items:flex-end">
-      <div>
-        <label>Item name</label>
-        <input type="text" name="item_name" value="{{ m.item_name }}"/>
+  <div id="mat-form-{{ m.id }}"
+       style="display:none;padding:12px 0 14px;border-bottom:0.5px solid var(--border)">
+    <form method="POST" action="{{ url_for('update_material', pid=proj.id, mid=m.id) }}">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto auto;gap:10px;align-items:flex-end">
+        <div>
+          <label>Item name</label>
+          <input type="text" name="item_name" value="{{ m.item_name }}"/>
+        </div>
+        <div>
+          <label>Quantity</label>
+          <input type="number" name="quantity" min="0" step="0.01" value="{{ m.quantity or '' }}"/>
+        </div>
+        <div>
+          <label>Date</label>
+          <input type="date" name="dispatch_date" value="{{ m.dispatch_date or '' }}"/>
+        </div>
+        <div>
+          <label>Status</label>
+          <select name="dispatch_status">
+            {% for s in ['Pending','Dispatched','Delivered'] %}
+            <option value="{{ s }}" {% if m.dispatch_status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </div>
+        <div>
+          <button type="button" class="btn btn-sm mat-cancel-btn" data-mid="{{ m.id }}">Cancel</button>
+        </div>
       </div>
-      <div>
-        <label>Quantity</label>
-        <input type="number" name="quantity" min="0" step="0.01" value="{{ m.quantity or '' }}"/>
-      </div>
-      <div>
-        <label>Dispatch date</label>
-        <input type="date" name="dispatch_date" value="{{ m.dispatch_date or '' }}"/>
-      </div>
-      <div>
-        <button type="submit" class="btn btn-primary btn-sm">Save</button>
-      </div>
-      <div>
-        <button type="button" class="btn btn-sm mat-cancel-btn" data-mid="{{ m.id }}">Cancel</button>
-      </div>
-    </div>
-  </form>
-</div>
-{% endif %}
-
+    </form>
+  </div>
   {% endfor %}
+
   {% else %}
   <div style="color:var(--hint);font-size:13px;padding:4px 0">No materials added yet.</div>
   {% endif %}
 
-{# Add material #}
+  {% endif %}{# end struct_done #}
+
   {# Add material #}
   {% if current_user.role in ['admin','onsite'] %}
   <div style="margin-top:16px;border-top:0.5px solid var(--border);padding-top:14px">

@@ -72,9 +72,30 @@
   <div class="big-card">
     <div class="label">Completed</div>
     <div class="number" style="color:var(--green-600)">
-      {{ my_projects | selectattr('status', 'in', ['Completed', 'Closed']) | list | length }}
+      {{ my_projects | selectattr('status', 'eq', 'Completed') | list | length }}
     </div>
     <div class="sub">finished projects</div>
+  </div>
+  <div class="big-card">
+    <div class="label">Closed</div>
+    <div class="number" style="color:var(--green-600)">
+      {{ my_projects | selectattr('status', 'eq', 'Closed') | list | length }}
+    </div>
+    <div class="sub">payment completed projects</div>
+  </div>
+  <div class="big-card">
+    <div class="label">On Hold</div>
+    <div class="number" style="color:var(--red-600)">
+      {{ my_projects | selectattr('status', 'eq', 'OnHold') | list | length }}
+    </div>
+    <div class="sub">projects onhold</div>
+  </div>
+  <div class="big-card">
+    <div class="label">Cancelled</div>
+    <div class="number" style="color:var(--red-600)">
+      {{ my_projects | selectattr('status', 'eq', 'Cancelled') | list | length }}
+    </div>
+    <div class="sub">cancelled projects</div>
   </div>
 </div>
 

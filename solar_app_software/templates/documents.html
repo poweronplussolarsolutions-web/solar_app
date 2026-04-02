@@ -81,6 +81,28 @@
 {% for d in proj.documents %}
   {% if doc_map.update({d.doc_type: d}) %}{% endif %}
 {% endfor %}
+{% set ns_total = namespace(expected=0, done=0) %}
+{% for stage in [
+  {'condition':'always','docs':['ID Proof','Pass Book','Electricity Bill']},
+  {'condition':'loan',  'docs':['GEO Tag Photo','Bank Stamp Paper','Bank File']},
+  {'condition':'always','docs':['Feasibility Receipt']},
+  {'condition':'always','docs':['KSEB Stamp Paper','B-Class Licence','KSEB File']},
+  {'condition':'always','docs':['Inspection','CD Payment Receipt','KSEB Connection']},
+  {'condition':'dcr',   'docs':['Subsidy Request','Subsidy Redeem']},
+  {'condition':'always','docs':['Payment Completion','Warranty Card','App Installation']},
+] %}
+  {% if stage.condition == 'always'
+     or (stage.condition == 'loan' and proj.project_type == 'Loan')
+     or (stage.condition == 'dcr'  and proj.project_subtype == 'DCR') %}
+    {% for doc_name in stage.docs %}
+      {% set ns_total.expected = ns_total.expected + 1 %}
+      {% if doc_name in doc_map and doc_map[doc_name].status in ['Received','Sent','Completed'] %}
+        {% set ns_total.done = ns_total.done + 1 %}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+{% endfor %}
+{% set all_docs_complete = (ns_total.expected > 0 and ns_total.done == ns_total.expected) %}
 
 {% set stages = [
   {
@@ -121,7 +143,7 @@
   {
     'name': 'Subsidy',
     'stage': 'Subsidy',
-    'condition': 'always',
+    'condition': 'dcr',
     'docs': ['Subsidy Request', 'Subsidy Redeem'],
     'statuses':['Pending','Completed']
   },
@@ -129,7 +151,7 @@
     'name': 'Project closure',
     'stage': 'Final Payment',
     'condition': 'always',
-    'docs': ['Payment Completion','Warranty Card', 'Final Invoice'],
+    'docs': ['Payment Completion','Warranty Card', 'App Installation'],
     'statuses':['Pending','Completed']
   }
 ] %}
@@ -180,9 +202,12 @@
     {% endif %}
   </div>
 </div>
+{% if not all_docs_complete %}
 <div class="timeline">
 {% for stage in stages %}
-  {% if stage.condition != 'loan' or proj.project_type == 'Loan' %}
+  {% if stage.condition == 'always'
+     or (stage.condition == 'loan' and proj.project_type == 'Loan')
+     or (stage.condition == 'dcr'  and proj.project_subtype == 'DCR') %}
 
     {% set ns = namespace(done=0) %}
     {% for doc_name in stage.docs %}
@@ -327,7 +352,28 @@
      {% endif %}
   {% endfor %}
 </div>
+{% endif %}
 
+
+{% if all_docs_complete %}
+<div style="margin-top:20px;display:flex;align-items:center;gap:10px;
+            background:var(--teal-50);border:0.5px solid var(--teal-100);
+            border-radius:var(--radius-lg);padding:14px 18px">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+       stroke="var(--teal-600)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="11" width="18" height="11" rx="2"/>
+    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+  </svg>
+  <div>
+    <div style="font-size:13px;font-weight:600;color:var(--teal-800)">All documents completed</div>
+    <div style="font-size:12px;color:var(--teal-700);margin-top:2px">
+      Document timeline is locked. Contact admin to make changes.
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px;font-size:12px;color:var(--muted)">
 <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px;font-size:12px;color:var(--muted)">
   <span><span class="doc-status-dot received" style="display:inline-block;vertical-align:middle;margin-right:4px"></span>Received</span>
   <span><span class="doc-status-dot verified" style="display:inline-block;vertical-align:middle;margin-right:4px"></span>Verified</span>
