@@ -173,7 +173,11 @@
     <span style="font-size:11px;font-weight:600;background:var(--red-50);color:var(--red-600);padding:2px 8px;border-radius:20px">Delayed</span>
     <span style="font-weight:500;font-size:13px">{{ p.project_code }}</span>
     <span style="font-size:13px;color:var(--muted)">{{ p.customer.name }}</span>
-    <span style="font-size:11px;color:var(--hint);margin-left:auto">{{ p.days_open }}d open</span>
+    <span style="font-size:11px;margin-left:auto;
+  color:{% if p.days_in_stage > 14 %}var(--red-600){% elif p.days_in_stage > 7 %}var(--amber-600){% else %}var(--muted){% endif %}">
+  {{ p.days_in_stage }}d in stage
+  {% if p.days_in_stage > 14 %}<span style="font-size:10px">⚠</span>{% endif %}
+</span>
     <a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a>
   </div>
   {% endfor %}
@@ -183,6 +187,11 @@
     <span style="font-weight:500;font-size:13px">{{ p.project_code }}</span>
     <span style="font-size:13px;color:var(--muted)">{{ p.customer.name }}</span>
     <span style="font-size:11px;color:var(--hint);margin-left:auto">{{ p.stage }}</span>
+<span style="font-size:11px;
+  color:{% if p.days_in_stage > 14 %}var(--red-600){% elif p.days_in_stage > 7 %}var(--amber-600){% else %}var(--muted){% endif %}">
+  · {{ p.days_in_stage }}d in stage
+  {% if p.days_in_stage > 14 %}<span style="font-size:10px">⚠</span>{% endif %}
+</span>
     <a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a>
   </div>
   {% endfor %}
@@ -229,6 +238,38 @@
     </div>
   </div>
 </div>
+{# ── SUBSIDY PIPELINE ── #}
+{% if data.subsidy_list %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-title">DCR subsidy pipeline</div>
+  <table>
+    <thead>
+      <tr><th>Project</th><th>Customer</th><th>Status</th><th>Expected</th><th>Received</th><th>Pending</th></tr>
+    </thead>
+    <tbody>
+      {% for s in data.subsidy_list %}
+      <tr>
+        <td><a href="{{ url_for('project_detail', pid=s.project_id) }}" style="font-weight:500;color:var(--amber-600)">
+          {{ s.project.project_code }}
+        </a></td>
+        <td>{{ s.project.customer.name }}</td>
+        <td>
+          <span class="badge badge-{% if s.status == 'Received' %}Completed{% elif s.status == 'Redeemed' %}InProgress{% elif s.status == 'Requested' %}Created{% else %}Closed{% endif %}">
+            {{ s.status }}
+          </span>
+        </td>
+        <td>{{ s.expected_amount | inr }}</td>
+        <td style="color:var(--green-600)">{{ s.received_amount | inr }}</td>
+        <td style="color:{% if (s.expected_amount | float) > (s.received_amount | float) %}var(--red-600){% else %}var(--green-600){% endif %}">
+          {{ ((s.expected_amount | float) - (s.received_amount | float)) | int | abs | inr }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 
 {# ── DOCUMENTS ── #}
 {% elif current_user.role == 'documents' %}
@@ -257,7 +298,7 @@
     </a>
      <button class="notif-dismiss" data-nid="{{n.id}}"
             style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:0 4px">
-      ×
+      x
     </button>
   </div>
   {% endfor %}

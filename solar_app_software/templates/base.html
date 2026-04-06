@@ -269,6 +269,7 @@
       <a class="nav-link {% if request.endpoint in ['projects','project_detail'] %}active{% endif %}" href="{{ url_for('projects') }}">
         <span class="dot"></span> Projects
       </a>
+      
 
       {% if current_user.role == 'coordinator' %}
       <a class="nav-link {% if request.endpoint == 'new_project' %}active{% endif %}" href="{{ url_for('new_project') }}">
@@ -401,7 +402,7 @@
           return;
         }
         list.innerHTML = data.map(n => `
-          <div class="notif-item" onclick="openNotif(${n.id}, ${n.project_id})"
+          <div class="notif-item" onclick="openNotif(${n.id}, ${n.project_id},'${n.action_url || ''}')"
                style="${n.is_read
                  ? 'opacity:0.5; background:var(--bg);'
                  : 'background:var(--surface);'}">
@@ -419,9 +420,11 @@
       .catch(() => {});
   }
 
-  function openNotif(id, projectId) {
+  function openNotif(id, projectId, actionUrl) {
     fetch(`/api/notifications/read/${id}`, { method: 'POST' })
-      .then(() => { window.location.href = `/projects/${projectId}`; });
+      .then(() => {
+        window.location.href = actionUrl || `/projects/${projectId}`;
+      });
   }
 
   function markAllRead() {

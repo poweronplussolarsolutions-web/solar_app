@@ -858,5 +858,51 @@ document.addEventListener('click', function(e) {
   }
 });
 </script>
-
+{# ══════════════════════════════════════════════════════ #}
+{# ⑤ DAILY WORK LOG                                       #}
+{# ══════════════════════════════════════════════════════ #}
+<div class="card">
+  <div class="section-label">⑤ Daily work log</div>
+ 
+  {% if proj.onsite_logs %}
+  <div style="margin-bottom:16px">
+    {% for entry in proj.onsite_logs | sort(attribute='log_date', reverse=True) %}
+    <div style="display:flex;gap:12px;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px">
+      <div style="white-space:nowrap;color:var(--hint);min-width:90px">{{ entry.log_date | date_fmt }}</div>
+      <div>
+        <span class="tag" style="margin-right:6px">{{ entry.work_phase }}</span>
+        {{ entry.note }}
+      </div>
+      <div style="margin-left:auto;font-size:11px;color:var(--hint);white-space:nowrap">
+        {{ entry.logger.full_name if entry.logger else '—' }}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="font-size:13px;color:var(--hint);margin-bottom:14px">No daily logs yet.</div>
+  {% endif %}
+ 
+  {% if current_user.role in ['admin','onsite'] %}
+  <form method="POST" action="{{ url_for('add_onsite_log', pid=proj.id) }}">
+    <div style="display:grid;grid-template-columns:1fr 2fr auto;gap:10px;align-items:flex-end">
+      <div>
+        <label>Phase</label>
+        <select name="work_phase">
+          <option value="Structure">Structure</option>
+          <option value="Installation">Installation</option>
+          <option value="Electrical">Electrical</option>
+        </select>
+      </div>
+      <div>
+        <label>Note</label>
+        <input type="text" name="note" required placeholder="e.g. Placed 8 panels, 4 remaining…"/>
+      </div>
+      <div>
+        <button type="submit" class="btn btn-primary btn-sm">Add log</button>
+      </div>
+    </div>
+  </form>
+  {% endif %}
+</div>
 {% endblock %}

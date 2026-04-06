@@ -77,6 +77,20 @@
 
 {% block content %}
 
+{% if proj.stage in ('Lead', 'Site Visit') %}
+<div style="display:flex;align-items:center;gap:12px;padding:14px 18px;margin-bottom:16px;
+     border-radius:var(--radius);background:#fffbeb;border:1px solid #fcd34d;color:#92400e">
+  <span style="font-size:18px">🔒</span>
+  <div>
+    <div style="font-weight:600;font-size:14px">Documents locked</div>
+    <div style="font-size:12px;margin-top:2px;opacity:0.8">
+      Document work is unlocked only after the site visit is completed.
+      Current stage: <strong>{{ proj.stage }}</strong>.
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% set doc_map = {} %}
 {% for d in proj.documents %}
   {% if doc_map.update({d.doc_type: d}) %}{% endif %}
@@ -155,6 +169,8 @@
     'statuses':['Pending','Completed']
   }
 ] %}
+
+{# ── ONSITE PROGRESS (read-only) ── #}
 {% set op = proj.onsite_progress %}
 <div class="card mb-4 border-0 bg-light">
   <div class="card-body">
@@ -183,25 +199,28 @@
         {% endif %}
       </div>
       <div>
-  <small class="text-muted d-block">Materials</small>
-  {% set total     = proj.materials | list %}
-  {% set delivered = proj.materials | selectattr('dispatch_status','eq','Delivered') | list %}
-  {% set dispatched = proj.materials | selectattr('dispatch_status','eq','Dispatched') | list %}
-  {% set done      = delivered | length + dispatched | length %}
-  {% if total | length == 0 %}
-    <span class="badge bg-secondary">No materials</span>
-  {% elif delivered | length == total | length %}
-    <span class="badge bg-success">Delivered</span>
-  {% else %}
-    <span class="badge bg-info text-dark">{{ done }} / {{ total | length }} dispatched or delivered</span>
-  {% endif %}
-</div>
+        <small class="text-muted d-block">Materials</small>
+        {% set total     = proj.materials | list %}
+        {% set delivered = proj.materials | selectattr('dispatch_status','eq','Delivered') | list %}
+        {% set dispatched = proj.materials | selectattr('dispatch_status','eq','Dispatched') | list %}
+        {% set done      = delivered | length + dispatched | length %}
+        {% if total | length == 0 %}
+          <span class="badge bg-secondary">No materials</span>
+        {% elif delivered | length == total | length %}
+          <span class="badge bg-success">Delivered</span>
+        {% else %}
+          <span class="badge bg-info text-dark">{{ done }} / {{ total | length }} dispatched or delivered</span>
+        {% endif %}
+      </div>
     </div>
     {% if op and op.structure_notes %}
       <p class="mt-2 mb-0 text-muted small"><strong>Notes:</strong> {{ op.structure_notes }}</p>
     {% endif %}
   </div>
 </div>
+
+
+
 {% if not all_docs_complete %}
 <div class="timeline">
 {% for stage in stages %}
@@ -248,6 +267,19 @@
             <div class="tl-title">{{ stage.name }}</div>
             <div class="tl-meta">
               {{ stage.stage }}{% if stage.condition == 'loan' %} · Loan only{% endif %}
+              {% if dot_cls == 'locked' %}
+                · <span style="color:var(--red-600);font-size:11px">
+                  {% if proj.stage in ('Lead','Site Visit') %}
+                    Waiting for: Site visit completion
+                  {% elif stage.name == 'Bank / Loan file' %}
+                    Loan projects only
+                  {% elif stage.name == 'Subsidy' %}
+                    DCR projects only
+                  {% else %}
+                    Waiting for: {{ stage.docs[0] if loop.previtem is defined else 'previous stage' }}
+                  {% endif %}
+                </span>
+              {% endif %}
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
@@ -269,91 +301,89 @@
 
           {% for doc_name in stage.docs %}
             {% set doc = doc_map.get(doc_name) %}
-      {% set final_status = stage.statuses[-1] %}
-{% set is_done = doc and doc.status in ['Received','Sent','Completed'] and doc.status != 'Pending' %}
-<div class="doc-row">
-  <div class="doc-status-dot
-    {% if doc and doc.status in ['Received','Completed'] %}received
-    {% elif doc and doc.status == 'Sent' %}sent
-    {% else %}pending{% endif %}">
-  </div>
-  <div class="doc-name">{{ doc_name }}</div>
-  <div class="doc-date">
-    {% if doc and doc.received_date %}{{ doc.received_date | date_fmt }}{% endif %}
-  </div>
-  <div class="doc-actions">
-    {% if is_done %}
-      <span class="badge
-        {% if doc.status == 'Sent' %}badge-InProgress
-        {% else %}badge-Completed{% endif %}">
-        {{ doc.status }}
-      </span>
-      {% if current_user.role in ['admin','documents'] %}
-      <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline">
-        <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
-        <input type="hidden" name="status"   value="Pending"/>
-        <button type="submit" class="btn btn-sm" title="Revert to Pending">↩</button>
-      </form>
-      {% endif %}
-    {% elif doc and doc.status == 'Pending' %}
-      <span class="badge badge-Pending">Pending</span>
-      {% if current_user.role in ['admin','documents'] %}
-      <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline">
-        <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
-        <input type="hidden" name="status"   value="{{ final_status }}"/>
-        <button type="submit" class="btn btn-sm btn-primary">Mark {{ final_status }}</button>
-      </form>
-      {% endif %}
-    {% else %}
-      <span style="font-size:11px;color:var(--hint)">Not recorded</span>
-      {% if current_user.role in ['admin','documents'] %}
-      <button class="btn btn-sm btn-primary"
-              onclick="openAddForm(this, '{{ doc_name }}', '{{ stage.name }}')">
-        + Add
-      </button>
-      {% endif %}
-    {% endif %}
-  </div>
-</div>
-{% endfor %}
+            {% set final_status = stage.statuses[-1] %}
+            {% set is_done = doc and doc.status in ['Received','Sent','Completed'] and doc.status != 'Pending' %}
+            <div class="doc-row">
+              <div class="doc-status-dot
+                {% if doc and doc.status in ['Received','Completed'] %}received
+                {% elif doc and doc.status == 'Sent' %}sent
+                {% else %}pending{% endif %}">
+              </div>
+              <div class="doc-name">{{ doc_name }}</div>
+              <div class="doc-date">
+                {% if doc and doc.received_date %}{{ doc.received_date | date_fmt }}{% endif %}
+              </div>
+              <div class="doc-actions">
+                {% if is_done %}
+                  <span class="badge
+                    {% if doc.status == 'Sent' %}badge-InProgress
+                    {% else %}badge-Completed{% endif %}">
+                    {{ doc.status }}
+                  </span>
+                  {% if current_user.role in ['admin','documents'] %}
+                  <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline">
+                    <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
+                    <input type="hidden" name="status"   value="Pending"/>
+                    <button type="submit" class="btn btn-sm" title="Revert to Pending">↩</button>
+                  </form>
+                  {% endif %}
+                {% elif doc and doc.status == 'Pending' %}
+                  <span class="badge badge-Pending">Pending</span>
+                  {% if current_user.role in ['admin','documents'] %}
+                  <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline">
+                    <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
+                    <input type="hidden" name="status"   value="{{ final_status }}"/>
+                    <button type="submit" class="btn btn-sm btn-primary">Mark {{ final_status }}</button>
+                  </form>
+                  {% endif %}
+                {% else %}
+                  <span style="font-size:11px;color:var(--hint)">Not recorded</span>
+                  {% if current_user.role in ['admin','documents'] %}
+                  <button class="btn btn-sm btn-primary"
+                          onclick="openAddForm(this, '{{ doc_name }}', '{{ stage.name }}')">
+                    + Add
+                  </button>
+                  {% endif %}
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
 
           {% if current_user.role in ['admin','documents'] %}
           <div class="add-form" id="form-{{ stage.name | replace(' ','_') | replace('/','_') }}">
-  <form method="POST" action="{{ url_for('documents', pid=proj.id) }}">
-    <div class="add-form-grid">
-      <div>
-        <label>Document</label>
-        <input type="text" name="doc_type" readonly style="background:var(--surface)"/>
-      </div>
-      <div>
-        <label>Status</label>
-        <select name="status">
-          {% for s in stage.statuses %}
-          <option {% if loop.last %}selected{% endif %}>{{ s }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      
-      <div>
-        <button type="submit" class="btn btn-primary btn-sm">Save</button>
-      </div>
-    </div>
-    <div style="margin-top:6px">
-      <label>Notes</label>
-      <input type="text" name="notes" placeholder="Optional"/>
-    </div>
-  </form>
-</div>
+            <form method="POST" action="{{ url_for('documents', pid=proj.id) }}">
+              <div class="add-form-grid">
+                <div>
+                  <label>Document</label>
+                  <input type="text" name="doc_type" readonly style="background:var(--surface)"/>
+                </div>
+                <div>
+                  <label>Status</label>
+                  <select name="status">
+                    {% for s in stage.statuses %}
+                    <option {% if loop.last %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                </div>
+              </div>
+              <div style="margin-top:6px">
+                <label>Notes</label>
+                <input type="text" name="notes" placeholder="Optional"/>
+              </div>
+            </form>
+          </div>
           {% endif %}
 
         </div>
       </div>
     </div>
-     {% endif %}
-  {% endfor %}
+  {% endif %}
+{% endfor %}
 </div>
 {% endif %}
-
 
 {% if all_docs_complete %}
 <div style="margin-top:20px;display:flex;align-items:center;gap:10px;
@@ -373,7 +403,6 @@
 </div>
 {% endif %}
 
-<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px;font-size:12px;color:var(--muted)">
 <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px;font-size:12px;color:var(--muted)">
   <span><span class="doc-status-dot received" style="display:inline-block;vertical-align:middle;margin-right:4px"></span>Received</span>
   <span><span class="doc-status-dot verified" style="display:inline-block;vertical-align:middle;margin-right:4px"></span>Verified</span>

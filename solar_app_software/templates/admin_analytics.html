@@ -170,7 +170,7 @@
 </div>
 {# ── DOCS STAFF PERFORMANCE CHART ── #}
 <div class="card" style="margin-bottom:20px">
-  <div class="chart-label">Document completion by staff</div>
+  <div class="chart-label">Project by docs staff</div>
   <canvas id="docStaffChart" height="100"></canvas>
 </div>
 
@@ -387,22 +387,28 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
 
-  // ── Docs staff chart ──
+// ── Docs staff chart ──
   new Chart(document.getElementById('docStaffChart'), {
     type: 'bar',
     data: {
       labels: cd.staff_names,
       datasets: [
         {
-          label: 'Docs done',
-          data: cd.staff_done,
+          label: 'Completed',
+          data: cd.staff_completed,
+          backgroundColor: '#9fe1cb',
+          borderRadius: 4,
+        },
+        {
+          label: 'In progress',
+          data: cd.staff_inprog,
           backgroundColor: '#b5d4f4',
           borderRadius: 4,
         },
         {
-          label: 'Docs pending',
-          data: cd.staff_pending,
-          backgroundColor: '#f7c1c1',
+          label: 'Not started',
+          data: cd.staff_notstarted,
+          backgroundColor: '#fac775',
           borderRadius: 4,
         },
       ]
@@ -412,11 +418,100 @@ document.addEventListener('DOMContentLoaded', function() {
       plugins: { legend: { position: 'bottom' } },
       scales: {
         x: { stacked: true, grid: { color: borderColor } },
-        y: { stacked: true, grid: { color: borderColor }, ticks: { stepSize: 1 }, beginAtZero: true }
+        y: {
+          stacked: true,
+          grid: { color: borderColor },
+          ticks: { stepSize: 1 },
+          beginAtZero: true,
+          title: { display: true, text: 'Projects', color: textColor }
+        }
       }
     }
   });
   });
+  // ── Stage duration chart ──
+  if (cd.avg_stage_labels && cd.avg_stage_labels.length > 0) {
+    new Chart(document.getElementById('stageDurationChart'), {
+      type: 'bar',
+      data: {
+        labels: cd.avg_stage_labels,
+        datasets: [{
+          label: 'Avg days in stage',
+          data: cd.avg_stage_days,
+          backgroundColor: '#cecbf6',
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: borderColor } },
+          y: {
+            grid: { color: borderColor },
+            beginAtZero: true,
+            title: { display: true, text: 'Days', color: textColor }
+          }
+        }
+      }
+    });
+  }
+ 
+  // ── Worker utilization chart ──
+  if (cd.worker_names && cd.worker_names.length > 0) {
+    new Chart(document.getElementById('workerUtilChart'), {
+      type: 'bar',
+      data: {
+        labels: cd.worker_names,
+        datasets: [{
+          label: 'Days worked',
+          data: cd.worker_days,
+          backgroundColor: '#9fe1cb',
+          borderRadius: 4,
+          yAxisID: 'y',
+        }, {
+          label: 'Total earned (₹)',
+          data: cd.worker_earned,
+          backgroundColor: '#b5d4f4',
+          borderRadius: 4,
+          yAxisID: 'y2',
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: 'bottom' } },
+        scales: {
+          x: { grid: { color: borderColor } },
+          y: {
+            grid: { color: borderColor },
+            beginAtZero: true,
+            title: { display: true, text: 'Days', color: textColor },
+            position: 'left',
+          },
+          y2: {
+            beginAtZero: true,
+            position: 'right',
+            grid: { drawOnChartArea: false },
+            ticks: {
+              callback: function(v) {
+                return '₹' + (v/1000).toFixed(0) + 'k';
+              }
+            }
+          }
+        }
+      }
+    });
+  }
 </script>
-
+{# ── AVERAGE DAYS PER STAGE ── #}
+<div class="card" style="margin-bottom:20px">
+  <div class="chart-label">Average days projects spend in each stage</div>
+  <canvas id="stageDurationChart" height="80"></canvas>
+</div>
+ 
+{# ── WORKER UTILIZATION ── #}
+<div class="card" style="margin-bottom:20px">
+  <div class="chart-label">Worker utilization — total days worked</div>
+  <canvas id="workerUtilChart" height="80"></canvas>
+</div>
 {% endblock %}

@@ -7,20 +7,43 @@
     <div class="card-title">Pending installations ({{ pending | length }})</div>
     {% if pending %}
     <table>
-      <thead><tr><th>Project</th><th>Customer</th><th>Scheduled</th><th></th></tr></thead>
+      <thead><tr><th>Project</th><th>Customer</th><th>Phone</th><th>kW</th><th>Scheduled</th><th>Reschedule</th><th></th></tr></thead>
       <tbody>
         {% for i in pending %}
         <tr>
-          <td style="font-weight:500">{{ i.project.project_code }}</td>
-          <td>{{ i.project.customer.name }}</td>
-          <td>{{ i.scheduled_date | date_fmt }}</td>
-          <td>
-            <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}">
-              <input type="hidden" name="status" value="Completed"/>
-              <input type="hidden" name="completed_date" value="{{ today.strftime('%Y-%m-%d') }}"/>
-              <button type="submit" class="btn btn-sm btn-primary">Mark done</button>
-            </form>
-          </td>
+          <td style="font-weight:500">
+  <a href="{{ url_for('project_detail', pid=i.project_id) }}"
+     style="color:var(--amber-600)">{{ i.project.project_code }}</a>
+</td>
+<td>{{ i.project.customer.name }}</td>
+<td style="font-size:13px">{{ i.project.customer.phone or '—' }}</td>
+<td style="font-size:12px;color:var(--muted)">{{ i.project.system_kw }} kW</td>
+<td>{{ i.scheduled_date | date_fmt }}</td>
+<td>
+  {% if current_user.role in ['admin','appinstall'] %}
+  <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}"
+        style="display:flex;gap:6px;align-items:center">
+    <input type="hidden" name="status" value="Scheduled">
+    <input type="date" name="scheduled_date"
+           style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border);
+                  border-radius:var(--radius);background:transparent"/>
+    <button type="submit" class="btn btn-sm">Reschedule</button>
+  </form>
+  {% else %}
+  <span style="font-size:12px;color:var(--hint)">{{ i.rescheduled_date | date_fmt }}</span>
+  {% endif %}
+</td>
+<td>
+  {% if current_user.role in ['admin','appinstall'] %}
+  <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}">
+    <input type="hidden" name="status" value="Completed"/>
+    <input type="hidden" name="completed_date" value="{{ today.strftime('%Y-%m-%d') }}"/>
+    <button type="submit" class="btn btn-sm btn-primary">Mark done</button>
+  </form>
+  {% else %}
+    <span style="font-size:12px;color:var(--hint)">—</span>
+  {% endif %}
+</td>
         </tr>
         {% endfor %}
       </tbody>

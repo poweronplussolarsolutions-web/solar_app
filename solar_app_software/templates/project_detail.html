@@ -19,51 +19,85 @@
   {% endif %}
 ">
   <span style="font-size:18px">{% if proj.status == 'Cancelled' %}🚫{% else %}⏸{% endif %}</span>
-  <div>
+  <div style="flex:1">
     <div style="font-weight:600;font-size:14px">
       Project is {{ proj.status }}
     </div>
     <div style="font-size:12px;margin-top:2px;opacity:0.8">
       {% if proj.status == 'Cancelled' %}
         This project has been cancelled. All actions are locked.
+        Conatact admin to reinstate it.
+        {% if current_user.role == 'admin' %}
+          You can reinstate it below.
+        {% endif %}
       {% else %}
         This project is on hold. Resume it to unlock actions.
       {% endif %}
     </div>
   </div>
+
+  {# ── Admin: Uncancel button ── #}
+  {% if proj.status == 'Cancelled' and current_user.role == 'admin' %}
+  <button class="btn btn-sm btn-primary"
+          onclick="togglePanel('uncancelPanel')"
+          style="white-space:nowrap">
+    ↩ Reinstate Project
+  </button>
+  {% endif %}
 </div>
 
+{# Uncancel panel — outside the banner so it renders below it cleanly #}
+{% if proj.status == 'Cancelled' and current_user.role == 'admin' %}
+<div id="uncancelPanel" style="display:none;margin:-10px 0 16px 0;
+     border:1px solid #6ee7b7;border-radius:var(--radius);
+     background:#f0fdf4;padding:16px">
+  <div style="font-size:13px;font-weight:600;color:#065f46;margin-bottom:8px">
+    ↩ Reinstate Project
+  </div>
+  <p style="font-size:13px;color:#064e3b;margin-bottom:10px">
+    This will restore <strong>{{ proj.project_code }} — {{ proj.customer.name }}</strong>
+    to its previous stage (<strong>{{ proj.stage }}</strong>) and notify the team.
+  </p>
+  <form method="POST" action="{{ url_for('uncancel_project', pid=proj.id) }}">
+    <div class="form-group" style="margin-bottom:10px">
+      <label style="font-size:12px">Reason for reinstatement <span style="color:var(--muted)">(optional)</span></label>
+      <textarea name="reason" rows="2" placeholder="e.g. Customer changed their mind…"
+        style="width:100%;margin-top:4px;font-size:13px"></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button type="submit" class="btn btn-primary btn-sm">Confirm Reinstate</button>
+      <button type="button" class="btn btn-sm" onclick="togglePanel('uncancelPanel')">Dismiss</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+{# JS lock — same as before #}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  // {# Allow only the hold/cancel control buttons through — lock everything else #}
-  var allowedIds = ['cancelPanel', 'holdPanel'];
-
-  // {# Disable all forms except hold/resume #}
   document.querySelectorAll('form').forEach(function (form) {
     var action = form.getAttribute('action') || '';
-    var isHoldOrResume = action.includes('/hold') || action.includes('/cancel');
-    if (!isHoldOrResume) {
+    var isAllowed = action.includes('/hold') || action.includes('/cancel') || action.includes('/uncancel');
+    if (!isAllowed) {
       form.querySelectorAll('input, select, textarea, button').forEach(function (el) {
         el.disabled = true;
       });
     }
   });
 
-  // {# Disable all standalone buttons and links styled as buttons,
-    //  except the Cancel / Hold / Resume trigger buttons #}
   document.querySelectorAll('button, a.btn').forEach(function (el) {
     var onclick = el.getAttribute('onclick') || '';
     var href    = el.getAttribute('href')    || '';
-
-    var isToggle        = onclick.includes('togglePanel');
-    var isHoldForm      = el.closest('form') && (
-                            (el.closest('form').getAttribute('action') || '').includes('/hold') ||
-                            (el.closest('form').getAttribute('action') || '').includes('/cancel')
-                          );
-    var isBack          = href.includes('/projects') && el.textContent.trim().startsWith('←');
-    var isNotification  = el.id === 'notif-btn' || el.closest('#notif-btn') ||
-                          el.classList.contains('notif-btn') || el.closest('.notif-btn') ||
-                          onclick.includes('notif') || href.includes('notif');
+    var isToggle       = onclick.includes('togglePanel');
+    var isHoldForm     = el.closest('form') && (
+                           (el.closest('form').getAttribute('action') || '').includes('/hold') ||
+                           (el.closest('form').getAttribute('action') || '').includes('/cancel') ||
+                           (el.closest('form').getAttribute('action') || '').includes('/uncancel')
+                         );
+    var isBack         = href.includes('/projects') && el.textContent.trim().startsWith('←');
+    var isNotification = el.id === 'notif-btn' || el.closest('#notif-btn') ||
+                         el.classList.contains('notif-btn') || el.closest('.notif-btn') ||
+                         onclick.includes('notif') || href.includes('notif');
 
     if (!isToggle && !isHoldForm && !isBack && !isNotification) {
       el.style.pointerEvents = 'none';
@@ -92,6 +126,15 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Docs staff</td><td>{{ proj.doc_staff.full_name if proj.doc_staff else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Created</td><td>{{ proj.created_at | date_fmt }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Days open</td><td>{{ proj.days_open }} days</td></tr>
+      <tr>
+  <td style="color:var(--muted);padding:5px 0">Days in stage</td>
+  <td>
+    <span style="color:{% if proj.days_in_stage > 14 %}var(--red-600){% elif proj.days_in_stage > 7 %}var(--amber-600){% else %}var(--muted){% endif %}">
+      {{ proj.days_in_stage }} days
+      {% if proj.days_in_stage > 14 %} ⚠ Overdue{% endif %}
+    </span>
+  </td>
+</tr>
     </table>
   </div>
 
@@ -158,28 +201,101 @@ function togglePanel(id) {
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 </script>
-    {% if current_user.role in ['admin','coordinator','documents','onsite'] %}
-    <div class="card">
-      <div class="card-title">Update status</div>
-      <form method="POST" action="{{ url_for('update_status', pid=proj.id) }}"
-      style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-<p>Stage: </p>
-  <select name="stage" onchange="syncStatus(this)">
-    {% for s in ['Lead','Site Visit','Documentation','Onsite Work','Connection','Subsidy','Payment'] %}
-    <option value="{{ s }}" {% if proj.stage == s %}selected{% endif %}>{{ s }}</option>
-    {% endfor %}
-  </select>
-<p>Status: </p>
-  <select name="status" id="statusSelect">
-    {% for s in ['Created','InProgress','Delayed','Completed','Closed'] %}
-    <option value="{{ s }}" {% if proj.status == s %}selected{% endif %}>{{ s }}</option>
-    {% endfor %}
-  </select>
+    {# project_detail.html — replace the Update status card #}
+<div class="card">
+  <div class="card-title">Stage &amp; status</div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span style="font-size:15px;font-weight:500">{{ proj.stage }}</span>
+    <span class="badge badge-{{ proj.status }}">{{ proj.status }}</span>
+  </div>
+  <div style="font-size:12px;color:var(--muted);margin-top:6px">
+    Stage advances automatically as work is completed.
+  </div>
+  {% if current_user.role == 'admin' %}
+  <details style="margin-top:10px">
+    <summary style="font-size:12px;color:var(--hint);cursor:pointer">Admin override</summary>
+    <form method="POST" action="{{ url_for('update_status', pid=proj.id) }}"
+          style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+      <select name="stage">
+        {% for s in ['Lead','Site Visit','Documentation','Onsite Work','Connection','Subsidy','Payment'] %}
+        <option value="{{ s }}" {% if proj.stage == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+      <select name="status">
+        {% for s in ['Created','InProgress','Delayed','Completed','Closed'] %}
+        <option value="{{ s }}" {% if proj.status == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-sm">Override</button>
+    </form>
+  </details>
+  {% endif %}
+</div>
+{# ── SITE VISITS ── #}
+{% if current_user.role in ['admin', 'coordinator'] and proj.status not in ['Cancelled'] %}
+<div class="card">
+  <div class="card-title">Site visits</div>
 
-  <button type="submit" class="btn btn-primary btn-sm">Update</button>
-</form>
+  {% if proj.site_visits %}
+  <table style="margin-bottom:14px">
+    <thead><tr><th>Scheduled</th><th>Visited</th><th>Status</th><th>Observations</th><th></th></tr></thead>
+    <tbody>
+      {% for v in proj.site_visits | sort(attribute='scheduled_date') %}
+      <tr>
+        <td>{{ v.scheduled_date | date_fmt }}</td>
+        <td>{{ v.visited_date | date_fmt }}</td>
+        <td><span class="badge badge-{{ v.status }}">{{ v.status }}</span></td>
+        <td style="font-size:12px;color:var(--muted)">{{ v.observations or '—' }}</td>
+        <td>
+          {% if v.status == 'Scheduled' %}
+          <button class="btn btn-sm btn-primary"
+                  onclick="document.getElementById('complete-visit-{{ v.id }}').style.display='block'">
+            Mark complete
+          </button>
+          <div id="complete-visit-{{ v.id }}" style="display:none;margin-top:8px">
+            <form method="POST"
+                  action="{{ url_for('complete_site_visit', pid=proj.id, vid=v.id) }}">
+              <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+                <div class="form-group" style="margin:0">
+                  <label style="font-size:12px">Visit date</label>
+                  <input type="date" name="visited_date" required
+                         value="{{ today.isoformat() if today is defined else '' }}"/>
+                </div>
+                <div class="form-group" style="margin:0;flex:1">
+                  <label style="font-size:12px">Observations</label>
+                  <input type="text" name="observations" placeholder="Optional notes"/>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+              </div>
+            </form>
+          </div>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="color:var(--hint);font-size:13px;padding:4px 0 10px">No site visits scheduled yet.</div>
+  {% endif %}
+
+  {% if (proj.stage == 'Lead' or proj.stage == 'Site Visit') and not proj.site_visits %}
+  <form method="POST" action="{{ url_for('add_site_visit', pid=proj.id) }}">
+    <div style="display:flex;gap:8px;align-items:flex-end">
+      <div class="form-group" style="margin:0">
+        <label style="font-size:12px">Schedule date</label>
+        <input type="date" name="scheduled_date" required/>
+      </div>
+      <button type="submit" class="btn btn-sm btn-primary">Schedule site visit</button>
     </div>
-    {% endif %}
+  </form>
+  {% elif proj.site_visits %}
+  <div style="font-size:12px;color:var(--hint);margin-top:4px">
+     Site visit already scheduled — only one visit is allowed per project.
+  </div>
+  {% endif %}
+</div>
+{% endif %}
     <script>
 const stageStatusMap = {
   'Lead':          'Created',
@@ -204,8 +320,14 @@ function syncStatus(stageSelect) {
         <div class="progress-bar" style="width:{{ proj.payment_pct }}%"></div>
       </div>
       <div style="font-size:12px;color:var(--hint)">
-        {{ proj.payment_pct }}% collected · {{ proj.pending_amount | inr }} pending
-      </div>
+  {{ proj.payment_pct }}% collected · {{ proj.pending_amount | inr }} pending
+</div>
+{% if proj.subsidy and proj.subsidy.received_amount and proj.subsidy.received_amount > 0 %}
+<div style="margin-top:6px;font-size:12px;color:var(--teal-600)">
+  Subsidy received: {{ proj.subsidy.received_amount | inr }}
+  · Net pending: {{ proj.net_pending | inr }}
+</div>
+{% endif %}
       {# ── Remaining balance hint ── #}
   {% if proj.pending_amount > 0 %}
   <div style="margin-top:8px;font-size:12px;font-weight:500;color:var(--amber-600,#d97706);
@@ -526,6 +648,11 @@ function syncStatus(stageSelect) {
     <span class="btn btn-sm" style="opacity:0.5;cursor:not-allowed" title="All documents completed — locked">
       🔒 Documents complete
     </span>
+    {% elif proj.stage in ('Lead', 'Site Visit') %}
+    <span class="btn btn-sm" style="opacity:0.5;cursor:not-allowed"
+          title="Complete the site visit first">
+      🔒 Locked until site visit done
+    </span>
     {% else %}
     <a href="{{ url_for('documents', pid=proj.id) }}" class="btn btn-sm btn-primary">
       Manage documents
@@ -641,6 +768,19 @@ function syncStatus(stageSelect) {
           <button class="btn btn-sm edit-btn" data-aid="{{ a.id }}">Edit</button>
         </td>
         {% endif %}
+        {% if current_user.role in ['admin','onsite'] %}
+<td>
+ 
+  {% if a.status != 'Paid' %}
+  <button class="btn btn-sm btn-danger unassign-btn"
+        data-aid="{{ a.id }}"
+        data-name="{{ a.worker.name }}"
+        data-phase="{{ a.work_phase }}">
+  Unassign
+</button>
+  {% endif %}
+</td>
+{% endif %}
       </tr>
 
       {% if current_user.role in ['admin','onsite'] %}
@@ -804,6 +944,31 @@ document.addEventListener('DOMContentLoaded', function() {
       var aid = this.getAttribute('data-aid');
       var row = document.getElementById('update-form-' + aid);
       if (row) row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'table-row' : 'none';
+    });
+  });
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.edit-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var aid = this.getAttribute('data-aid');
+      var row = document.getElementById('update-form-' + aid);
+      if (row) row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'table-row' : 'none';
+    });
+  });
+
+  document.querySelectorAll('.unassign-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var aid   = this.getAttribute('data-aid');
+      var name  = this.getAttribute('data-name');
+      var phase = this.getAttribute('data-phase');
+      if (!confirm('Unassign ' + name + ' from ' + phase + ' phase? Any open job cards will be voided.')) return;
+      var form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/projects/{{ proj.id }}/unassign_worker/' + aid;
+      document.body.appendChild(form);
+      form.submit();
     });
   });
 });
