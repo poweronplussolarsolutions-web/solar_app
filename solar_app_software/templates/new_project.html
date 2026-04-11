@@ -60,8 +60,12 @@
     </div>
     <div class="form-grid">
       <div class="form-group">
-        <label>System size (kW) *</label>
-        <input name="system_kw" type="number" step="0.5" min="1" required placeholder="e.g. 5"/>
+        <label>Inverter capacity (kW) *</label>
+        <input name="inverter_capacity_kw" type="number" step="0.5" min="1" required placeholder="e.g. 5"/>
+      </div>
+      <div class="form-group">
+        <label>Panel capacity (kW) *</label>
+        <input name="panel_capacity_kw" type="number" step="0.5" min="1" required placeholder="e.g. 6"/>
       </div>
       <div class="form-group">
         <label>Project type *</label>
@@ -71,12 +75,12 @@
         </select>
       </div>
       <div class="form-group">
-  <label>Project subtype</label>
-  <select name="project_subtype">
-    <option value="DCR">DCR (with subsidy)</option>
-    <option value="Non-DCR">Non-DCR (no subsidy)</option>
-  </select>
-</div>
+        <label>Project subtype</label>
+        <select name="project_subtype">
+          <option value="DCR">DCR (with subsidy)</option>
+          <option value="Non-DCR">Non-DCR (no subsidy)</option>
+        </select>
+      </div>
       <div class="form-group">
         <label>Total contract amount (₹)</label>
         <input name="total_amount" type="number" step="1" min="0" placeholder="0"/>
@@ -86,9 +90,9 @@
         <label>Coordinator</label>
         <input type="text" value="{{ current_user.full_name }}" disabled
          style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
-  <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
-    Auto-assigned to you
-  </span>
+        <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
+          Auto-assigned to you
+        </span>
       </div>
       <div class="form-group">
         <label>Documents staff</label>

@@ -145,7 +145,8 @@ class Project(db.Model):
     id               = db.Column(db.Integer, primary_key=True)
     project_code     = db.Column(db.String(20), unique=True, nullable=False)
     customer_id      = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=False)
-    system_kw        = db.Column(db.Numeric(6, 2), nullable=False)
+    inverter_capacity_kw = db.Column(db.Numeric(6, 2), nullable=False)
+    panel_capacity_kw = db.Column(db.Numeric(6, 2), nullable=False)
     project_type     = db.Column(db.Enum('Loan', 'Cash'), nullable=False)
     status           = db.Column(db.Enum('Lead','Created','InProgress','Completed','Delayed','Pending','Closed','OnHold','Cancelled'), default='Lead')
     stage            = db.Column(db.String(100), default='Lead')
@@ -166,16 +167,50 @@ class Project(db.Model):
     materials   = db.relationship('Material',       backref='project', lazy=True)
     assignments = db.relationship('WorkerAssignment', backref='project', lazy=True)
 
-    @property
-    def pending_amount(self):
-        return float(self.total_amount or 0) - float(self.collected_amount or 0)
 
     @property
+    def contract_amount(self):
+        """The base contract amount entered at project creation."""
+        return float(self.total_amount or 0)
+
+    @property
+    def company_paid_expenses(self):
+        """Expenses paid by company that need to be recovered from customer."""
+        return [e for e in self.expenses if e.paid_by == 'Company' ]
+
+    @property
+    def company_expense_total(self):
+        return sum(float(e.amount) for e in self.company_paid_expenses)
+
+    @property
+    def total_receivable(self):
+        """Contract amount + any company-paid expenses to be recovered."""
+        return self.contract_amount + self.company_expense_total
+    @property
+    def recovered_expense_total(self):
+        """Company-paid expenses that have been recovered from customer."""
+        return sum(float(e.amount) for e in self.company_paid_expenses if e.recovered)
+
+    
+    @property
+    def pending_amount(self):
+        sub_customer_share = 0
+        if self.subsidy and self.subsidy.customer_share and self.subsidy.status == 'Received':
+            sub_customer_share = float(self.subsidy.customer_share)
+        return max(0, self.total_receivable - self.effective_collected - sub_customer_share)
+    @property
+    def effective_collected(self):
+        """Cash collected from customer + recovered company expenses."""
+        company_share = 0
+        if self.subsidy and self.subsidy.company_share and self.subsidy.status == 'Received':
+            company_share = float(self.subsidy.company_share)
+        return float(self.collected_amount or 0) + self.recovered_expense_total + company_share
+    @property
     def payment_pct(self):
-        t = float(self.total_amount or 0)
+        t = self.total_receivable
         if t == 0:
             return 0
-        return int(float(self.collected_amount or 0) / t * 100)
+        return min(100, int(self.effective_collected / t * 100))
 
     @property
     def days_open(self):
@@ -187,13 +222,13 @@ class Project(db.Model):
             return 0
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         return (now - ref).days
-    @property
-    def net_amount(self):
-        sub_received = float(self.subsidy.received_amount) if self.subsidy and self.subsidy.received_amount else 0
-        return float(self.total_amount or 0)-sub_received
-    @property
-    def net_pending(self):
-        return self.net_amount - float(self.collected_amount or 0)
+    # @property
+    # def net_amount(self):
+    #     sub_received = float(self.subsidy.received_amount) if self.subsidy and self.subsidy.received_amount else 0
+    #     return float(self.total_amount or 0)-sub_received
+    # @property
+    # def net_pending(self):
+    #     return max(0, self.net_amount - float(self.collected_amount or 0))
     
     @property
     def bank_instalments(self):
@@ -331,7 +366,9 @@ class Subsidy(db.Model):
     request_date    = db.Column(db.Date)
     expected_amount = db.Column(db.Numeric(10, 2), default=0)
     received_amount = db.Column(db.Numeric(10, 2), default=0)
-    status          = db.Column(db.Enum('NotStarted','Requested','Redeemed','Received'), default='NotStarted')
+    customer_share = db.Column(db.Numeric(10, 2), default=0)
+    company_share = db.Column(db.Numeric(10, 2), default=0)
+    status          = db.Column(db.Enum('NotStarted','Processing','Commissioned','Redeemed','Received'), default='NotStarted')
     notes           = db.Column(db.Text)
     updated_at      = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     project         = db.relationship('Project', backref=db.backref('subsidy', uselist=False))
@@ -505,6 +542,25 @@ class WorkerLedger(db.Model):
 
     worker    = db.relationship('Worker', backref='ledger_entries')
     recorder  = db.relationship('User',   foreign_keys=[recorded_by])
+
+class ProjectExpense(db.Model):
+    __tablename__ = 'project_expenses'
+    id           = db.Column(db.Integer, primary_key=True)
+    project_id   = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    expense_type = db.Column(db.Enum('CD Payment', 'Net Meter'), nullable=False)
+    amount       = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    paid_by      = db.Column(db.Enum('Customer', 'Company'), nullable=False, default='Customer')
+    paid_date    = db.Column(db.Date, nullable=True)
+    recovered    = db.Column(db.Boolean, default=False)
+    recovered_date = db.Column(db.Date, nullable=True)
+    notes        = db.Column(db.Text, nullable=True)
+    created_at   = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at   = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    recorded_by  = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+    project  = db.relationship('Project', backref='expenses')
+    recorder = db.relationship('User', foreign_keys=[recorded_by])
+
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -648,13 +704,14 @@ def _notify_stage_transition(proj, from_stage, to_stage):
     code = f'{proj.project_code} — {proj.customer.name}'
  
     if to_stage == 'Site Visit':
+        pass
         # Notify coordinator
-        if proj.coordinator_id:
-            create_notification(
-                proj.coordinator_id, proj.id,
-                f'{code}: Site visit scheduled. Please confirm the visit date.',
-                'task'
-            )
+        # if proj.coordinator_id:
+        #     create_notification(
+        #         proj.coordinator_id, proj.id,
+        #         f'{code}: Site visit scheduled. Please confirm the visit date.',
+        #         'task'
+        #     )
  
     elif to_stage == 'Documentation':
         # Notify doc staff
@@ -969,7 +1026,8 @@ def new_project():
         proj = Project(
             project_code   = next_project_code(),
             customer_id    = cust_id,
-            system_kw      = float(request.form['system_kw']),
+            inverter_capacity_kw = float(request.form['inverter_capacity_kw']),
+            panel_capacity_kw = float(request.form['panel_capacity_kw']),
             project_type   = request.form['project_type'],
             status         = 'Lead',
             stage          = 'Lead',
@@ -986,7 +1044,7 @@ def new_project():
             create_notification(
                 user_id= proj.doc_staff_id,
                 project_id=proj.id,
-                message=f'You have been assigned to {proj.project_code}-{proj.customer.name}({proj.project_type},{proj.system_kw} kW).',
+                message=f'You have been assigned to {proj.project_code}-{proj.customer.name}({proj.project_type},{proj.inverter_capacity_kw} kW).',
                 notif_type='task',
             )
         db.session.commit()
@@ -1047,7 +1105,68 @@ def project_detail(pid):
     worker_rate = {str(w.id):float(w.rate_per_day or 0) for w in all_workers}
     return render_template('project_detail.html', proj=proj, logs=logs,
                            workers=workers, all_workers=all_workers,worker_rate=worker_rate,today=date.today())
+@app.route('/projects/<int:pid>/expenses', methods=['POST'])
+@login_required
+@roles_required('admin', 'documents')
+def update_expense(pid):
+    proj         = Project.query.get_or_404(pid)
+    expense_type = request.form['expense_type']   # 'CD Payment' or 'Net Meter'
+    amount       = float(request.form.get('amount') or 0)
+    paid_by      = request.form.get('paid_by', 'Customer')
+    paid_date    = request.form.get('paid_date')
+    notes        = request.form.get('notes', '').strip()
 
+    existing = ProjectExpense.query.filter_by(
+        project_id=pid, expense_type=expense_type
+    ).first()
+
+    if existing:
+        existing.amount    = amount
+        existing.paid_by   = paid_by
+        existing.paid_date = date.fromisoformat(paid_date) if paid_date else existing.paid_date
+        existing.notes     = notes
+        existing.recorded_by = current_user.id
+    else:
+        expense = ProjectExpense(
+            project_id   = pid,
+            expense_type = expense_type,
+            amount       = amount,
+            paid_by      = paid_by,
+            paid_date    = date.fromisoformat(paid_date) if paid_date else None,
+            notes        = notes,
+            recorded_by  = current_user.id,
+        )
+        db.session.add(expense)
+
+    log_action(pid, f'{expense_type} recorded: paid by {paid_by}, ₹{amount:,.0f}', new_val=paid_by)
+
+    # If company paid, notify payments team to track recovery
+    if paid_by == 'Company':
+        payments_users = User.query.filter_by(role='payments', is_active=True).all()
+        for u in payments_users:
+            create_notification(
+                u.id, pid,
+                f'{proj.project_code} — {proj.customer.name}: {expense_type} of '
+                f'₹{amount:,.0f} paid by company. To be recovered from customer.',
+                'task'
+            )
+
+    db.session.commit()
+    flash(f'{expense_type} updated.', 'success')
+    return redirect(url_for('documents', pid=pid))
+
+
+@app.route('/projects/<int:pid>/expenses/<int:eid>/mark_recovered', methods=['POST'])
+@login_required
+@roles_required('admin', 'payments')
+def mark_expense_recovered(pid, eid):
+    expense = ProjectExpense.query.get_or_404(eid)
+    expense.recovered      = True
+    expense.recovered_date = date.today()
+    log_action(pid, f'{expense.expense_type} marked as recovered from customer')
+    db.session.commit()
+    flash(f'{expense.expense_type} marked as recovered.', 'success')
+    return redirect(url_for('project_detail', pid=pid))
 
 @app.route('/projects/<int:pid>/update_status', methods=['POST'])
 @login_required
@@ -1466,7 +1585,7 @@ def payments_dashboard():
                            pending_projs=pending_projs)
 @app.route('/payments/pending_approvals')
 @login_required
-@roles_required('admin', 'payments')
+@roles_required('admin', 'onsite')
 def pending_approvals():
     cards = JobCard.query.filter_by(status='PendingApproval')\
                 .order_by(JobCard.closed_at.desc()).all()
@@ -1517,7 +1636,7 @@ def documents(pid):
             if not already_notified:
                 notify_onsite_team(
                     project_id = pid,
-                    message    = f'Feasibility done for {proj.project_code} — {proj.customer.name}. Start structure work.',
+                    # message    = f'Feasibility done for {proj.project_code} — {proj.customer.name}. Start structure work.',
                     notif_type = 'task',
                 )
                 log_action(pid, 'Onsite team notified: structure work', new_val='Notified')
@@ -2000,7 +2119,7 @@ def close_job_card(card_id):
     return redirect(url_for('workers'))
 @app.route('/job_card/<int:card_id>/approve', methods=['POST'])
 @login_required
-@roles_required('admin', 'payments')
+@roles_required('admin', 'onsite')
 def approve_job_card(card_id):
     card = JobCard.query.get_or_404(card_id)
  
@@ -2045,7 +2164,7 @@ def approve_job_card(card_id):
     return redirect(url_for('workers'))
 @app.route('/job_card/<int:card_id>/void', methods=['POST'])
 @login_required
-@roles_required('admin')
+@roles_required('admin','onsite')
 def void_job_card(card_id):
     card = JobCard.query.get_or_404(card_id)
  
@@ -2065,7 +2184,7 @@ def void_job_card(card_id):
     return redirect(url_for('workers'))
 @app.route('/worker/<int:worker_id>/advance', methods=['POST'])
 @login_required
-@roles_required('admin', 'payments', 'onsite')
+@roles_required('admin', 'onsite')
 def give_advance(worker_id):
     worker = Worker.query.get_or_404(worker_id)
     amount = Decimal(request.form['amount'])
@@ -2110,7 +2229,7 @@ def give_advance(worker_id):
     return redirect(url_for('workers'))
 @app.route('/worker/<int:worker_id>/settle', methods=['POST'])
 @login_required
-@roles_required('admin', 'payments')
+@roles_required('admin', 'onsite')
 def settle_worker(worker_id):
     worker = Worker.query.get_or_404(worker_id)
  
@@ -2209,7 +2328,7 @@ def void_ledger_entry(entry_id):
     return redirect(url_for('workers'))
 @app.route('/advance/<int:advance_id>/recover', methods=['POST'])
 @login_required
-@roles_required('admin', 'payments')
+@roles_required('admin', 'onsite')
 def recover_advance(advance_id):
     advance = WorkerAdvance.query.get_or_404(advance_id)
     still_owed = float(advance.amount) - float(advance.recovered_amount)
@@ -2335,7 +2454,7 @@ def subsidy(pid):
     sub  = proj.subsidy
 
     if request.method == 'POST':
-        if current_user.role not in ['admin', 'payments']:
+        if current_user.role not in ['admin', 'payments','documents']:
             flash('Subsidy can be updated only by payments team', 'danger')
             return redirect(url_for('subsidy', pid=pid))
 
@@ -2345,60 +2464,71 @@ def subsidy(pid):
             db.session.flush()
 
         exp = float(request.form.get('expected_amount') or sub.expected_amount or 78000)
-        rec = float(request.form.get('received_amount') or sub.received_amount or 0)
-
-        if rec > exp:
+        
+        new_status=request.form.get('status',sub.status)
+        if new_status == 'Received':
+            rec=exp
+        else:
+            rec=float(request.form.get('received_amount') or sub.received_amount or 0)
+        if rec>exp:
             flash(f'Received amount (₹{rec:,.0f}) cannot exceed expected amount (₹{exp:,.0f}).', 'danger')
-            return redirect(url_for('subsidy', pid=pid))
+            return redirect(url_for('subsidy',pid=pid))
 
-        sub.status          = request.form.get('status', sub.status)
+        sub.status          = new_status
         sub.expected_amount = exp
         sub.received_amount = rec
         sub.notes           = request.form.get('notes')
         if request.form.get('request_date'):
             sub.request_date = date.fromisoformat(request.form['request_date'])
 
-        log_action(pid, 'Subsidy updated', new_val=sub.status)
+        customer_share = float(sub.customer_share or 0) if sub.customer_share else 0
+        company_share  = float(sub.company_share  or 0) if sub.company_share  else 0
+        if new_status == 'Received':
+            customer_share = float(request.form.get('customer_share') or 0)
+            company_share = float(request.form.get('company_share') or 0)
+            if abs((customer_share + company_share) - rec)>0.01:
+                flash(f'Customer share (₹{customer_share:,.0f}) + Company share (₹{company_share:,.0f})'
+                      f'must equal received amount (₹{rec:,.0f}).', 'danger')
+                return redirect(url_for('subsidy', pid=pid))
+        sub.customer_share = customer_share
+        sub.company_share  = company_share
+        
 
-        if sub.status == 'Requested':
-            if proj.doc_staff_id:
-                create_notification(
-                    user_id    = proj.doc_staff_id,
-                    project_id = pid,
-                    message    = f'{proj.project_code} — {proj.customer.name}: Subsidy has been requested. Please update the Subsidy Request document.',
-                    notif_type = 'task',
-                )
+        if sub.status == 'Processing':
             if proj.coordinator_id:
-                create_notification(
-                    user_id    = proj.coordinator_id,
-                    project_id = pid,
-                    message    = f'{proj.project_code} — {proj.customer.name}: Subsidy has been requested by payments team.',
-                    notif_type = 'info',
-                )
+                create_notification(proj.coordinator_id, pid,
+                f'{proj.project_code} — {proj.customer.name}: Subsidy processing started by docs team.',
+                'info')
+            log_action(pid, 'Subsidy updated: Processing', new_val=sub.status)
+        elif sub.status == 'Commissioned':
+            payments_users = User.query.filter_by(role='payments', is_active=True).all()
+            for u in payments_users:
+                create_notification(u.id, pid,
+                f'{proj.project_code} — {proj.customer.name}: Project commissioned. Please redeem the subsidy.',
+                'task')
+            if proj.coordinator_id:
+                create_notification(proj.coordinator_id, pid,
+                f'{proj.project_code} — {proj.customer.name}: Project commissioned. Subsidy redemption pending.',
+                'info')
+            log_action(pid, 'Subsidy update: Project commissioned', new_val=sub.status)
+
         elif sub.status == 'Redeemed':
             if proj.doc_staff_id:
-                create_notification(
-                    user_id    = proj.doc_staff_id,
-                    project_id = pid,
-                    message    = f'{proj.project_code} — {proj.customer.name}: Subsidy has been redeemed. Please update the Subsidy Redeem document.',
-                    notif_type = 'task',
-                )
+                create_notification(proj.doc_staff_id, pid,
+                f'{proj.project_code} — {proj.customer.name}: Subsidy redeemed by payments team. Please update Subsidy Redeem document.',
+                'task')
             if proj.coordinator_id:
-                create_notification(
-                    user_id    = proj.coordinator_id,
-                    project_id = pid,
-                    message    = f'{proj.project_code} — {proj.customer.name}: Subsidy has been redeemed. Amount: ₹{rec:,.0f}.',
-                    notif_type = 'info',
-                )
+                create_notification(proj.coordinator_id, pid,
+                f'{proj.project_code} — {proj.customer.name}: Subsidy redeemed.',
+                'info')
+            log_action(pid, 'Subsidy updated: Redeemed', new_val=sub.status)
+
         elif sub.status == 'Received':
             if proj.coordinator_id:
-                create_notification(
-                    user_id    = proj.coordinator_id,
-                    project_id = pid,
-                    message    = f'{proj.project_code} — {proj.customer.name}: Subsidy of ₹{rec:,.0f} has been received.',
-                    notif_type = 'info',
-                )
-
+                create_notification(proj.coordinator_id, pid,
+                f'{proj.project_code} — {proj.customer.name}: Subsidy amount received.',
+                'info')
+            log_action(pid, 'Subsidy updated: Received', new_val=sub.status)
         db.session.flush()
         auto_advance_stage(proj)
         db.session.commit()

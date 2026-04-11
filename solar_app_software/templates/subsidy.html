@@ -40,17 +40,37 @@
     <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Subsidy amount</div>
     <div style="font-size:20px;font-weight:600;color:var(--fg)">₹78,000</div>
     <!-- <div style="font-size:11px;color:var(--hint);margin-top:2px">Standard DCR rate</div> -->
-     <div style="font-size:11px;margin-top:2px">
-      {% if sub and sub.status == 'Received' %}
-      <span style="color:var(--green-600)">✓ Subsidy received</span>
-      {% elif sub and sub.status == 'Processing' %}
-      <span style="color:var(--amber-600)">Processing</span>
-      {% elif sub and sub.status == 'Requested' %}
-      <span style="color:var(--amber-600)">Requested</span>
-      {% else %}
-      <span style="color:var(--hint)">Not started</span>
-      {% endif %}
+     {# In the amount summary div, replace the status span section: #}
+<div style="font-size:11px;margin-top:2px">
+  {% if sub and sub.status == 'Received' %}
+  <span style="color:var(--green-600)">✓ Subsidy received</span>
+  {% elif sub and sub.status == 'Redeemed' %}
+  <span style="color:var(--amber-600)">Redeemed</span>
+  {% elif sub and sub.status == 'Commissioned' %}
+  <span style="color:var(--amber-600)">Commissioned</span>
+  {% elif sub and sub.status == 'Processing' %}
+  <span style="color:var(--amber-600)">Processing</span>
+  {% else %}
+  <span style="color:var(--hint)">Not started</span>
+  {% endif %}
+</div>
+
+{# Add a second card in the grid showing the split when received #}
+{% if sub and sub.status == 'Received' and (sub.customer_share or sub.company_share) %}
+<div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px">
+  <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Distribution</div>
+  <div style="font-size:13px;display:flex;flex-direction:column;gap:4px">
+    <div style="display:flex;justify-content:space-between">
+      <span style="color:var(--muted)">Customer</span>
+      <span style="font-weight:500">{{ sub.customer_share | inr }}</span>
     </div>
+    <div style="display:flex;justify-content:space-between">
+      <span style="color:var(--muted)">Company</span>
+      <span style="font-weight:500">{{ sub.company_share | inr }}</span>
+    </div>
+  </div>
+</div>
+{% endif %}
   </div>
   <!-- <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px">
     <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Received amount</div>
@@ -61,90 +81,226 @@
   </div> -->
 </div>
 
-  <!-- {# ── Workflow steps ── #} -->
-  <div style="margin-bottom:20px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);margin-bottom:10px">Subsidy workflow</div>
-    {% set status = sub.status if sub else 'NotStarted' %}
-    {% for step, label in [('Requested','1. Payment team requests subsidy'),('Redeemed','2. Subsidy Redeemed'),('Received','3. Subsidy received')] %}
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border)">
-      {% if status == 'Received' or
-            (status == 'Redeemed' and loop.index <= 2) or
-            (status == 'Requested' and loop.index <= 1) %}
-      <div style="width:20px;height:20px;border-radius:50%;background:var(--green-600);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
-      </div>
-      {% else %}
-      <div style="width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border);flex-shrink:0"></div>
-      {% endif %}
+  
+  {# ── Workflow steps ── #}
+<div style="margin-bottom:20px">
+  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);margin-bottom:10px">Subsidy workflow</div>
+  {% set status = sub.status if sub else 'NotStarted' %}
+  {% set step_index = {'NotStarted':0,'Processing':1,'Commissioned':2,'Redeemed':3,'Received':4}[status] %}
+  {% for step, label, team in [
+      ('Processing',   '1. Subsidy processing started',   'Docs team'),
+      ('Commissioned', '2. Project commissioned (KSEB)',   'Docs team'),
+      ('Redeemed',     '3. Subsidy redeemed',              'Payments team'),
+      ('Received',     '4. Subsidy amount received',       'Payments team'),
+  ] %}
+  <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border)">
+    {% if step_index >= loop.index %}
+    <div style="width:20px;height:20px;border-radius:50%;background:var(--green-600);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    </div>
+    {% elif step_index == loop.index - 1 %}
+    <div style="width:20px;height:20px;border-radius:50%;border:2px solid var(--amber-400,#fbbf24);background:var(--amber-50,#fffbeb);flex-shrink:0"></div>
+    {% else %}
+    <div style="width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border);flex-shrink:0"></div>
+    {% endif %}
+    <div style="flex:1">
       <span style="font-size:13px;color:var(--fg)">{{ label }}</span>
+      <span style="font-size:11px;color:var(--muted);margin-left:6px">— {{ team }}</span>
     </div>
-    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+   
+
+{# ── Role-split update forms ── #}
+{% set status = sub.status if sub else 'NotStarted' %}
+
+{% if sub and sub.status == 'Received' and current_user.role not in ['admin'] %}
+<div style="display:flex;align-items:center;gap:10px;background:var(--green-50,#f0fdf4);
+            border:1px solid var(--green-200,#bbf7d0);border-radius:var(--radius);
+            padding:12px 16px;margin-bottom:16px">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+       stroke="var(--green-600,#16a34a)" stroke-width="2" stroke-linecap="round">
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+    <polyline points="22 4 12 14.01 9 11.01"/>
+  </svg>
+  <div>
+    <div style="font-size:13px;font-weight:600;color:var(--green-700,#15803d)">Subsidy completed</div>
+    <div style="font-size:12px;color:var(--green-600,#16a34a);margin-top:2px">
+      Subsidy of {{ sub.company_share | inr }} has been received and recorded.
+      <!-- {% if sub.request_date %} Started on {{ sub.request_date | date_fmt }}.{% endif %} -->
+    </div>
+  </div>
+</div>
+
+{# ── Docs team: steps 1 & 2 — Processing and Commissioned ── #}
+{% elif current_user.role in ['admin', 'documents'] and status in ['NotStarted', 'Processing'] %}
+<div style="font-size:13px;font-weight:500;margin-bottom:12px;color:var(--fg)">
+  Docs team — update subsidy progress
+</div>
+<form method="POST">
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Status</label>
+      <select name="status">
+        {% for s in ['NotStarted', 'Processing', 'Commissioned'] %}
+        <option value="{{ s }}" {% if status == s %}selected{% endif %}>
+          {% if s == 'NotStarted' %}Not started
+          {% elif s == 'Processing' %}Processing (step 1)
+          {% elif s == 'Commissioned' %}Commissioned (step 2)
+          {% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Start date</label>
+      <input type="date" name="request_date"
+             value="{{ sub.request_date if sub and sub.request_date else '' }}"/>
+    </div>
+    <div class="form-group">
+      <label>Expected subsidy (₹)</label>
+      <input type="number" name="expected_amount" step="1"
+             value="{{ (sub.expected_amount or 78000) if sub else 78000 }}"/>
+    </div>
+    <div class="form-group full">
+      <label>Notes</label>
+      <textarea name="notes" rows="2">{{ sub.notes if sub else '' }}</textarea>
+    </div>
+  </div>
+  <button type="submit" class="btn btn-primary">Save</button>
+</form>
+
+{# ── Docs team: commissioned — waiting for payments ── #}
+{% elif current_user.role == 'documents' and status == 'Commissioned' %}
+<div style="background:var(--amber-50,#fffbeb);border:1px solid var(--amber-200,#fde68a);
+            border-radius:var(--radius);padding:12px 16px;font-size:13px;color:var(--amber-700,#b45309)">
+  ✓ Project commissioned. Waiting for payments team to redeem and receive the subsidy.
+</div>
+
+{# ── Payments team: steps 3 & 4 — Redeem and Receive ── #}
+{% elif current_user.role in ['admin', 'payments'] and status in ['Commissioned', 'Redeemed'] %}
+<div style="font-size:13px;font-weight:500;margin-bottom:12px;color:var(--fg)">
+  Payments team — redeem &amp; receive subsidy
+</div>
+<form method="POST" id="subsidyForm">
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Status</label>
+      <select name="status" id="subsidyStatus" onchange="toggleSplitFields()">
+        {% for s in ['Commissioned', 'Redeemed', 'Received'] %}
+        <option value="{{ s }}" {% if status == s %}selected{% endif %}>
+          {% if s == 'Commissioned' %}Commissioned (awaiting redemption)
+          {% elif s == 'Redeemed' %}Redeemed (step 3)
+          {% elif s == 'Received' %}Received (step 4)
+          {% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Received amount (₹)</label>
+      <input type="number" name="expected_amount" id="receivedAmt" step="1"
+             value="{{ (sub.expected_amount or 78000) if sub else 78000 }}"
+             oninput="updateRemaining()"/>
+    </div>
   </div>
 
-  {# ── Update form — payments role only ── #}
-  {% if current_user.role in ['admin','payments'] %}
-
-  {% if sub and sub.status == 'Received' %}
-  <div style="display:flex;align-items:center;gap:10px;background:var(--green-50,#f0fdf4);border:1px solid var(--green-200,#bbf7d0);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-         stroke="var(--green-600,#16a34a)" stroke-width="2" stroke-linecap="round">
-      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-      <polyline points="22 4 12 14.01 9 11.01"/>
-    </svg>
-    <div>
-      <div style="font-size:13px;font-weight:600;color:var(--green-700,#15803d)">Subsidy completed</div>
-      <div style="font-size:12px;color:var(--green-600,#16a34a);margin-top:2px">
-        Subsidy of ₹78,000 has been received and recorded.
-        {% if sub.request_date %} Requested on {{ sub.request_date | date_fmt }}.{% endif %}
+  {# Split fields — shown only when Received #}
+  <div id="splitFields" style="display:none;margin-top:4px">
+    <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;
+                text-transform:uppercase;letter-spacing:0.04em">
+      Subsidy distribution
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Customer share (₹)</label>
+        <input type="number" name="customer_share" id="customerShare" step="1"
+               value="{{ sub.customer_share | int if sub and sub.customer_share else 0 }}"
+               oninput="updateRemaining()" placeholder="0"/>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">
+          Amount credited / passed to customer
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Company share (₹)</label>
+        <input type="number" name="company_share" id="companyShare" step="1"
+               value="{{ sub.company_share | int if sub and sub.company_share else 0 }}"
+               oninput="updateRemaining()" placeholder="0"/>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">
+          Amount retained by company
+        </div>
       </div>
     </div>
+    <div id="splitSummary" style="font-size:12px;padding:8px 12px;border-radius:var(--radius);
+                                   background:var(--bg);border:1px solid var(--border);margin-bottom:12px">
+      Allocated: ₹0 of ₹0 — Remaining: ₹0
+    </div>
   </div>
-  {% if current_user.role == 'admin' %}
-  <div style="font-size:12px;color:var(--hint);margin-bottom:8px">Admin override — subsidy is already received.</div>
-  <form method="POST">
+
+  <div class="form-group">
+    <label>Notes</label>
+    <textarea name="notes" rows="2">{{ sub.notes if sub else '' }}</textarea>
+  </div>
+
+  <input type="hidden" name="request_date"
+         value="{{ sub.request_date if sub and sub.request_date else '' }}"/>
+  <button type="submit" class="btn btn-primary">Save</button>
+</form>
+
+<script>
+function toggleSplitFields() {
+  var status = document.getElementById('subsidyStatus').value;
+  var fields = document.getElementById('splitFields');
+  fields.style.display = (status === 'Received') ? 'block' : 'none';
+  if (status === 'Received') updateRemaining();
+}
+
+function updateRemaining() {
+  var total    = parseFloat(document.getElementById('receivedAmt').value) || 0;
+  var customer = parseFloat(document.getElementById('customerShare').value) || 0;
+  var company  = parseFloat(document.getElementById('companyShare').value) || 0;
+  var allocated = customer + company;
+  var remaining = total - allocated;
+  var color = Math.abs(remaining) < 1 ? 'var(--green-600)' : 'var(--red-600,#dc2626)';
+  document.getElementById('splitSummary').innerHTML =
+    'Allocated: ₹' + allocated.toLocaleString('en-IN') +
+    ' of ₹' + total.toLocaleString('en-IN') +
+    ' — <span style="color:' + color + ';font-weight:500">Remaining: ₹' +
+    remaining.toLocaleString('en-IN') + '</span>';
+}
+
+// Run on load to set initial state
+document.addEventListener('DOMContentLoaded', function() {
+  toggleSplitFields();
+});
+</script>
+
+{# ── Payments team: waiting for docs to commission ── #}
+{% elif current_user.role == 'payments' and status in ['NotStarted', 'Processing'] %}
+<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);
+            padding:12px 16px;font-size:13px;color:var(--muted)">
+  ⏳ Waiting for docs team to complete processing and commission the project (steps 1–2).
+</div>
+
+{# ── Admin override ── #}
+{% elif current_user.role == 'admin' %}
+<details style="margin-top:4px">
+  <summary style="font-size:12px;color:var(--hint);cursor:pointer">Admin override</summary>
+  <form method="POST" style="margin-top:10px">
     <div class="form-grid">
       <div class="form-group">
         <label>Status</label>
         <select name="status">
-          {% for s in ['NotStarted','Requested','Redeemed','Received'] %}
-          <option value="{{ s }}" {% if sub.status == s %}selected{% endif %}>{{ s }}</option>
+          {% for s in ['NotStarted','Processing','Commissioned','Redeemed','Received'] %}
+          <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="form-group">
-        <label>Request date</label>
-        <input type="date" name="request_date"
-               value="{{ sub.request_date if sub.request_date else '' }}"/>
-      </div>
-      <div class="form-group">
-        <label>Amount (₹)</label>
-        <input type="number" name="expected_amount" step="1"
-               value="{{ sub.expected_amount or 78000 }}"/>
-      </div>
-      <div class="form-group full">
-        <label>Notes</label>
-        <textarea name="notes" rows="3">{{ sub.notes or '' }}</textarea>
-      </div>
-    </div>
-    <button type="submit" class="btn btn-sm">Update (admin override)</button>
-  </form>
-  {% endif %}
-
-  {% else %}
-  <form method="POST">
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Status</label>
-        <select name="status">
-          {% for s in ['NotStarted','Requested','Redeemed','Received'] %}
-          <option value="{{ s }}" {% if sub and sub.status == s %}selected{% endif %}>{{ s }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Request date</label>
+        <label>Start date</label>
         <input type="date" name="request_date"
                value="{{ sub.request_date if sub and sub.request_date else '' }}"/>
       </div>
@@ -155,19 +311,13 @@
       </div>
       <div class="form-group full">
         <label>Notes</label>
-        <textarea name="notes" rows="3">{{ sub.notes if sub else '' }}</textarea>
+        <textarea name="notes" rows="2">{{ sub.notes if sub else '' }}</textarea>
       </div>
     </div>
-    <button type="submit" class="btn btn-primary">Save subsidy record</button>
+    <button type="submit" class="btn btn-sm">Override</button>
   </form>
-  {% endif %}
-
-  {% else %}
-  <div style="font-size:13px;color:var(--hint);padding:8px 0">
-    Only the payments team can update subsidy records.
-  </div>
-  {% endif %}
-
+</details>
+{% endif %}
 </div>
 {% endif %}
 

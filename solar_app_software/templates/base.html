@@ -287,7 +287,7 @@
       </a>
       {% endif %}
 
-      {% if current_user.role in ['admin','onsite','payments'] %}
+      {% if current_user.role in ['admin','onsite'] %}
       <div class="nav-section">Operations</div>
       <a class="nav-link {% if request.endpoint == 'workers' %}active{% endif %}" href="{{ url_for('workers') }}">
         <span class="dot"></span> Workers

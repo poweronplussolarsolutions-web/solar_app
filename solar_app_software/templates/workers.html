@@ -13,7 +13,7 @@
   {% endfor %}
 {% endfor %}
  
-{% if all_pending and current_user.role in ['admin','payments'] %}
+{% if all_pending and current_user.role in ['admin','onsite'] %}
 <div class="card" style="margin-bottom:20px;border-color:var(--amber-100);background:var(--amber-50)">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
     <div class="card-title" style="margin:0;color:var(--amber-800)">
@@ -279,7 +279,7 @@
               <span style="font-size:16px;font-weight:600;color:#92400e">₹{{ jc.final_amount | int }}</span>
             </div>
           </div>
-          {% if current_user.role in ['admin','payments'] %}
+          {% if current_user.role in ['admin','onsite'] %}
           <div style="display:flex;gap:6px;flex-shrink:0">
             <form method="POST" action="{{ url_for('approve_job_card', card_id=jc.id) }}" style="display:inline">
               <button type="submit" class="btn btn-primary btn-sm">✓ Approve</button>
@@ -483,7 +483,7 @@
             {% if adv.notes %} · {{ adv.notes }}{% endif %}
           </div>
         </div>
-        {% if current_user.role in ['admin','payments'] %}
+        {% if current_user.role in ['admin','onsite'] %}
         <form method="POST" action="{{ url_for('recover_advance', advance_id=adv.id) }}"
               style="display:flex;gap:6px;align-items:center">
           <input type="number" name="recover_amount" min="1"
@@ -520,7 +520,7 @@
     {% endif %}
 
     {# Record new advance #}
-    {% if current_user.role in ['admin','payments','onsite'] %}
+    {% if current_user.role in ['admin','onsite'] %}
     <div style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
       <button class="btn btn-sm" onclick="togglePanel('advance-form-{{ w.id }}')">+ Record advance</button>
       <div id="advance-form-{{ w.id }}" style="display:none;margin-top:10px">
@@ -551,7 +551,7 @@
   {# ══════════════════════════════════════════════════════════════════════ #}
   {# SETTLEMENT                                                             #}
   {# ══════════════════════════════════════════════════════════════════════ #}
-  {% if current_user.role in ['admin','payments'] %}
+  {% if current_user.role in ['admin','onsite'] %}
   <div style="padding:14px 18px;border-bottom:0.5px solid var(--border)">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:12px">Settlement</div>
 

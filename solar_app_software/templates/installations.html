@@ -7,7 +7,7 @@
     <div class="card-title">Pending installations ({{ pending | length }})</div>
     {% if pending %}
     <table>
-      <thead><tr><th>Project</th><th>Customer</th><th>Phone</th><th>kW</th><th>Scheduled</th><th>Reschedule</th><th></th></tr></thead>
+      <thead><tr><th>Project</th><th>Customer</th><th>Phone</th><th>Location</th><th>kW</th><th>Scheduled</th><th>Reschedule</th><th></th></tr></thead>
       <tbody>
         {% for i in pending %}
         <tr>
@@ -17,6 +17,21 @@
 </td>
 <td>{{ i.project.customer.name }}</td>
 <td style="font-size:13px">{{ i.project.customer.phone or '—' }}</td>
+<td style="font-size:12px;color:var(--muted)">
+  {% if i.project.customer.district %}
+    {{ i.project.customer.district }}
+    {% if i.project.customer.pincode %} — {{ i.project.customer.pincode }}{% endif %}
+  {% endif %}
+  {% if i.project.customer.address %}
+    <div style="font-size:11px;color:var(--hint);margin-top:2px;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+         title="{{ i.project.customer.address }}">
+      {{ i.project.customer.address }}
+    </div>
+  {% endif %}
+  {% if not i.project.customer.district and not i.project.customer.address %}
+    <span style="color:var(--hint)">—</span>
+  {% endif %}
+</td>
 <td style="font-size:12px;color:var(--muted)">{{ i.project.system_kw }} kW</td>
 <td>{{ i.scheduled_date | date_fmt }}</td>
 <td>
@@ -57,12 +72,15 @@
     <div class="card-title">Completed ({{ completed | length }})</div>
     {% if completed %}
     <table>
-      <thead><tr><th>Project</th><th>Customer</th><th>Completed</th></tr></thead>
+      <thead><tr><th>Project</th><th>Customer</th><th>Location</th><th>Completed</th></tr></thead>
       <tbody>
         {% for i in completed %}
         <tr>
           <td style="font-weight:500">{{ i.project.project_code }}</td>
           <td>{{ i.project.customer.name }}</td>
+          <td style="font-size:12px;color:var(--muted)">
+  {{ i.project.customer.district or '—' }}
+</td>
           <td>{{ i.completed_date | date_fmt }}</td>
         </tr>
         {% endfor %}

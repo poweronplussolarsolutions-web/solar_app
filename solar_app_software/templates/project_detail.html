@@ -248,10 +248,10 @@ function togglePanel(id) {
         <td style="font-size:12px;color:var(--muted)">{{ v.observations or '—' }}</td>
         <td>
           {% if v.status == 'Scheduled' %}
-          <button class="btn btn-sm btn-primary"
-                  onclick="document.getElementById('complete-visit-{{ v.id }}').style.display='block'">
-            Mark complete
-          </button>
+<button id="mark-btn-{{ v.id }}" class="btn btn-sm btn-primary"
+        onclick="document.getElementById('complete-visit-{{ v.id }}').style.display='block';this.style.display='none'">
+  Mark complete
+</button>
           <div id="complete-visit-{{ v.id }}" style="display:none;margin-top:8px">
             <form method="POST"
                   action="{{ url_for('complete_site_visit', pid=proj.id, vid=v.id) }}">
@@ -266,6 +266,10 @@ function togglePanel(id) {
                   <input type="text" name="observations" placeholder="Optional notes"/>
                 </div>
                 <button type="submit" class="btn btn-primary btn-sm">Save</button>
+<button type="button" class="btn btn-sm"
+        onclick="document.getElementById('complete-visit-{{ v.id }}').style.display='none';document.getElementById('mark-btn-{{ v.id }}').style.display='inline-block'">
+  Cancel
+</button>
               </div>
             </form>
           </div>
@@ -314,8 +318,9 @@ function syncStatus(stageSelect) {
 
     <div class="card" style="margin-top:0">
       <div class="card-title">Payment summary</div>
-      <div style="font-size:22px;font-weight:500;margin-bottom:4px">{{ proj.collected_amount | inr }}</div>
-      <div style="font-size:12px;color:var(--muted)">of {{ proj.total_amount | inr }}</div>
+      <div style="font-size:22px;font-weight:500;margin-bottom:4px">{{ proj.effective_collected | inr }}</div>
+      
+      <div style="font-size:12px;color:var(--muted)">of {{ proj.total_receivable | inr }}</div>
       <div class="progress-wrap" style="margin:10px 0">
         <div class="progress-bar" style="width:{{ proj.payment_pct }}%"></div>
       </div>
@@ -324,18 +329,79 @@ function syncStatus(stageSelect) {
 </div>
 {% if proj.subsidy and proj.subsidy.received_amount and proj.subsidy.received_amount > 0 %}
 <div style="margin-top:6px;font-size:12px;color:var(--teal-600)">
-  Subsidy received: {{ proj.subsidy.received_amount | inr }}
-  · Net pending: {{ proj.net_pending | inr }}
+  Subsidy received: {{ proj.subsidy.company_share | inr }}
+  · Net pending: {{ proj.pending_amount | inr }}
 </div>
 {% endif %}
       {# ── Remaining balance hint ── #}
   {% if proj.pending_amount > 0 %}
-  <div style="margin-top:8px;font-size:12px;font-weight:500;color:var(--amber-600,#d97706);
+  <div style="margin-top:8px;margin-bottom:10px;font-size:12px;font-weight:500;color:var(--amber-600,#d97706);
               background:var(--amber-50,#fffbeb);border:1px solid var(--amber-200,#fde68a);
               border-radius:var(--radius);padding:6px 10px">
     Max next payment: {{ proj.pending_amount | inr }}
   </div>
   {% endif %}
+  {# Payment breakdown #}
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">
+  <div style="background:var(--bg);border-radius:var(--radius);padding:10px 14px">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Contract amount</div>
+    <div style="font-size:16px;font-weight:500">{{ proj.total_amount | inr }}</div>
+  </div>
+
+  {% set cd = proj.expenses | selectattr('expense_type','eq','CD Payment') | first | default(none) %}
+  {% set nm = proj.expenses | selectattr('expense_type','eq','Net Meter')  | first | default(none) %}
+
+  {% if cd %}
+  <div style="background:{% if cd.paid_by == 'Company' %}var(--amber-50){% else %}var(--bg){% endif %};border-radius:var(--radius);padding:10px 14px">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:2px">
+      CD Payment
+      <span class="tag" style="margin-left:4px;font-size:10px">{{ cd.paid_by }}</span>
+    </div>
+    <div style="font-size:16px;font-weight:500">{{ cd.amount | inr }}</div>
+    {% if cd.paid_by == 'Company' and not cd.recovered %}
+    <div style="font-size:10px;color:var(--amber-600);margin-top:2px">Pending recovery</div>
+    {% elif cd.paid_by == 'Company' and cd.recovered %}
+    <div style="font-size:10px;color:var(--green-600);margin-top:2px">Recovered</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if nm %}
+  <div style="background:{% if nm.paid_by == 'Company' %}var(--amber-50){% else %}var(--bg){% endif %};border-radius:var(--radius);padding:10px 14px">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:2px">
+      Net Meter
+      <span class="tag" style="margin-left:4px;font-size:10px">{{ nm.paid_by }}</span>
+    </div>
+    <div style="font-size:16px;font-weight:500">{{ nm.amount | inr }}</div>
+    {% if nm.paid_by == 'Company' and not nm.recovered %}
+    <div style="font-size:10px;color:var(--amber-600);margin-top:2px">Pending recovery</div>
+    {% elif nm.paid_by == 'Company' and nm.recovered %}
+    <div style="font-size:10px;color:var(--green-600);margin-top:2px">Recovered</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div style="background:var(--teal-50);border-radius:var(--radius);padding:10px 14px">
+    <div style="font-size:11px;color:var(--teal-800);margin-bottom:2px">Total receivable</div>
+    <div style="font-size:16px;font-weight:600;color:var(--teal-800)">{{ proj.total_receivable | inr }}</div>
+    <div style="font-size:10px;color:var(--muted);margin-top:2px">contract + company expenses</div>
+  </div>
+</div>
+
+{# Recovery actions for payments team #}
+{% if current_user.role in ['admin', 'payments'] %}
+  {% for expense in proj.expenses %}
+    {% if expense.paid_by == 'Company' and not expense.recovered %}
+    <form method="POST"
+          action="{{ url_for('mark_expense_recovered', pid=proj.id, eid=expense.id) }}"
+          style="display:inline;margin-right:8px">
+      <button type="submit" class="btn btn-sm">
+        Mark {{ expense.expense_type }} recovered
+      </button>
+    </form>
+    {% endif %}
+  {% endfor %}
+{% endif %}
     </div>
   </div>
 </div>
@@ -370,7 +436,7 @@ function syncStatus(stageSelect) {
   {# Single flag used throughout this card #}
   {% set payment_complete = (
       proj.total_amount and proj.total_amount > 0
-      and proj.collected_amount >= proj.total_amount
+      and proj.effective_collected >= proj.total_amount
   ) %}
 
   {% if payment_complete %}
@@ -442,7 +508,7 @@ function syncStatus(stageSelect) {
           <div class="form-group">
             <label>Amount (₹)</label>
             <input type="number" name="amount" step="0.01" min="1"
-                   max="{{ (proj.total_amount - proj.collected_amount) | round(2) }}"
+                   max="{{ (proj.total_amount | float - proj.effective_collected) | round(2) }}"
                    required placeholder="0"/>
           </div>
           <div class="form-group">
@@ -509,7 +575,7 @@ function syncStatus(stageSelect) {
           <div class="form-group">
             <label>Amount (₹)</label>
             <input type="number" name="amount" step="0.01" min="1"
-                   max="{{ (proj.total_amount - proj.collected_amount) | round(2) }}"
+                   max="{{ (proj.total_amount | float - proj.effective_collected) | round(2) }}"
                    required placeholder="0"/>
           </div>
           <div class="form-group">
@@ -567,7 +633,7 @@ function syncStatus(stageSelect) {
           <div class="form-group">
             <label>Amount (₹)</label>
             <input type="number" name="amount" step="0.01" min="1"
-                   max="{{ (proj.total_amount - proj.collected_amount) | round(2) }}"
+                   max="{{ (proj.total_amount | float - proj.effective_collected) | round(2) }}"
                    required placeholder="0"/>
           </div>
           <div class="form-group">

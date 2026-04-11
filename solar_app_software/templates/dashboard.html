@@ -277,11 +277,11 @@
 {% if data.notifications %}
 <div style="margin-bottom:16px;display:flex;flex-direction:column;gap:8px">
   {% for n in data.notifications %}
-  <div style="background:{% if n.notif_type == 'task' %}var(--teal-50){% else %}var(--surface){% endif %};
+  <div class="notif-item" style="background:{% if n.notif_type == 'task' %}var(--teal-50){% else %}var(--surface){% endif %};
               border:0.5px solid {% if n.notif_type == 'task' %}var(--teal-100){% else %}var(--border){% endif %};
               border-radius:var(--radius-lg);padding:12px 16px;
-              display:flex;align-items:center;gap:12px">
-    <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;
+              display:flex;flex-direction:row; gap:12px">
+    <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:7px;
                 background:{% if n.notif_type == 'task' %}var(--teal-600){% else %}var(--muted){% endif %}">
     </div>
     <div style="flex:1">
@@ -296,27 +296,28 @@
        data-nid="{{n.id}}">
       Open →
     </a>
-     <button class="notif-dismiss" data-nid="{{n.id}}"
+    <button type="button" class="notif-dismiss" data-nid="{{n.id}}"
             style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:0 4px">
-      x
+      ×
     </button>
   </div>
   {% endfor %}
 </div>
+{% endif %}
 <script>
-document.querySelectorAll('.notif-open').forEach(function(a) {
-  a.addEventListener('click', function() {
-    fetch('/api/notifications/read/' + this.dataset.nid, { method: 'POST' });
-  });
-});
-document.querySelectorAll('.notif-dismiss').forEach(function(btn) {
-  btn.addEventListener('click', function() {
-    fetch('/api/notifications/read/' + this.dataset.nid, { method: 'POST' });
-    this.closest('.notif-item').remove();
-  });
+document.addEventListener('click', function(e) {
+  const open = e.target.closest('.notif-open');
+  if (open) {
+    fetch('/api/notifications/read/' + open.dataset.nid, { method: 'POST' });
+  }
+
+  const dismiss = e.target.closest('.notif-dismiss');
+  if (dismiss) {
+    fetch('/api/notifications/read/' + dismiss.dataset.nid, { method: 'POST' });
+    dismiss.closest('.notif-item').remove();
+  }
 });
 </script>
-{% endif %}
 
 <div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
   <div class="stat-card">
