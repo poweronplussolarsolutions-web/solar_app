@@ -15,43 +15,43 @@ from decimal import Decimal
 import os
 
 DCR_SUBSIDY_AMOUNT=78000
-DOCUMENT_STAGES = [
-    {
-        'name':'Customer KYC',
-        'condition':'always',
-        'docs':['ID Proof','Pass Book','Electricity Bill']
-    },
-    {
-        'name':'Bank / Loan file',
-         'condition':'loan',
-         'docs':['GEO Tag Photo','Bank Stamp Paper','Bank File']
-    },
-    {
-        'name':'Feasibility',
-        'condition':'always',
-        'docs':['Feasibility Receipt']
-    },
-    {
-        'name':'KSEB filing',
-        'condition':'always',
-        'docs':['KSEB Stamp Paper','B-Class Licence','KSEB File']
-    },
-    {
-        'name':'Inspection & connection',
-        'condition':'always',
-        'docs':['Inspection','CD Payment Receipt','KSEB Connection']
-    },
-    {
-        'name':'Subsidy',
-        'condition':'always',
-        'docs':['Subsidy Request','Subsidy Redeem']
-    },
-    {
-        'name':'Project closure',
-        'condition':'always',
-        'docs':['Payment Completion','Warranty Card','App Installation']
-    },
-]
+# DOCUMENT_STAGES = [
+#     {
+#         'name':'Customer KYC',
+#         'condition':'always',
+#         'docs':['ID Proof','Pass Book','Electricity Bill']
+#     },
+#     {
+#         'name':'Bank / Loan file',
+#          'condition':'loan',
+#          'docs':['GEO Tag Photo','Bank Stamp Paper','Bank File']
+#     },
+#     {
+#         'name':'Feasibility',
+#         'condition':'always',
+#         'docs':['Feasibility Receipt']
+#     },
+#     {
+#         'name':'KSEB filing',
+#         'condition':'always',
+#         'docs':['KSEB Stamp Paper','B-Class Licence','KSEB File']
+#     },
+#     {
+#         'name':'Inspection & connection',
+#         'condition':'always',
+#         'docs':['Inspection','CD Payment Receipt','KSEB Connection']
+#     },
+#     {
+#         'name':'Subsidy',
+#         'condition':'always',
+#         'docs':['Subsidy Request','Subsidy Redeem']
+#     },
+#     {
+#         'name':'Project closure',
+#         'condition':'always',
+#         'docs':['Payment Completion','Warranty Card','App Installation']
+#     },
+# ]
 PROJECT_STAGES=[
     'Lead',
     'Site Visit',
@@ -70,27 +70,53 @@ STAGE_STATUS_MAP={
     'Subsidy':'InProgress',
     'Payment':'InProgress',
 }
-def get_expected_docs(project_type):
-    """Return full list of expected document names for a project type."""
+def get_document_stages():
+    """Return active document stages ordered by sort_order."""
+    return DocumentStage.query.filter_by(is_active=True).order_by(DocumentStage.sort_order).all()
+
+def get_expected_docs(project_type, project_subtype=None,loan_subtype=None):
+    """Return full list of expected document names for a project."""
     docs = []
-    for stage in DOCUMENT_STAGES:
-        if stage['condition'] == 'always' or project_type == 'Loan':
-            docs.extend(stage['docs'])
+    for stage in get_document_stages():
+        if stage.condition == 'always':
+            docs.extend(stage.doc_list)
+        elif stage.condition == 'loan' and project_type == 'Loan':
+            docs.extend(stage.doc_list)
+        elif stage.condition == 'loan_assisted' and project_type == 'Loan' and loan_subtype=='Assisted':
+            docs.extend(stage.doc_list)
+        elif stage.condition == 'dcr' and project_subtype == 'DCR':
+            docs.extend(stage.doc_list)
     return docs
 
-
 def get_doc_completion(project):
-    """
-    Returns (done, total) based on expected docs for the project type,
-    not just what has been recorded.
-    """
-    expected   = get_expected_docs(project.project_type)
+    expected   = get_expected_docs(project.project_type, project.project_subtype,project.loan_subtype)
     recorded   = {d.doc_type: d for d in project.documents}
     done_count = sum(
         1 for doc_name in expected
-        if doc_name in recorded and recorded[doc_name].status in ['Received', 'Sent','Completed']
+        if doc_name in recorded and recorded[doc_name].status in ['Received', 'Sent', 'Completed']
     )
     return done_count, len(expected)
+# def get_expected_docs(project_type):
+#     """Return full list of expected document names for a project type."""
+#     docs = []
+#     for stage in DOCUMENT_STAGES:
+#         if stage['condition'] == 'always' or project_type == 'Loan':
+#             docs.extend(stage['docs'])
+#     return docs
+
+
+# def get_doc_completion(project):
+#     """
+#     Returns (done, total) based on expected docs for the project type,
+#     not just what has been recorded.
+#     """
+#     expected   = get_expected_docs(project.project_type)
+#     recorded   = {d.doc_type: d for d in project.documents}
+#     done_count = sum(
+#         1 for doc_name in expected
+#         if doc_name in recorded and recorded[doc_name].status in ['Received', 'Sent','Completed']
+#     )
+#     return done_count, len(expected)
 # ─────────────────────────────────────────────────────────────────────────────
 # APP CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
@@ -166,6 +192,7 @@ class Project(db.Model):
     logs        = db.relationship('ProjectLog',     backref='project', lazy=True)
     materials   = db.relationship('Material',       backref='project', lazy=True)
     assignments = db.relationship('WorkerAssignment', backref='project', lazy=True)
+    loan_subtype=db.Column(db.Enum('Assisted','Self'),nullable=True)
 
 
     @property
@@ -560,7 +587,18 @@ class ProjectExpense(db.Model):
 
     project  = db.relationship('Project', backref='expenses')
     recorder = db.relationship('User', foreign_keys=[recorded_by])
+class DocumentStage(db.Model):
+    __tablename__ = 'document_stages'
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(100), nullable=False)
+    condition  = db.Column(db.Enum('always', 'loan','loan_assisted', 'dcr'), nullable=False, default='always')
+    docs       = db.Column(db.Text, nullable=False)   # comma-separated doc names
+    sort_order = db.Column(db.Integer, default=0)
+    is_active  = db.Column(db.Boolean, default=True)
 
+    @property
+    def doc_list(self):
+        return [d.strip() for d in self.docs.split(',') if d.strip()]
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -855,7 +893,68 @@ def logout():
 # ─────────────────────────────────────────────────────────────────────────────
 # DASHBOARD
 # ─────────────────────────────────────────────────────────────────────────────
+@app.route('/admin/document_stages')
+@login_required
+@roles_required('admin')
+def manage_document_stages():
+    stages = DocumentStage.query.order_by(DocumentStage.sort_order).all()
+    return render_template('admin_document_stages.html', stages=stages)
 
+
+@app.route('/admin/document_stages/new', methods=['POST'])
+@login_required
+@roles_required('admin')
+def new_document_stage():
+    last = DocumentStage.query.order_by(DocumentStage.sort_order.desc()).first()
+    stage = DocumentStage(
+        name       = request.form['name'].strip(),
+        condition  = request.form.get('condition', 'always'),
+        docs       = request.form['docs'].strip(),
+        sort_order = (last.sort_order + 1) if last else 0,
+        is_active  = True,
+    )
+    db.session.add(stage)
+    db.session.commit()
+    flash(f'Stage "{stage.name}" created.', 'success')
+    return redirect(url_for('manage_document_stages'))
+
+
+@app.route('/admin/document_stages/<int:sid>/edit', methods=['POST'])
+@login_required
+@roles_required('admin')
+def edit_document_stage(sid):
+    stage = DocumentStage.query.get_or_404(sid)
+    stage.name      = request.form['name'].strip()
+    stage.condition = request.form.get('condition', stage.condition)
+    stage.docs      = request.form['docs'].strip()
+    stage.is_active = 'is_active' in request.form
+    db.session.commit()
+    flash(f'Stage "{stage.name}" updated.', 'success')
+    return redirect(url_for('manage_document_stages'))
+
+
+@app.route('/admin/document_stages/<int:sid>/delete', methods=['POST'])
+@login_required
+@roles_required('admin')
+def delete_document_stage(sid):
+    stage = DocumentStage.query.get_or_404(sid)
+    stage.is_active = False   # soft delete
+    db.session.commit()
+    flash(f'Stage "{stage.name}" deactivated.', 'warning')
+    return redirect(url_for('manage_document_stages'))
+
+
+@app.route('/admin/document_stages/reorder', methods=['POST'])
+@login_required
+@roles_required('admin')
+def reorder_document_stages():
+    order = request.form.getlist('order')   # list of stage IDs in new order
+    for i, sid in enumerate(order):
+        stage = DocumentStage.query.get(int(sid))
+        if stage:
+            stage.sort_order = i
+    db.session.commit()
+    return jsonify({'ok': True})
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -1032,6 +1131,7 @@ def new_project():
             status         = 'Lead',
             stage          = 'Lead',
             project_subtype=request.form.get('project_subtype') or None,
+            loan_subtype = request.form.get('loan_subtype') or None,
             total_amount   = float(request.form.get('total_amount', 0)),
             coordinator_id = current_user.id,
             doc_staff_id   = request.form.get('doc_staff_id') or None,
@@ -1053,6 +1153,139 @@ def new_project():
 
     return render_template('new_project.html', customers=customers,
                             doc_staff=doc_staff)
+@app.route('/projects/<int:pid>/edit', methods=['GET', 'POST'])
+@login_required
+@roles_required('admin', 'coordinator', 'documents')
+def edit_project(pid):
+    proj = Project.query.get_or_404(pid)
+
+    if current_user.role == 'coordinator' and proj.coordinator_id != current_user.id:
+        flash('You can only edit your own projects.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+
+    if current_user.role == 'documents' and proj.doc_staff_id != current_user.id:
+        flash('You can only edit projects assigned to you.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+
+    if proj.status in ('Cancelled', 'Closed'):
+        flash('Cancelled or closed projects cannot be edited.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+
+    doc_staff = User.query.filter_by(role='documents', is_active=True).all()
+
+    if request.method == 'POST':
+        old_type    = proj.project_type
+        old_subtype = proj.project_subtype
+        old_loan_sub =proj.loan_subtype
+        old_amount  = float(proj.total_amount or 0)
+
+        new_type    = request.form['project_type']
+        new_subtype = request.form.get('project_subtype') or None
+        new_loan_sub=request.form.get('loan_subtype') or None
+        new_amount  = float(request.form.get('total_amount') or 0)
+
+        proj.inverter_capacity_kw = float(request.form['inverter_capacity_kw'])
+        proj.panel_capacity_kw    = float(request.form['panel_capacity_kw'])
+        proj.project_type         = new_type
+        proj.project_subtype      = new_subtype
+        proj.loan_subtype = new_loan_sub
+        proj.total_amount         = new_amount
+        proj.notes                = request.form.get('notes', '').strip()
+
+        # Re-open payment if contract amount increased beyond collected
+        if new_amount > float(proj.collected_amount or 0):
+            if proj.status == 'Completed' and proj.stage == 'Payment':
+                proj.status = 'InProgress'
+
+        # Doc staff reassignment
+        new_staff_id = request.form.get('doc_staff_id') or None
+        if new_staff_id:
+            new_staff_id = int(new_staff_id)
+            old_staff    = proj.doc_staff
+            if old_staff and old_staff.id != new_staff_id:
+                create_notification(
+                    old_staff.id, pid,
+                    f'You have been unassigned from {proj.project_code} - {proj.customer.name}.',
+                    'info'
+                )
+            if proj.doc_staff_id != new_staff_id:
+                new_staff = User.query.get(new_staff_id)
+                create_notification(
+                    new_staff_id, pid,
+                    f'You have been assigned to {proj.project_code} - {proj.customer.name} '
+                    f'({proj.project_type}, {proj.inverter_capacity_kw} kW).',
+                    'task'
+                )
+            proj.doc_staff_id = new_staff_id
+        else:
+            proj.doc_staff_id = None
+
+        # Build change log
+        changes = []
+        if old_type != new_type:
+            changes.append(f'Type: {old_type} -> {new_type}')
+        if old_subtype != new_subtype:
+            changes.append(f'Subtype: {old_subtype or "None"} -> {new_subtype or "None"}')
+        if old_loan_sub != new_loan_sub:
+            changes.append(f'Loan type: {old_loan_sub or "None"} ->{new_loan_sub or "None"}')
+        if abs(old_amount - new_amount) > 0.01:
+            changes.append(f'Amount: Rs.{old_amount:,.0f} -> Rs.{new_amount:,.0f}')
+
+        # ── Notify coordinator of any changes made by documents staff ────────
+        if current_user.role == 'documents' and changes and proj.coordinator_id:
+            create_notification(
+                proj.coordinator_id, pid,
+                f'{proj.project_code} - {proj.customer.name}: Project details edited '
+                f'by {current_user.full_name} (docs). Changes: {", ".join(changes)}.',
+                'info'
+            )
+
+        # ── Notify payments team on amount change ────────────────────────────
+        if abs(old_amount - new_amount) > 0.01:
+            pending   = new_amount - float(proj.collected_amount or 0)
+            collected = float(proj.collected_amount or 0)
+            payments_users = User.query.filter_by(role='payments', is_active=True).all()
+            for u in payments_users:
+                if pending > 0:
+                    create_notification(
+                        u.id, pid,
+                        f'{proj.project_code} - {proj.customer.name}: Contract amount revised '
+                        f'from Rs.{old_amount:,.0f} to Rs.{new_amount:,.0f} '
+                        f'by {current_user.full_name}. '
+                        f'Outstanding balance: Rs.{pending:,.0f}.',
+                        'task'
+                    )
+                else:
+                    create_notification(
+                        u.id, pid,
+                        f'{proj.project_code} - {proj.customer.name}: Contract amount revised '
+                        f'from Rs.{old_amount:,.0f} to Rs.{new_amount:,.0f} '
+                        f'by {current_user.full_name}. '
+                        f'Already collected Rs.{collected:,.0f} '
+                        f'({"fully paid" if pending == 0 else f"over by Rs.{abs(pending):,.0f}"}).',
+                        'info'
+                    )
+
+            # Notify coordinator on amount change if not already notified above
+            if proj.coordinator_id and current_user.role != 'documents':
+                create_notification(
+                    proj.coordinator_id, pid,
+                    f'{proj.project_code}: Contract amount changed from Rs.{old_amount:,.0f} '
+                    f'to Rs.{new_amount:,.0f} by {current_user.full_name}.',
+                    'info'
+                )
+
+        log_action(pid, 'Project edited: ' + (', '.join(changes) if changes else 'details updated'))
+        db.session.commit()
+
+        pending = new_amount - float(proj.collected_amount or 0)
+        if pending > 0:
+            flash(f'Project updated. Outstanding balance: Rs.{pending:,.0f}.', 'success')
+        else:
+            flash('Project details updated successfully.', 'success')
+        return redirect(url_for('project_detail', pid=pid))
+
+    return render_template('edit_project.html', proj=proj, doc_staff=doc_staff)
 @app.route('/projects/<int:pid>/site_visit', methods=['POST'])
 @login_required
 @roles_required('admin', 'coordinator')
@@ -1099,6 +1332,7 @@ def complete_site_visit(vid, pid):
 @login_required
 def project_detail(pid):
     proj     = Project.query.get_or_404(pid)
+    stages=get_document_stages()
     logs     = ProjectLog.query.filter_by(project_id=pid).order_by(ProjectLog.created_at.desc()).all()
     workers  = Worker.query.filter_by(is_active=True).all()
     all_workers = Worker.query.filter_by(is_active=True).all()
@@ -1388,7 +1622,7 @@ def coordinator_analytics():
         completed   = [p for p in assigned if p.status in ['Completed', 'Closed']]
         inprog      = [p for p in assigned if p.status == 'InProgress']
         not_started = [p for p in assigned if p.status == 'InProgress' and len(p.documents) == 0]
-        total_docs  = sum(len(get_expected_docs(p.project_type)) for p in assigned)
+        total_docs  = sum(len(get_expected_docs(p.project_type,p.project_subtype,p.loan_subtype)) for p in assigned)
         done_docs   = sum(get_doc_completion(p)[0] for p in assigned)
         doc_analytics.append({
             'staff':       staff,
@@ -1598,6 +1832,7 @@ def pending_approvals():
 @login_required
 def documents(pid):
     proj = Project.query.get_or_404(pid)
+    stages=get_document_stages()
     if current_user.role == 'documents' and proj.doc_staff_id != current_user.id:
         flash('This project is not assigned to you.', 'danger')
         return redirect(url_for('dashboard'))
@@ -1664,7 +1899,7 @@ def documents(pid):
         db.session.commit()
         flash(f'{doc_type} — {status}.', 'success')
 
-    return render_template('documents.html', proj=proj)
+    return render_template('documents.html', proj=proj,stages=stages)
 @app.route('/projects/<int:pid>/documents/batch', methods=['POST'])
 @login_required
 def batch_documents(pid):
@@ -2674,7 +2909,7 @@ def admin_analytics():
         completed   = [p for p in assigned if p.status in ['Completed', 'Closed']]
         inprog      = [p for p in assigned if p.status == 'InProgress']
         not_started = [p for p in assigned if p.status == 'InProgress' and len(p.documents) == 0]
-        total_docs  = sum(len(get_expected_docs(p.project_type)) for p in assigned)
+        total_docs  = sum(len(get_expected_docs(p.project_type,p.project_subtype,p.loan_subtype)) for p in assigned)
         done_docs   = sum(get_doc_completion(p)[0] for p in assigned)
         doc_staff_stats.append({
         'name':        staff.full_name,
@@ -2865,6 +3100,22 @@ def seed_db():
 
         db.session.commit()
         print('✓ Database seeded with default users and workers.')
+    if DocumentStage.query.count() == 0:
+        seed_stages = [
+            ('Customer KYC',         'always', 'ID Proof,Pass Book,Electricity Bill',              0),
+            ('Bank / Loan file',     'loan_assisted','GEO Tag Photo,Bank Stamp Paper,Bank File',         1),
+            ('Feasibility',          'always', 'Feasibility Receipt',                              2),
+            ('KSEB filing',          'always', 'KSEB Stamp Paper,B-Class Licence,KSEB File',       3),
+            ('Inspection & conn.',   'always', 'Inspection,CD Payment Receipt,KSEB Connection',    4),
+            ('Subsidy',              'dcr',    'Subsidy Request,Subsidy Redeem',                   5),
+            ('Project closure',      'always', 'Payment Completion,Warranty Card,App Installation',6),
+        ]
+        for name, cond, docs, order in seed_stages:
+            db.session.add(DocumentStage(
+                name=name, condition=cond, docs=docs, sort_order=order
+            ))
+        db.session.commit()
+        print('Document stages seeded.')
 
 
 @app.cli.command('mark_delayed')

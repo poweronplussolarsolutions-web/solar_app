@@ -8,7 +8,8 @@
       <th>Customer</th>
       <th>Location</th>
       <th>Type</th>
-      <th>Size</th>
+      <th>Inverter capacity</th>
+      <th>Panel capacity</th>
       <th>Stage</th>
       <th>Status</th>
       <th>Days</th>
@@ -22,7 +23,8 @@
       <td>{{ p.customer.name }}</td>
       <td style="font-size:12px;color:var(--muted)">{{ p.customer.district }}</td>
       <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
-      <td>{{ p.system_kw }} kW</td>
+      <td>{{ p.inverter_capacity_kw }} kW</td>
+      <td>{{ p.panel_capacity_kw }} kW</td>
       <td style="font-size:12px;color:var(--muted)">{{ p.stage }}</td>
       <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
       <td style="font-size:12px;color:var(--hint)">{{ p.days_open }}d</td>

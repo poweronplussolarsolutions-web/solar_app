@@ -69,7 +69,7 @@
       </div>
       <div class="form-group">
         <label>Project type *</label>
-        <select name="project_type" required>
+        <select name="project_type" id="project_type" required>
           <option value="Cash">Cash</option>
           <option value="Loan">Loan</option>
         </select>
@@ -81,6 +81,18 @@
           <option value="Non-DCR">Non-DCR (no subsidy)</option>
         </select>
       </div>
+      <div class="form-group" id="loan-subtype-field" >
+  <label>Loan Type</label>
+  <select name="loan_subtype" id="loan_subtype">
+    <option value="">-- Select --</option>
+    <option value="Assisted">Assisted </option>
+    <option value="Self">Self </option>
+  </select>
+  <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
+    <strong>Assisted:</strong> Docs team submits bank file (SBI etc.)<br>
+    <strong>Self:</strong> Bank handles own paperwork (Bajaj etc.)
+  </span>
+</div>
       <div class="form-group">
         <label>Total contract amount (₹)</label>
         <input name="total_amount" type="number" step="1" min="0" placeholder="0"/>
@@ -120,5 +132,18 @@
 function toggleNew(val) {
   document.getElementById('new-cust-fields').style.display = val ? 'none' : 'block';
 }
+</script>
+<script>
+  function toggleLoanSubtype() {
+    const type  = document.getElementById('project_type').value;
+    const field = document.getElementById('loan-subtype-field');
+    field.style.display = (type === 'Loan') ? 'block' : 'none';
+    if (type !== 'Loan') {
+      field.querySelector('select').value = '';
+    }
+  }
+  document.getElementById('project_type').addEventListener('change', toggleLoanSubtype);
+ 
+  toggleLoanSubtype();
 </script>
 {% endblock %}

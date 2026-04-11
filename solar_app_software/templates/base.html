@@ -308,6 +308,8 @@
       <a class="nav-link {% if request.endpoint in ['manage_users','new_user'] %}active{% endif %}" href="{{ url_for('manage_users') }}">
         <span class="dot"></span> Manage Users
       </a>
+      <a class="nav-link {% if request.endpoint in ['manage_users','new_user'] %}active{% endif %}" href="{{ url_for('manage_document_stages') }}">
+        <span class="dot"></span>Document Stages</a>
       {% endif %}
     </nav>
 
