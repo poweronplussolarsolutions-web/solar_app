@@ -14,6 +14,9 @@ from datetime import datetime, date,timezone
 from decimal import Decimal
 import os
 
+from flask import send_file
+import tempfile,calendar 
+
 DCR_SUBSIDY_AMOUNT=78000
 # DOCUMENT_STAGES = [
 #     {
@@ -82,7 +85,7 @@ def get_expected_docs(project_type, project_subtype=None,loan_subtype=None):
             docs.extend(stage.doc_list)
         elif stage.condition == 'loan' and project_type == 'Loan':
             docs.extend(stage.doc_list)
-        elif stage.condition == 'loan_assisted' and project_type == 'Loan' and loan_subtype=='Assisted':
+        elif stage.condition == 'loan_self' and project_type == 'Loan' and loan_subtype !='Assisted':
             docs.extend(stage.doc_list)
         elif stage.condition == 'dcr' and project_subtype == 'DCR':
             docs.extend(stage.doc_list)
@@ -145,6 +148,7 @@ class User(UserMixin, db.Model):
     role       = db.Column(db.Enum('admin','coordinator','documents','payments','onsite','appinstall'), nullable=False)
     is_active  = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    status=db.Column(db.String(20),nullable=False,default='active')
 
     def set_password(self, raw):
         self.password = generate_password_hash(raw)
@@ -241,14 +245,21 @@ class Project(db.Model):
 
     @property
     def days_open(self):
-        return (datetime.utcnow().date() - self.created_at.date()).days
+        if self.status in ('Closed', 'Completed', 'Cancelled'):
+            end = (self.updated_at or datetime.utcnow()).date()
+        else:
+            end = datetime.utcnow().date()
+        return (end - self.created_at.date()).days
     @property
     def days_in_stage(self):
+        if self.status in ('Closed', 'Completed', 'Cancelled'):
+            end = (self.updated_at or datetime.utcnow()).replace(tzinfo=None)
+        else:
+            end = datetime.now(timezone.utc).replace(tzinfo=None)
         ref = self.staged_changed_at or self.updated_at or self.created_at
         if ref is None:
             return 0
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        return (now - ref).days
+        return (end - ref).days
     # @property
     # def net_amount(self):
     #     sub_received = float(self.subsidy.received_amount) if self.subsidy and self.subsidy.received_amount else 0
@@ -591,7 +602,7 @@ class DocumentStage(db.Model):
     __tablename__ = 'document_stages'
     id         = db.Column(db.Integer, primary_key=True)
     name       = db.Column(db.String(100), nullable=False)
-    condition  = db.Column(db.Enum('always', 'loan','loan_assisted', 'dcr'), nullable=False, default='always')
+    condition  = db.Column(db.Enum('always', 'loan','loan_self', 'dcr'), nullable=False, default='always')
     docs       = db.Column(db.Text, nullable=False)   # comma-separated doc names
     sort_order = db.Column(db.Integer, default=0)
     is_active  = db.Column(db.Boolean, default=True)
@@ -762,11 +773,11 @@ def _notify_stage_transition(proj, from_stage, to_stage):
  
     elif to_stage == 'Onsite Work':
         # Notify onsite team
-        notify_onsite_team(
-            proj.id,
-            f'{code}: Documentation ready. Feasibility approved — onsite work can begin.',
-            'task'
-        )
+        # notify_onsite_team(
+        #     proj.id,
+        #     f'{code}: Documentation ready. Feasibility approved — onsite work can begin.',
+        #     'task'
+        # )
         # Also notify coordinator
         if proj.coordinator_id:
             create_notification(
@@ -850,9 +861,15 @@ def notify_onsite_team(project_id,message,notif_type='task'):
     for user in onsite_users:
         create_notification(user.id,project_id,message,notif_type)
 def next_project_code():
-    last = Project.query.order_by(Project.id.desc()).first()
-    num = (last.id + 1) if last else 1
-    return f'P{num:04d}'
+    from sqlalchemy import func
+    all_codes=db.session.query(Project.project_code).all()
+    numeric=[]
+    for(code,) in all_codes:
+        try:
+            numeric.append(int(code))
+        except (ValueError,TypeError):
+            pass
+    return str(max(numeric)+1)if numeric else None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -868,17 +885,18 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
     if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '')
-        user = User.query.filter_by(username=username, is_active=True).first()
-        if user and user.check_password(password):
-            login_user(user, remember=True)
-            flash(f'Welcome, {user.full_name}!', 'success')
-            return redirect(request.args.get('next') or url_for('dashboard'))
-        flash('Invalid username or password.', 'danger')
+        u = User.query.filter_by(username=request.form['username']).first()
+        if not u or not u.check_password(request.form['password']):
+            flash('Invalid credentials.', 'danger')
+            return redirect(url_for('login'))
+
+        if u.status != 'active':
+            flash('Your account is not active. Contact admin.', 'danger')
+            return redirect(url_for('login'))
+
+        login_user(u)
+        return redirect(url_for('dashboard'))
     return render_template('login.html')
 
 
@@ -978,7 +996,7 @@ def dashboard():
         data['onhold']  = Project.query.filter_by(status='OnHold').count()
         data['cancelled'] = Project.query.filter_by(status='Cancelled').count()
         data['delayed']   = Project.query.filter_by(status='Delayed').count()
-        data['projects']  = Project.query.order_by(Project.updated_at.desc()).limit(10).all()
+        data['projects']  = Project.query.order_by(Project.updated_at.desc()).paginate(page=request.args.get('page',1,type=int),per_page=15,error_out=False)
         active_project_ids = db.session.query(Project.id).filter(
             Project.status.notin_(['Cancelled', 'OnHold'])
         ).subquery()
@@ -1025,6 +1043,18 @@ def dashboard():
             'total_docs': total,
             'doc_pct':   int(done / total * 100) if total > 0 else 0,
         })
+        page=request.args.get('page',1,type=int)
+        per_page=20
+        total=len(projects_with_counts)
+        start=(page -1)*per_page
+        end=start+per_page
+        from flask_sqlalchemy import pagination
+        data['pagination']=None
+        data['page']=page
+        data['per_page']=per_page
+        data['total_projects']=total
+        data['projects_with_counts']=projects_with_counts[start:end]
+        data['total_pages']=(total+per_page -1) // per_page
         notifications = Notification.query.filter_by(
         user_id  = current_user.id,
         is_read  = False,
@@ -1049,14 +1079,17 @@ def dashboard():
             Project.status.notin_(['Cancelled', 'OnHold'])
         ).scalar() or 0)
         data['total_pending']   = total_amt - data['total_collected']
-        data['projects']        = Project.query.filter(Project.status.notin_(['Closed', 'Cancelled', 'OnHold'])).all()
+        data['projects']        = Project.query.filter(Project.status.notin_(['Closed', 'Cancelled', 'OnHold'])).paginate(page=request.args.get('page',1,type=int),per_page=20,error_out=False)
 
     elif role == 'onsite':
         feasibility_project_ids=db.session.query(Document.project_id).filter(
             Document.doc_type == 'Feasibility Receipt',
             Document.status.in_(['Received', 'Completed']),
         ).subquery()
-        data['projects']  = Project.query.filter(Project.status.in_(['InProgress','Delayed']),Project.id.in_(feasibility_project_ids),).all()
+        completed_onsite_ids=db.session.query(OnsiteProgress.project_id).filter(
+            OnsiteProgress.electrical_status == 'Completed'
+        ).subquery()
+        data['projects']  = Project.query.filter(Project.status.in_(['InProgress','Delayed']),Project.id.in_(feasibility_project_ids),Project.id.notin_(completed_onsite_ids),).all()
         data['workers']   = Worker.query.filter_by(is_active=True).all()
         data['tasks'] = Notification.query.filter_by(
             user_id = current_user.id,
@@ -1086,6 +1119,8 @@ def dashboard():
 def projects():
     status_filter = request.args.get('status', '')
     search        = request.args.get('q', '')
+    page=request.args.get('page',1,type=int)
+    per_page = 15
     q = Project.query.join(Customer)
     if current_user.role=='coordinator':
         q=q.filter(Project.coordinator_id==current_user.id)
@@ -1093,8 +1128,9 @@ def projects():
         q = q.filter(Project.status == status_filter)
     if search:
         q = q.filter(Customer.name.ilike(f'%{search}%') | Project.project_code.ilike(f'%{search}%'))
-    projects_list = q.order_by(Project.updated_at.desc()).all()
-    return render_template('projects.html', projects=projects_list,
+    pagination = q.order_by(Project.updated_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    projects_list = pagination.items
+    return render_template('projects.html', projects=projects_list,pagination=pagination,
                            status_filter=status_filter, search=search)
 
 
@@ -1105,8 +1141,13 @@ def new_project():
     customers   = Customer.query.order_by(Customer.name).all()
     
     doc_staff   = User.query.filter_by(role='documents',    is_active=True).all()
+    suggested_code=next_project_code()
 
     if request.method == 'POST':
+        code=request.form['project_code'].strip()
+        if Project.query.filter_by(project_code=code).first():
+            flash(f'MNRE number {code} is already registered.','danger')
+            return render_template('new_project.html',customers=customers,doc_staff=doc_staff,suggested_code=suggested_code)
         # Check or create customer
         cust_id = request.form.get('customer_id')
         if not cust_id:
@@ -1123,7 +1164,7 @@ def new_project():
             cust_id = cust.id
 
         proj = Project(
-            project_code   = next_project_code(),
+            project_code   = code,
             customer_id    = cust_id,
             inverter_capacity_kw = float(request.form['inverter_capacity_kw']),
             panel_capacity_kw = float(request.form['panel_capacity_kw']),
@@ -1152,7 +1193,7 @@ def new_project():
         return redirect(url_for('project_detail', pid=proj.id))
 
     return render_template('new_project.html', customers=customers,
-                            doc_staff=doc_staff)
+                            doc_staff=doc_staff,suggested_code=suggested_code)
 @app.route('/projects/<int:pid>/edit', methods=['GET', 'POST'])
 @login_required
 @roles_required('admin', 'coordinator', 'documents')
@@ -1167,37 +1208,101 @@ def edit_project(pid):
         flash('You can only edit projects assigned to you.', 'danger')
         return redirect(url_for('project_detail', pid=pid))
 
-    if proj.status in ('Cancelled', 'Closed'):
+    if proj.status in ('Cancelled', 'Closed') and current_user.role != 'admin':
         flash('Cancelled or closed projects cannot be edited.', 'danger')
         return redirect(url_for('project_detail', pid=pid))
 
-    doc_staff = User.query.filter_by(role='documents', is_active=True).all()
+    doc_staff    = User.query.filter_by(role='documents',    is_active=True).all()
+    coordinators = User.query.filter_by(role='coordinator',  is_active=True).all()
 
     if request.method == 'POST':
-        old_type    = proj.project_type
-        old_subtype = proj.project_subtype
-        old_loan_sub =proj.loan_subtype
-        old_amount  = float(proj.total_amount or 0)
+        old_type     = proj.project_type
+        old_subtype  = proj.project_subtype
+        old_loan_sub = proj.loan_subtype
+        old_amount   = float(proj.total_amount or 0)
 
-        new_type    = request.form['project_type']
-        new_subtype = request.form.get('project_subtype') or None
-        new_loan_sub=request.form.get('loan_subtype') or None
-        new_amount  = float(request.form.get('total_amount') or 0)
+        new_type     = request.form['project_type']
+        new_subtype  = request.form.get('project_subtype') or None
+        new_loan_sub = request.form.get('loan_subtype') or None
+        new_amount   = float(request.form.get('total_amount') or 0)
 
         proj.inverter_capacity_kw = float(request.form['inverter_capacity_kw'])
         proj.panel_capacity_kw    = float(request.form['panel_capacity_kw'])
         proj.project_type         = new_type
         proj.project_subtype      = new_subtype
-        proj.loan_subtype = new_loan_sub
+        proj.loan_subtype         = new_loan_sub
         proj.total_amount         = new_amount
         proj.notes                = request.form.get('notes', '').strip()
 
-        # Re-open payment if contract amount increased beyond collected
+        changes = []
+
+        # ── Admin-only fields ────────────────────────────────────────────────
+        if current_user.role == 'admin':
+            # MNRE number
+            new_code = request.form.get('project_code', '').strip()
+            if new_code and new_code != proj.project_code:
+                if Project.query.filter(
+                    Project.project_code == new_code, Project.id != pid
+                ).first():
+                    flash('That MNRE number is already in use.', 'danger')
+                    return redirect(url_for('edit_project', pid=pid))
+                changes.append(f'MNRE: {proj.project_code} → {new_code}')
+                proj.project_code = new_code
+
+            # Customer fields
+            proj.customer.name     = request.form.get('customer_name',     proj.customer.name).strip()
+            proj.customer.phone    = request.form.get('customer_phone',    proj.customer.phone or '').strip() or None
+            proj.customer.email    = request.form.get('customer_email',    proj.customer.email or '').strip() or None
+            proj.customer.district = request.form.get('customer_district', proj.customer.district or '').strip() or None
+            proj.customer.pincode  = request.form.get('customer_pincode',  proj.customer.pincode or '').strip() or None
+            proj.customer.address  = request.form.get('customer_address',  proj.customer.address or '').strip() or None
+
+            # Stage and status override
+            new_stage  = request.form.get('stage')
+            new_status = request.form.get('status')
+            if new_stage and new_stage != proj.stage:
+                changes.append(f'Stage: {proj.stage} → {new_stage}')
+                proj.stage = new_stage
+                proj.staged_changed_at = datetime.utcnow()
+            if new_status and new_status != proj.status:
+                changes.append(f'Status: {proj.status} → {new_status}')
+                proj.status = new_status
+
+            # Coordinator reassignment
+            new_coord_id = request.form.get('coordinator_id') or None
+            if new_coord_id:
+                new_coord_id = int(new_coord_id)
+                if proj.coordinator_id != new_coord_id:
+                    old_coord = proj.coordinator
+                    new_coord = User.query.get(new_coord_id)
+                    if old_coord:
+                        create_notification(
+                            old_coord.id, pid,
+                            f'You have been unassigned as coordinator from '
+                            f'{proj.project_code} — {proj.customer.name}.',
+                            'info'
+                        )
+                    if new_coord:
+                        create_notification(
+                            new_coord_id, pid,
+                            f'You have been assigned as coordinator for '
+                            f'{proj.project_code} — {proj.customer.name}.',
+                            'task'
+                        )
+                    changes.append(
+                        f'Coordinator: {old_coord.full_name if old_coord else "None"} → '
+                        f'{new_coord.full_name if new_coord else "None"}'
+                    )
+                    proj.coordinator_id = new_coord_id
+            else:
+                proj.coordinator_id = None
+
+        # ── Re-open payment if amount increased ──────────────────────────────
         if new_amount > float(proj.collected_amount or 0):
             if proj.status == 'Completed' and proj.stage == 'Payment':
                 proj.status = 'InProgress'
 
-        # Doc staff reassignment
+        # ── Doc staff reassignment ───────────────────────────────────────────
         new_staff_id = request.form.get('doc_staff_id') or None
         if new_staff_id:
             new_staff_id = int(new_staff_id)
@@ -1205,14 +1310,14 @@ def edit_project(pid):
             if old_staff and old_staff.id != new_staff_id:
                 create_notification(
                     old_staff.id, pid,
-                    f'You have been unassigned from {proj.project_code} - {proj.customer.name}.',
+                    f'You have been unassigned from {proj.project_code} — {proj.customer.name}.',
                     'info'
                 )
             if proj.doc_staff_id != new_staff_id:
                 new_staff = User.query.get(new_staff_id)
                 create_notification(
                     new_staff_id, pid,
-                    f'You have been assigned to {proj.project_code} - {proj.customer.name} '
+                    f'You have been assigned to {proj.project_code} — {proj.customer.name} '
                     f'({proj.project_type}, {proj.inverter_capacity_kw} kW).',
                     'task'
                 )
@@ -1220,72 +1325,70 @@ def edit_project(pid):
         else:
             proj.doc_staff_id = None
 
-        # Build change log
-        changes = []
+        # ── Build change log ─────────────────────────────────────────────────
         if old_type != new_type:
-            changes.append(f'Type: {old_type} -> {new_type}')
+            changes.append(f'Type: {old_type} → {new_type}')
         if old_subtype != new_subtype:
-            changes.append(f'Subtype: {old_subtype or "None"} -> {new_subtype or "None"}')
+            changes.append(f'Subtype: {old_subtype or "None"} → {new_subtype or "None"}')
         if old_loan_sub != new_loan_sub:
-            changes.append(f'Loan type: {old_loan_sub or "None"} ->{new_loan_sub or "None"}')
+            changes.append(f'Loan type: {old_loan_sub or "None"} → {new_loan_sub or "None"}')
         if abs(old_amount - new_amount) > 0.01:
-            changes.append(f'Amount: Rs.{old_amount:,.0f} -> Rs.{new_amount:,.0f}')
+            changes.append(f'Amount: ₹{old_amount:,.0f} → ₹{new_amount:,.0f}')
 
-        # ── Notify coordinator of any changes made by documents staff ────────
+        # ── Notify docs staff if coordinator/admin made changes ──────────────
+        if current_user.role in ('coordinator', 'admin') and changes and proj.doc_staff_id:
+            create_notification(
+                proj.doc_staff_id, pid,
+                f'{proj.project_code} — {proj.customer.name}: Project details edited '
+                f'by {current_user.full_name}. Changes: {", ".join(changes)}.',
+                'info'
+            )
+
+        # ── Notify coordinator if documents staff made changes ───────────────
         if current_user.role == 'documents' and changes and proj.coordinator_id:
             create_notification(
                 proj.coordinator_id, pid,
-                f'{proj.project_code} - {proj.customer.name}: Project details edited '
+                f'{proj.project_code} — {proj.customer.name}: Project details edited '
                 f'by {current_user.full_name} (docs). Changes: {", ".join(changes)}.',
                 'info'
             )
 
-        # ── Notify payments team on amount change ────────────────────────────
+        # ── Notify payments on amount change ─────────────────────────────────
         if abs(old_amount - new_amount) > 0.01:
-            pending   = new_amount - float(proj.collected_amount or 0)
-            collected = float(proj.collected_amount or 0)
+            pending        = new_amount - float(proj.collected_amount or 0)
+            collected      = float(proj.collected_amount or 0)
             payments_users = User.query.filter_by(role='payments', is_active=True).all()
             for u in payments_users:
                 if pending > 0:
                     create_notification(
                         u.id, pid,
-                        f'{proj.project_code} - {proj.customer.name}: Contract amount revised '
-                        f'from Rs.{old_amount:,.0f} to Rs.{new_amount:,.0f} '
-                        f'by {current_user.full_name}. '
-                        f'Outstanding balance: Rs.{pending:,.0f}.',
+                        f'{proj.project_code} — {proj.customer.name}: Contract amount revised '
+                        f'from ₹{old_amount:,.0f} to ₹{new_amount:,.0f} '
+                        f'by {current_user.full_name}. Outstanding: ₹{pending:,.0f}.',
                         'task'
                     )
                 else:
                     create_notification(
                         u.id, pid,
-                        f'{proj.project_code} - {proj.customer.name}: Contract amount revised '
-                        f'from Rs.{old_amount:,.0f} to Rs.{new_amount:,.0f} '
+                        f'{proj.project_code} — {proj.customer.name}: Contract amount revised '
+                        f'from ₹{old_amount:,.0f} to ₹{new_amount:,.0f} '
                         f'by {current_user.full_name}. '
-                        f'Already collected Rs.{collected:,.0f} '
-                        f'({"fully paid" if pending == 0 else f"over by Rs.{abs(pending):,.0f}"}).',
+                        f'Already collected ₹{collected:,.0f}.',
                         'info'
                     )
-
-            # Notify coordinator on amount change if not already notified above
-            if proj.coordinator_id and current_user.role != 'documents':
-                create_notification(
-                    proj.coordinator_id, pid,
-                    f'{proj.project_code}: Contract amount changed from Rs.{old_amount:,.0f} '
-                    f'to Rs.{new_amount:,.0f} by {current_user.full_name}.',
-                    'info'
-                )
 
         log_action(pid, 'Project edited: ' + (', '.join(changes) if changes else 'details updated'))
         db.session.commit()
 
         pending = new_amount - float(proj.collected_amount or 0)
         if pending > 0:
-            flash(f'Project updated. Outstanding balance: Rs.{pending:,.0f}.', 'success')
+            flash(f'Project updated. Outstanding balance: ₹{pending:,.0f}.', 'success')
         else:
             flash('Project details updated successfully.', 'success')
         return redirect(url_for('project_detail', pid=pid))
 
-    return render_template('edit_project.html', proj=proj, doc_staff=doc_staff)
+    return render_template('edit_project.html', proj=proj,
+                           doc_staff=doc_staff, coordinators=coordinators)
 @app.route('/projects/<int:pid>/site_visit', methods=['POST'])
 @login_required
 @roles_required('admin', 'coordinator')
@@ -1800,6 +1903,9 @@ def add_payment(pid):
 @login_required
 @roles_required('admin', 'payments')
 def payments_dashboard():
+    page=request.args.get('page',1,type=int)
+    pay_page=request.args.get('pay_page',1,type=int)
+    per_page=15
     active_project_ids = db.session.query(Project.id).filter(
         Project.status.notin_(['Cancelled', 'OnHold'])
     ).subquery()
@@ -1809,14 +1915,16 @@ def payments_dashboard():
     total_value     = float(db.session.query(db.func.sum(Project.total_amount)).filter(
         Project.status.notin_(['Cancelled', 'OnHold'])
     ).scalar() or 0)
-    recent_payments = Payment.query.order_by(Payment.created_at.desc()).limit(20).all()
-    pending_projs   = Project.query.filter(Project.status.notin_(['Closed', 'Cancelled', 'OnHold'])).all()
+    recent_payments = Payment.query.order_by(Payment.created_at.desc()).paginate(page=pay_page,per_page=per_page,error_out=False)
+    pending_projs   = Project.query.filter(Project.status.notin_(['Closed', 'Cancelled', 'OnHold'])).order_by(Project.updated_at.desc()).paginate(page=page,per_page=per_page,error_out=False)
     return render_template('payments.html',
                            total_collected=total_collected,
                            total_pending=total_value - total_collected,
                            total_value=total_value,
                            recent_payments=recent_payments,
-                           pending_projs=pending_projs)
+                           pending_projs=pending_projs,
+                           page=page,
+                           pay_page=pay_page)
 @app.route('/payments/pending_approvals')
 @login_required
 @roles_required('admin', 'onsite')
@@ -1841,7 +1949,11 @@ def documents(pid):
         if proj.stage in ('Lead', 'Site Visit'):
             flash('Documents cannot be updated until the site visit is completed.', 'danger')
             return redirect(url_for('documents', pid=pid))
-
+        done_before,expected=get_doc_completion(proj)
+        was_complete=(expected >0 and done_before == expected)
+        if current_user.role != 'admin' and was_complete:
+            flash('All documents are completed and locked.','danger')
+            return redirect(url_for('documents',pid=pid))
         doc_type = request.form['doc_type']
         status   = request.form.get('status', 'Pending')
 
@@ -1871,7 +1983,7 @@ def documents(pid):
             if not already_notified:
                 notify_onsite_team(
                     project_id = pid,
-                    # message    = f'Feasibility done for {proj.project_code} — {proj.customer.name}. Start structure work.',
+                    message    = f'Feasibility done for {proj.project_code} — {proj.customer.name}. Start structure work.',
                     notif_type = 'task',
                 )
                 log_action(pid, 'Onsite team notified: structure work', new_val='Notified')
@@ -1894,6 +2006,13 @@ def documents(pid):
                         ),
                         notif_type='task',
                     )
+        if current_user.role == 'admin' and was_complete and proj.doc_staff_id:
+            create_notification(
+                proj.doc_staff_id,pid,
+                f'{proj.project_code} - {proj.customer.name}:Admin({current_user.full_name})'
+                f'edited document "{doc_type}" -> {status} after completion.',
+                'info'
+            )
         db.session.flush()
         auto_advance_stage(proj)
         db.session.commit()
@@ -2839,6 +2958,55 @@ def new_user():
         return redirect(url_for('manage_users'))
     return render_template('new_user.html')
 
+@app.route('/admin/users/<int:user_id>/edit', methods=['GET', 'POST'])
+@login_required
+@roles_required('admin')
+def edit_user(user_id):
+    u = User.query.get_or_404(user_id)
+    if request.method == 'POST':
+        u.username  = request.form['username']
+        u.email     = request.form['email']
+        u.full_name = request.form['full_name']
+        u.role      = request.form['role']
+        if request.form.get('password'):        # only update if provided
+            u.set_password(request.form['password'])
+        db.session.commit()
+        flash(f'User {u.username} updated.', 'success')
+        return redirect(url_for('manage_users'))
+    return render_template('edit_user.html', user=u)
+
+
+@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+@roles_required('admin')
+def delete_user(user_id):
+    u = User.query.get_or_404(user_id)
+    if u.id == current_user.id:
+        flash('You cannot delete your own account.', 'danger')
+        return redirect(url_for('manage_users'))
+    db.session.delete(u)
+    db.session.commit()
+    flash(f'User {u.username} deleted.', 'success')
+    return redirect(url_for('manage_users'))
+@app.route('/admin/users/<int:user_id>/status', methods=['POST'])
+@login_required
+@roles_required('admin')
+def change_user_status(user_id):
+    u = User.query.get_or_404(user_id)
+    if u.id == current_user.id:
+        flash('You cannot change your own status.', 'danger')
+        return redirect(url_for('manage_users'))
+
+    new_status = request.form.get('status')
+    if new_status not in ('active', 'inactive'):
+        flash('Invalid status.', 'danger')
+        return redirect(url_for('manage_users'))
+
+    u.status = new_status
+    db.session.commit()
+    flash(f'{u.username} marked as {new_status}.', 'success')
+    return redirect(url_for('manage_users'))
+
 @app.route('/admin/analytics')
 @login_required
 @roles_required('admin')
@@ -3067,7 +3235,858 @@ def date_fmt(value):
         return value.strftime('%d %b %Y')
     return str(value)
 
+"""
+Standalone generator — called from Flask route.
+Usage:
+    from gen_coord_report import build_coordinator_monthly_report
+    path = build_coordinator_monthly_report(coordinator, projects, year, month)
+"""
 
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+from openpyxl.utils import get_column_letter
+
+
+
+
+# ── Palette ──────────────────────────────────────────────────────────────────
+C_HEADER_BG   = '1A3C5E'   # dark navy
+C_HEADER_FG   = 'FFFFFF'
+C_SUBHDR_BG   = '2E6DA4'   # mid blue
+C_SUBHDR_FG   = 'FFFFFF'
+C_ACCENT_BG   = 'D6E4F0'   # light blue band
+C_ALT_BG      = 'F2F7FB'   # alternating row
+C_TOTAL_BG    = 'FFF3CD'   # amber total row
+C_TOTAL_FG    = '856404'
+C_BORDER      = 'BFCBD6'
+C_GREEN_BG    = 'D4EDDA'
+C_GREEN_FG    = '155724'
+C_RED_BG      = 'F8D7DA'
+C_RED_FG      = '721C24'
+C_AMBER_BG    = 'FFF3CD'
+C_AMBER_FG    = '856404'
+
+STATUS_COLORS = {
+    'Completed': (C_GREEN_BG, C_GREEN_FG),
+    'Closed':    (C_GREEN_BG, C_GREEN_FG),
+    'InProgress':('D1ECF1', '0C5460'),
+    'Delayed':   (C_RED_BG,  C_RED_FG),
+    'OnHold':    (C_AMBER_BG, C_AMBER_FG),
+    'Cancelled': ('E2E3E5', '383D41'),
+    'Lead':      ('E2E3E5', '383D41'),
+}
+
+def _fill(hex_color):
+    return PatternFill('solid', start_color=hex_color, fgColor=hex_color)
+
+def _font(bold=False, color='000000', size=10, italic=False):
+    return Font(name='Arial', bold=bold, color=color, size=size, italic=italic)
+
+def _border():
+    side = Side(style='thin', color=C_BORDER)
+    return Border(left=side, right=side, top=side, bottom=side)
+
+def _center():
+    return Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+def _left():
+    return Alignment(horizontal='left', vertical='center', wrap_text=True)
+
+def _right():
+    return Alignment(horizontal='right', vertical='center')
+
+def _inr(value):
+    try:
+        return float(value or 0)
+    except:
+        return 0.0
+
+def _fmt_inr(ws, cell):
+    cell.number_format = '₹#,##0;(₹#,##0);"-"'
+
+def _style_header_cell(cell, text, bg=C_HEADER_BG, fg=C_HEADER_FG, size=10, center=True):
+    cell.value = text
+    cell.font  = _font(bold=True, color=fg, size=size)
+    cell.fill  = _fill(bg)
+    cell.border = _border()
+    cell.alignment = _center() if center else _left()
+
+def _style_data_cell(cell, value, bg='FFFFFF', fg='000000', bold=False,
+                     align='left', number_fmt=None):
+    cell.value = value
+    cell.font  = _font(bold=bold, color=fg)
+    cell.fill  = _fill(bg)
+    cell.border = _border()
+    cell.alignment = _center() if align == 'center' else (
+                     _right()  if align == 'right'  else _left())
+    if number_fmt:
+        cell.number_format = number_fmt
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+def build_coordinator_monthly_report(coordinator, all_projects, year, month,
+                                     output_dir='/tmp'):
+    """
+    coordinator  : User ORM object
+    all_projects : list of Project ORM objects for this coordinator
+    year, month  : int
+    Returns path to the generated .xlsx file.
+    """
+    month_name  = calendar.month_name[month]
+    month_start = date(year, month, 1)
+    month_end   = date(year, month, calendar.monthrange(year, month)[1])
+
+    # Filter projects active/created this month
+    month_projects = [
+        p for p in all_projects
+        if p.created_at.date() <= month_end
+        and p.status not in ('Cancelled',)
+    ]
+    created_this_month = [
+        p for p in all_projects
+        if p.created_at.year == year and p.created_at.month == month
+    ]
+
+    wb = Workbook()
+
+    # ── Sheet 1: Summary ─────────────────────────────────────────────────────
+    ws = wb.active
+    ws.title = 'Summary'
+    ws.sheet_view.showGridLines = False
+    ws.freeze_panes = 'A6'
+    ws.page_setup.orientation = 'landscape'
+    ws.page_setup.paperSize   = ws.PAPERSIZE_A4
+    ws.page_setup.fitToPage   = True
+    ws.page_setup.fitToWidth  = 1
+    ws.page_setup.fitToHeight = 0
+    ws.print_options.horizontalCentered = True
+    # Title block
+    ws.merge_cells('A1:H1')
+    c = ws['A1']
+    c.value = 'Power On Plus Solar Solutions'
+    c.font  = _font(bold=True, color=C_HEADER_FG, size=14)
+    c.fill  = _fill(C_HEADER_BG)
+    c.alignment = _center()
+
+    ws.merge_cells('A2:H2')
+    c = ws['A2']
+    c.value = f'Monthly Work Report — {month_name} {year}'
+    c.font  = _font(bold=True, color=C_HEADER_FG, size=11)
+    c.fill  = _fill(C_SUBHDR_BG)
+    c.alignment = _center()
+
+    ws.merge_cells('A3:H3')
+    c = ws['A3']
+    c.value = f'Coordinator: {coordinator.full_name}'
+    c.font  = _font(bold=False, color='333333', size=10, italic=True)
+    c.fill  = _fill(C_ALT_BG)
+    c.alignment = _center()
+
+    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[2].height = 22
+    ws.row_dimensions[3].height = 18
+    ws.row_dimensions[4].height = 8  # spacer
+
+    # ── KPI cards row ────────────────────────────────────────────────────────
+    ws.row_dimensions[5].height = 20
+
+    kpi_headers = [
+        'New This Month', 'Active Projects', 'Completed',
+        'Delayed', 'Total Value (₹)', 'Collected (₹)', 'Pending (₹)', 'Collection %'
+    ]
+    for col, h in enumerate(kpi_headers, 1):
+        _style_header_cell(ws.cell(5, col), h, bg=C_SUBHDR_BG)
+
+    active    = [p for p in month_projects if p.status in ('InProgress','Delayed','Lead','OnHold')]
+    completed = [p for p in month_projects if p.status in ('Completed','Closed')]
+    delayed   = [p for p in month_projects if p.status == 'Delayed']
+    total_val = sum(_inr(p.total_amount) for p in month_projects)
+    collected = sum(_inr(p.collected_amount) for p in month_projects)
+    pending   = total_val - collected
+    pct       = (collected / total_val * 100) if total_val else 0
+
+    kpi_vals = [
+        len(created_this_month), len(active), len(completed),
+        len(delayed), total_val, collected, pending, pct / 100
+    ]
+    kpi_fmts = [
+        None, None, None, None,
+        '₹#,##0', '₹#,##0', '₹#,##0', '0.0%'
+    ]
+    kpi_bgs = [
+        'FFFFFF','FFFFFF','FFFFFF','FFFFFF',
+        'FFFFFF','FFFFFF','FFFFFF','FFFFFF'
+    ]
+    ws.row_dimensions[6].height = 20
+    for col, (val, fmt) in enumerate(zip(kpi_vals, kpi_fmts), 1):
+        cell = ws.cell(6, col)
+        _style_data_cell(cell, val, align='center',
+                         bold=True, number_fmt=fmt)
+
+    # ── Project detail table ─────────────────────────────────────────────────
+    ws.row_dimensions[7].height = 8   # spacer
+    ws.row_dimensions[8].height = 20
+
+    detail_headers = [
+        'MNRE No.', 'Customer', 'Type', 'Subtype',
+        'Stage', 'Status', 'Contract (₹)', 'Collected (₹)',
+        'Pending (₹)', 'Doc Staff', 'Days Open', 'Created'
+    ]
+    # Extend merge for detail table (12 cols, need to widen)
+    for col, h in enumerate(detail_headers, 1):
+        _style_header_cell(ws.cell(8, col), h)
+
+    row = 9
+    for i, p in enumerate(sorted(month_projects, key=lambda x: x.created_at, reverse=True)):
+        bg     = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        s_bg, s_fg = STATUS_COLORS.get(p.status, ('FFFFFF', '000000'))
+        pend_val = _inr(p.total_amount) - _inr(p.collected_amount)
+
+        ws.row_dimensions[row].height = 18
+        vals = [
+            p.project_code,
+            p.customer.name,
+            p.project_type,
+            p.project_subtype or '—',
+            p.stage,
+            p.status,
+            _inr(p.total_amount),
+            _inr(p.collected_amount),
+            pend_val,
+            p.doc_staff.full_name if p.doc_staff else '—',
+            p.days_open,
+            p.created_at.strftime('%d %b %Y'),
+        ]
+        fmts = [None,None,None,None,None,None,
+                '₹#,##0','₹#,##0','₹#,##0',
+                None,None,None]
+        aligns = ['center','left','center','center','center','center',
+                  'right','right','right','left','center','center']
+
+        for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
+            cell = ws.cell(row, col)
+            cell_bg = s_bg if col == 6 else bg
+            cell_fg = s_fg if col == 6 else '000000'
+            _style_data_cell(cell, val, bg=cell_bg, fg=cell_fg,
+                             align=aln, number_fmt=fmt)
+        row += 1
+
+    # Totals row
+    ws.row_dimensions[row].height = 20
+    total_row_data = [
+        'TOTAL', f'{len(month_projects)} projects', '', '', '', '',
+        total_val, collected, pending, '', '', ''
+    ]
+    total_fmts = [None,None,None,None,None,None,
+                  '₹#,##0','₹#,##0','₹#,##0',None,None,None]
+    total_aligns = ['center','left','','','','',
+                    'right','right','right','','','']
+    for col, (val, fmt, aln) in enumerate(
+            zip(total_row_data, total_fmts, total_aligns), 1):
+        if val == '':
+            cell = ws.cell(row, col)
+            cell.fill   = _fill(C_TOTAL_BG)
+            cell.border = _border()
+            continue
+        cell = ws.cell(row, col)
+        _style_data_cell(cell, val, bg=C_TOTAL_BG, fg=C_TOTAL_FG,
+                         bold=True, align=aln or 'center', number_fmt=fmt)
+
+    # Column widths for summary sheet
+    col_widths = [12, 24, 8, 10, 16, 12, 14, 14, 14, 18, 10, 13]
+    for i, w in enumerate(col_widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    # ── Sheet 2: Projects Created This Month ─────────────────────────────────
+    ws2 = wb.create_sheet('New This Month')
+    ws2.sheet_view.showGridLines = False
+    ws2.page_setup.orientation = 'landscape'
+    ws2.page_setup.paperSize   = ws2.PAPERSIZE_A4
+    ws2.page_setup.fitToPage   = True
+    ws2.page_setup.fitToWidth  = 1
+    ws2.page_setup.fitToHeight = 0
+    ws2.print_options.horizontalCentered = True
+    _build_project_sheet(ws2, created_this_month,
+                         f'New Projects — {month_name} {year}',
+                         coordinator.full_name)
+
+    # ── Sheet 3: Stage Breakdown ──────────────────────────────────────────────
+    ws3 = wb.create_sheet('By Stage')
+    ws3.sheet_view.showGridLines = False
+    ws2.page_setup.orientation = 'landscape'
+    ws2.page_setup.paperSize   = ws2.PAPERSIZE_A4
+    ws2.page_setup.fitToPage   = True
+    ws2.page_setup.fitToWidth  = 1
+    ws2.page_setup.fitToHeight = 0
+    ws2.print_options.horizontalCentered = True
+    _build_stage_sheet(ws3, month_projects, month_name, year, coordinator.full_name)
+
+    # ── Sheet 4: Payments This Month ─────────────────────────────────────────
+    ws4 = wb.create_sheet('Payments')
+    ws4.sheet_view.showGridLines = False
+    ws2.page_setup.orientation = 'landscape'
+    ws2.page_setup.paperSize   = ws2.PAPERSIZE_A4
+    ws2.page_setup.fitToPage   = True
+    ws2.page_setup.fitToWidth  = 1
+    ws2.page_setup.fitToHeight = 0
+    ws2.print_options.horizontalCentered = True
+    _build_payments_sheet(ws4, month_projects, month_name, year,
+                          coordinator.full_name, month_start, month_end)
+
+    fname = (f'Report_{coordinator.username}_{year}_{month:02d}.xlsx'
+             .replace(' ', '_'))
+    path  = os.path.join(output_dir, fname)
+    wb.save(path)
+    return path
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+def _build_project_sheet(ws, projects, title, coord_name):
+    ws.merge_cells('A1:J1')
+    c = ws['A1']
+    c.value = title
+    c.font  = _font(bold=True, color=C_HEADER_FG, size=12)
+    c.fill  = _fill(C_HEADER_BG)
+    c.alignment = _center()
+
+    ws.merge_cells('A2:J2')
+    c = ws['A2']
+    c.value = f'Coordinator: {coord_name}'
+    c.font  = _font(italic=True, color='444444')
+    c.fill  = _fill(C_ALT_BG)
+    c.alignment = _center()
+
+    ws.row_dimensions[3].height = 8
+
+    headers = ['MNRE No.','Customer','Type','Subtype','Stage','Status',
+               'Contract (₹)','Collected (₹)','Pending (₹)','Doc Staff']
+    for col, h in enumerate(headers, 1):
+        _style_header_cell(ws.cell(4, col), h)
+
+    for i, p in enumerate(projects, 0):
+        row = i + 5
+        bg  = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        s_bg, s_fg = STATUS_COLORS.get(p.status, ('FFFFFF','000000'))
+        pend = _inr(p.total_amount) - _inr(p.collected_amount)
+        data = [
+            p.project_code, p.customer.name,
+            p.project_type, p.project_subtype or '—',
+            p.stage, p.status,
+            _inr(p.total_amount), _inr(p.collected_amount), pend,
+            p.doc_staff.full_name if p.doc_staff else '—',
+        ]
+        fmts   = [None,None,None,None,None,None,'₹#,##0','₹#,##0','₹#,##0',None]
+        aligns = ['center','left','center','center','center','center',
+                  'right','right','right','left']
+        for col, (val, fmt, aln) in enumerate(zip(data, fmts, aligns), 1):
+            cell   = ws.cell(row, col)
+            c_bg   = s_bg if col == 6 else bg
+            c_fg   = s_fg if col == 6 else '000000'
+            _style_data_cell(cell, val, bg=c_bg, fg=c_fg, align=aln, number_fmt=fmt)
+        ws.row_dimensions[row].height = 17
+
+    col_widths = [12, 24, 8, 10, 16, 12, 14, 14, 14, 18]
+    for i, w in enumerate(col_widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+
+def _build_stage_sheet(ws, projects, month_name, year, coord_name):
+    stages = ['Lead','Site Visit','Documentation','Onsite Work',
+              'Connection','Subsidy','Payment']
+
+    ws.merge_cells('A1:D1')
+    c = ws['A1']
+    c.value = f'Stage Breakdown — {month_name} {year}'
+    c.font  = _font(bold=True, color=C_HEADER_FG, size=12)
+    c.fill  = _fill(C_HEADER_BG)
+    c.alignment = _center()
+
+    ws.merge_cells('A2:D2')
+    c = ws['A2']
+    c.value = f'Coordinator: {coord_name}'
+    c.font  = _font(italic=True, color='444444')
+    c.fill  = _fill(C_ALT_BG)
+    c.alignment = _center()
+
+    ws.row_dimensions[3].height = 8
+
+    for col, h in enumerate(['Stage','Count','Total Value (₹)','Collected (₹)'], 1):
+        _style_header_cell(ws.cell(4, col), h)
+
+    row = 5
+    for i, stage in enumerate(stages):
+        sp = [p for p in projects if p.stage == stage]
+        bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        data = [
+            stage, len(sp),
+            sum(_inr(p.total_amount) for p in sp),
+            sum(_inr(p.collected_amount) for p in sp),
+        ]
+        fmts   = [None, None, '₹#,##0', '₹#,##0']
+        aligns = ['left','center','right','right']
+        for col, (val, fmt, aln) in enumerate(zip(data, fmts, aligns), 1):
+            _style_data_cell(ws.cell(row, col), val, bg=bg,
+                             align=aln, number_fmt=fmt)
+        ws.row_dimensions[row].height = 17
+        row += 1
+
+    # Grand total
+    for col, (val, fmt, aln) in enumerate(zip(
+        ['TOTAL', len(projects),
+         sum(_inr(p.total_amount) for p in projects),
+         sum(_inr(p.collected_amount) for p in projects)],
+        [None, None, '₹#,##0', '₹#,##0'],
+        ['center','center','right','right']
+    ), 1):
+        _style_data_cell(ws.cell(row, col), val, bg=C_TOTAL_BG, fg=C_TOTAL_FG,
+                         bold=True, align=aln, number_fmt=fmt)
+    ws.row_dimensions[row].height = 20
+
+    ws.column_dimensions['A'].width = 20
+    ws.column_dimensions['B'].width = 10
+    ws.column_dimensions['C'].width = 18
+    ws.column_dimensions['D'].width = 18
+
+
+def _build_payments_sheet(ws, projects, month_name, year, coord_name,
+                          month_start, month_end):
+    from datetime import date as d_
+
+    ws.merge_cells('A1:G1')
+    c = ws['A1']
+    c.value = f'Payments — {month_name} {year}'
+    c.font  = _font(bold=True, color=C_HEADER_FG, size=12)
+    c.fill  = _fill(C_HEADER_BG)
+    c.alignment = _center()
+
+    ws.merge_cells('A2:G2')
+    c = ws['A2']
+    c.value = f'Coordinator: {coord_name}'
+    c.font  = _font(italic=True, color='444444')
+    c.fill  = _fill(C_ALT_BG)
+    c.alignment = _center()
+
+    ws.row_dimensions[3].height = 8
+
+    for col, h in enumerate(['MNRE No.','Customer','Date','Amount (₹)',
+                              'Type','Source','Reference'], 1):
+        _style_header_cell(ws.cell(4, col), h)
+
+    all_pays = []
+    for p in projects:
+        for pay in p.payments:
+            if month_start <= pay.payment_date <= month_end:
+                all_pays.append((p, pay))
+
+    all_pays.sort(key=lambda x: x[1].payment_date, reverse=True)
+
+    for i, (p, pay) in enumerate(all_pays):
+        row = i + 5
+        bg  = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        data = [
+            p.project_code,
+            p.customer.name,
+            pay.payment_date.strftime('%d %b %Y'),
+            _inr(pay.amount),
+            pay.payment_type,
+            pay.payment_source,
+            pay.reference_no or '—',
+        ]
+        fmts   = [None,None,None,'₹#,##0',None,None,None]
+        aligns = ['center','left','center','right','center','center','center']
+        for col, (val, fmt, aln) in enumerate(zip(data, fmts, aligns), 1):
+            _style_data_cell(ws.cell(row, col), val, bg=bg,
+                             align=aln, number_fmt=fmt)
+        ws.row_dimensions[row].height = 17
+        row += 1
+
+    if all_pays:
+        total_row = len(all_pays) + 5
+        total_amt = sum(_inr(pay.amount) for _, pay in all_pays)
+        for col in range(1, 8):
+            cell = ws.cell(total_row, col)
+            if col == 2:
+                _style_data_cell(cell, f'{len(all_pays)} payments',
+                                 bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
+            elif col == 4:
+                _style_data_cell(cell, total_amt, bg=C_TOTAL_BG, fg=C_TOTAL_FG,
+                                 bold=True, align='right', number_fmt='₹#,##0')
+            elif col == 1:
+                _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG,
+                                 bold=True, align='center')
+            else:
+                cell.fill   = _fill(C_TOTAL_BG)
+                cell.border = _border()
+        ws.row_dimensions[total_row].height = 20
+
+    col_widths = [12, 24, 14, 16, 12, 12, 18]
+    for i, w in enumerate(col_widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+def build_docstaff_monthly_report(staff, all_projects, year, month, output_dir='/tmp'):
+    """
+    staff        : User ORM object (role='documents')
+    all_projects : list of Project ORM objects assigned to this staff
+    year, month  : int
+    Returns path to the generated .xlsx file.
+    """
+    month_name  = calendar.month_name[month]
+    month_start = date(year, month, 1)
+    month_end   = date(year, month, calendar.monthrange(year, month)[1])
+
+    month_projects = [
+        p for p in all_projects
+        if p.created_at.date() <= month_end
+        and p.status not in ('Cancelled',)
+    ]
+    created_this_month = [
+        p for p in all_projects
+        if p.created_at.year == year and p.created_at.month == month
+    ]
+
+    wb = Workbook()
+
+    # ── Sheet 1: Summary ─────────────────────────────────────────────────────
+    ws = wb.active
+    ws.title = 'Summary'
+    ws.sheet_view.showGridLines = False
+    ws.freeze_panes = 'A6'
+    ws.page_setup.orientation = 'landscape'
+    ws.page_setup.paperSize   = ws.PAPERSIZE_A4
+    ws.page_setup.fitToPage   = True
+    ws.page_setup.fitToWidth  = 1
+    ws.page_setup.fitToHeight = 0
+    ws.print_options.horizontalCentered = True
+
+    ws.merge_cells('A1:H1')
+    c = ws['A1']
+    c.value = 'Power On Plus Solar Solutions'
+    c.font  = _font(bold=True, color=C_HEADER_FG, size=14)
+    c.fill  = _fill(C_HEADER_BG)
+    c.alignment = _center()
+
+    ws.merge_cells('A2:H2')
+    c = ws['A2']
+    c.value = f'Documents Staff Monthly Report — {month_name} {year}'
+    c.font  = _font(bold=True, color=C_HEADER_FG, size=11)
+    c.fill  = _fill(C_SUBHDR_BG)
+    c.alignment = _center()
+
+    ws.merge_cells('A3:H3')
+    c = ws['A3']
+    c.value = f'Staff: {staff.full_name}'
+    c.font  = _font(bold=False, color='333333', size=10, italic=True)
+    c.fill  = _fill(C_ALT_BG)
+    c.alignment = _center()
+
+    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[2].height = 22
+    ws.row_dimensions[3].height = 18
+    ws.row_dimensions[4].height = 8
+
+    # ── KPI row ──────────────────────────────────────────────────────────────
+    ws.row_dimensions[5].height = 20
+    kpi_headers = [
+        'Total Assigned', 'New This Month', 'Completed',
+        'In Progress', 'Feasibility Done', 'Connection Done', 'Payment Done', 'Delayed'
+    ]
+    for col, h in enumerate(kpi_headers, 1):
+        _style_header_cell(ws.cell(5, col), h, bg=C_SUBHDR_BG)
+
+    completed_projs  = [p for p in month_projects if p.status in ('Completed', 'Closed')]
+    inprog_projs     = [p for p in month_projects if p.status == 'InProgress']
+    delayed_projs    = [p for p in month_projects if p.status == 'Delayed']
+
+    def _doc_done(project, doc_name):
+        doc_map = {d.doc_type: d for d in project.documents}
+        return doc_map.get(doc_name) and doc_map[doc_name].status in ('Received', 'Sent', 'Completed')
+
+    feasibility_done = sum(1 for p in month_projects if _doc_done(p, 'Feasibility Receipt'))
+    connection_done  = sum(1 for p in month_projects if _doc_done(p, 'KSEB Connection'))
+    payment_done     = sum(1 for p in month_projects if _doc_done(p, 'Payment Completion'))
+
+    kpi_vals = [
+        len(month_projects), len(created_this_month), len(completed_projs),
+        len(inprog_projs), feasibility_done, connection_done, payment_done, len(delayed_projs)
+    ]
+    kpi_fmts = [None, None, None, None, None, None, None, None]
+
+    ws.row_dimensions[6].height = 20
+    for col, (val, fmt) in enumerate(zip(kpi_vals, kpi_fmts), 1):
+        cell = ws.cell(6, col)
+        _style_data_cell(cell, val, align='center', bold=True, number_fmt=fmt)
+
+    # ── Project detail table ──────────────────────────────────────────────────
+    ws.row_dimensions[7].height = 8
+    ws.row_dimensions[8].height = 20
+
+    detail_headers = [
+        'MNRE No.', 'Customer', 'Type', 'Subtype', 'Stage', 'Status','MNRE',
+        'Feasibility', 'Connection', 'Payment Compl.', 'Coordinator', 'Days Open', 'Created'
+    ]
+    for col, h in enumerate(detail_headers, 1):
+        _style_header_cell(ws.cell(8, col), h)
+
+    row = 9
+    for i, p in enumerate(sorted(month_projects, key=lambda x: x.created_at, reverse=True)):
+        bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        s_bg, s_fg = STATUS_COLORS.get(p.status, ('FFFFFF', '000000'))
+
+        def _tick(project, doc_name):
+            doc_map = {d.doc_type: d for d in project.documents}
+            return '✓' if (doc_map.get(doc_name) and doc_map[doc_name].status in ('Received', 'Sent', 'Completed')) else '✗'
+
+        f_done = _tick(p, 'Feasibility Receipt')
+        c_done = _tick(p, 'KSEB Connection')
+        pay_done = _tick(p, 'Payment Completion')
+        mnre_done=_tick(p,'MNRE')
+
+        ws.row_dimensions[row].height = 18
+        vals = [
+            p.project_code,
+            p.customer.name,
+            p.project_type,
+            p.project_subtype or '—',
+            p.stage,
+            p.status,
+            mnre_done,
+            f_done,
+            c_done,
+            pay_done,
+            p.coordinator.full_name if p.coordinator else '—',
+            p.days_open,
+            p.created_at.strftime('%d %b %Y'),
+        ]
+        fmts = [None, None, None, None, None, None, None, None, None, None, None, None, None]
+        aligns = ['center', 'left', 'center', 'center', 'center', 'center',
+                  'center', 'center', 'center', 'center', 'left', 'center', 'center']
+
+        for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
+            cell    = ws.cell(row, col)
+            cell_bg = s_bg if col == 6 else bg
+            cell_fg = s_fg if col == 6 else '000000'
+            # Green/red tick coloring
+            if col in (7, 8, 9,10):
+                cell_bg = C_GREEN_BG if val == '✓' else C_RED_BG
+                cell_fg = C_GREEN_FG if val == '✓' else C_RED_FG
+            _style_data_cell(cell, val, bg=cell_bg, fg=cell_fg, align=aln, number_fmt=fmt)
+        row += 1
+    # Totals row
+    ws.row_dimensions[row].height = 20
+    for col in range(1, 13):
+        cell = ws.cell(row, col)
+        if col == 1:
+            _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 2:
+            _style_data_cell(cell, f'{len(month_projects)} projects', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
+        elif col == 7:
+            _style_data_cell(cell, sum(1 for p in month_projects if _doc_done(p, 'MNRE')),
+                             bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 8:
+            _style_data_cell(cell, feasibility_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 9:
+            _style_data_cell(cell, connection_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 10:
+            _style_data_cell(cell, payment_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        else:
+            cell.fill   = _fill(C_TOTAL_BG)
+            cell.border = _border()
+
+    col_widths = [12, 24, 8, 10, 16, 12, 8, 10, 10, 8, 20, 10, 13]
+    for i, w in enumerate(col_widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    # ── Sheet 2: Document Status Detail ──────────────────────────────────────
+    ws2 = wb.create_sheet('Document Status')
+    ws2.sheet_view.showGridLines = False
+    ws2.page_setup.orientation = 'landscape'
+    ws2.page_setup.paperSize   = ws2.PAPERSIZE_A4
+    ws2.page_setup.fitToPage   = True
+    ws2.page_setup.fitToWidth  = 1
+    ws2.page_setup.fitToHeight = 0
+    ws2.print_options.horizontalCentered = True
+
+    ws2.merge_cells('A1:F1')
+    c = ws2['A1']
+    c.value = f'Document Status Detail — {month_name} {year}'
+    c.font  = _font(bold=True, color=C_HEADER_FG, size=12)
+    c.fill  = _fill(C_HEADER_BG)
+    c.alignment = _center()
+
+    ws2.merge_cells('A2:F2')
+    c = ws2['A2']
+    c.value = f'Staff: {staff.full_name}'
+    c.font  = _font(italic=True, color='444444')
+    c.fill  = _fill(C_ALT_BG)
+    c.alignment = _center()
+
+    ws2.row_dimensions[3].height = 8
+
+    for col, h in enumerate(['MNRE No.', 'Customer', 'Document', 'Status', 'Received Date', 'Stage'], 1):
+        _style_header_cell(ws2.cell(4, col), h)
+
+    doc_row = 5
+    for i, p in enumerate(sorted(month_projects, key=lambda x: x.created_at, reverse=True)):
+        expected_docs = get_expected_docs(p.project_type, p.project_subtype, p.loan_subtype)
+        doc_map       = {d.doc_type: d for d in p.documents}
+        bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+
+        for doc_name in expected_docs:
+            doc_rec = doc_map.get(doc_name)
+            status  = doc_rec.status if doc_rec else 'Pending'
+            rec_date = doc_rec.received_date.strftime('%d %b %Y') if doc_rec and doc_rec.received_date else '—'
+
+            if status in ('Received', 'Completed', 'Sent'):
+                d_bg, d_fg = C_GREEN_BG, C_GREEN_FG
+            else:
+                d_bg, d_fg = C_RED_BG, C_RED_FG
+
+            data   = [p.project_code, p.customer.name, doc_name, status, rec_date, p.stage]
+            aligns = ['center', 'left', 'left', 'center', 'center', 'center']
+
+            for col, (val, aln) in enumerate(zip(data, aligns), 1):
+                cell    = ws2.cell(doc_row, col)
+                cell_bg = d_bg if col == 4 else bg
+                cell_fg = d_fg if col == 4 else '000000'
+                _style_data_cell(cell, val, bg=cell_bg, fg=cell_fg, align=aln)
+            ws2.row_dimensions[doc_row].height = 16
+            doc_row += 1
+
+    ws2.column_dimensions['A'].width = 12
+    ws2.column_dimensions['B'].width = 24
+    ws2.column_dimensions['C'].width = 28
+    ws2.column_dimensions['D'].width = 12
+    ws2.column_dimensions['E'].width = 14
+    ws2.column_dimensions['F'].width = 16
+
+    # ── Sheet 3: Stage Breakdown ──────────────────────────────────────────────
+    ws3 = wb.create_sheet('By Stage')
+    ws3.sheet_view.showGridLines = False
+    ws3.page_setup.orientation = 'landscape'
+    ws3.page_setup.paperSize   = ws3.PAPERSIZE_A4
+    ws3.page_setup.fitToPage   = True
+    ws3.page_setup.fitToWidth  = 1
+    ws3.page_setup.fitToHeight = 0
+    ws3.print_options.horizontalCentered = True
+    _build_stage_sheet(ws3, month_projects, month_name, year, staff.full_name)
+
+    # ── Sheet 4: New This Month ───────────────────────────────────────────────
+    ws4 = wb.create_sheet('New This Month')
+    ws4.sheet_view.showGridLines = False
+    ws4.page_setup.orientation = 'landscape'
+    ws4.page_setup.paperSize   = ws4.PAPERSIZE_A4
+    ws4.page_setup.fitToPage   = True
+    ws4.page_setup.fitToWidth  = 1
+    ws4.page_setup.fitToHeight = 0
+    ws4.print_options.horizontalCentered = True
+    _build_project_sheet(ws4, created_this_month,
+                         f'New Projects — {month_name} {year}',
+                         staff.full_name)
+
+    fname = f'DocsReport_{staff.username}_{year}_{month:02d}.xlsx'.replace(' ', '_')
+    path  = os.path.join(output_dir, fname)
+    wb.save(path)
+    return path
+@app.route('/admin/coordinator_reports')
+@login_required
+@roles_required('admin')
+def coordinator_reports():
+    coordinators = User.query.filter_by(role='coordinator', is_active=True).all()
+    from datetime import date
+    today = date.today()
+    return render_template('coordinator_reports.html',
+                           coordinators=coordinators,
+                           current_year=today.year,
+                           current_month=today.month)
+ 
+ 
+@app.route('/admin/coordinator_reports/download')
+@login_required
+@roles_required('admin')
+def download_coordinator_report():
+    
+ 
+    coord_id = request.args.get('coordinator_id', type=int)
+    year     = request.args.get('year',  type=int)
+    month    = request.args.get('month', type=int)
+ 
+    if not all([coord_id, year, month]) or not (1 <= month <= 12):
+        flash('Invalid report parameters.', 'danger')
+        return redirect(url_for('coordinator_reports'))
+ 
+    coordinator = User.query.get_or_404(coord_id)
+    if coordinator.role != 'coordinator':
+        flash('Selected user is not a coordinator.', 'danger')
+        return redirect(url_for('coordinator_reports'))
+ 
+    projects = Project.query.filter_by(coordinator_id=coord_id).all()
+ 
+    path = build_coordinator_monthly_report(
+        coordinator=coordinator,
+        all_projects=projects,
+        year=year,
+        month=month,
+        output_dir=tempfile.gettempdir(),
+    )
+ 
+    month_name = calendar.month_name[month]
+    filename   = f'Report_{coordinator.username}_{month_name}_{year}.xlsx'
+ 
+    return send_file(
+        path,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+@app.route('/admin/docstaff_reports')
+@login_required
+@roles_required('admin')
+def docstaff_reports():
+    staff_list = User.query.filter_by(role='documents', is_active=True).all()
+    today = date.today()
+    return render_template('docstaff_reports.html',
+                           staff_list=staff_list,
+                           current_year=today.year,
+                           current_month=today.month)
+
+
+@app.route('/admin/docstaff_reports/download')
+@login_required
+@roles_required('admin')
+def download_docstaff_report():
+    staff_id = request.args.get('staff_id', type=int)
+    year     = request.args.get('year',     type=int)
+    month    = request.args.get('month',    type=int)
+
+    if not all([staff_id, year, month]) or not (1 <= month <= 12):
+        flash('Invalid report parameters.', 'danger')
+        return redirect(url_for('docstaff_reports'))
+
+    staff = User.query.get_or_404(staff_id)
+    if staff.role != 'documents':
+        flash('Selected user is not a documents staff member.', 'danger')
+        return redirect(url_for('docstaff_reports'))
+
+    projects = Project.query.filter_by(doc_staff_id=staff_id).all()
+
+    path = build_docstaff_monthly_report(
+        staff        = staff,
+        all_projects = projects,
+        year         = year,
+        month        = month,
+        output_dir   = tempfile.gettempdir(),
+    )
+
+    month_name = calendar.month_name[month]
+    filename   = f'DocsReport_{staff.username}_{month_name}_{year}.xlsx'
+
+    return send_file(
+        path,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
 # ─────────────────────────────────────────────────────────────────────────────
 # DB INIT & SEED
 # ─────────────────────────────────────────────────────────────────────────────
@@ -3103,7 +4122,7 @@ def seed_db():
     if DocumentStage.query.count() == 0:
         seed_stages = [
             ('Customer KYC',         'always', 'ID Proof,Pass Book,Electricity Bill',              0),
-            ('Bank / Loan file',     'loan_assisted','GEO Tag Photo,Bank Stamp Paper,Bank File',         1),
+            ('Bank / Loan file',     'loan_self','GEO Tag Photo,Bank Stamp Paper,Bank File',         1),
             ('Feasibility',          'always', 'Feasibility Receipt',                              2),
             ('KSEB filing',          'always', 'KSEB Stamp Paper,B-Class Licence,KSEB File',       3),
             ('Inspection & conn.',   'always', 'Inspection,CD Payment Receipt,KSEB Connection',    4),
@@ -3139,4 +4158,4 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         seed_db()
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, port=5000)

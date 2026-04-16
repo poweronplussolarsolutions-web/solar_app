@@ -2,6 +2,34 @@
 {% block title %}Payments — Solar App{% endblock %}
 {% block page_title %}Payments Dashboard{% endblock %}
 {% block content %}
+
+{% macro paginate(base, cur_page, total_pages, param) %}
+{% if total_pages > 1 %}
+<div style="display:flex;align-items:center;justify-content:space-between;
+            margin-top:14px;padding-top:12px;border-top:0.5px solid var(--border)">
+  <div style="font-size:12px;color:var(--muted)">
+    Page {{ cur_page }} of {{ total_pages }}
+  </div>
+  <div style="display:flex;gap:4px">
+    {% if cur_page > 1 %}
+    <a href="{{ base }}&{{ param }}={{ cur_page - 1 }}" class="btn btn-sm">← Prev</a>
+    {% endif %}
+    {% for p in range(1, total_pages + 1) %}
+      {% if p == 1 or p == total_pages or (p >= cur_page - 2 and p <= cur_page + 2) %}
+        <a href="{{ base }}&{{ param }}={{ p }}" class="btn btn-sm"
+           style="{% if p == cur_page %}background:var(--amber-600);color:#fff;{% endif %}">{{ p }}</a>
+      {% elif p == cur_page - 3 or p == cur_page + 3 %}
+        <span style="padding:0 4px;color:var(--muted)">…</span>
+      {% endif %}
+    {% endfor %}
+    {% if cur_page < total_pages %}
+    <a href="{{ base }}&{{ param }}={{ cur_page + 1 }}" class="btn btn-sm">Next →</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endmacro %}
+
 <div class="stats-grid">
   <div class="stat-card">
     <div class="stat-label">Total value</div>
@@ -24,13 +52,22 @@
 </div>
 
 <div class="card">
-  <div class="card-title">Project payment status</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div class="card-title" style="margin:0">Project payment status</div>
+    <div style="font-size:12px;color:var(--muted)">{{ pending_projs.total }} projects</div>
+  </div>
   <table>
-    <thead><tr><th>Project</th><th>Customer</th><th>Type</th><th>Collected</th><th>Total</th><th>Pending</th><th>Progress</th></tr></thead>
-    <tbody>
-      {% for p in pending_projs %}
+    <thead>
       <tr>
-        <td><a href="{{ url_for('project_detail', pid=p.id) }}" style="font-weight:500;color:var(--amber-600)">{{ p.project_code }}</a></td>
+        <th>Project</th><th>Customer</th><th>Type</th>
+        <th>Collected</th><th>Total</th><th>Pending</th><th>Progress</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in pending_projs.items %}
+      <tr>
+        <td><a href="{{ url_for('project_detail', pid=p.id) }}"
+               style="font-weight:500;color:var(--amber-600)">{{ p.project_code }}</a></td>
         <td>{{ p.customer.name }}</td>
         <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
         <td>{{ p.collected_amount | inr }}</td>
@@ -40,7 +77,9 @@
         </td>
         <td>
           <div style="display:flex;align-items:center;gap:6px">
-            <div class="progress-wrap" style="width:70px"><div class="progress-bar" style="width:{{ p.payment_pct }}%"></div></div>
+            <div class="progress-wrap" style="width:70px">
+              <div class="progress-bar" style="width:{{ p.payment_pct }}%"></div>
+            </div>
             <span style="font-size:11px">{{ p.payment_pct }}%</span>
           </div>
         </td>
@@ -48,18 +87,28 @@
       {% endfor %}
     </tbody>
   </table>
+  {{ paginate('?page=' ~ page ~ '&pay_page=' ~ pay_page, pending_projs.page, pending_projs.pages, 'page') }}
 </div>
 
 <div class="card">
-  <div class="card-title">Recent payment transactions</div>
-  {% if recent_payments %}
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div class="card-title" style="margin:0">Recent payment transactions</div>
+    <div style="font-size:12px;color:var(--muted)">{{ recent_payments.total }} total</div>
+  </div>
+  {% if recent_payments.items %}
   <table>
-    <thead><tr><th>Date</th><th>Project</th><th>Customer</th><th>Amount</th><th>Type</th><th>Ref</th></tr></thead>
+    <thead>
+      <tr>
+        <th>Date</th><th>Project</th><th>Customer</th>
+        <th>Amount</th><th>Type</th><th>Ref</th>
+      </tr>
+    </thead>
     <tbody>
-      {% for pay in recent_payments %}
+      {% for pay in recent_payments.items %}
       <tr>
         <td>{{ pay.payment_date | date_fmt }}</td>
-        <td><a href="{{ url_for('project_detail', pid=pay.project_id) }}" style="color:var(--amber-600)">{{ pay.project.project_code }}</a></td>
+        <td><a href="{{ url_for('project_detail', pid=pay.project_id) }}"
+               style="color:var(--amber-600)">{{ pay.project.project_code }}</a></td>
         <td>{{ pay.project.customer.name }}</td>
         <td style="font-weight:500">{{ pay.amount | inr }}</td>
         <td><span class="tag">{{ pay.payment_type }}</span></td>
@@ -68,8 +117,10 @@
       {% endfor %}
     </tbody>
   </table>
+  {{ paginate('?page=' ~ page ~ '&pay_page=' ~ pay_page, recent_payments.page, recent_payments.pages, 'pay_page') }}
   {% else %}
   <div style="text-align:center;padding:24px;color:var(--hint)">No payments recorded yet.</div>
   {% endif %}
 </div>
+
 {% endblock %}

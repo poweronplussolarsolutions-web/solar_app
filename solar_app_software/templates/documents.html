@@ -77,34 +77,25 @@
 
 {% block content %}
 
-{% if proj.stage in ('Lead', 'Site Visit') %}
-<div style="display:flex;align-items:center;gap:12px;padding:14px 18px;margin-bottom:16px;
-     border-radius:var(--radius);background:#fffbeb;border:1px solid #fcd34d;color:#92400e">
-  <span style="font-size:18px">🔒</span>
-  <div>
-    <div style="font-weight:600;font-size:14px">Documents locked</div>
-    <div style="font-size:12px;margin-top:2px;opacity:0.8">
-      Document work is unlocked only after the site visit is completed.
-      Current stage: <strong>{{ proj.stage }}</strong>.
-    </div>
-  </div>
-</div>
-{% endif %}
-
-{# ── Build doc_map ── #}
 {% set doc_map = {} %}
 {% for d in proj.documents %}
   {% if doc_map.update({d.doc_type: d}) %}{% endif %}
 {% endfor %}
-
-{# ── Count expected vs done ── #}
 {% set ns_total = namespace(expected=0, done=0) %}
-{% for stage in stages %}
+{% for stage in [
+  {'condition':'always','docs':['ID Proof','Pass Book','Electricity Bill']},
+  {'condition':'loan',  'docs':['GEO Tag Photo','Bank Stamp Paper','Bank File']},
+  {'condition':'always','docs':['Feasibility Receipt']},
+  {'condition':'always','docs':['KSEB Stamp Paper','B-Class Licence','KSEB File']},
+  {'condition':'always','docs':['MNRE']},
+  {'condition':'always','docs':['Inspection','CD Payment Receipt','KSEB Connection']},
+  {'condition':'dcr',   'docs':['Subsidy Request','Subsidy Redeem']},
+  {'condition':'always','docs':['Payment Completion','Warranty Card','App Installation']},
+] %}
   {% if stage.condition == 'always'
      or (stage.condition == 'loan' and proj.project_type == 'Loan')
-     or (stage.condition == 'loan_assisted' and proj.project_type == 'Loan' and proj.loan_subtype == 'Assisted')
-     or (stage.condition == 'dcr' and proj.project_subtype == 'DCR') %}
-    {% for doc_name in stage.doc_list %}
+     or (stage.condition == 'dcr'  and proj.project_subtype == 'DCR') %}
+    {% for doc_name in stage.docs %}
       {% set ns_total.expected = ns_total.expected + 1 %}
       {% if doc_name in doc_map and doc_map[doc_name].status in ['Received','Sent','Completed'] %}
         {% set ns_total.done = ns_total.done + 1 %}
@@ -113,7 +104,66 @@
   {% endif %}
 {% endfor %}
 {% set all_docs_complete = (ns_total.expected > 0 and ns_total.done == ns_total.expected) %}
-{# ── ONSITE PROGRESS (read-only) ── #}
+{% set admin_edit =(current_user.role == 'admin' and request.args.get('admin_edit')=='1') %}
+
+{% set stages = [
+  {
+    'name': 'Customer KYC',
+    'stage': 'Documentation',
+    'condition': 'always',
+    'docs': ['ID Proof', 'Pass Book', 'Electricity Bill'],
+    'statuses':['Pending','Received']
+  },
+  {
+    'name': 'Bank / Loan file',
+    'stage': 'Bank/Feasibility',
+    'condition': 'loan',
+    'docs': ['GEO Tag Photo', 'Bank Stamp Paper', 'Bank File'],
+    'statuses':['Pending','Sent','Received']
+  },
+  {
+    'name': 'Feasibility',
+    'stage': 'Bank/Feasibility',
+    'condition': 'always',
+    'docs': ['Feasibility Receipt'],
+    'statuses':['Pending','Received']
+  },
+  {
+    'name': 'KSEB filing',
+    'stage': 'KSEB Processing',
+    'condition': 'always',
+    'docs': ['KSEB Stamp Paper', 'B-Class Licence', 'KSEB File'],
+    'statuses':['Pending','Received','Sent']
+  },
+  {
+    'name':'MNRE',
+    'stage':'MNRE',
+    'condition':'always',
+    'docs':['MNRE'],
+    'statuses':['Pending','Received']
+  },
+  {
+    'name': 'Inspection & connection',
+    'stage': 'Inspection',
+    'condition': 'always',
+    'docs': ['Inspection', 'CD Payment Receipt', 'KSEB Connection'],
+    'statuses':['Pending','Completed']
+  },
+  {
+    'name': 'Subsidy',
+    'stage': 'Subsidy',
+    'condition': 'dcr',
+    'docs': ['Subsidy Request', 'Subsidy Redeem'],
+    'statuses':['Pending','Completed']
+  },
+  {
+    'name': 'Project closure',
+    'stage': 'Final Payment',
+    'condition': 'always',
+    'docs': ['Payment Completion','Warranty Card', 'App Installation'],
+    'statuses':['Pending','Completed']
+  }
+] %}
 {% set op = proj.onsite_progress %}
 <div class="card mb-4 border-0 bg-light">
   <div class="card-body">
@@ -142,47 +192,48 @@
         {% endif %}
       </div>
       <div>
-        <small class="text-muted d-block">Materials</small>
-        {% set mat_total     = proj.materials | list %}
-        {% set mat_delivered = proj.materials | selectattr('dispatch_status','eq','Delivered') | list %}
-        {% set mat_dispatched = proj.materials | selectattr('dispatch_status','eq','Dispatched') | list %}
-        {% set mat_done      = mat_delivered | length + mat_dispatched | length %}
-        {% if mat_total | length == 0 %}
-          <span class="badge bg-secondary">No materials</span>
-        {% elif mat_delivered | length == mat_total | length %}
-          <span class="badge bg-success">Delivered</span>
-        {% else %}
-          <span class="badge bg-info text-dark">{{ mat_done }} / {{ mat_total | length }} dispatched or delivered</span>
-        {% endif %}
-      </div>
+  <small class="text-muted d-block">Materials</small>
+  {% set total     = proj.materials | list %}
+  {% set delivered = proj.materials | selectattr('dispatch_status','eq','Delivered') | list %}
+  {% set dispatched = proj.materials | selectattr('dispatch_status','eq','Dispatched') | list %}
+  {% set done      = delivered | length + dispatched | length %}
+  {% if total | length == 0 %}
+    <span class="badge bg-secondary">No materials</span>
+  {% elif delivered | length == total | length %}
+    <span class="badge bg-success">Delivered</span>
+  {% else %}
+    <span class="badge bg-info text-dark">{{ done }} / {{ total | length }} dispatched or delivered</span>
+  {% endif %}
+</div>
     </div>
     {% if op and op.structure_notes %}
       <p class="mt-2 mb-0 text-muted small"><strong>Notes:</strong> {{ op.structure_notes }}</p>
     {% endif %}
   </div>
 </div>
-{# ── Timeline (only when docs are incomplete) ── #}
-{% if not all_docs_complete %}
+{% if not all_docs_complete or admin_edit %}
 <div class="timeline">
 {% for stage in stages %}
   {% if stage.condition == 'always'
      or (stage.condition == 'loan' and proj.project_type == 'Loan')
-     or (stage.condition == 'loan_assisted' and proj.project_type == 'Loan' and proj.loan_subtype == 'Assisted')
-     or (stage.condition == 'dcr' and proj.project_subtype == 'DCR') %}
+     or (stage.condition == 'dcr'  and proj.project_subtype == 'DCR') %}
 
     {% set ns = namespace(done=0) %}
-    {% for doc_name in stage.doc_list %}
+    {% for doc_name in stage.docs %}
       {% if doc_name in doc_map and doc_map[doc_name].status in ['Received','Completed','Sent'] %}
         {% set ns.done = ns.done + 1 %}
       {% endif %}
     {% endfor %}
-    {% set total = stage.doc_list | length %}
+    {% set total = stage.docs | length %}
 
     {% if ns.done == total %}
       {% set dot_cls  = 'done' %}
       {% set card_cls = 'done' %}
     {% elif ns.done > 0 %}
       {% set dot_cls  = 'partial' %}
+      {% set card_cls = 'active' %}
+    {% elif proj.stage == stage.stage %}
+      {% set dot_cls  = 'active' %}
       {% set card_cls = 'active' %}
     {% else %}
       {% set dot_cls  = 'locked' %}
@@ -205,20 +256,7 @@
           <div>
             <div class="tl-title">{{ stage.name }}</div>
             <div class="tl-meta">
-              {% if stage.condition == 'loan' %}Loan only
-              {% elif stage.condition == 'loan_assisted' %}Assisted loan only
-              {% elif stage.condition == 'dcr' %}DCR only
-              {% endif %}
-              {% if dot_cls == 'locked' %}
-                · <span style="color:var(--red-600);font-size:11px">
-                  {% if proj.stage in ('Lead','Site Visit') %}Waiting for: Site visit completion
-                  {% elif stage.condition == 'loan' %}Loan projects only
-                  {% elif stage.condition == 'loan_assisted' %}Assisted loan projects only
-                  {% elif stage.condition == 'dcr' %}DCR projects only
-                  {% else %}Pending previous stages
-                  {% endif %}
-                </span>
-              {% endif %}
+              {{ stage.stage }}{% if stage.condition == 'loan' %} · Loan only{% endif %}
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
@@ -237,185 +275,119 @@
         </div>
 
         <div class="tl-body {% if dot_cls in ['active','partial'] %}open{% endif %}">
-          {% for doc_name in stage.doc_list %}
+
+          {% for doc_name in stage.docs %}
             {% set doc = doc_map.get(doc_name) %}
-            {% set is_done = doc and doc.status in ['Received','Sent','Completed'] %}
-            <div class="doc-row">
-              <div class="doc-status-dot
-                {% if doc and doc.status in ['Received','Completed'] %}received
-                {% elif doc and doc.status == 'Sent' %}sent
-                {% else %}pending{% endif %}">
-              </div>
-              <div class="doc-name">{{ doc_name }}</div>
-              <div class="doc-date">
-                {% if doc and doc.received_date %}{{ doc.received_date | date_fmt }}{% endif %}
-              </div>
-              <div class="doc-actions">
-                {% if is_done %}
-                  <span class="badge {% if doc.status == 'Sent' %}badge-InProgress{% else %}badge-Completed{% endif %}">
-                    {{ doc.status }}
-                  </span>
-                  {% if current_user.role in ['admin','documents'] %}
-                  <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline">
-                    <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
-                    <input type="hidden" name="status"   value="Pending"/>
-                    <button type="submit" class="btn btn-sm" title="Revert to Pending">↩</button>
-                  </form>
-                  {% endif %}
-                {% else %}
-                  <span class="badge badge-Pending">Pending</span>
-                  {% if current_user.role in ['admin','documents'] %}
-                  <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline">
-                    <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
-                    <input type="hidden" name="status"   value="Received"/>
-                    <button type="submit" class="btn btn-sm btn-primary">Mark Received</button>
-                  </form>
-                  {% endif %}
-                {% endif %}
-              </div>
-            </div>
-          {% endfor %}
+      {% set final_status = stage.statuses[-1] %}
+{% set is_done = doc and doc.status in ['Received','Sent','Completed'] and doc.status != 'Pending' %}
+<div class="doc-row">
+  <div class="doc-status-dot
+    {% if doc and doc.status in ['Received','Completed'] %}received
+    {% elif doc and doc.status == 'Sent' %}sent
+    {% else %}pending{% endif %}">
+  </div>
+  <div class="doc-name">{{ doc_name }}</div>
+  <div class="doc-date">
+    {% if doc and doc.received_date %}{{ doc.received_date | date_fmt }}{% endif %}
+  </div>
+  <div class="doc-actions">
+    {% if is_done %}
+      <span class="badge
+        {% if doc.status == 'Sent' %}badge-InProgress
+        {% else %}badge-Completed{% endif %}">
+        {{ doc.status }}
+      </span>
+      {% if current_user.role in ['admin','documents'] %}
+      <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline">
+        <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
+        <input type="hidden" name="status"   value="Pending"/>
+        <button type="submit" class="btn btn-sm" title="Revert to Pending">↩</button>
+      </form>
+      {% endif %}
+    {% elif doc and doc.status == 'Pending' %}
+      <span class="badge badge-Pending">Pending</span>
+      {% if current_user.role in ['admin','documents'] %}
+      <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline">
+        <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
+        <input type="hidden" name="status"   value="{{ final_status }}"/>
+        <button type="submit" class="btn btn-sm btn-primary">Mark {{ final_status }}</button>
+      </form>
+      {% endif %}
+    {% else %}
+      <span style="font-size:11px;color:var(--hint)">Not recorded</span>
+      {% if current_user.role in ['admin','documents'] %}
+      <button class="btn btn-sm btn-primary"
+              onclick="openAddForm(this, '{{ doc_name }}', '{{ stage.name }}')">
+        + Add
+      </button>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
 
           {% if current_user.role in ['admin','documents'] %}
-          <div class="add-form" id="form-{{ stage.id }}">
-            <form method="POST" action="{{ url_for('documents', pid=proj.id) }}">
-              <div class="add-form-grid">
-                <div>
-                  <label>Document</label>
-                  <input type="text" name="doc_type" readonly style="background:var(--surface)"/>
-                </div>
-                <div>
-                  <label>Status</label>
-                  <select name="status">
-                    <option>Pending</option>
-                    <option selected>Received</option>
-                    <option>Sent</option>
-                    <option>Completed</option>
-                  </select>
-                </div>
-                <div>
-                  <button type="submit" class="btn btn-primary btn-sm">Save</button>
-                </div>
-              </div>
-              <div style="margin-top:6px">
-                <label>Notes</label>
-                <input type="text" name="notes" placeholder="Optional"/>
-              </div>
-            </form>
-          </div>
-          {% endif %}
-
-        </div>
+          <div class="add-form" id="form-{{ stage.name | replace(' ','_') | replace('/','_') }}">
+  <form method="POST" action="{{ url_for('documents', pid=proj.id) }}">
+    <div class="add-form-grid">
+      <div>
+        <label>Document</label>
+        <input type="text" name="doc_type" readonly style="background:var(--surface)"/>
+      </div>
+      <div>
+        <label>Status</label>
+        <select name="status">
+          {% for s in stage.statuses %}
+          <option {% if loop.last %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      
+      <div>
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
       </div>
     </div>
-  {% endif %}
-{% endfor %}
+    <div style="margin-top:6px">
+      <label>Notes</label>
+      <input type="text" name="notes" placeholder="Optional"/>
+    </div>
+  </form>
 </div>
-
-
-
-{# ── CD PAYMENT & NET METER ── #}
-<div class="card" style="margin-top:20px">
-  <div class="card-title">CD Payment &amp; Net Meter</div>
-  <p style="font-size:12px;color:var(--muted);margin-bottom:16px">
-    Record whether these were paid by the customer or by the company (to be recovered later).
-  </p>
-
-  {% set cd_expense = proj.expenses | selectattr('expense_type','eq','CD Payment') | first | default(none) %}
-  {% set nm_expense = proj.expenses | selectattr('expense_type','eq','Net Meter')  | first | default(none) %}
-
-  {% for label, existing in [('CD Payment', cd_expense), ('Net Meter', nm_expense)] %}
-  {% set form_id = 'expense-form-' ~ loop.index %}
-  <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div style="font-size:13px;font-weight:500">{{ label }}</div>
-      <div style="display:flex;align-items:center;gap:8px">
-        {% if existing %}
-          <span class="badge badge-{% if existing.paid_by == 'Company' %}Delayed{% else %}Completed{% endif %}">
-            Paid by {{ existing.paid_by }}
-            {% if existing.paid_by == 'Company' and existing.recovered %} · Recovered{% endif %}
-            {% if existing.paid_by == 'Company' and not existing.recovered %} · Pending recovery{% endif %}
-          </span>
-          {% if current_user.role in ['admin', 'documents'] %}
-          <button class="btn btn-sm" onclick="toggleExpenseForm('{{ form_id }}')">Edit</button>
           {% endif %}
-        {% else %}
-          <span class="badge badge-Lead">Not recorded</span>
-        {% endif %}
+
+        </div>
       </div>
     </div>
-
-    {% if existing %}
-    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;display:flex;gap:16px">
-      <span>Amount: <strong>₹{{ existing.amount | int }}</strong></span>
-      <span>Date: <strong>{{ existing.paid_date | date_fmt }}</strong></span>
-      {% if existing.notes %}<span>Note: {{ existing.notes }}</span>{% endif %}
-    </div>
-    {% endif %}
-
-    {% if current_user.role in ['admin', 'documents'] %}
-    <div id="{{ form_id }}" style="{{ 'display:none' if existing else '' }}">
-      <form method="POST" action="{{ url_for('update_expense', pid=proj.id) }}">
-        <input type="hidden" name="expense_type" value="{{ label }}">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
-          <div>
-            <label>Amount (₹)</label>
-            <input type="number" name="amount" min="0" step="1"
-                   value="{{ existing.amount | int if existing else '' }}" placeholder="0"/>
-          </div>
-          <div>
-            <label>Paid by</label>
-            <select name="paid_by">
-              <option value="Customer" {% if existing and existing.paid_by == 'Customer' %}selected{% endif %}>Customer</option>
-              <option value="Company"  {% if existing and existing.paid_by == 'Company'  %}selected{% endif %}>Company</option>
-            </select>
-          </div>
-          <div>
-            <label>Date paid</label>
-            <input type="date" name="paid_date"
-                   value="{{ existing.paid_date.isoformat() if existing and existing.paid_date else '' }}"/>
-          </div>
-          <div>
-            <label>Notes</label>
-            <input type="text" name="notes"
-                   value="{{ existing.notes or '' }}" placeholder="Optional…"/>
-          </div>
-          <div style="display:flex;gap:6px">
-            <button type="submit" class="btn btn-primary btn-sm">Save</button>
-            {% if existing %}
-            <button type="button" class="btn btn-sm"
-                    onclick="toggleExpenseForm('{{ form_id }}')">Cancel</button>
-            {% endif %}
-          </div>
-        </div>
-      </form>
-    </div>
-    {% endif %}
-  </div>
+     {% endif %}
   {% endfor %}
-</div>
-
-{% endif %}{# end if not all_docs_complete #}
-
-{# ── ALL DOCS COMPLETE banner ── #}
-{% if all_docs_complete %}
-<div style="margin-top:20px;display:flex;align-items:center;gap:10px;
-            background:var(--teal-50);border:0.5px solid var(--teal-100);
-            border-radius:var(--radius-lg);padding:14px 18px">
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-       stroke="var(--teal-600)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="3" y="11" width="18" height="11" rx="2"/>
-    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-  </svg>
-  <div>
-    <div style="font-size:13px;font-weight:600;color:var(--teal-800)">All documents completed</div>
-    <div style="font-size:12px;color:var(--teal-700);margin-top:2px">
-      Document timeline is locked. Contact admin to make changes.
-    </div>
-  </div>
 </div>
 {% endif %}
 
+
+{% if all_docs_complete %}
+<div style="margin-top:20px;display:flex;align-items:center;justify-content:space-between;
+            background:var(--teal-50);border:0.5px solid var(--teal-100);
+            border-radius:var(--radius-lg);padding:14px 18px;flex-wrap:wrap;gap:10px">
+  <div style="display:flex;align-items:center;gap:10px">
+    <!-- lock icon svg -->
+    <div>
+      <div style="font-size:13px;font-weight:600;color:var(--teal-800)">All documents completed</div>
+      <div style="font-size:12px;color:var(--teal-700);margin-top:2px">
+        {% if admin_edit %}Editing unlocked by admin.{% else %}Document timeline is locked.{% endif %}
+      </div>
+    </div>
+  </div>
+  {% if current_user.role == 'admin' %}
+  {% if admin_edit %}
+    <a href="{{ url_for('documents', pid=proj.id) }}" class="btn btn-sm">Lock again</a>
+  {% else %}
+    <a href="{{ url_for('documents', pid=proj.id, admin_edit=1) }}" class="btn btn-sm btn-warning">Edit documents</a>
+  {% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px;font-size:12px;color:var(--muted)">
 <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px;font-size:12px;color:var(--muted)">
   <span><span class="doc-status-dot received" style="display:inline-block;vertical-align:middle;margin-right:4px"></span>Received</span>
   <span><span class="doc-status-dot verified" style="display:inline-block;vertical-align:middle;margin-right:4px"></span>Verified</span>
@@ -431,18 +403,14 @@ function toggleStage(header) {
   chevron.classList.toggle('open');
 }
 
-function openAddForm(btn, docName, stageId) {
-  const form  = document.getElementById('form-' + stageId);
-  const input = form.querySelector('input[name="doc_type"]');
-  input.value = docName;
+function openAddForm(btn, docName, stageName) {
+  const stageKey = stageName.replace(/ /g, '_').replace(/\//g, '_');
+  const form     = document.getElementById('form-' + stageKey);
+  const input    = form.querySelector('input[name="doc_type"]');
+  input.value    = docName;
   form.classList.add('open');
   btn.style.display = 'none';
   form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
-
-function toggleExpenseForm(id) {
-  const form = document.getElementById(id);
-  form.style.display = form.style.display === 'none' ? '' : 'none';
 }
 </script>
 

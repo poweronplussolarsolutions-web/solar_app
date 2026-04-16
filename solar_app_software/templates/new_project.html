@@ -5,18 +5,8 @@
 {% block content %}
 <div class="card" style="max-width:720px">
   <form method="POST" action="{{ url_for('new_project') }}">
+
     <div style="font-size:13px;font-weight:500;margin-bottom:14px;color:var(--muted)">Customer details</div>
-    <!-- <div class="form-grid">
-      <div class="form-group full">
-        <label>Existing customer</label>
-        <select name="customer_id" id="cust_select" onchange="toggleNew(this.value)">
-          <option value="">— New customer —</option>
-          {% for c in customers %}
-          <option value="{{ c.id }}">{{ c.name }} ({{ c.phone }})</option>
-          {% endfor %}
-        </select>
-      </div>
-    </div> -->
 
     <div id="new-cust-fields">
       <div class="form-grid">
@@ -45,9 +35,6 @@
           <label>Pincode</label>
           <input name="pincode" type="text" maxlength="6" placeholder="680001"/>
         </div>
-        <div class="form-group">
-          <label></label>
-        </div>
         <div class="form-group full">
           <label>Address</label>
           <textarea name="address" rows="2" placeholder="Full address"></textarea>
@@ -58,7 +45,27 @@
     <div style="border-top:0.5px solid var(--border);margin:16px 0 14px;font-size:13px;font-weight:500;padding-top:14px;color:var(--muted)">
       Project details
     </div>
+
     <div class="form-grid">
+
+      <!-- MNRE Number -->
+      <div class="form-group">
+        <label>MNRE Number *</label>
+        <input name="project_code" type="text" required
+               value="{{ suggested_code or '' }}"
+               pattern="\d+" title="Digits only — no letters or spaces"
+               placeholder="{% if not suggested_code %}Enter starting MNRE number{% endif %}"/>
+        {% if suggested_code %}
+        <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
+          Auto-filled from last project — edit if needed
+        </span>
+        {% else %}
+        <span style="font-size:11px;color:var(--amber-600);margin-top:3px;display:block">
+          No projects yet — enter the first MNRE number manually
+        </span>
+        {% endif %}
+      </div>
+
       <div class="form-group">
         <label>Inverter capacity (kW) *</label>
         <input name="inverter_capacity_kw" type="number" step="0.5" min="1" required placeholder="e.g. 5"/>
@@ -69,7 +76,7 @@
       </div>
       <div class="form-group">
         <label>Project type *</label>
-        <select name="project_type" id="project_type" required>
+        <select name="project_type" id="project_type" required onchange="toggleLoanSubtype()">
           <option value="Cash">Cash</option>
           <option value="Loan">Loan</option>
         </select>
@@ -81,31 +88,34 @@
           <option value="Non-DCR">Non-DCR (no subsidy)</option>
         </select>
       </div>
-      <div class="form-group" id="loan-subtype-field" >
-  <label>Loan Type</label>
-  <select name="loan_subtype" id="loan_subtype">
-    <option value="">-- Select --</option>
-    <option value="Assisted">Assisted </option>
-    <option value="Self">Self </option>
-  </select>
-  <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
-    <strong>Assisted:</strong> Docs team submits bank file (SBI etc.)<br>
-    <strong>Self:</strong> Bank handles own paperwork (Bajaj etc.)
-  </span>
-</div>
+
+      <div class="form-group" id="loan-subtype-field" style="display:none">
+        <label>Loan type</label>
+        <select name="loan_subtype" id="loan_subtype">
+          <option value="">— Select —</option>
+          <option value="Assisted">Assisted</option>
+          <option value="Self">Self</option>
+        </select>
+        <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
+          <strong>Assisted:</strong> Docs team submits bank file (SBI etc.)<br>
+          <strong>Self:</strong> Bank handles own paperwork (Bajaj etc.)
+        </span>
+      </div>
+
       <div class="form-group">
         <label>Total contract amount (₹)</label>
         <input name="total_amount" type="number" step="1" min="0" placeholder="0"/>
       </div>
-      
+
       <div class="form-group">
         <label>Coordinator</label>
         <input type="text" value="{{ current_user.full_name }}" disabled
-         style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
+               style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
         <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
           Auto-assigned to you
         </span>
       </div>
+
       <div class="form-group">
         <label>Documents staff</label>
         <select name="doc_staff_id">
@@ -115,35 +125,31 @@
           {% endfor %}
         </select>
       </div>
+
       <div class="form-group full">
         <label>Notes</label>
         <textarea name="notes" rows="2" placeholder="Any additional notes…"></textarea>
       </div>
+
     </div>
 
     <div style="display:flex;gap:10px;margin-top:8px">
       <button type="submit" class="btn btn-primary">Create project</button>
       <a href="{{ url_for('projects') }}" class="btn">Cancel</a>
     </div>
+
   </form>
 </div>
 
 <script>
-function toggleNew(val) {
-  document.getElementById('new-cust-fields').style.display = val ? 'none' : 'block';
-}
-</script>
-<script>
-  function toggleLoanSubtype() {
-    const type  = document.getElementById('project_type').value;
-    const field = document.getElementById('loan-subtype-field');
-    field.style.display = (type === 'Loan') ? 'block' : 'none';
-    if (type !== 'Loan') {
-      field.querySelector('select').value = '';
-    }
+function toggleLoanSubtype() {
+  const type  = document.getElementById('project_type').value;
+  const field = document.getElementById('loan-subtype-field');
+  field.style.display = (type === 'Loan') ? 'block' : 'none';
+  if (type !== 'Loan') {
+    document.getElementById('loan_subtype').value = '';
   }
-  document.getElementById('project_type').addEventListener('change', toggleLoanSubtype);
- 
-  toggleLoanSubtype();
+}
+toggleLoanSubtype();
 </script>
 {% endblock %}

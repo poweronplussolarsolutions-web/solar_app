@@ -125,12 +125,24 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Coordinator</td><td>{{ proj.coordinator.full_name if proj.coordinator else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Docs staff</td><td>{{ proj.doc_staff.full_name if proj.doc_staff else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Created</td><td>{{ proj.created_at | date_fmt }}</td></tr>
-      <tr><td style="color:var(--muted);padding:5px 0">Days open</td><td>{{ proj.days_open }} days</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Days open</td><td style="font-size:12px;color:var(--hint)">
+  {% if proj.status in ('Closed', 'Completed', 'Cancelled') %}
+    <span title="Project closed — counter stopped">{{ proj.days_open }}d ✓</span>
+  {% else %}
+    {{ proj.days_open }}d
+  {% endif %}
+</td></tr>
       <tr>
   <td style="color:var(--muted);padding:5px 0">Days in stage</td>
   <td>
     <span style="color:{% if proj.days_in_stage > 14 %}var(--red-600){% elif proj.days_in_stage > 7 %}var(--amber-600){% else %}var(--muted){% endif %}">
-      {{ proj.days_in_stage }} days
+      <span style="font-size:12px;color:var(--hint)">
+  {% if proj.status in ('Closed', 'Completed', 'Cancelled') %}
+    <span title="Project closed — counter stopped">{{ proj.days_in_stage }}d ✓</span>
+  {% else %}
+    {{ proj.days_in_stage }}d
+  {% endif %}
+      </span>
       {% if proj.days_in_stage > 14 %} ⚠ Overdue{% endif %}
     </span>
   </td>
@@ -139,12 +151,12 @@ document.addEventListener('DOMContentLoaded', function () {
   </div>
 
   <div>
-    {% if current_user.role in ['admin', 'coordinator','documents'] and proj.status not in ['Cancelled', 'Closed', 'Completed'] %}
+    {% if current_user.role in ['admin', 'coordinator','documents'] and proj.status not in ['Cancelled', 'Closed'] %}
 <button class="btn btn-danger btn-sm" onclick="togglePanel('cancelPanel')" style="margin:5px">
   ✕ Cancel Project
 </button>
 {% endif %}
-{% if current_user.role in ['admin', 'coordinator', 'documents'] and proj.status not in ['Cancelled', 'Closed', 'Completed'] %}
+{% if current_user.role in ['admin', 'coordinator', 'documents'] and proj.status not in ['Cancelled', 'Closed'] %}
   {% if proj.status == 'OnHold' %}
     <form method="POST" action="{{ url_for('hold_project', pid=proj.id) }}" class="d-inline">
       <button class="btn btn-success btn-sm" type="submit" style="margin:5px">▶ Resume Project</button>

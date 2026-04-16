@@ -7,7 +7,7 @@
 {% block content %}
 <div class="card">
   <table>
-    <thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th></tr></thead>
+    <thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th><th></th></tr></thead>
     <tbody>
       {% for u in users %}
       <tr>
@@ -23,11 +23,51 @@
             {% elif u.role == 'onsite' %}badge-Loan
             {% else %}badge-Cash{% endif %}">{{ u.role }}</span>
         </td>
-        <td>
-          {% if u.is_active %}<span class="badge badge-Completed">Active</span>
-          {% else %}<span class="badge badge-Closed">Inactive</span>{% endif %}
-        </td>
-        <td style="font-size:12px;color:var(--muted)">{{ u.created_at | date_fmt }}</td>
+        <!-- Status badge -->
+<td>
+  {% if u.status == 'active' %}
+    <span class="badge badge-success">Active</span>
+  {% elif u.status == 'inactive' %}
+    <span class="badge badge-secondary">Inactive</span>
+  <!-- {% else %}
+    <span class="badge badge-danger">Suspended</span> -->
+  {% endif %}
+</td>
+
+<!-- Status toggle -->
+<td>
+  {% if u.id != current_user.id %}
+  <form method="POST" action="{{ url_for('change_user_status', user_id=u.id) }}"
+        style="display:inline">
+    {% if u.status != 'active' %}
+      <button name="status" value="active"
+              class="btn btn-sm btn-success">✓ Activate</button>
+    {% endif %}
+    {% if u.status != 'inactive' %}
+      <button name="status" value="inactive"
+              class="btn btn-sm">Deactivate</button>
+    {% endif %}
+    <!-- {% if u.status != 'suspended' %}
+      <button name="status" value="suspended"
+              class="btn btn-sm btn-danger"
+              onclick="return confirm('Suspend {{ u.username }}?')">⊘ Suspend</button>
+    {% endif %} -->
+  </form>
+  {% else %}
+    <span style="color:var(--text-muted);font-size:0.85em">—</span>
+  {% endif %}
+
+  <a href="{{ url_for('edit_user', user_id=u.id) }}" class="btn btn-sm">Edit</a>
+
+  <form method="POST" action="{{ url_for('delete_user', user_id=u.id) }}"
+        style="display:inline"
+        onsubmit="return confirm('Delete {{ u.username }}? This cannot be undone.')">
+    <button type="submit" class="btn btn-sm btn-danger"
+            {% if u.id == current_user.id %}disabled{% endif %}>
+      Delete
+    </button>
+  </form>
+</td>
       </tr>
       {% endfor %}
     </tbody>

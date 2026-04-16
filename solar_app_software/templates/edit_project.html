@@ -5,14 +5,66 @@
 {% block content %}
 <div class="card" style="max-width:720px">
 
-  <!-- Customer info (read-only) -->
+  <!-- ── Customer info ─────────────────────────────────────────────────── -->
   <div style="font-size:13px;font-weight:500;margin-bottom:14px;color:var(--muted)">
     Customer details
+    {% if current_user.role != 'admin' %}
     <span style="font-size:11px;font-weight:400;margin-left:8px;color:var(--hint)">
       (contact admin to change customer)
     </span>
+    {% endif %}
   </div>
+
+  {% if current_user.role == 'admin' %}
+  <!-- Admin: editable customer fields inside the main form -->
+  <form method="POST" action="{{ url_for('edit_project', pid=proj.id) }}">
+
+    <div class="form-grid" style="margin-bottom:16px">
+      <div class="form-group">
+        <label>MNRE Number *</label>
+        <input name="project_code" type="text" required
+               value="{{ proj.project_code }}"
+               pattern="\d+" title="Digits only"/>
+      </div>
+      <div class="form-group">
+        <label>Customer name *</label>
+        <input name="customer_name" type="text" required
+               value="{{ proj.customer.name }}"/>
+      </div>
+      <div class="form-group">
+        <label>Phone</label>
+        <input name="customer_phone" type="text"
+               value="{{ proj.customer.phone or '' }}"/>
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input name="customer_email" type="email"
+               value="{{ proj.customer.email or '' }}"/>
+      </div>
+      <div class="form-group">
+        <label>District</label>
+        <input name="customer_district" type="text"
+               value="{{ proj.customer.district or '' }}"/>
+      </div>
+      <div class="form-group">
+        <label>Pincode</label>
+        <input name="customer_pincode" type="text"
+               value="{{ proj.customer.pincode or '' }}"/>
+      </div>
+      <div class="form-group full">
+        <label>Address</label>
+        <textarea name="customer_address" rows="2">{{ proj.customer.address or '' }}</textarea>
+      </div>
+    </div>
+
+  {% else %}
+  <!-- Non-admin: read-only customer display, separate form below -->
   <div class="form-grid" style="margin-bottom:16px">
+    <div class="form-group">
+      <label>MNRE Number</label>
+      <input type="text" value="{{ proj.project_code }}" disabled
+             style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
+    </div>
     <div class="form-group">
       <label>Customer name</label>
       <input type="text" value="{{ proj.customer.name }}" disabled
@@ -28,26 +80,25 @@
       <input type="text" value="{{ proj.customer.district or '—' }}" disabled
              style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
     </div>
-    <div class="form-group">
-      <label>Project code</label>
-      <input type="text" value="{{ proj.project_code }}" disabled
-             style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
-    </div>
   </div>
 
   <form method="POST" action="{{ url_for('edit_project', pid=proj.id) }}">
+  {% endif %}
 
+    <!-- ── Project details ──────────────────────────────────────────────── -->
     <div style="border-top:0.5px solid var(--border);margin:4px 0 14px;
                 font-size:13px;font-weight:500;padding-top:14px;color:var(--muted)">
       Project details
     </div>
 
     <div class="form-grid">
+
       <div class="form-group">
         <label>Inverter capacity (kW) *</label>
         <input name="inverter_capacity_kw" type="number" step="0.5" min="1" required
                value="{{ proj.inverter_capacity_kw }}"/>
       </div>
+
       <div class="form-group">
         <label>Panel capacity (kW) *</label>
         <input name="panel_capacity_kw" type="number" step="0.5" min="1" required
@@ -56,9 +107,9 @@
 
       <div class="form-group">
         <label>Project type *</label>
-        <select name="project_type" required id="proj_type_sel" onchange="toggleSubtype()">
-          <option value="Cash"  {% if proj.project_type == 'Cash'  %}selected{% endif %}>Cash</option>
-          <option value="Loan"  {% if proj.project_type == 'Loan'  %}selected{% endif %}>Loan</option>
+        <select name="project_type" required id="project_type" onchange="toggleLoanSubtype()">
+          <option value="Cash" {% if proj.project_type == 'Cash' %}selected{% endif %}>Cash</option>
+          <option value="Loan" {% if proj.project_type == 'Loan' %}selected{% endif %}>Loan</option>
         </select>
         {% if proj.project_type == 'Loan' and proj.payments|selectattr('payment_source','eq','Bank')|list %}
         <span style="font-size:11px;color:var(--warning);margin-top:3px;display:block">
@@ -69,42 +120,28 @@
 
       <div class="form-group">
         <label>Project subtype</label>
-        <select name="project_subtype" id="subtype_sel">
-          <option value="DCR"     {% if proj.project_subtype == 'DCR'     %}selected{% endif %}>
-            DCR (with subsidy)
-          </option>
-          <option value="Non-DCR" {% if proj.project_subtype == 'Non-DCR' %}selected{% endif %}>
-            Non-DCR (no subsidy)
-          </option>
+        <select name="project_subtype">
+          <option value="DCR"     {% if proj.project_subtype == 'DCR'     %}selected{% endif %}>DCR (with subsidy)</option>
+          <option value="Non-DCR" {% if proj.project_subtype == 'Non-DCR' %}selected{% endif %}>Non-DCR (no subsidy)</option>
         </select>
       </div>
-      <div class="mb-3" id="loan-subtype-field" style="display:none;">
-  <label class="form-label">Loan Type</label>
-  <select name="loan_subtype" class="form-select">
-    <option value="">-- Select --</option>
-    <option value="Assisted" {{ 'selected' if proj.loan_subtype == 'Assisted' }}>
-      Assisted — We send bank file (SBI, etc.)
-    </option>
-    <option value="Self" {{ 'selected' if proj.loan_subtype == 'Self' }}>
-      Self — Bank handles own file (Bajaj, etc.)
-    </option>
-  </select>
-  <div class="form-text">
-    <strong>Assisted:</strong> Your docs team prepares &amp; submits the bank file.<br>
-    <strong>Self:</strong> Bank's own staff handles paperwork — docs team skips bank file documents.
-  </div>
-</div>
 
-<script>
-  function toggleLoanSubtype() {
-    const type  = document.getElementById('project_type').value;
-    const field = document.getElementById('loan-subtype-field');
-    field.style.display = (type === 'Loan') ? 'block' : 'none';
-  }
-  document.getElementById('project_type').addEventListener('change', toggleLoanSubtype);
-  // Pre-show on load if already a loan project
-  toggleLoanSubtype();
-</script>
+      <div class="form-group" id="loan-subtype-field" style="display:none">
+        <label>Loan type</label>
+        <select name="loan_subtype">
+          <option value="">— Select —</option>
+          <option value="Assisted" {% if proj.loan_subtype == 'Assisted' %}selected{% endif %}>
+            Assisted — we send bank file (SBI etc.)
+          </option>
+          <option value="Self" {% if proj.loan_subtype == 'Self' %}selected{% endif %}>
+            Self — bank handles own file (Bajaj etc.)
+          </option>
+        </select>
+        <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
+          <strong>Assisted:</strong> docs team prepares &amp; submits the bank file.
+          <strong>Self:</strong> bank's staff handles paperwork — bank file docs skipped.
+        </span>
+      </div>
 
       <div class="form-group">
         <label>Total contract amount (₹)</label>
@@ -116,10 +153,10 @@
         </span>
         {% endif %}
         <div id="balance-preview" style="display:none;margin-top:5px;font-size:12px;
-     padding:6px 10px;border-radius:5px;background:#e8f5e9;color:#2e7d32;
-     border:1px solid #a5d6a7">
-  New outstanding balance: <strong id="balance-amount"></strong>
-</div>
+             padding:6px 10px;border-radius:5px;background:#e8f5e9;color:#2e7d32;
+             border:1px solid #a5d6a7">
+          New outstanding balance: <strong id="balance-amount"></strong>
+        </div>
       </div>
 
       <div class="form-group">
@@ -134,13 +171,47 @@
         </select>
       </div>
 
+      {% if current_user.role == 'admin' %}
+      <!-- Admin-only: stage and status override -->
+      <div class="form-group">
+        <label>Stage</label>
+        <select name="stage">
+          {% for s in ['Lead','Site Visit','Documentation','Onsite Work','Connection','Subsidy','Payment'] %}
+          <option value="{{ s }}" {% if proj.stage == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Status</label>
+        <select name="status">
+          {% for s in ['Lead','InProgress','Completed','Delayed','Pending','Closed','OnHold','Cancelled'] %}
+          <option value="{{ s }}" {% if proj.status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Coordinator</label>
+        <select name="coordinator_id">
+          <option value="">— Unassigned —</option>
+          {% for u in coordinators %}
+          <option value="{{ u.id }}" {% if proj.coordinator_id == u.id %}selected{% endif %}>
+            {{ u.full_name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+
       <div class="form-group full">
         <label>Notes</label>
         <textarea name="notes" rows="3">{{ proj.notes or '' }}</textarea>
       </div>
+
     </div>
 
-    <!-- Warning if collected > new total -->
+    <!-- Overpay warning -->
     <div id="overpay-warn"
          style="display:none;background:#fff3cd;border:1px solid #ffc107;border-radius:6px;
                 padding:10px 14px;font-size:13px;color:#856404;margin-bottom:12px">
@@ -156,24 +227,25 @@
   </form>
 </div>
 
-<div id="proj-meta" 
+<div id="proj-meta"
      data-collected="{{ proj.collected_amount or 0 }}"
-     style="display:none">
-</div>
+     style="display:none"></div>
 
 <script>
-const alreadyCollected = parseFloat(document.getElementById('proj-meta').dataset.collected) || 0;
+function toggleLoanSubtype() {
+  const type  = document.getElementById('project_type').value;
+  const field = document.getElementById('loan-subtype-field');
+  field.style.display = (type === 'Loan') ? '' : 'none';
+}
+toggleLoanSubtype();
 
+const alreadyCollected = parseFloat(document.getElementById('proj-meta').dataset.collected) || 0;
 document.querySelector('[name="total_amount"]').addEventListener('input', function () {
   const newTotal  = parseFloat(this.value) || 0;
   const remaining = newTotal - alreadyCollected;
-
-  // Overpay warning (amount reduced below collected)
-  const warn = document.getElementById('overpay-warn');
-  warn.style.display = (remaining < 0 && alreadyCollected > 0) ? 'block' : 'none';
-
-  // Balance preview (amount increased, new balance outstanding)
-  const preview = document.getElementById('balance-preview');
+  document.getElementById('overpay-warn').style.display =
+    (remaining < 0 && alreadyCollected > 0) ? 'block' : 'none';
+  const preview   = document.getElementById('balance-preview');
   const balanceEl = document.getElementById('balance-amount');
   if (remaining > 0.01) {
     balanceEl.textContent = '₹' + remaining.toLocaleString('en-IN', {maximumFractionDigits: 0});

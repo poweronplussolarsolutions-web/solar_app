@@ -25,7 +25,7 @@
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div class="card-title" style="margin:0">
-      {{ projects | length }} project{{ 's' if projects | length != 1 }}
+      {{ pagination.total }} project{{ 's' if pagination.total != 1 }}
       {% if status_filter %} — {{ status_filter }}{% endif %}
       {% if search %} matching "{{ search }}"{% endif %}
     </div>
@@ -42,6 +42,7 @@
         <th>Panel capacity</th>
         <th>Stage</th>
         <th>Assigned to</th>
+        <th>C/O</th>
         <th>Status</th>
         <th>Days</th>
         <th></th>
@@ -60,24 +61,65 @@
         <td>
           {% if p.doc_staff %}
           <div style="display:flex;align-items:center;gap:6px">
-            <div style="width:22px;height:22px;border-radius:50%;background:var(--teal-50);
+            <!-- <div style="width:22px;height:22px;border-radius:50%;background:var(--teal-50);
                         display:flex;align-items:center;justify-content:center;
                         font-size:10px;font-weight:500;color:var(--teal-800);flex-shrink:0">
               {{ p.doc_staff.full_name[:1] }}
-            </div>
+            </div> -->
             <span style="font-size:12px">{{ p.doc_staff.full_name }}</span>
           </div>
           {% else %}
           <span style="font-size:12px;color:var(--red-600)">Unassigned</span>
           {% endif %}
         </td>
+        <td><div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:12px">{{ p.coordinator.full_name }}</span>
+        </div></td>
         <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
-        <td style="font-size:12px;color:var(--hint)">{{ p.days_open }}d</td>
+        <td style="font-size:12px;color:var(--hint)">
+  {% if p.status in ('Closed', 'Completed', 'Cancelled') %}
+    <span title="Project closed — counter stopped">{{ p.days_open }}d ✓</span>
+  {% else %}
+    {{ p.days_open }}d
+  {% endif %}
+</td>
         <td><a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a></td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  {% if pagination.pages > 1 %}
+<div style="display:flex;align-items:center;justify-content:space-between;
+            margin-top:16px;padding-top:14px;border-top:0.5px solid var(--border)">
+  <div style="font-size:12px;color:var(--muted)">
+    Showing {{ ((pagination.page - 1) * pagination.per_page) + 1 }}–{{ [pagination.page * pagination.per_page, pagination.total] | min }}
+    of {{ pagination.total }}
+  </div>
+  <div style="display:flex;gap:4px;align-items:center">
+    {% if pagination.has_prev %}
+    <a href="{{ url_for('projects', page=pagination.prev_num, status=status_filter, q=search) }}"
+       class="btn btn-sm">← Prev</a>
+    {% endif %}
+
+    {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+      {% if p %}
+        <a href="{{ url_for('projects', page=p, status=status_filter, q=search) }}"
+           class="btn btn-sm"
+           style="{% if p == pagination.page %}background:var(--amber-600);color:#fff;{% endif %}">
+          {{ p }}
+        </a>
+      {% else %}
+        <span style="padding:0 4px;color:var(--muted)">…</span>
+      {% endif %}
+    {% endfor %}
+
+    {% if pagination.has_next %}
+    <a href="{{ url_for('projects', page=pagination.next_num, status=status_filter, q=search) }}"
+       class="btn btn-sm">Next →</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
   {% else %}
   <div style="text-align:center;padding:32px;color:var(--hint);font-size:13px">No projects found.</div>
   {% endif %}

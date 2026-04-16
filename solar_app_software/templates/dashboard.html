@@ -16,7 +16,27 @@
 {% endblock %}
 
 {% block content %}
-
+{% macro paginate(url_base, page, total_pages) %}
+{% if total_pages > 1 %}
+<div style="display:flex;align-items:center;justify-content:flex-end;
+            margin-top:14px;padding-top:12px;border-top:0.5px solid var(--border);gap:4px">
+  {% if page > 1 %}
+  <a href="{{ url_base }}&page={{ page - 1 }}" class="btn btn-sm">← Prev</a>
+  {% endif %}
+  {% for p in range(1, total_pages + 1) %}
+    {% if p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
+      <a href="{{ url_base }}&page={{ p }}" class="btn btn-sm"
+         style="{% if p == page %}background:var(--amber-600);color:#fff;{% endif %}">{{ p }}</a>
+    {% elif p == page - 3 or p == page + 3 %}
+      <span style="padding:0 4px;color:var(--muted)">…</span>
+    {% endif %}
+  {% endfor %}
+  {% if page < total_pages %}
+  <a href="{{ url_base }}&page={{ page + 1 }}" class="btn btn-sm">Next →</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endmacro %}
 {# ── ADMIN ── #}
 {% if current_user.role == 'admin' %}
 <div class="stats-grid">
@@ -101,7 +121,7 @@
       </tr>
     </thead>
     <tbody>
-      {% for p in data.projects %}
+      {% for p in data.projects.items %}
       <tr>
         <td>
           <a href="{{ url_for('project_detail', pid=p.id) }}"
@@ -137,6 +157,7 @@
       {% endfor %}
     </tbody>
   </table>
+  {{ paginate('?', data.projects.page, data.projects.pages) }}
 </div>
 
 {% elif current_user.role == 'coordinator' %}
@@ -389,6 +410,7 @@ document.addEventListener('click', function(e) {
   {% endfor %}
 </tbody>
   </table>
+  {{ paginate('?', data.page, data.total_pages) }}
   {% else %}
   <div style="text-align:center;padding:32px;color:var(--hint)">No projects assigned to you yet.</div>
   {% endif %}
@@ -407,7 +429,7 @@ document.addEventListener('click', function(e) {
   </div>
   <div class="stat-card">
     <div class="stat-label">Active projects</div>
-    <div class="stat-value">{{ data.projects | length }}</div>
+    <div class="stat-value">{{ data.projects.total }}</div>
   </div>
 </div>
 <div class="card">
@@ -415,7 +437,7 @@ document.addEventListener('click', function(e) {
   <table>
     <thead><tr><th>Project</th><th>Customer</th><th>Type</th><th>Collected</th><th>Total</th><th>Pending</th><th>%</th></tr></thead>
     <tbody>
-      {% for p in data.projects %}
+      {% for p in data.projects.items %}
       <tr>
         <td><a href="{{ url_for('project_detail', pid=p.id) }}" style="font-weight:500;color:var(--amber-600)">{{ p.project_code }}</a></td>
         <td>{{ p.customer.name }}</td>
@@ -433,6 +455,7 @@ document.addEventListener('click', function(e) {
       {% endfor %}
     </tbody>
   </table>
+  {{ paginate('?', data.projects.page, data.projects.pages) }}
 </div>
 
 {# ── ONSITE ── #}

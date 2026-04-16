@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Edit User — Admin{% endblock %}
+{% block page_title %}Edit User{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('manage_users') }}" class="btn btn-sm">← Back</a>
+{% endblock %}
+{% block content %}
+<div class="card" style="max-width:480px">
+  <form method="POST" action="{{ url_for('edit_user', user_id=user.id) }}">
+    <div class="form-group">
+      <label>Full name</label>
+      <input name="full_name" type="text" required value="{{ user.full_name }}"/>
+    </div>
+    <div class="form-group">
+      <label>Username</label>
+      <input name="username" type="text" required value="{{ user.username }}"/>
+    </div>
+    <div class="form-group">
+      <label>Email</label>
+      <input name="email" type="email" required value="{{ user.email }}"/>
+    </div>
+    <div class="form-group">
+      <label>Role</label>
+      <select name="role" required>
+        <option value="">Select role</option>
+        {% for val, label in [
+            ('admin',      'Admin'),
+            ('coordinator','Coordinator'),
+            ('documents',  'Documents Team'),
+            ('payments',   'Payments Team'),
+            ('onsite',     'On-site Management'),
+            ('appinstall', 'App Installation Team'),
+        ] %}
+          <option value="{{ val }}" {% if user.role == val %}selected{% endif %}>
+            {{ label }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>New password <small style="color:var(--text-muted)">(leave blank to keep current)</small></label>
+      <input name="password" type="password" placeholder="Leave blank to keep current"/>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button type="submit" class="btn btn-primary">Save changes</button>
+      <a href="{{ url_for('manage_users') }}" class="btn">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
