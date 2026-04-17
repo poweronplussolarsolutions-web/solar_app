@@ -457,6 +457,8 @@
       <a class="nav-link {% if request.endpoint in ['projects','project_detail'] %}active{% endif %}" href="{{ url_for('projects') }}">
         <span class="dot"></span> Projects
       </a>
+      <a class="nav-link {% if request.endpoint in 'change_password' %}active{% endif %}" href="{{ url_for('change_password') }}">
+        <span class="dot"></span>Change Password</a> 
       
 
       {% if current_user.role == 'coordinator' %}
@@ -502,6 +504,8 @@
         <span class="dot"></span>C/O Monthly Reports</a>
       <a class="nav-link {% if request.endpoint in 'docstaff_reports' %}active{% endif %}" href="{{ url_for('docstaff_reports') }}">
         <span class="dot"></span>Staff Monthly Reports</a>
+      <a class="nav-link {% if request.endpoint in 'admin_change_password' %}active{% endif %}" href="{{ url_for('admin_change_password') }}">
+        <span class="dot"></span>Change Password</a>  
       {% endif %}
     </nav>
 
