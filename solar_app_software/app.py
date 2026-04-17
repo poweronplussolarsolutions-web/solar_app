@@ -108,17 +108,17 @@ login_manager.login_message_category = 'info'
 
 def get_db_connection():
     return mysql.connector.connect(
-        host=os.getenv("DB_HOST", "your_host"),
-        user=os.getenv("DB_USER", "root"),
-        password=os.getenv("DB_PASSWORD", "your_password"),
-        database=os.getenv("DB_NAME", "railway"),
+        host=os.getenv("DB_HOST"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        database=os.getenv("DB_NAME"),
         port=int(os.getenv("DB_PORT")),  
         ssl_disabled=False
     )
 
 import mysql.connector
 import os
-
+app.secret_key=os.getenv("SECRET_KEY")
 # ── CSRF protection (covers all POST/PUT/DELETE forms automatically) ──────────
 csrf = CSRFProtect(app)
 
