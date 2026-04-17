@@ -126,13 +126,22 @@
       display: flex; align-items: center; justify-content: center;
       display: none;
     }
-    .notif-panel {
-      position: absolute; top: calc(100% + 8px); right: 0;
-      width: 320px; max-height: 400px; overflow-y: auto;
-      background: var(--surface); border: 0.5px solid var(--border);
-      border-radius: var(--radius-lg); box-shadow: 0 4px 24px rgba(0,0,0,.08);
-      z-index: 100; display: none; flex-direction: column;
-    }
+    .notif-panel{
+  position:absolute;
+  top:calc(100% + 8px);
+  right:0;
+  width:320px;
+  max-height:420px;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  background:var(--surface);
+  border:0.5px solid var(--border);
+  border-radius:var(--radius-lg);
+  box-shadow:0 4px 24px rgba(0,0,0,.08);
+  z-index:100;
+  display:none;
+  flex-direction:column;
+}
     .notif-panel.open { display: flex; }
     .notif-header {
       padding: 12px 16px; border-bottom: 0.5px solid var(--border);
@@ -158,8 +167,14 @@
     .notif-tag-task { background: var(--amber-50); color: var(--amber-800); }
     .notif-tag-info { background: var(--blue-50);  color: var(--blue-800); }
     .notif-code  { font-size: 12px; font-weight: 500; color: var(--text); }
-    .notif-msg   { font-size: 12px; color: var(--muted); line-height: 1.4; }
-    .notif-time  { font-size: 11px; color: var(--hint); }
+    .notif-msg{
+  word-break:break-word;
+  line-height:1.45;
+}
+
+.notif-item{
+  padding:12px 14px;
+}
 
     /* ── COMPONENTS ── */
     .btn {
@@ -229,11 +244,184 @@
       border: 0.5px solid var(--border);
     }
 
-    @media (max-width: 900px) {
-      .stats-grid { grid-template-columns: repeat(2, 1fr); }
-      .form-grid  { grid-template-columns: 1fr; }
-      .two-col    { grid-template-columns: 1fr; }
-    }
+    /* ── MOBILE ── */
+@media (max-width: 768px) {
+  :root { --sidebar-w: 0px; }
+
+  #sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0;
+    width: 240px; z-index: 200;
+    transform: translateX(-100%); transition: transform .25s ease;
+  }
+  #sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,.12); }
+
+  #main { padding-bottom: 60px; }
+
+  #topbar {
+    padding: 0 16px; position: sticky; top: 0; z-index: 100;
+  }
+
+  #content { padding: 16px; }
+
+  .stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px; }
+  .two-col, .three-col { grid-template-columns: 1fr !important; }
+  .form-grid { grid-template-columns: 1fr; }
+
+  .card { padding: 14px 16px; }
+
+  /* Scrollable tables on mobile */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Bottom nav bar */
+  #mobile-nav {
+    display: flex; position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--surface); border-top: 0.5px solid var(--border);
+    z-index: 150; height: 56px; align-items: stretch;
+  }
+
+  /* Overlay */
+  #sidebar-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35);
+    z-index: 190;
+  }
+  #sidebar-overlay.open { display: block; }
+
+  .topbar-title { font-size: 14px; }
+
+  .notif-panel { right: -8px; width: 290px; }
+}
+
+@media (min-width: 769px) {
+  #mobile-nav { display: none !important; }
+  #mobile-hamburger { display: none !important; }
+  #sidebar-overlay { display: none !important; }
+}
+
+@media (max-width: 480px) {
+  .stats-grid { grid-template-columns: 1fr 1fr !important; }
+  #content { padding: 12px; }
+  .card { padding: 12px 14px; }
+  .stat-value { font-size: 20px; }
+  .notif-panel { width: calc(100vw - 16px); right: -50px; }
+}
+@media(max-width:600px){
+  [style*="grid-template-columns:repeat(4"]{
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  }
+}
+ .two-col{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px;
+}
+
+@media (max-width:900px){
+  .two-col{
+    grid-template-columns:1fr;
+  }
+}
+.payment-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+}
+
+@media (max-width:900px){
+  .payment-grid{
+    grid-template-columns:1fr 1fr;
+  }
+}
+
+@media (max-width:500px){
+  .payment-grid{
+    grid-template-columns:1fr;
+  }
+}
+.btn-row{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+@media (max-width:600px){
+
+  .card{
+    padding:14px;
+  }
+
+  .card-title{
+    font-size:14px;
+  }
+
+  .badge{
+    font-size:11px;
+  }
+
+}
+/* MOBILE NOTIFICATION FIX */
+@media (max-width:768px){
+.topbar-title { font-size: 13px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.back-label-full { display: none; }
+.back-label-short { display: inline !important; }
+  .notif-panel{
+    position:fixed;
+    top:56px;
+    right:8px;
+    left:8px;
+    width:auto;
+    max-height:70vh;
+    border-radius:12px;
+  }
+
+  .notif-header{
+    padding:12px 14px;
+  }
+
+  .notif-item{
+    padding:12px 14px;
+  }
+
+  .notif-msg{
+    font-size:13px;
+  }
+
+  .notif-time{
+    font-size:11px;
+  }
+
+}
+@media (max-width:480px){
+
+  .notif-panel{
+    top:54px;
+    left:6px;
+    right:6px;
+    max-height:75vh;
+  }
+
+}
+
+@media (max-width: 640px) {
+  #onsite-mobile-list          { display: block !important; }
+  #onsite-mobile-list + * .table-wrap,
+  .onsite-desktop-table        { display: none !important; }
+
+  .stats-grid { gap: 8px; }
+  .stat-card  { padding: 10px; }
+  .stat-value { font-size: 18px; }
+  .stat-label { font-size: 11px; }
+}
+.onsite-mobile-list { display: none; }
+
+@media (max-width: 640px) {
+  .onsite-desktop-table { display: none; }
+  .onsite-mobile-list   { display: block; }
+
+  .stats-grid { gap: 8px; }
+  .stat-card  { padding: 10px; }
+  .stat-value { font-size: 18px; }
+  .stat-label { font-size: 11px; }
+}
+
   </style>
   {% block head %}{% endblock %}
 </head>
@@ -329,6 +517,16 @@
     <!-- TOPBAR -->
     <div id="topbar">
       <div class="topbar-left">
+        <button id="mobile-hamburger" onclick="toggleSidebar()"
+        style="display:none;width:34px;height:34px;border:0.5px solid var(--border);
+               border-radius:var(--radius);background:transparent;cursor:pointer;
+               align-items:center;justify-content:center;color:var(--muted);margin-right:8px">
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+    <rect y="2" width="16" height="1.5" rx="1"/>
+    <rect y="7.25" width="16" height="1.5" rx="1"/>
+    <rect y="12.5" width="16" height="1.5" rx="1"/>
+  </svg>
+</button>
         <div class="topbar-title">{% block page_title %}Dashboard{% endblock %}</div>
       </div>
       <div class="topbar-right">
@@ -440,6 +638,55 @@
 
   loadNotifications();
   setInterval(loadNotifications, 60000);
+  function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('open');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
+}
+// Show hamburger on mobile
+(function() {
+  var hb = document.getElementById('mobile-hamburger');
+  if (hb && window.innerWidth <= 768) hb.style.display = 'flex';
+  window.addEventListener('resize', function() {
+    if (hb) hb.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
+  });
+})();
 </script>
+{% if current_user.is_authenticated %}
+<div id="mobile-nav">
+  <a href="{{ url_for('dashboard') }}"
+     style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+            gap:3px;font-size:10px;color:{% if request.endpoint=='dashboard' %}var(--amber-800){% else %}var(--muted){% endif %};
+            background:{% if request.endpoint=='dashboard' %}var(--amber-50){% else %}transparent{% endif %}">
+    <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M8 1.5l-7 6V15h5v-4h4v4h5V7.5L8 1.5z"/>
+    </svg>
+    Home
+  </a>
+  <a href="{{ url_for('projects') }}"
+     style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+            gap:3px;font-size:10px;color:{% if request.endpoint in ['projects','project_detail'] %}var(--amber-800){% else %}var(--muted){% endif %};
+            background:{% if request.endpoint in ['projects','project_detail'] %}var(--amber-50){% else %}transparent{% endif %}">
+    <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M1 2.5A1.5 1.5 0 012.5 1h11A1.5 1.5 0 0115 2.5v11a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 011 13.5v-11zM2.5 2a.5.5 0 00-.5.5v11a.5.5 0 00.5.5h11a.5.5 0 00.5-.5v-11a.5.5 0 00-.5-.5h-11zM4 5.5a.5.5 0 01.5-.5h7a.5.5 0 010 1h-7a.5.5 0 01-.5-.5zm0 3a.5.5 0 01.5-.5h7a.5.5 0 010 1h-7a.5.5 0 01-.5-.5zm0 3a.5.5 0 01.5-.5h4a.5.5 0 010 1h-4a.5.5 0 01-.5-.5z"/>
+    </svg>
+    Projects
+  </a>
+  <button onclick="toggleSidebar()"
+          style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+                 gap:3px;font-size:10px;color:var(--muted);background:transparent;border:none;cursor:pointer">
+    <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+      <rect y="2" width="16" height="1.5" rx="1"/>
+      <rect y="7.25" width="16" height="1.5" rx="1"/>
+      <rect y="12.5" width="16" height="1.5" rx="1"/>
+    </svg>
+    More
+  </button>
+</div>
+<div id="sidebar-overlay" onclick="closeSidebar()"></div>
+{% endif %}
 </body>
 </html>

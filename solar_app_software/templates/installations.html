@@ -2,90 +2,227 @@
 {% block title %}Installations — Solar App{% endblock %}
 {% block page_title %}App Installations{% endblock %}
 {% block content %}
+
+<style>
+  /* ── Responsive installation tables ── */
+
+  /* Stack the two cards vertically on narrow screens */
+  @media (max-width: 768px) {
+    .two-col {
+      display: block !important;
+    }
+    .two-col > .card + .card {
+      margin-top: 16px;
+    }
+  }
+
+  /* ── Pending table → card list on mobile ── */
+  @media (max-width: 640px) {
+    .pending-table thead { display: none; }
+
+    .pending-table tbody tr {
+      display: block;
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-bottom: 12px;
+      background: var(--surface, #fff);
+    }
+
+    .pending-table tbody td {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 4px 0;
+      border: none;
+      font-size: 13px;
+    }
+
+    /* Label injected via data-label */
+    .pending-table tbody td::before {
+      content: attr(data-label);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--hint);
+      white-space: nowrap;
+      flex-shrink: 0;
+      min-width: 80px;
+    }
+
+    /* Action cells: full width, stack vertically */
+    .pending-table tbody td.td-actions {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .pending-table tbody td.td-actions::before {
+      display: none;
+    }
+    .pending-table tbody td.td-actions form {
+      width: 100%;
+    }
+    .pending-table tbody td.td-actions input[type="date"] {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .pending-table tbody td.td-actions .btn {
+      width: 100%;
+      justify-content: center;
+      margin-top: 4px;
+    }
+  }
+
+  /* ── Completed table → card list on mobile ── */
+  @media (max-width: 640px) {
+    .completed-table thead { display: none; }
+
+    .completed-table tbody tr {
+      display: block;
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-bottom: 10px;
+      background: var(--surface, #fff);
+    }
+
+    .completed-table tbody td {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 3px 0;
+      border: none;
+      font-size: 13px;
+    }
+
+    .completed-table tbody td::before {
+      content: attr(data-label);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--hint);
+      white-space: nowrap;
+      flex-shrink: 0;
+      min-width: 80px;
+    }
+  }
+</style>
+
 <div class="two-col">
+  <!-- ── Pending ── -->
   <div class="card">
     <div class="card-title">Pending installations ({{ pending | length }})</div>
     {% if pending %}
-    <table>
-      <thead><tr><th>Project</th><th>Customer</th><th>Phone</th><th>Location</th><th>kW</th><th>Scheduled</th><th>Reschedule</th><th></th></tr></thead>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <table class="pending-table">
+      <thead>
+        <tr>
+          <th>Project</th><th>Customer</th><th>Phone</th>
+          <th>Location</th><th>kW</th><th>Scheduled</th>
+          <th>Reschedule</th><th></th>
+        </tr>
+      </thead>
       <tbody>
         {% for i in pending %}
         <tr>
-          <td style="font-weight:500">
-  <a href="{{ url_for('project_detail', pid=i.project_id) }}"
-     style="color:var(--amber-600)">{{ i.project.project_code }}</a>
-</td>
-<td>{{ i.project.customer.name }}</td>
-<td style="font-size:13px">{{ i.project.customer.phone or '—' }}</td>
-<td style="font-size:12px;color:var(--muted)">
-  {% if i.project.customer.district %}
-    {{ i.project.customer.district }}
-    {% if i.project.customer.pincode %} — {{ i.project.customer.pincode }}{% endif %}
-  {% endif %}
-  {% if i.project.customer.address %}
-    <div style="font-size:11px;color:var(--hint);margin-top:2px;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
-         title="{{ i.project.customer.address }}">
-      {{ i.project.customer.address }}
-    </div>
-  {% endif %}
-  {% if not i.project.customer.district and not i.project.customer.address %}
-    <span style="color:var(--hint)">—</span>
-  {% endif %}
-</td>
-<td style="font-size:12px;color:var(--muted)">{{ i.project.system_kw }} kW</td>
-<td>{{ i.scheduled_date | date_fmt }}</td>
-<td>
-  {% if current_user.role in ['admin','appinstall'] %}
-  <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}"
-        style="display:flex;gap:6px;align-items:center">
-    <input type="hidden" name="status" value="Scheduled">
-    <input type="date" name="scheduled_date"
-           style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border);
-                  border-radius:var(--radius);background:transparent"/>
-    <button type="submit" class="btn btn-sm">Reschedule</button>
-  </form>
-  {% else %}
-  <span style="font-size:12px;color:var(--hint)">{{ i.rescheduled_date | date_fmt }}</span>
-  {% endif %}
-</td>
-<td>
-  {% if current_user.role in ['admin','appinstall'] %}
-  <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}">
-    <input type="hidden" name="status" value="Completed"/>
-    <input type="hidden" name="completed_date" value="{{ today.strftime('%Y-%m-%d') }}"/>
-    <button type="submit" class="btn btn-sm btn-primary">Mark done</button>
-  </form>
-  {% else %}
-    <span style="font-size:12px;color:var(--hint)">—</span>
-  {% endif %}
-</td>
+          <td data-label="Project" style="font-weight:500">
+            <a href="{{ url_for('project_detail', pid=i.project_id) }}"
+               style="color:var(--amber-600)">{{ i.project.project_code }}</a>
+          </td>
+
+          <td data-label="Customer">{{ i.project.customer.name }}</td>
+
+          <td data-label="Phone" style="font-size:13px">
+            {{ i.project.customer.phone or '—' }}
+          </td>
+
+          <td data-label="Location" style="font-size:12px;color:var(--muted)">
+            <div>
+              {% if i.project.customer.district %}
+                {{ i.project.customer.district }}
+                {% if i.project.customer.pincode %} — {{ i.project.customer.pincode }}{% endif %}
+              {% endif %}
+              {% if i.project.customer.address %}
+                <div style="font-size:11px;color:var(--hint);margin-top:2px;max-width:160px;
+                            white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+                     title="{{ i.project.customer.address }}">
+                  {{ i.project.customer.address }}
+                </div>
+              {% endif %}
+              {% if not i.project.customer.district and not i.project.customer.address %}
+                <span style="color:var(--hint)">—</span>
+              {% endif %}
+            </div>
+          </td>
+
+          <td data-label="kW" style="font-size:12px;color:var(--muted)">
+            {{ i.project.system_kw }} kW
+          </td>
+
+          <td data-label="Scheduled">{{ i.scheduled_date | date_fmt }}</td>
+
+          <td data-label="Reschedule" class="td-actions">
+            {% if current_user.role in ['admin','appinstall'] %}
+            <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}"
+                  style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <input type="hidden" name="status" value="Scheduled">
+              <input type="date" name="scheduled_date"
+                     style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border);
+                            border-radius:var(--radius);background:transparent"/>
+              <button type="submit" class="btn btn-sm">Reschedule</button>
+            </form>
+            {% else %}
+            <span style="font-size:12px;color:var(--hint)">{{ i.rescheduled_date | date_fmt }}</span>
+            {% endif %}
+          </td>
+
+          <td class="td-actions">
+            {% if current_user.role in ['admin','appinstall'] %}
+            <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}"
+                  style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <input type="hidden" name="status" value="Completed"/>
+              <input type="hidden" name="completed_date" value="{{ today.strftime('%Y-%m-%d') }}"/>
+              <button type="submit" class="btn btn-sm btn-primary">Mark done</button>
+            </form>
+            {% else %}
+            <span style="font-size:12px;color:var(--hint)">—</span>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
     <div style="color:var(--hint);font-size:13px;padding:12px 0">No pending installations.</div>
     {% endif %}
   </div>
 
+  <!-- ── Completed ── -->
   <div class="card">
     <div class="card-title">Completed ({{ completed | length }})</div>
     {% if completed %}
-    <table>
-      <thead><tr><th>Project</th><th>Customer</th><th>Location</th><th>Completed</th></tr></thead>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <table class="completed-table">
+      <thead>
+        <tr><th>Project</th><th>Customer</th><th>Location</th><th>Completed</th></tr>
+      </thead>
       <tbody>
         {% for i in completed %}
         <tr>
-          <td style="font-weight:500">{{ i.project.project_code }}</td>
-          <td>{{ i.project.customer.name }}</td>
-          <td style="font-size:12px;color:var(--muted)">
-  {{ i.project.customer.district or '—' }}
-</td>
-          <td>{{ i.completed_date | date_fmt }}</td>
+          <td data-label="Project" style="font-weight:500">{{ i.project.project_code }}</td>
+          <td data-label="Customer">{{ i.project.customer.name }}</td>
+          <td data-label="Location" style="font-size:12px;color:var(--muted)">
+            {{ i.project.customer.district or '—' }}
+          </td>
+          <td data-label="Completed">{{ i.completed_date | date_fmt }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
     <div style="color:var(--hint);font-size:13px;padding:12px 0">None yet.</div>
     {% endif %}

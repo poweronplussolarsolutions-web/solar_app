@@ -39,7 +39,7 @@
 {% endmacro %}
 {# ── ADMIN ── #}
 {% if current_user.role == 'admin' %}
-<div class="stats-grid">
+<div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
   <div class="stat-card">
     <div class="stat-label">Total projects</div>
     <div class="stat-value">{{ data.total }}</div>
@@ -60,21 +60,14 @@
     <div class="stat-value" style="color:var(--red-600)">{{ data.delayed }}</div>
     <div class="stat-sub">Needs attention</div>
   </div>
-  <div class="col-md-3">
-  <div class="card border-warning">
-    <div class="card-body text-center">
-      <h4 class="text-warning">{{ data.onhold }}</h4>
-      <p class="mb-0">On Hold</p>
-    </div>
-  </div>
+  <div class="stat-card">
+  <div class="stat-label">On Hold</div>
+  <div class="stat-value" style="color:#92400e">{{ data.onhold }}</div>
 </div>
-<div class="col-md-3">
-  <div class="card border-danger">
-    <div class="card-body text-center">
-      <h4 class="text-danger">{{ data.cancelled }}</h4>
-      <p class="mb-0">Cancelled</p>
-    </div>
-  </div>
+<div class="stat-card">
+  <div class="stat-label">Cancelled</div>
+  <div class="stat-value" style="color:var(--red-600)">{{ data.cancelled }}</div>
+</div>
 </div>
 </div>
 
@@ -107,7 +100,9 @@
 
 <div class="card">
   <div class="card-title">Recent projects</div>
+  <div class="table-wrap">
   <table>
+    
     <thead>
       <tr>
         <th>Project</th>
@@ -157,6 +152,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {{ paginate('?', data.projects.page, data.projects.pages) }}
 </div>
 
@@ -263,6 +259,7 @@
 {% if data.subsidy_list %}
 <div class="card" style="margin-bottom:16px">
   <div class="card-title">DCR subsidy pipeline</div>
+  <div class="table-wrap">
   <table>
     <thead>
       <tr><th>Project</th><th>Customer</th><th>Status</th><th>Expected</th><th>Received</th></tr>
@@ -288,6 +285,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
 </div>
 {% endif %}
 
@@ -367,6 +365,7 @@ document.addEventListener('click', function(e) {
     My work queue
   </div>
   {% if data.projects %}
+  <div class="table-wrap">
   <table>
     <thead>
       <tr>
@@ -410,6 +409,7 @@ document.addEventListener('click', function(e) {
   {% endfor %}
 </tbody>
   </table>
+  </div>
   {{ paginate('?', data.page, data.total_pages) }}
   {% else %}
   <div style="text-align:center;padding:32px;color:var(--hint)">No projects assigned to you yet.</div>
@@ -434,6 +434,7 @@ document.addEventListener('click', function(e) {
 </div>
 <div class="card">
   <div class="card-title">Payment status by project</div>
+  <div class="table-wrap">
   <table>
     <thead><tr><th>Project</th><th>Customer</th><th>Type</th><th>Collected</th><th>Total</th><th>Pending</th><th>%</th></tr></thead>
     <tbody>
@@ -455,6 +456,7 @@ document.addEventListener('click', function(e) {
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {{ paginate('?', data.projects.page, data.projects.pages) }}
 </div>
 
@@ -476,8 +478,45 @@ document.addEventListener('click', function(e) {
 </div>
 <div class="card">
   <div class="card-title">Active site projects</div>
-  {% set projects = data.projects %}
-  {% include '_project_table.html' with context %}
+
+  <!-- desktop table (hidden on mobile) -->
+  <div class="table-wrap" style="display:block">
+    {% set projects = data.projects %}
+    {% include '_project_table.html' with context %}
+  </div>
+
+  <!-- mobile card list (hidden on desktop) -->
+  <div style="display:none" id="onsite-mobile-list">
+    {% for p in data.projects %}
+    <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <a href="{{ url_for('project_detail', pid=p.id) }}"
+           style="font-weight:500;color:var(--amber-600);font-size:14px">{{ p.project_code }}</a>
+        <span class="badge badge-{{ p.status }}">{{ p.status }}</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px">
+        <span>{{ p.customer.name }}</span>
+        <span>·</span>
+        <span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span>
+        <span>·</span>
+        <span>{{ p.stage }}</span>
+        {% if p.system_kw %}
+        <span>·</span>
+        <span>{{ p.system_kw }} kW</span>
+        {% endif %}
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          {% for w in p.workers %}
+          <span style="font-size:11px;background:var(--surface);border:0.5px solid var(--border);
+                       border-radius:20px;padding:2px 8px">{{ w.full_name }}</span>
+          {% endfor %}
+        </div>
+        <a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open →</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
 </div>
 
 {% elif current_user.role == 'appinstall' %}
@@ -506,6 +545,7 @@ document.addEventListener('click', function(e) {
     Needs scheduling
     <span class="badge badge-Delayed" style="margin-left:6px">{{ data.pending_count }}</span>
   </div>
+  <div class="table-wrap">
   <table>
     <thead>
       <tr>
@@ -542,6 +582,7 @@ document.addEventListener('click', function(e) {
       {% endfor %}
     </tbody>
   </table>
+  </div>
 </div>
 {% endif %}
 
@@ -552,6 +593,7 @@ document.addEventListener('click', function(e) {
     Scheduled installs
     <span class="badge badge-InProgress" style="margin-left:6px">{{ data.scheduled_count }}</span>
   </div>
+  <div class="table-wraps">
   <table>
     <thead>
       <tr>
@@ -583,6 +625,7 @@ document.addEventListener('click', function(e) {
       {% endfor %}
     </tbody>
   </table>
+  </div>
 </div>
 {% endif %}
 

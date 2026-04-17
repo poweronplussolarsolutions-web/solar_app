@@ -1,8 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Onsite Progress — {{ proj.project_code }}{% endblock %}
-{% block page_title %}Onsite Progress — {{ proj.project_code }} / {{ proj.customer.name }}{% endblock %}
+{% block page_title %}
+  <span style="display:flex;flex-direction:column;gap:1px">
+    <span style="font-size:13px;font-weight:500;line-height:1.2">Onsite Progress</span>
+    <span style="font-size:11px;color:var(--muted);font-weight:400;line-height:1.2">{{ proj.project_code }} / {{ proj.customer.name }}</span>
+  </span>
+{% endblock %}
 {% block topbar_actions %}
-  <a href="{{ url_for('project_detail', pid=proj.id) }}" class="btn btn-sm">← Back to project</a>
+  <a href="{{ url_for('project_detail', pid=proj.id) }}" class="btn btn-sm">
+    <span class="back-label-full">← Back to project</span>
+    <span class="back-label-short" style="display:none">← Back</span>
+  </a>
 {% endblock %}
 
 {% block content %}
@@ -69,6 +77,73 @@
 .material-row-head {
   font-size: 11px; font-weight: 600; color: var(--muted);
   text-transform: uppercase; letter-spacing: 0.04em;
+}
+
+@media (max-width: 640px) {
+  /* Phase timeline: stack vertically */
+  .phase-timeline {
+    flex-direction: column;
+  }
+  .phase-block + .phase-block {
+    border-left: none;
+    border-top: 0.5px solid var(--border);
+  }
+  .phase-block {
+    padding: 12px 14px;
+  }
+
+  /* Material rows: stack into a mini-card each */
+  .material-row-head { display: none; }
+  .material-row {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 4px;
+    padding: 10px 0;
+  }
+  .material-row > div:nth-child(1) { grid-column: 1; grid-row: 1; font-weight: 500; }
+  .material-row > div:nth-child(2),
+  .material-row > div:nth-child(3) {
+    font-size: 11px; color: var(--muted);
+    display: inline; 
+  }
+  .material-row > div:nth-child(2)::after { content: ' · '; }
+  .material-row > div:nth-child(2),
+  .material-row > div:nth-child(3) {
+    grid-column: 1; grid-row: 2;
+    display: block;
+  }
+  .material-row > div:nth-child(2) {
+    display: inline;
+  }
+  .material-row > div:nth-child(3) {
+    display: inline;
+  }
+  /* Wrap qty+date+status into row 2, edit btn to right */
+  .material-row {
+    grid-template-columns: 1fr auto;
+  }
+  .material-row > div:nth-child(4) { grid-column: 1; grid-row: 2; }
+  .material-row > div:nth-child(5) { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+
+  /* Material edit form: single column */
+ 
+  [id^="mat-form-"] form > div {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* Bulk dispatch form: stack */
+  .bulk-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Daily log form: stack */
+  .log-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Daily log entries: wrap logger name */
+  .log-entry { flex-wrap: wrap; gap: 6px; }
+  .log-entry .log-meta { margin-left: 0 !important; }
 }
 </style>
 
@@ -352,7 +427,8 @@
       Bulk update all materials
     </div>
     <form method="POST" action="{{ url_for('bulk_update_materials', pid=proj.id) }}">
-      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:flex-end">
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:flex-end"
+     class="bulk-form-grid">
         <div>
           <label>Status</label>
           <select name="dispatch_status">
@@ -867,13 +943,13 @@ document.addEventListener('click', function(e) {
   {% if proj.onsite_logs %}
   <div style="margin-bottom:16px">
     {% for entry in proj.onsite_logs | sort(attribute='log_date', reverse=True) %}
-    <div style="display:flex;gap:12px;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px">
+    <div style="display:flex;gap:12px;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px" class="log-entry">
       <div style="white-space:nowrap;color:var(--hint);min-width:90px">{{ entry.log_date | date_fmt }}</div>
       <div>
         <span class="tag" style="margin-right:6px">{{ entry.work_phase }}</span>
         {{ entry.note }}
       </div>
-      <div style="margin-left:auto;font-size:11px;color:var(--hint);white-space:nowrap">
+      <div style="margin-left:auto;font-size:11px;color:var(--hint);white-space:nowrap" class="log-meta">
         {{ entry.logger.full_name if entry.logger else '—' }}
       </div>
     </div>
@@ -885,7 +961,7 @@ document.addEventListener('click', function(e) {
  
   {% if current_user.role in ['admin','onsite'] %}
   <form method="POST" action="{{ url_for('add_onsite_log', pid=proj.id) }}">
-    <div style="display:grid;grid-template-columns:1fr 2fr auto;gap:10px;align-items:flex-end">
+    <div style="display:grid;grid-template-columns:1fr 2fr auto;gap:10px;align-items:flex-end" class="log-form-grid">
       <div>
         <label>Phase</label>
         <select name="work_phase">

@@ -3,6 +3,43 @@
 {% block page_title %}Document Stages{% endblock %}
 
 {% block content %}
+<style>
+  .stage-table { width: 100%; border-collapse: collapse; }
+  .stage-table th, .stage-table td { padding: 10px 12px; text-align: left; border-bottom: 0.5px solid var(--border); font-size: 13px; }
+  .stage-table thead th { font-weight: 500; color: var(--muted); font-size: 12px; }
+
+  .stage-cards { display: none; }
+
+  .stage-card {
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+    background: var(--card-bg, #fff);
+  }
+  .stage-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+  .stage-card-name { font-weight: 500; font-size: 14px; }
+  .stage-card-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+  .stage-card-docs { font-size: 12px; color: var(--muted); margin-bottom: 10px; line-height: 1.5; }
+  .stage-card-actions { display: flex; gap: 6px; }
+
+  .edit-panel { display: none; background: var(--bg); }
+  .edit-panel.open { display: table-row; }
+  .edit-panel-mobile { display: none; padding: 12px 0 4px; border-top: 0.5px solid var(--border); margin-top: 10px; }
+  .edit-panel-mobile.open { display: block; }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-group.full { grid-column: 1 / -1; }
+
+  @media (max-width: 640px) {
+    .stage-table { display: none; }
+    .stage-cards { display: block; }
+    .form-grid { grid-template-columns: 1fr; }
+    .form-group.full { grid-column: 1; }
+    .btn-row { flex-wrap: wrap; }
+  }
+</style>
+
 <div class="card" style="max-width:800px;margin-bottom:20px">
   <div class="card-title">Add new stage</div>
   <form method="POST" action="{{ url_for('new_document_stage') }}">
@@ -35,7 +72,9 @@
 <div class="card" style="max-width:800px">
   <div class="card-title">Current stages</div>
   {% if stages %}
-  <table>
+
+
+  <table class="stage-table">
     <thead>
       <tr>
         <th style="width:30px">Order</th>
@@ -58,9 +97,7 @@
             {% else %}DCR only{% endif %}
           </span>
         </td>
-        <td style="font-size:12px;color:var(--muted)">
-          {{ stage.doc_list | join(', ') }}
-        </td>
+        <td style="font-size:12px;color:var(--muted)">{{ stage.doc_list | join(', ') }}</td>
         <td>
           {% if stage.is_active %}
             <span class="badge badge-Completed">Active</span>
@@ -73,10 +110,9 @@
                   onclick="togglePanel('edit-{{ stage.id }}')">Edit</button>
         </td>
       </tr>
-      <tr id="edit-{{ stage.id }}" style="display:none;background:var(--bg)">
+      <tr id="edit-{{ stage.id }}" class="edit-panel">
         <td colspan="6" style="padding:14px">
-          <form method="POST"
-                action="{{ url_for('edit_document_stage', sid=stage.id) }}">
+          <form method="POST" action="{{ url_for('edit_document_stage', sid=stage.id) }}">
             <div class="form-grid">
               <div class="form-group">
                 <label>Stage name</label>
@@ -102,7 +138,7 @@
                 </label>
               </div>
             </div>
-            <div style="display:flex;gap:8px;margin-top:4px">
+            <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
               <button type="submit" class="btn btn-primary btn-sm">Save changes</button>
               <button type="button" class="btn btn-sm"
                       onclick="togglePanel('edit-{{ stage.id }}')">Cancel</button>
@@ -119,6 +155,78 @@
       {% endfor %}
     </tbody>
   </table>
+
+  
+  <div class="stage-cards">
+    {% for stage in stages %}
+    <div class="stage-card">
+      <div class="stage-card-header">
+        <div>
+          <div class="stage-card-name">{{ stage.name }}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">#{{ stage.sort_order + 1 }}</div>
+        </div>
+        {% if stage.is_active %}
+          <span class="badge badge-Completed">Active</span>
+        {% else %}
+          <span class="badge badge-Cancelled">Inactive</span>
+        {% endif %}
+      </div>
+      <div class="stage-card-meta">
+        <span class="tag">
+          {% if stage.condition == 'always' %}All projects
+          {% elif stage.condition == 'loan' %}Loan only
+          {% else %}DCR only{% endif %}
+        </span>
+      </div>
+      <div class="stage-card-docs">{{ stage.doc_list | join(', ') }}</div>
+      <div class="stage-card-actions">
+        <button class="btn btn-sm"
+                onclick="toggleMobileEdit('medit-{{ stage.id }}', this)">Edit</button>
+      </div>
+      <div id="medit-{{ stage.id }}" class="edit-panel-mobile">
+        <form method="POST" action="{{ url_for('edit_document_stage', sid=stage.id) }}">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Stage name</label>
+              <input name="name" type="text" required value="{{ stage.name }}"/>
+            </div>
+            <div class="form-group">
+              <label>Condition</label>
+              <select name="condition">
+                <option value="always"  {% if stage.condition == 'always'  %}selected{% endif %}>Always</option>
+                <option value="loan"    {% if stage.condition == 'loan'    %}selected{% endif %}>Loan only</option>
+                <option value="dcr"     {% if stage.condition == 'dcr'     %}selected{% endif %}>DCR only</option>
+              </select>
+            </div>
+            <div class="form-group full">
+              <label>Documents (comma-separated)</label>
+              <input name="docs" type="text" required value="{{ stage.docs }}"/>
+            </div>
+            <div class="form-group full">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" name="is_active"
+                       {% if stage.is_active %}checked{% endif %}/>
+                Active
+              </label>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+            <button type="submit" class="btn btn-primary btn-sm">Save changes</button>
+            <button type="button" class="btn btn-sm"
+                    onclick="toggleMobileEdit('medit-{{ stage.id }}', this)">Cancel</button>
+            <form method="POST"
+                  action="{{ url_for('delete_document_stage', sid=stage.id) }}"
+                  style="display:inline"
+                  onsubmit="return confirm('Deactivate this stage?')">
+              <button type="submit" class="btn btn-danger btn-sm">Deactivate</button>
+            </form>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
   {% else %}
   <div style="color:var(--hint);font-size:13px">No stages defined yet.</div>
   {% endif %}
@@ -127,7 +235,13 @@
 <script>
 function togglePanel(id) {
   const el = document.getElementById(id);
-  if (el) el.style.display = el.style.display === 'none' ? 'table-row' : 'none';
+  if (el) el.classList.toggle('open');
+}
+function toggleMobileEdit(id, btn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const isOpen = el.classList.toggle('open');
+  btn.textContent = isOpen ? 'Cancel' : 'Edit';
 }
 </script>
 {% endblock %}

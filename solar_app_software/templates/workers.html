@@ -2,6 +2,68 @@
 {% block title %}Workers — Solar App{% endblock %}
 {% block page_title %}Workers{% endblock %}
 
+{% block head %}
+<style>
+  /* ── Responsive grid helpers ── */
+  .stats-4 {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 10px;
+    padding: 14px 18px;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .stats-3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0,1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .close-card-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 2fr auto;
+    gap: 10px;
+    align-items: flex-end;
+  }
+  .advance-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 10px;
+    align-items: flex-end;
+  }
+  .settle-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 2fr auto;
+    gap: 10px;
+    align-items: flex-end;
+  }
+
+  @media (max-width: 768px) {
+    .stats-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .stats-3 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+
+    .close-card-grid { grid-template-columns: 1fr 1fr; }
+    .close-card-grid > div:nth-child(3),
+    .close-card-grid > div:nth-child(4) { grid-column: 1 / -1; }
+
+    .advance-form-grid { grid-template-columns: 1fr 1fr; }
+    .advance-form-grid > div:nth-child(3),
+    .advance-form-grid > div:nth-child(4) { grid-column: 1 / -1; }
+
+    .settle-form-grid { grid-template-columns: 1fr 1fr; }
+    .settle-form-grid > div:nth-child(3),
+    .settle-form-grid > div:nth-child(4) { grid-column: 1 / -1; }
+
+    .worker-header { flex-wrap: wrap; }
+    .worker-header .badges { display: flex; flex-wrap: wrap; gap: 4px; }
+  }
+
+  @media (max-width: 480px) {
+    .stats-3 { grid-template-columns: 1fr; }
+    .stats-4 { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 {# ── PENDING APPROVALS BANNER ── #}
 {% set all_pending = [] %}
@@ -12,10 +74,10 @@
     {% endif %}
   {% endfor %}
 {% endfor %}
- 
+
 {% if all_pending and current_user.role in ['admin','onsite'] %}
 <div class="card" style="margin-bottom:20px;border-color:var(--amber-100);background:var(--amber-50)">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
     <div class="card-title" style="margin:0;color:var(--amber-800)">
       ⏳ {{ all_pending | length }} job card{{ 's' if all_pending | length > 1 }} pending approval
     </div>
@@ -23,130 +85,135 @@
     {% for jc in all_pending %}{% set pending_total.v = pending_total.v + (jc.final_amount | float) %}{% endfor %}
     <span style="font-size:14px;font-weight:600;color:var(--amber-800)">₹{{ pending_total.v | int | inr }}</span>
   </div>
-  <table>
-    <thead>
-      <tr>
-        <th>Worker</th>
-        <th>Project</th>
-        <th>Phase</th>
-        <th>Days</th>
-        <th>Amount</th>
-        <th>Closed by</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for jc in all_pending | sort(attribute='closed_at') %}
-      <tr>
-        <td style="font-weight:500">{{ jc.worker.name }}</td>
-        <td>
-          <a href="{{ url_for('project_detail', pid=jc.project_id) }}"
-             style="color:var(--amber-600);font-weight:500">
-            {{ jc.project.project_code }}
-          </a>
-          <div style="font-size:11px;color:var(--muted)">{{ jc.project.customer.name }}</div>
-        </td>
-        <td><span class="tag">{{ jc.work_phase }}</span></td>
-        <td>{{ jc.actual_days or '—' }}</td>
-        <td style="font-weight:600;color:var(--amber-800)">₹{{ jc.final_amount | int }}</td>
-        <td style="font-size:12px;color:var(--muted)">{{ jc.closer.full_name if jc.closer else '—' }}</td>
-        <td>
-          <div style="display:flex;gap:6px">
-            <form method="POST" action="{{ url_for('approve_job_card', card_id=jc.id) }}" style="display:inline">
-              <button type="submit" class="btn btn-primary btn-sm">✓ Approve</button>
-            </form>
-            <form method="POST" action="{{ url_for('void_job_card', card_id=jc.id) }}"
-                  onsubmit="return confirm('Void this job card?')" style="display:inline">
-              <button type="submit" class="btn btn-sm btn-danger">Void</button>
-            </form>
-          </div>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <table style="min-width:560px">
+      <thead>
+        <tr>
+          <th>Worker</th>
+          <th>Project</th>
+          <th>Phase</th>
+          <th>Days</th>
+          <th>Amount</th>
+          <th>Closed by</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for jc in all_pending | sort(attribute='closed_at') %}
+        <tr>
+          <td style="font-weight:500">{{ jc.worker.name }}</td>
+          <td>
+            <a href="{{ url_for('project_detail', pid=jc.project_id) }}"
+               style="color:var(--amber-600);font-weight:500">
+              {{ jc.project.project_code }}
+            </a>
+            <div style="font-size:11px;color:var(--muted)">{{ jc.project.customer.name }}</div>
+          </td>
+          <td><span class="tag">{{ jc.work_phase }}</span></td>
+          <td>{{ jc.actual_days or '—' }}</td>
+          <td style="font-weight:600;color:var(--amber-800)">₹{{ jc.final_amount | int }}</td>
+          <td style="font-size:12px;color:var(--muted)">{{ jc.closer.full_name if jc.closer else '—' }}</td>
+          <td>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <form method="POST" action="{{ url_for('approve_job_card', card_id=jc.id) }}" style="display:inline">
+                <button type="submit" class="btn btn-primary btn-sm">✓ Approve</button>
+              </form>
+              <form method="POST" action="{{ url_for('void_job_card', card_id=jc.id) }}"
+                    onsubmit="return confirm('Void this job card?')" style="display:inline">
+                <button type="submit" class="btn btn-sm btn-danger">Void</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endif %}
+
 {# ══════════════════════════════════════════════════════════════════════════ #}
 {# WORKER OVERVIEW TABLE                                                      #}
 {# ══════════════════════════════════════════════════════════════════════════ #}
 <div class="card" style="margin-bottom:24px">
   <div class="card-title">On-site workers</div>
-  <table>
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Phone</th>
-        <th>Skill</th>
-        <th>Active assignments</th>
-        <th>Balance</th>
-        <th>Pending approval</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for w in workers %}
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <table style="min-width:620px">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>Skill</th>
+          <th>Active assignments</th>
+          <th>Balance</th>
+          <th>Pending approval</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for w in workers %}
 
-      {# ── Compute active assignments ── #}
-      {% set active_assigns = [] %}
-      {% for a in w.assignments %}
-        {% if a.status in ['Assigned','Active'] %}
-          {% set prog = a.project.onsite_progress %}
-          {% set done = prog and prog.structure_work_status == 'Completed' and prog.installation_status == 'Completed' %}
-          {% if not done %}{% if active_assigns.append(a) %}{% endif %}{% endif %}
+        {# ── Compute active assignments ── #}
+        {% set active_assigns = [] %}
+        {% for a in w.assignments %}
+          {% if a.status in ['Assigned','Active'] %}
+            {% set prog = a.project.onsite_progress %}
+            {% set done = prog and prog.structure_work_status == 'Completed' and prog.installation_status == 'Completed' %}
+            {% if not done %}{% if active_assigns.append(a) %}{% endif %}{% endif %}
+          {% endif %}
+        {% endfor %}
+
+        {# ── Compute ledger balance ── #}
+        {% set ns = namespace(balance=0, pending_approval=0) %}
+        {% if w.ledger_entries %}
+          {% set last_entry = w.ledger_entries | sort(attribute='id') | last %}
+          {% set ns.balance = last_entry.balance_after | float %}
         {% endif %}
-      {% endfor %}
+        {% for jc in w.job_cards %}
+          {% if jc.status == 'PendingApproval' %}
+            {% set ns.pending_approval = ns.pending_approval + (jc.final_amount | float) %}
+          {% endif %}
+        {% endfor %}
 
-      {# ── Compute ledger balance ── #}
-      {% set ns = namespace(balance=0, pending_approval=0) %}
-      {% if w.ledger_entries %}
-        {% set last_entry = w.ledger_entries | sort(attribute='id') | last %}
-        {% set ns.balance = last_entry.balance_after | float %}
-      {% endif %}
-      {% for jc in w.job_cards %}
-        {% if jc.status == 'PendingApproval' %}
-          {% set ns.pending_approval = ns.pending_approval + (jc.final_amount | float) %}
-        {% endif %}
-      {% endfor %}
-
-      <tr>
-        <td style="font-weight:500">{{ w.name }}</td>
-        <td>{{ w.phone or '—' }}</td>
-        <td><span class="tag">{{ w.skill or '—' }}</span></td>
-        <td>
-          {% if active_assigns %}
-            {% for a in active_assigns %}
-            <span class="tag" style="margin-right:3px">
-              {{ a.project.project_code }}
-              <span style="font-size:11px;color:var(--hint)"> · {{ a.work_phase }}</span>
-            </span>
-            {% endfor %}
-          {% else %}
-            <span class="badge badge-Completed" style="font-size:11px">Free</span>
-          {% endif %}
-        </td>
-        <td style="font-weight:500;color:{% if ns.balance > 0 %}var(--green-600,#16a34a){% else %}var(--muted){% endif %}">
-          {{ ns.balance | int | abs }}
-          {%- if ns.balance > 0 %} <span style="font-size:11px;font-weight:400;color:var(--hint)">owed</span>{% endif %}
-        </td>
-        <td>
-          {% if ns.pending_approval > 0 %}
-            <span class="badge badge-InProgress" style="font-size:11px">₹{{ ns.pending_approval | int }}</span>
-          {% else %}
-            <span style="color:var(--hint);font-size:12px">—</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if w.is_active %}
-            <span class="badge badge-Completed">Active</span>
-          {% else %}
-            <span class="badge badge-Closed">Inactive</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+        <tr>
+          <td style="font-weight:500">{{ w.name }}</td>
+          <td>{{ w.phone or '—' }}</td>
+          <td><span class="tag">{{ w.skill or '—' }}</span></td>
+          <td>
+            {% if active_assigns %}
+              {% for a in active_assigns %}
+              <span class="tag" style="margin-right:3px">
+                {{ a.project.project_code }}
+                <span style="font-size:11px;color:var(--hint)"> · {{ a.work_phase }}</span>
+              </span>
+              {% endfor %}
+            {% else %}
+              <span class="badge badge-Completed" style="font-size:11px">Free</span>
+            {% endif %}
+          </td>
+          <td style="font-weight:500;color:{% if ns.balance > 0 %}var(--green-600,#16a34a){% else %}var(--muted){% endif %}">
+            {{ ns.balance | int | abs }}
+            {%- if ns.balance > 0 %} <span style="font-size:11px;font-weight:400;color:var(--hint)">owed</span>{% endif %}
+          </td>
+          <td>
+            {% if ns.pending_approval > 0 %}
+              <span class="badge badge-InProgress" style="font-size:11px">₹{{ ns.pending_approval | int }}</span>
+            {% else %}
+              <span style="color:var(--hint);font-size:12px">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if w.is_active %}
+              <span class="badge badge-Completed">Active</span>
+            {% else %}
+              <span class="badge badge-Closed">Inactive</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 
 {# ══════════════════════════════════════════════════════════════════════════ #}
@@ -183,28 +250,30 @@
 <div class="card" style="margin-bottom:20px;overflow:hidden">
 
   {# ── Header ── #}
-  <div style="padding:14px 18px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:12px">
+  <div class="worker-header" style="padding:14px 18px;border-bottom:0.5px solid var(--border);display:flex;align-items:flex-start;gap:12px">
     <div style="width:40px;height:40px;border-radius:50%;background:#E6F1FB;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:#185FA5;flex-shrink:0">
       {{ w.name.split()[0][0] }}{{ w.name.split()[-1][0] if w.name.split()|length > 1 else '' }}
     </div>
-    <div style="flex:1">
+    <div style="flex:1;min-width:0">
       <div style="font-size:15px;font-weight:500">{{ w.name }}</div>
       <div style="font-size:12px;color:var(--muted)">{{ w.skill or '—' }} · ₹{{ (w.rate_per_day or 0) | int }}/day</div>
     </div>
-    {% set active_count = open_assigns | selectattr('status','in',['Assigned','Active']) | list | length %}
-    {% if active_count %}
-      <span class="badge badge-InProgress" style="font-size:11px">{{ active_count }} active project{{ 's' if active_count > 1 else '' }}</span>
-    {% endif %}
-    {% if ns.pending_amt > 0 %}
-      <span class="badge badge-Delayed" style="font-size:11px">₹{{ ns.pending_amt | int }} pending approval</span>
-    {% endif %}
-    {% if w.is_active %}
-      <span class="badge badge-Completed" style="font-size:11px">Active</span>
-    {% endif %}
+    <div class="badges">
+      {% set active_count = open_assigns | selectattr('status','in',['Assigned','Active']) | list | length %}
+      {% if active_count %}
+        <span class="badge badge-InProgress" style="font-size:11px">{{ active_count }} active project{{ 's' if active_count > 1 else '' }}</span>
+      {% endif %}
+      {% if ns.pending_amt > 0 %}
+        <span class="badge badge-Delayed" style="font-size:11px">₹{{ ns.pending_amt | int }} pending approval</span>
+      {% endif %}
+      {% if w.is_active %}
+        <span class="badge badge-Completed" style="font-size:11px">Active</span>
+      {% endif %}
+    </div>
   </div>
 
   {# ── Balance stats row ── #}
-  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:14px 18px;border-bottom:0.5px solid var(--border)">
+  <div class="stats-4">
     <div style="background:var(--surface-2,#f7f7f5);border-radius:8px;padding:10px 13px">
       <div style="font-size:11px;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">Current balance</div>
       <div style="font-size:19px;font-weight:500;color:{% if ns.balance > 0 %}var(--green-600,#16a34a){% else %}var(--muted){% endif %}">
@@ -248,7 +317,7 @@
     <div style="font-size:13px;color:var(--hint);padding:4px 0">No job cards yet. Cards are created automatically when workers are assigned to projects.</div>
     {% else %}
 
-    {# ── Pending Approval cards — most urgent, shown first ── #}
+    {# ── Pending Approval cards ── #}
     {% if pending_cards %}
     <div style="margin-bottom:14px">
       <div style="font-size:12px;font-weight:500;color:#92400e;margin-bottom:8px;display:flex;align-items:center;gap:6px">
@@ -257,13 +326,13 @@
       </div>
       {% for jc in pending_cards %}
       <div style="border:1px solid #fde68a;border-radius:var(--radius);background:#fffbeb;padding:12px 14px;margin-bottom:8px">
-        <div style="display:flex;align-items:flex-start;gap:12px">
-          <div style="flex:1">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div style="flex:1;min-width:200px">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
               <a href="{{ url_for('project_detail', pid=jc.project_id) }}" class="tag"
-   style="color:var(--blue-600);text-decoration:none">
-  {{ jc.project.project_code }}
-</a>
+                 style="color:var(--blue-600);text-decoration:none">
+                {{ jc.project.project_code }}
+              </a>
               <span style="font-size:11px;color:var(--muted)">{{ jc.work_phase }}</span>
               <span style="font-size:11px;color:var(--hint)">closed {{ jc.closed_at | date_fmt if jc.closed_at else '—' }}</span>
             </div>
@@ -280,7 +349,7 @@
             </div>
           </div>
           {% if current_user.role in ['admin','onsite'] %}
-          <div style="display:flex;gap:6px;flex-shrink:0">
+          <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap">
             <form method="POST" action="{{ url_for('approve_job_card', card_id=jc.id) }}" style="display:inline">
               <button type="submit" class="btn btn-primary btn-sm">✓ Approve</button>
             </form>
@@ -296,7 +365,7 @@
     </div>
     {% endif %}
 
-    {# ── Open cards (onsite can close these) ── #}
+    {# ── Open cards ── #}
     {% if open_cards %}
     <div style="margin-bottom:14px">
       <div style="font-size:12px;font-weight:500;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:6px">
@@ -305,13 +374,13 @@
       </div>
       {% for jc in open_cards %}
       <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px">
-        <div style="display:flex;align-items:flex-start;gap:12px">
-          <div style="flex:1">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div style="flex:1;min-width:180px">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
               <a href="{{ url_for('project_detail', pid=jc.project_id) }}" class="tag"
-   style="color:var(--blue-600);text-decoration:none">
-  {{ jc.project.project_code }}
-</a>
+                 style="color:var(--blue-600);text-decoration:none">
+                {{ jc.project.project_code }}
+              </a>
               <span style="font-size:11px;color:var(--muted)">{{ jc.work_phase }}</span>
               <span class="badge badge-Created" style="font-size:10px">Open</span>
             </div>
@@ -334,7 +403,7 @@
         {% if current_user.role in ['admin','onsite'] %}
         <div id="close-card-{{ jc.id }}" style="display:none;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
           <form method="POST" action="{{ url_for('close_job_card', card_id=jc.id) }}">
-            <div style="display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:10px;align-items:flex-end">
+            <div class="close-card-grid">
               <div>
                 <label style="font-size:12px">Actual days</label>
                 <input type="number" name="actual_days" id="days-jc-{{ jc.id }}"
@@ -354,10 +423,10 @@
                 <label style="font-size:12px">Notes (optional)</label>
                 <input type="text" name="description" placeholder="Work summary…"/>
               </div>
-              <div style="display:flex;gap:6px">
+              <div style="display:flex;gap:6px;align-items:flex-end">
                 <button type="submit" class="btn btn-primary btn-sm">Submit</button>
                 <button type="button" class="btn btn-sm"
-                        onclick="document.getElementById('close-card-{{ jc.id }}').style.display='none';this.closest('.card-body-area').querySelector('.mark-done-btn').style.display='inline-block'">
+                        onclick="document.getElementById('close-card-{{ jc.id }}').style.display='none'">
                   Cancel
                 </button>
               </div>
@@ -379,8 +448,8 @@
       </div>
       {% set ns_ap = namespace(approved_total=0) %}
       {% for jc in approved_cards %}{% set ns_ap.approved_total = ns_ap.approved_total + jc.final_amount | float %}{% endfor %}
-      <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:380px">
           <thead>
             <tr style="border-bottom:0.5px solid var(--border)">
               <th style="text-align:left;padding:5px 8px;color:var(--muted);font-weight:500">Project</th>
@@ -393,10 +462,12 @@
           <tbody>
             {% for jc in approved_cards %}
             <tr style="border-bottom:0.5px solid var(--border)">
-              <td style="padding:7px 8px"><a href="{{ url_for('project_detail', pid=jc.project_id) }}" class="tag"
-   style="color:var(--blue-600);text-decoration:none">
-  {{ jc.project.project_code }}
-</a></td>
+              <td style="padding:7px 8px">
+                <a href="{{ url_for('project_detail', pid=jc.project_id) }}" class="tag"
+                   style="color:var(--blue-600);text-decoration:none">
+                  {{ jc.project.project_code }}
+                </a>
+              </td>
               <td style="padding:7px 8px;color:var(--muted)">{{ jc.work_phase }}</td>
               <td style="padding:7px 8px;text-align:right">{{ jc.actual_days or '—' }}</td>
               <td style="padding:7px 8px;text-align:right;font-weight:500;color:var(--green-600,#16a34a)">₹{{ jc.final_amount | int }}</td>
@@ -422,8 +493,8 @@
       <summary style="font-size:12px;color:var(--hint);cursor:pointer;user-select:none;padding:4px 0">
         {{ paid_cards | length }} paid card{{ 's' if paid_cards | length > 1 else '' }} — view history
       </summary>
-      <div style="margin-top:10px;overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <div style="margin-top:10px;overflow-x:auto;-webkit-overflow-scrolling:touch">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:360px">
           <thead>
             <tr style="border-bottom:0.5px solid var(--border)">
               <th style="text-align:left;padding:5px 8px;color:var(--muted);font-weight:500">Project</th>
@@ -436,10 +507,12 @@
           <tbody>
             {% for jc in paid_cards | sort(attribute='closed_at', reverse=True) %}
             <tr style="border-bottom:0.5px solid var(--border)">
-              <td style="padding:7px 8px"><a href="{{ url_for('project_detail', pid=jc.project_id) }}" class="tag"
-   style="color:var(--blue-600);text-decoration:none">
-  {{ jc.project.project_code }}
-</a></td>
+              <td style="padding:7px 8px">
+                <a href="{{ url_for('project_detail', pid=jc.project_id) }}" class="tag"
+                   style="color:var(--blue-600);text-decoration:none">
+                  {{ jc.project.project_code }}
+                </a>
+              </td>
               <td style="padding:7px 8px;color:var(--muted)">{{ jc.work_phase }}</td>
               <td style="padding:7px 8px;text-align:right">{{ jc.actual_days or '—' }}</td>
               <td style="padding:7px 8px;text-align:right;font-weight:500">₹{{ jc.final_amount | int }}</td>
@@ -468,9 +541,9 @@
     <div style="margin-bottom:12px">
       {% for adv in outstanding_advances %}
       {% set still_owed = (adv.amount | float) - (adv.recovered_amount | float) %}
-      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:0.5px solid #fca5a5;border-radius:var(--radius);background:#fff1f1;margin-bottom:8px">
-        <div style="flex:1">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
+      <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;padding:10px 12px;border:0.5px solid #fca5a5;border-radius:var(--radius);background:#fff1f1;margin-bottom:8px">
+        <div style="flex:1;min-width:160px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px">
             <span style="font-size:13px;font-weight:500;color:#b91c1c">₹{{ still_owed | int }} outstanding</span>
             {% if adv.status == 'PartiallyRecovered' %}
               <span class="badge" style="font-size:10px;background:#fef3c7;color:#92400e;border:none">Partially recovered</span>
@@ -485,7 +558,7 @@
         </div>
         {% if current_user.role in ['admin','onsite'] %}
         <form method="POST" action="{{ url_for('recover_advance', advance_id=adv.id) }}"
-              style="display:flex;gap:6px;align-items:center">
+              style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           <input type="number" name="recover_amount" min="1"
                  max="{{ still_owed | int }}"
                  value="{{ still_owed | int }}"
@@ -525,7 +598,7 @@
       <button class="btn btn-sm" onclick="togglePanel('advance-form-{{ w.id }}')">+ Record advance</button>
       <div id="advance-form-{{ w.id }}" style="display:none;margin-top:10px">
         <form method="POST" action="{{ url_for('give_advance', worker_id=w.id) }}">
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
+          <div class="advance-form-grid">
             <div>
               <label>Amount (₹)</label>
               <input type="number" name="amount" min="1" required placeholder="0"/>
@@ -538,7 +611,7 @@
               <label>Notes (optional)</label>
               <input type="text" name="notes" placeholder="e.g. travel expense…"/>
             </div>
-            <div>
+            <div style="display:flex;align-items:flex-end">
               <button type="submit" class="btn btn-primary btn-sm">Save</button>
             </div>
           </div>
@@ -555,9 +628,8 @@
   <div style="padding:14px 18px;border-bottom:0.5px solid var(--border)">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:12px">Settlement</div>
 
-    {# Net payable summary #}
     {% set net_payable = ns.balance - ns.advance_outstanding %}
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+    <div class="stats-3">
       <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:10px 12px;font-size:12px">
         <div style="color:var(--muted);margin-bottom:2px">Ledger balance</div>
         <div style="font-size:16px;font-weight:500">₹{{ ns.balance | int }}</div>
@@ -578,7 +650,7 @@
     </button>
     <div id="settle-form-{{ w.id }}" style="display:none;margin-top:12px">
       <form method="POST" action="{{ url_for('settle_worker', worker_id=w.id) }}">
-        <div style="display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:10px;align-items:flex-end">
+        <div class="settle-form-grid">
           <div>
             <label>Amount to pay (₹)</label>
             <input type="number" name="amount" min="1"
@@ -598,7 +670,7 @@
             <label>Notes (optional)</label>
             <input type="text" name="notes" placeholder="e.g. week ending 15 Apr…"/>
           </div>
-          <div>
+          <div style="display:flex;align-items:flex-end">
             <button type="submit" class="btn btn-primary btn-sm">Confirm settlement</button>
           </div>
         </div>
@@ -619,8 +691,8 @@
   {% if w.ledger_entries %}
   <div style="padding:14px 18px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:10px">Ledger history</div>
-    <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:520px">
         <thead>
           <tr style="border-bottom:0.5px solid var(--border)">
             <th style="text-align:left;padding:5px 8px;color:var(--muted);font-weight:500">Date</th>
@@ -695,7 +767,6 @@ function calcJobAmt(jcId, ratePerDay, agreedAmount) {
   var agreed  = parseFloat(agreedAmount) || 0;
 
   if (agreed > 0) {
-    // Agreed lump sum — don't override
     amtEl.value = agreed;
     if (hintEl) hintEl.style.display = 'none';
   } else if (days > 0 && rate > 0) {

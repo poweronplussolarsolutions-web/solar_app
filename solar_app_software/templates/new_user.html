@@ -5,7 +5,7 @@
   <a href="{{ url_for('manage_users') }}" class="btn btn-sm">← Back</a>
 {% endblock %}
 {% block content %}
-<div class="card" style="max-width:480px">
+<div class="card" style="max-width:480px;width:100%;box-sizing:border-box">
   <form method="POST" action="{{ url_for('new_user') }}">
     <div class="form-group">
       <label>Full name</label>
@@ -35,9 +35,13 @@
       <label>Password</label>
       <input name="password" type="password" required placeholder="Set password"/>
     </div>
-    <div style="display:flex;gap:10px;margin-top:8px">
-      <button type="submit" class="btn btn-primary">Create user</button>
-      <a href="{{ url_for('manage_users') }}" class="btn">Cancel</a>
+    <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
+      <button type="submit" class="btn btn-primary" style="flex:1;min-width:120px;justify-content:center">
+        Create user
+      </button>
+      <a href="{{ url_for('manage_users') }}" class="btn" style="flex:1;min-width:100px;text-align:center">
+        Cancel
+      </a>
     </div>
   </form>
 </div>

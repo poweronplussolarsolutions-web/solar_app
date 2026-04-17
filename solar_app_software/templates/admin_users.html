@@ -4,10 +4,56 @@
 {% block topbar_actions %}
   <a href="{{ url_for('new_user') }}" class="btn btn-primary">+ New User</a>
 {% endblock %}
+
 {% block content %}
+<style>
+  .users-table { width: 100%; border-collapse: collapse; }
+  .users-table th, .users-table td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 0.5px solid var(--border);
+    font-size: 13px;
+    vertical-align: middle;
+  }
+  .users-table thead th { font-weight: 500; color: var(--muted); font-size: 12px; }
+
+  .users-cards { display: none; }
+
+  .user-card {
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+    background: var(--card-bg, #fff);
+  }
+  .user-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+  .user-card-name { font-weight: 500; font-size: 14px; }
+  .user-card-username { font-family: monospace; font-size: 12px; color: var(--muted); }
+  .user-card-email { font-size: 12px; color: var(--muted); margin: 4px 0 8px; }
+  .user-card-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .user-card-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+  @media (max-width: 700px) {
+    .users-table { display: none; }
+    .users-cards { display: block; }
+  }
+</style>
+
 <div class="card">
-  <table>
-    <thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th><th></th></tr></thead>
+
+  
+  <table class="users-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Username</th>
+        <th>Email</th>
+        <th>Role</th>
+        <th>Status</th>
+        <th>Joined</th>
+        <th></th>
+      </tr>
+    </thead>
     <tbody>
       {% for u in users %}
       <tr>
@@ -23,54 +69,90 @@
             {% elif u.role == 'onsite' %}badge-Loan
             {% else %}badge-Cash{% endif %}">{{ u.role }}</span>
         </td>
-        <!-- Status badge -->
-<td>
-  {% if u.status == 'active' %}
-    <span class="badge badge-success">Active</span>
-  {% elif u.status == 'inactive' %}
-    <span class="badge badge-secondary">Inactive</span>
-  <!-- {% else %}
-    <span class="badge badge-danger">Suspended</span> -->
-  {% endif %}
-</td>
-
-<!-- Status toggle -->
-<td>
-  {% if u.id != current_user.id %}
-  <form method="POST" action="{{ url_for('change_user_status', user_id=u.id) }}"
-        style="display:inline">
-    {% if u.status != 'active' %}
-      <button name="status" value="active"
-              class="btn btn-sm btn-success">✓ Activate</button>
-    {% endif %}
-    {% if u.status != 'inactive' %}
-      <button name="status" value="inactive"
-              class="btn btn-sm">Deactivate</button>
-    {% endif %}
-    <!-- {% if u.status != 'suspended' %}
-      <button name="status" value="suspended"
-              class="btn btn-sm btn-danger"
-              onclick="return confirm('Suspend {{ u.username }}?')">⊘ Suspend</button>
-    {% endif %} -->
-  </form>
-  {% else %}
-    <span style="color:var(--text-muted);font-size:0.85em">—</span>
-  {% endif %}
-
-  <a href="{{ url_for('edit_user', user_id=u.id) }}" class="btn btn-sm">Edit</a>
-
-  <form method="POST" action="{{ url_for('delete_user', user_id=u.id) }}"
-        style="display:inline"
-        onsubmit="return confirm('Delete {{ u.username }}? This cannot be undone.')">
-    <button type="submit" class="btn btn-sm btn-danger"
-            {% if u.id == current_user.id %}disabled{% endif %}>
-      Delete
-    </button>
-  </form>
-</td>
+        <td>
+          {% if u.status == 'active' %}
+            <span class="badge badge-success">Active</span>
+          {% elif u.status == 'inactive' %}
+            <span class="badge badge-secondary">Inactive</span>
+          {% endif %}
+        </td>
+        <td style="font-size:12px;color:var(--muted)">{{ u.created_at.strftime('%d %b %Y') if u.created_at else '—' }}</td>
+        <td>
+          {% if u.id != current_user.id %}
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <form method="POST" action="{{ url_for('change_user_status', user_id=u.id) }}" style="display:contents">
+              {% if u.status != 'active' %}
+                <button name="status" value="active" class="btn btn-sm btn-success">✓ Activate</button>
+              {% endif %}
+              {% if u.status != 'inactive' %}
+                <button name="status" value="inactive" class="btn btn-sm">Deactivate</button>
+              {% endif %}
+            </form>
+            <a href="{{ url_for('edit_user', user_id=u.id) }}" class="btn btn-sm">Edit</a>
+            <form method="POST" action="{{ url_for('delete_user', user_id=u.id) }}"
+                  style="display:inline"
+                  onsubmit="return confirm('Delete {{ u.username }}? This cannot be undone.')">
+              <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+            </form>
+          </div>
+          {% else %}
+            <span style="color:var(--text-muted);font-size:0.85em">—</span>
+          {% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+
+  
+  <div class="users-cards">
+    {% for u in users %}
+    <div class="user-card">
+      <div class="user-card-header">
+        <div>
+          <div class="user-card-name">{{ u.full_name }}</div>
+          <div class="user-card-username">@{{ u.username }}</div>
+        </div>
+        <span class="badge
+          {% if u.role == 'admin' %}badge-Delayed
+          {% elif u.role == 'coordinator' %}badge-Created
+          {% elif u.role == 'documents' %}badge-InProgress
+          {% elif u.role == 'payments' %}badge-Completed
+          {% elif u.role == 'onsite' %}badge-Loan
+          {% else %}badge-Cash{% endif %}">{{ u.role }}</span>
+      </div>
+      <div class="user-card-email">{{ u.email }}</div>
+      <div class="user-card-badges">
+        {% if u.status == 'active' %}
+          <span class="badge badge-success">Active</span>
+        {% elif u.status == 'inactive' %}
+          <span class="badge badge-secondary">Inactive</span>
+        {% endif %}
+      </div>
+      <div class="user-card-actions">
+        {% if u.id != current_user.id %}
+          <form method="POST" action="{{ url_for('change_user_status', user_id=u.id) }}" style="display:contents">
+            {% if u.status != 'active' %}
+              <button name="status" value="active" class="btn btn-sm btn-success">✓ Activate</button>
+            {% endif %}
+            {% if u.status != 'inactive' %}
+              <button name="status" value="inactive" class="btn btn-sm">Deactivate</button>
+            {% endif %}
+          </form>
+          <a href="{{ url_for('edit_user', user_id=u.id) }}" class="btn btn-sm">Edit</a>
+          <form method="POST" action="{{ url_for('delete_user', user_id=u.id) }}"
+                style="display:inline"
+                onsubmit="return confirm('Delete {{ u.username }}? This cannot be undone.')">
+            <button type="submit" class="btn btn-sm btn-danger"
+                    {% if u.id == current_user.id %}disabled{% endif %}>Delete</button>
+          </form>
+        {% else %}
+          <span style="color:var(--text-muted);font-size:0.85em">—</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
 </div>
 {% endblock %}

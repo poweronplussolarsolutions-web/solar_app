@@ -45,6 +45,24 @@
   .tag-red    { background: var(--red-50);   color: var(--red-600); }
   .tag-amber  { background: var(--amber-50); color: var(--amber-600); }
   .tag-green  { background: var(--teal-50);  color: var(--teal-800); }
+  @media (max-width: 640px) {
+
+  .staff-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .avatar {
+    width: 32px;
+    height: 32px;
+  }
+
+  .staff-meta {
+    font-size: 10px;
+  }
+
+}
 </style>
 {% endblock %}
 
@@ -180,6 +198,7 @@
 <div class="card">
   <div class="chart-title" style="margin-bottom:4px">Where are projects right now?</div>
   <div class="chart-sub" style="margin-bottom:14px">Number of projects at each stage of the process</div>
+  <div style="overflow-x:auto">
   <table>
     <thead>
       <tr><th>Stage</th><th>Projects</th><th>Progress bar</th></tr>
@@ -200,6 +219,7 @@
       {% endif %}{% endfor %}
     </tbody>
   </table>
+  </div>
 </div>
 
 <div id="chart-data" data-json='{{ chart_data | tojson }}' style="display:none"></div>

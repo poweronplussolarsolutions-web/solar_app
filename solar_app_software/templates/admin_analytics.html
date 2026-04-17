@@ -19,12 +19,6 @@
     gap: 20px;
     margin-bottom: 20px;
   }
-  .chart-grid-3 {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 20px;
-    margin-bottom: 20px;
-  }
   .chart-label {
     font-size: 12px;
     font-weight: 500;
@@ -35,6 +29,7 @@
     display: flex;
     gap: 4px;
     margin-bottom: 16px;
+    flex-wrap: wrap;
   }
   .period-tab {
     padding: 5px 14px;
@@ -50,6 +45,81 @@
     border-color: var(--amber-100);
     color: var(--amber-800);
     font-weight: 500;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .metric-row {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .chart-grid-2,
+    .chart-grid-3 {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .metric-row {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+  }
+
+  /* Coordinator & docs staff tables → card rows on mobile */
+  @media (max-width: 600px) {
+    .perf-table thead { display: none; }
+
+    .perf-table tbody tr {
+      display: block;
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .perf-table tbody td {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      border: none;
+      font-size: 13px;
+      gap: 8px;
+    }
+
+    .perf-table tbody td::before {
+      content: attr(data-label);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--hint);
+      white-space: nowrap;
+      flex-shrink: 0;
+      min-width: 90px;
+    }
+
+    /* Progress bar cell: stack vertically */
+    .perf-table tbody td.td-progress {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .perf-table tbody td.td-progress::before {
+      margin-bottom: 4px;
+    }
+    .perf-table tbody td.td-progress > div {
+      width: 100%;
+    }
+    .perf-table tbody td.td-progress .progress-wrap {
+      width: 100% !important;
+    }
+
+    /* Chart header: stack label + tabs */
+    .chart-header {
+      flex-direction: column;
+      align-items: flex-start !important;
+      gap: 8px;
+    }
   }
 </style>
 {% endblock %}
@@ -76,9 +146,9 @@
   </div>
 </div>
 
-{# ── PROJECTS & PAYMENTS OVER TIME ── #}
+{# ── PROJECTS OVER TIME ── #}
 <div class="card" style="margin-bottom:20px">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+  <div class="chart-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
     <div class="chart-label" style="margin:0">Projects created</div>
     <div class="period-tabs">
       <button class="period-tab active" data-period="weekly">Weekly</button>
@@ -89,9 +159,9 @@
   <canvas id="timelineChart" height="100"></canvas>
 </div>
 
-{# ── PAYMENTS AMOUNT OVER TIME ── #}
+{# ── PAYMENTS OVER TIME ── #}
 <div class="card" style="margin-bottom:20px">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+  <div class="chart-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
     <div class="chart-label" style="margin:0">Payment amounts collected (₹)</div>
     <div class="period-tabs">
       <button class="period-tab active" data-period="weekly" data-chart="payments">Weekly</button>
@@ -121,13 +191,13 @@
 </div>
 
 {# ── COORDINATOR TABLE ── #}
-<div class="card">
+<div class="card" style="margin-bottom:20px">
   <div class="chart-label" style="margin-bottom:14px">Coordinator performance summary</div>
-  <table>
+  <table class="perf-table">
     <thead>
       <tr>
         <th>Coordinator</th>
-        <th>Total projects</th>
+        <th>Total</th>
         <th>Completed</th>
         <th>Delayed</th>
         <th>Completion rate</th>
@@ -137,13 +207,14 @@
     <tbody>
       {% for c in coord_stats %}
       <tr>
-        <td style="font-weight:500">{{ c.name }}</td>
-        <td>{{ c.total }}</td>
-        <td style="color:var(--green-600)">{{ c.completed }}</td>
-        <td style="color:{% if c.delayed > 0 %}var(--red-600){% else %}var(--hint){% endif %}">
+        <td data-label="Coordinator" style="font-weight:500">{{ c.name }}</td>
+        <td data-label="Total">{{ c.total }}</td>
+        <td data-label="Completed" style="color:var(--green-600)">{{ c.completed }}</td>
+        <td data-label="Delayed"
+            style="color:{% if c.delayed > 0 %}var(--red-600){% else %}var(--hint){% endif %}">
           {{ c.delayed }}
         </td>
-        <td>
+        <td data-label="Rate" class="td-progress">
           <div style="display:flex;align-items:center;gap:8px">
             <div class="progress-wrap" style="width:80px">
               <div class="progress-bar"
@@ -155,7 +226,7 @@
             </span>
           </div>
         </td>
-        <td>{{ c.collected | inr }}</td>
+        <td data-label="Collected">{{ c.collected | inr }}</td>
       </tr>
       {% endfor %}
       {% if not coord_stats %}
@@ -168,16 +239,17 @@
     </tbody>
   </table>
 </div>
-{# ── DOCS STAFF PERFORMANCE CHART ── #}
+
+{# ── DOCS STAFF CHART ── #}
 <div class="card" style="margin-bottom:20px">
-  <div class="chart-label">Project by docs staff</div>
+  <div class="chart-label">Projects by docs staff</div>
   <canvas id="docStaffChart" height="100"></canvas>
 </div>
 
 {# ── DOCS STAFF TABLE ── #}
 <div class="card">
   <div class="chart-label" style="margin-bottom:14px">Docs staff performance summary</div>
-  <table>
+  <table class="perf-table">
     <thead>
       <tr>
         <th>Staff</th>
@@ -185,27 +257,24 @@
         <th>Completed</th>
         <th>In progress</th>
         <th>Not started</th>
-        
         <th>Completion rate</th>
       </tr>
     </thead>
     <tbody>
       {% for s in doc_staff_stats %}
       <tr>
-        <td style="font-weight:500">{{ s.name }}</td>
-        <td>{{ s.assigned }}</td>
-        <td style="color:var(--green-600)">{{ s.completed }}</td>
-        <td style="color:var(--blue-600)">{{ s.inprog }}</td>
-        <td style="color:{% if s.not_started > 0 %}var(--red-600){% else %}var(--hint){% endif %}">
+        <td data-label="Staff" style="font-weight:500">{{ s.name }}</td>
+        <td data-label="Assigned">{{ s.assigned }}</td>
+        <td data-label="Completed" style="color:var(--green-600)">{{ s.completed }}</td>
+        <td data-label="In progress" style="color:var(--blue-600)">{{ s.inprog }}</td>
+        <td data-label="Not started"
+            style="color:{% if s.not_started > 0 %}var(--red-600){% else %}var(--hint){% endif %}">
           {{ s.not_started }}
         </td>
-        
-        <td>
+        <td data-label="Rate" class="td-progress">
           <div style="display:flex;align-items:center;gap:8px">
             <div class="progress-wrap" style="width:80px">
-              <div class="progress-bar"
-                   style="width:{{ s.doc_pct }}%">
-              </div>
+              <div class="progress-bar" style="width:{{ s.doc_pct }}%"></div>
             </div>
             <span style="font-size:12px">{{ s.doc_pct }}%</span>
           </div>
@@ -214,7 +283,7 @@
       {% endfor %}
       {% if not doc_staff_stats %}
       <tr>
-        <td colspan="7" style="text-align:center;color:var(--hint);padding:24px">
+        <td colspan="6" style="text-align:center;color:var(--hint);padding:24px">
           No docs staff found.
         </td>
       </tr>
@@ -222,7 +291,8 @@
     </tbody>
   </table>
 </div>
-<div id="chart-data" data-json='{{ chart_data | tojson }}'' style="display:none"></div>
+
+<div id="chart-data" data-json='{{ chart_data | tojson }}' style="display:none"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
@@ -237,18 +307,12 @@ document.addEventListener('DOMContentLoaded', function() {
   Chart.defaults.font.size   = 12;
   Chart.defaults.color       = textColor;
 
-  // ── Timeline chart (projects) ──
   var timelineChart = new Chart(document.getElementById('timelineChart'), {
     type: 'bar',
     data: {
       labels: cd.weekly_labels,
-      datasets: [{
-        label: 'Projects created',
-        data: cd.weekly_projects,
-        backgroundColor: '#b5d4f4',
-        borderRadius: 4,
-        yAxisID: 'y',
-      }]
+      datasets: [{ label: 'Projects created', data: cd.weekly_projects,
+                   backgroundColor: '#b5d4f4', borderRadius: 4, yAxisID: 'y' }]
     },
     options: {
       responsive: true,
@@ -260,17 +324,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  // ── Payments amount chart ──
   var paymentsChart = new Chart(document.getElementById('paymentsChart'), {
     type: 'bar',
     data: {
       labels: cd.weekly_labels,
-      datasets: [{
-        label: 'Amount collected (₹)',
-        data: cd.weekly_payments,
-        backgroundColor: '#9fe1cb',
-        borderRadius: 4,
-      }]
+      datasets: [{ label: 'Amount collected (₹)', data: cd.weekly_payments,
+                   backgroundColor: '#9fe1cb', borderRadius: 4 }]
     },
     options: {
       responsive: true,
@@ -278,21 +337,15 @@ document.addEventListener('DOMContentLoaded', function() {
       scales: {
         x: { grid: { color: borderColor } },
         y: {
-          grid: { color: borderColor },
-          beginAtZero: true,
-          ticks: {
-            callback: function(v) {
-              return v >= 100000
-                ? '\u20b9' + (v/100000).toFixed(1) + 'L'
-                : '\u20b9' + (v/1000).toFixed(0) + 'k';
-            }
-          }
+          grid: { color: borderColor }, beginAtZero: true,
+          ticks: { callback: function(v) {
+            return v >= 100000 ? '₹' + (v/100000).toFixed(1) + 'L' : '₹' + (v/1000).toFixed(0) + 'k';
+          }}
         }
       }
     }
   });
 
-  // ── Period tab switching ──
   var periods = {
     weekly:  { labels: cd.weekly_labels,  projects: cd.weekly_projects,  payments: cd.weekly_payments },
     monthly: { labels: cd.monthly_labels, projects: cd.monthly_projects, payments: cd.monthly_payments },
@@ -300,72 +353,47 @@ document.addEventListener('DOMContentLoaded', function() {
   };
 
   function switchPeriod(chart, period, dataKey) {
-    chart.data.labels            = periods[period].labels;
-    chart.data.datasets[0].data  = periods[period][dataKey];
+    chart.data.labels           = periods[period].labels;
+    chart.data.datasets[0].data = periods[period][dataKey];
     chart.update();
   }
 
-  // Timeline tabs
   document.querySelectorAll('.period-tab:not([data-chart])').forEach(function(tab) {
     tab.addEventListener('click', function() {
-      document.querySelectorAll('.period-tab:not([data-chart])').forEach(function(t) {
-        t.classList.remove('active');
-      });
+      document.querySelectorAll('.period-tab:not([data-chart])').forEach(function(t) { t.classList.remove('active'); });
       this.classList.add('active');
       switchPeriod(timelineChart, this.getAttribute('data-period'), 'projects');
     });
   });
 
-  // Payments tabs
   document.querySelectorAll('.period-tab[data-chart="payments"]').forEach(function(tab) {
     tab.addEventListener('click', function() {
-      document.querySelectorAll('.period-tab[data-chart="payments"]').forEach(function(t) {
-        t.classList.remove('active');
-      });
+      document.querySelectorAll('.period-tab[data-chart="payments"]').forEach(function(t) { t.classList.remove('active'); });
       this.classList.add('active');
       switchPeriod(paymentsChart, this.getAttribute('data-period'), 'payments');
     });
   });
 
-  // ── Status donut ──
   new Chart(document.getElementById('statusChart'), {
     type: 'doughnut',
     data: {
       labels: cd.status_labels,
-      datasets: [{
-        data: cd.status_counts,
+      datasets: [{ data: cd.status_counts,
         backgroundColor: ['#b5d4f4','#fac775','#9fe1cb','#f7c1c1','#d3d1c7','#cecbf6'],
-        borderWidth: 0,
-      }]
+        borderWidth: 0 }]
     },
-    options: {
-      responsive: true,
-      cutout: '65%',
-      plugins: {
-        legend: { position: 'bottom' }
-      }
-    }
+    options: { responsive: true, cutout: '65%', plugins: { legend: { position: 'bottom' } } }
   });
 
-  // ── Type donut ──
   new Chart(document.getElementById('typeChart'), {
     type: 'doughnut',
     data: {
       labels: cd.type_labels,
-      datasets: [{
-        data: cd.type_counts,
-        backgroundColor: ['#9fe1cb','#fac775'],
-        borderWidth: 0,
-      }]
+      datasets: [{ data: cd.type_counts, backgroundColor: ['#9fe1cb','#fac775'], borderWidth: 0 }]
     },
-    options: {
-      responsive: true,
-      cutout: '65%',
-      plugins: { legend: { position: 'bottom' } }
-    }
+    options: { responsive: true, cutout: '65%', plugins: { legend: { position: 'bottom' } } }
   });
 
-  // ── Coordinator bar ──
   new Chart(document.getElementById('coordChart'), {
     type: 'bar',
     data: {
@@ -386,31 +414,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-
-// ── Docs staff chart ──
   new Chart(document.getElementById('docStaffChart'), {
     type: 'bar',
     data: {
       labels: cd.staff_names,
       datasets: [
-        {
-          label: 'Completed',
-          data: cd.staff_completed,
-          backgroundColor: '#9fe1cb',
-          borderRadius: 4,
-        },
-        {
-          label: 'In progress',
-          data: cd.staff_inprog,
-          backgroundColor: '#b5d4f4',
-          borderRadius: 4,
-        },
-        {
-          label: 'Not started',
-          data: cd.staff_notstarted,
-          backgroundColor: '#fac775',
-          borderRadius: 4,
-        },
+        { label: 'Completed',   data: cd.staff_completed,   backgroundColor: '#9fe1cb', borderRadius: 4 },
+        { label: 'In progress', data: cd.staff_inprog,      backgroundColor: '#b5d4f4', borderRadius: 4 },
+        { label: 'Not started', data: cd.staff_notstarted,  backgroundColor: '#fac775', borderRadius: 4 },
       ]
     },
     options: {
@@ -418,100 +429,55 @@ document.addEventListener('DOMContentLoaded', function() {
       plugins: { legend: { position: 'bottom' } },
       scales: {
         x: { stacked: true, grid: { color: borderColor } },
-        y: {
-          stacked: true,
-          grid: { color: borderColor },
-          ticks: { stepSize: 1 },
-          beginAtZero: true,
-          title: { display: true, text: 'Projects', color: textColor }
-        }
+        y: { stacked: true, grid: { color: borderColor }, ticks: { stepSize: 1 }, beginAtZero: true,
+             title: { display: true, text: 'Projects', color: textColor } }
       }
     }
   });
-  });
-  // ── Stage duration chart ──
+
   if (cd.avg_stage_labels && cd.avg_stage_labels.length > 0) {
     new Chart(document.getElementById('stageDurationChart'), {
       type: 'bar',
       data: {
         labels: cd.avg_stage_labels,
-        datasets: [{
-          label: 'Avg days in stage',
-          data: cd.avg_stage_days,
-          backgroundColor: '#cecbf6',
-          borderRadius: 4,
-        }]
+        datasets: [{ label: 'Avg days in stage', data: cd.avg_stage_days,
+                     backgroundColor: '#cecbf6', borderRadius: 4 }]
       },
       options: {
         responsive: true,
         plugins: { legend: { display: false } },
         scales: {
           x: { grid: { color: borderColor } },
-          y: {
-            grid: { color: borderColor },
-            beginAtZero: true,
-            title: { display: true, text: 'Days', color: textColor }
-          }
+          y: { grid: { color: borderColor }, beginAtZero: true,
+               title: { display: true, text: 'Days', color: textColor } }
         }
       }
     });
   }
- 
-  // ── Worker utilization chart ──
+
   if (cd.worker_names && cd.worker_names.length > 0) {
     new Chart(document.getElementById('workerUtilChart'), {
       type: 'bar',
       data: {
         labels: cd.worker_names,
-        datasets: [{
-          label: 'Days worked',
-          data: cd.worker_days,
-          backgroundColor: '#9fe1cb',
-          borderRadius: 4,
-          yAxisID: 'y',
-        }, {
-          label: 'Total earned (₹)',
-          data: cd.worker_earned,
-          backgroundColor: '#b5d4f4',
-          borderRadius: 4,
-          yAxisID: 'y2',
-        }]
+        datasets: [
+          { label: 'Days worked',     data: cd.worker_days,   backgroundColor: '#9fe1cb', borderRadius: 4, yAxisID: 'y' },
+          { label: 'Total earned (₹)',data: cd.worker_earned, backgroundColor: '#b5d4f4', borderRadius: 4, yAxisID: 'y2' },
+        ]
       },
       options: {
         responsive: true,
         plugins: { legend: { position: 'bottom' } },
         scales: {
           x: { grid: { color: borderColor } },
-          y: {
-            grid: { color: borderColor },
-            beginAtZero: true,
-            title: { display: true, text: 'Days', color: textColor },
-            position: 'left',
-          },
-          y2: {
-            beginAtZero: true,
-            position: 'right',
-            grid: { drawOnChartArea: false },
-            ticks: {
-              callback: function(v) {
-                return '₹' + (v/1000).toFixed(0) + 'k';
-              }
-            }
-          }
+          y:  { grid: { color: borderColor }, beginAtZero: true, position: 'left',
+                title: { display: true, text: 'Days', color: textColor } },
+          y2: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false },
+                ticks: { callback: function(v) { return '₹' + (v/1000).toFixed(0) + 'k'; } } }
         }
       }
     });
   }
+});
 </script>
-<!-- {# ── AVERAGE DAYS PER STAGE ── #}
-<div class="card" style="margin-bottom:20px">
-  <div class="chart-label">Average days projects spend in each stage</div>
-  <canvas id="stageDurationChart" height="80"></canvas>
-</div>
- 
-{# ── WORKER UTILIZATION ── #}
-<div class="card" style="margin-bottom:20px">
-  <div class="chart-label">Worker utilization — total days worked</div>
-  <canvas id="workerUtilChart" height="80"></canvas>
-</div> -->
 {% endblock %}

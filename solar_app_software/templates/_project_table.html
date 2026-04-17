@@ -1,6 +1,10 @@
 {# _project_table.html — reusable project table partial #}
+
 {% set projects = projects if projects is defined else data.projects %}
 {% if projects %}
+
+{# ── DESKTOP TABLE ── #}
+<div class="table-wrap onsite-desktop-table">
 <table>
   <thead>
     <tr>
@@ -33,6 +37,38 @@
     {% endfor %}
   </tbody>
 </table>
+</div>
+
+{# ── MOBILE CARDS ── #}
+<div class="onsite-mobile-list">
+  {% for p in projects %}
+  <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <a href="{{ url_for('project_detail', pid=p.id) }}"
+         style="font-weight:500;color:var(--amber-600);font-size:14px">{{ p.project_code }}</a>
+      <span class="badge badge-{{ p.status }}">{{ p.status }}</span>
+    </div>
+    <div style="font-size:13px;margin-bottom:2px">{{ p.customer.name }}</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+      <span>{{ p.customer.district }}</span>
+      <span>·</span>
+      <span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span>
+      <span>·</span>
+      <span>{{ p.stage }}</span>
+      <span>·</span>
+      <span>{{ p.days_open }}d open</span>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;display:flex;gap:12px">
+      <span>Inverter: {{ p.inverter_capacity_kw }} kW</span>
+      <span>Panel: {{ p.panel_capacity_kw }} kW</span>
+    </div>
+    <div style="display:flex;justify-content:flex-end">
+      <a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open →</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
 {% else %}
 <div style="text-align:center;padding:32px;color:var(--hint);font-size:13px">No projects found.</div>
 {% endif %}
