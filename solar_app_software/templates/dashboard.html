@@ -565,7 +565,7 @@ document.addEventListener('click', function(e) {
         <td style="font-size:12px;color:var(--muted)">{{ i.project.system_kw }} kW</td>
         <td><span class="badge badge-{{ i.project.project_type }}">{{ i.project.project_type }}</span></td>
         <td>
-          <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}"
+          <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}" value="{{ csrf_token() }}"
                 style="display:flex;gap:6px;align-items:center">
             <input type="hidden" name="status" value="Scheduled">
             <input type="date" name="scheduled_date" required
@@ -613,7 +613,7 @@ document.addEventListener('click', function(e) {
         <td style="font-size:12px;color:var(--muted)">{{ i.project.system_kw }} kW</td>
         <td>{{ i.scheduled_date | date_fmt }}</td>
         <td>
-          <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}"
+          <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}" value="{{ csrf_token() }}"
                 style="display:inline">
             <input type="hidden" name="status" value="Completed">
             <input type="hidden" name="completed_date"

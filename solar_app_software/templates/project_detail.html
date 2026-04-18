@@ -58,7 +58,7 @@
     This will restore <strong>{{ proj.project_code }} — {{ proj.customer.name }}</strong>
     to its previous stage (<strong>{{ proj.stage }}</strong>) and notify the team.
   </p>
-  <form method="POST" action="{{ url_for('uncancel_project', pid=proj.id) }}">
+  <form method="POST" action="{{ url_for('uncancel_project', pid=proj.id) }}" value="{{ csrf_token() }}">
     <div class="form-group" style="margin-bottom:10px">
       <label style="font-size:12px">Reason for reinstatement <span style="color:var(--muted)">(optional)</span></label>
       <textarea name="reason" rows="2" placeholder="e.g. Customer changed their mind…"
@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', function () {
 {% endif %}
 {% if current_user.role in ['admin', 'coordinator', 'documents'] and proj.status not in ['Cancelled', 'Closed'] %}
   {% if proj.status == 'OnHold' %}
-    <form method="POST" action="{{ url_for('hold_project', pid=proj.id) }}" class="d-inline">
+    <form method="POST" action="{{ url_for('hold_project', pid=proj.id) }}" class="d-inline" value="{{ csrf_token() }}">
       <button class="btn btn-success btn-sm" type="submit" style="margin:5px">▶ Resume Project</button>
     </form>
   {% else %}
@@ -187,7 +187,7 @@ document.addEventListener('DOMContentLoaded', function () {
     Are you sure you want to cancel <strong>{{ proj.project_code }} — {{ proj.customer.name }}</strong>?
     This cannot be undone.
   </p>
-  <form method="POST" action="{{ url_for('cancel_project', pid=proj.id) }}">
+  <form method="POST" action="{{ url_for('cancel_project', pid=proj.id) }}" value="{{ csrf_token() }}">
     <div class="form-group" style="margin-bottom:10px">
       <label style="font-size:12px">Reason for cancellation</label>
       <textarea name="reason" rows="2" placeholder="Enter reason…"
@@ -206,7 +206,7 @@ document.addEventListener('DOMContentLoaded', function () {
   <p style="font-size:13px;color:#78350f;margin-bottom:10px">
     This will pause all activity on <strong>{{ proj.project_code }} — {{ proj.customer.name }}</strong>.
   </p>
-  <form method="POST" action="{{ url_for('hold_project', pid=proj.id) }}">
+  <form method="POST" action="{{ url_for('hold_project', pid=proj.id) }}" value="{{ csrf_token() }}">
     <div class="form-group" style="margin-bottom:10px">
       <label style="font-size:12px">Reason <span style="color:var(--muted)">(optional)</span></label>
       <textarea name="reason" rows="2" placeholder="e.g. Waiting for customer documents…"
@@ -238,7 +238,7 @@ function togglePanel(id) {
   {% if current_user.role == 'admin' %}
   <details style="margin-top:10px">
     <summary style="font-size:12px;color:var(--hint);cursor:pointer">Admin override</summary>
-    <form method="POST" action="{{ url_for('update_status', pid=proj.id) }}"
+    <form method="POST" action="{{ url_for('update_status', pid=proj.id) }}" value="{{ csrf_token() }}"
           style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
       <select name="stage">
         {% for s in ['Lead','Site Visit','Documentation','Onsite Work','Connection','Subsidy','Payment'] %}
@@ -279,7 +279,7 @@ function togglePanel(id) {
 </button>
           <div id="complete-visit-{{ v.id }}" style="display:none;margin-top:8px">
             <form method="POST"
-                  action="{{ url_for('complete_site_visit', pid=proj.id, vid=v.id) }}">
+                  action="{{ url_for('complete_site_visit', pid=proj.id, vid=v.id) }}" value="{{ csrf_token() }}">
               <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
                 <div class="form-group" style="margin:0">
                   <label style="font-size:12px">Visit date</label>
@@ -310,7 +310,7 @@ function togglePanel(id) {
   {% endif %}
 
   {% if (proj.stage == 'Lead' or proj.stage == 'Site Visit') and not proj.site_visits %}
-  <form method="POST" action="{{ url_for('add_site_visit', pid=proj.id) }}">
+  <form method="POST" action="{{ url_for('add_site_visit', pid=proj.id) }}" value="{{ csrf_token() }}">
     <div style="display:flex;gap:8px;align-items:flex-end">
       <div class="form-group" style="margin:0">
         <label style="font-size:12px">Schedule date</label>
@@ -418,7 +418,7 @@ function syncStatus(stageSelect) {
 {% if current_user.role in ['admin', 'payments'] %}
   {% for expense in proj.expenses %}
     {% if expense.paid_by == 'Company' and not expense.recovered %}
-    <form method="POST"
+    <form method="POST" value="{{ csrf_token() }}"
           action="{{ url_for('mark_expense_recovered', pid=proj.id, eid=expense.id) }}"
           style="display:inline;margin-right:8px">
       <button type="submit" class="btn btn-sm">
@@ -527,7 +527,7 @@ function syncStatus(stageSelect) {
       <div style="font-size:13px;font-weight:500;margin-bottom:10px">
         Record <span style="color:var(--amber-600)">{{ proj.next_bank_instalment }} bank payment</span>
       </div>
-      <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}">
+      <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}" value="{{ csrf_token() }}">
         <input type="hidden" name="payment_source" value="Bank"/>
         <input type="hidden" name="instalment" value="{{ proj.next_bank_instalment }}"/>
         <div class="form-grid">
@@ -597,7 +597,7 @@ function syncStatus(stageSelect) {
         Record customer payment
         <span style="font-weight:400;color:var(--muted);font-size:12px">(down-payment / remaining balance)</span>
       </div>
-      <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}">
+      <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}" value="{{ csrf_token() }}">
         <input type="hidden" name="payment_source" value="Customer"/>
         <div class="form-grid">
           <div class="form-group">
@@ -658,7 +658,7 @@ function syncStatus(stageSelect) {
     {% if not payment_complete and current_user.role in ['admin','payments'] %}
     <div style="margin-top:16px;border-top:0.5px solid var(--border);padding-top:16px">
       <div style="font-size:13px;font-weight:500;margin-bottom:10px">Record customer payment</div>
-      <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}">
+      <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}" value="{{ csrf_token() }}">
         <input type="hidden" name="payment_source" value="Customer"/>
         <div class="form-grid">
           <div class="form-group">
@@ -890,7 +890,7 @@ function syncStatus(stageSelect) {
       {% if current_user.role in ['admin','onsite'] %}
       <tr id="update-form-{{ a.id }}" style="display:none;background:var(--bg)">
   <td colspan="5" style="padding:12px 14px">
-    <form method="POST" action="{{ url_for('update_assignment', pid=proj.id, aid=a.id) }}">
+    <form method="POST" action="{{ url_for('update_assignment', pid=proj.id, aid=a.id) }}" value="{{ csrf_token() }}">
       <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
         <div>
           <label>Worker</label>
@@ -971,7 +971,7 @@ function syncStatus(stageSelect) {
     </div>
     {% else %}
     <div style="font-size:13px;font-weight:500;margin-bottom:10px">Assign worker</div>
-    <form method="POST" action="{{ url_for('assign_worker', pid=proj.id) }}">
+    <form method="POST" action="{{ url_for('assign_worker', pid=proj.id) }}" value="{{ csrf_token() }}">
       <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
         <div>
           <label>Worker</label>

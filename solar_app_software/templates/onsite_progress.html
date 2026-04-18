@@ -313,7 +313,7 @@
   No Structure workers assigned. Assign a worker before updating progress.
 </div>
 {% endif %}
-    <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
+    <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}" value="{{ csrf_token() }}">
       <div class="form-grid">
         <div class="form-group">
           <label>Status</label>
@@ -358,7 +358,7 @@
 
   {% else %}
   {# ── Active form (not yet completed) ── #}
-  <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
+  <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}" value="{{ csrf_token() }}">
     <div class="form-grid">
       <div class="form-group">
         <label>Status</label>
@@ -426,7 +426,7 @@
     <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.05em">
       Bulk update all materials
     </div>
-    <form method="POST" action="{{ url_for('bulk_update_materials', pid=proj.id) }}">
+    <form method="POST" action="{{ url_for('bulk_update_materials', pid=proj.id) }}" value="{{ csrf_token() }}">
       <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:flex-end"
      class="bulk-form-grid">
         <div>
@@ -484,7 +484,7 @@
 
   <div id="mat-form-{{ m.id }}"
        style="display:none;padding:12px 0 14px;border-bottom:0.5px solid var(--border)">
-    <form method="POST" action="{{ url_for('update_material', pid=proj.id, mid=m.id) }}">
+    <form method="POST" action="{{ url_for('update_material', pid=proj.id, mid=m.id) }}" value="{{ csrf_token() }}">
       <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto auto;gap:10px;align-items:flex-end">
         <div>
           <label>Item name</label>
@@ -528,7 +528,7 @@
   <div style="margin-top:16px;border-top:0.5px solid var(--border);padding-top:14px">
     {% if struct_done and not all_delivered %}
       <div style="font-size:13px;font-weight:500;margin-bottom:10px">Add material</div>
-      <form method="POST" action="{{ url_for('add_material', pid=proj.id) }}">
+      <form method="POST" action="{{ url_for('add_material', pid=proj.id) }}" value="{{ csrf_token() }}">
         <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:flex-end">
           <div>
             <label>Item name</label>
@@ -625,7 +625,7 @@
 {% endif %}
   {# Edit form (hidden by default) #}
   <div id="install-form" style="display:none">
-    <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
+    <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}" value="{{ csrf_token() }}">
       <div class="form-grid">
         <div class="form-group">
           <label>Status</label>
@@ -668,7 +668,7 @@
 
   {% else %}
   {# Active form (unlocked, not yet completed) #}
-  <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
+  <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}" value="{{ csrf_token() }}">
     <div class="form-grid">
       <div class="form-group">
         <label>Status</label>
@@ -761,7 +761,7 @@
 
   {# Edit form (hidden) #}
   <div id="elec-form" style="display:none">
-    <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
+    <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}" value="{{ csrf_token() }}">
       <div class="form-grid">
         <div class="form-group">
           <label>Status</label>
@@ -812,7 +812,7 @@
     No Electrical workers assigned. Assign a worker before updating.
   </div>
   {% endif %}
-  <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
+  <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}" value="{{ csrf_token() }}">
     <div class="form-grid">
       <div class="form-group">
         <label>Status</label>
@@ -960,7 +960,7 @@ document.addEventListener('click', function(e) {
   {% endif %}
  
   {% if current_user.role in ['admin','onsite'] %}
-  <form method="POST" action="{{ url_for('add_onsite_log', pid=proj.id) }}">
+  <form method="POST" action="{{ url_for('add_onsite_log', pid=proj.id) }}" value="{{ csrf_token() }}">
     <div style="display:grid;grid-template-columns:1fr 2fr auto;gap:10px;align-items:flex-end" class="log-form-grid">
       <div>
         <label>Phase</label>

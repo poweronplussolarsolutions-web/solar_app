@@ -148,7 +148,7 @@
             <h5 class="modal-title"><i class="bi bi-brush me-2"></i>Complete Service Visit {{ rec.visit_number }}</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
-          <form method="POST" action="{{ url_for('complete_service', sid=rec.id) }}">
+          <form method="POST" action="{{ url_for('complete_service', sid=rec.id) }}" value="{{ csrf_token() }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="modal-body">
               <div class="row g-3">
@@ -191,7 +191,7 @@
             <h5 class="modal-title">Reschedule Visit {{ rec.visit_number }}</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
-          <form method="POST" action="{{ url_for('reschedule_service', sid=rec.id) }}">
+          <form method="POST" action="{{ url_for('reschedule_service', sid=rec.id) }}" value="{{ csrf_token() }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="modal-body">
               <p class="text-muted small mb-3">
@@ -219,7 +219,7 @@
             <h5 class="modal-title text-danger">Skip Visit {{ rec.visit_number }}</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
-          <form method="POST" action="{{ url_for('skip_service', sid=rec.id) }}">
+          <form method="POST" action="{{ url_for('skip_service', sid=rec.id) }}" value="{{ csrf_token() }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="modal-body">
               <div class="alert alert-warning">Skipping cannot be undone. Please provide a reason.</div>

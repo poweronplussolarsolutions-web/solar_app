@@ -165,7 +165,7 @@
 
           <td data-label="Reschedule" class="td-actions">
             {% if current_user.role in ['admin','appinstall'] %}
-            <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}"
+            <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}" value="{{ csrf_token() }}"
                   style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               <input type="hidden" name="status" value="Scheduled">
               <input type="date" name="scheduled_date"
@@ -180,7 +180,7 @@
 
           <td class="td-actions">
             {% if current_user.role in ['admin','appinstall'] %}
-            <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}"
+            <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}" value="{{ csrf_token() }}"
                   style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               <input type="hidden" name="status" value="Completed"/>
               <input type="hidden" name="completed_date" value="{{ today.strftime('%Y-%m-%d') }}"/>

@@ -6,7 +6,7 @@
 {% endblock %}
 {% block content %}
 <div class="card" style="max-width:640px">
-  <form method="POST">
+  <form method="POST" value="{{ csrf_token() }}">
     <div class="form-grid">
       <div class="form-group">
         <label>KSEB stamp paper</label>
