@@ -4,7 +4,8 @@ Power on Plus Solar Solutions — Flask Web Application
 Run:  python app.py
 Deps: pip install flask flask-sqlalchemy flask-login flask-migrate pymysql flask-wtf flask-limiter
 """
-
+import pymysql
+pymysql.install_as_MySQLdb()
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
