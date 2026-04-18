@@ -489,7 +489,15 @@
         <span class="dot"></span> App Installations
       </a>
       {% endif %}
-
+      {% if current_user.role in ['admin', 'onsite', 'coordinator'] %}
+<li class="nav-item">
+  <a class="nav-link {{ 'active' if request.endpoint == 'service_dashboard' }}"
+     href="{{ url_for('service_dashboard') }}">
+    <i class="bi bi-tools me-2"></i>Service AMC
+    <span id="service-badge" class="badge bg-danger ms-1" style="display:none"></span>
+  </a>
+</li>
+{% endif %}
       {% if current_user.role == 'admin' %}
       <div class="nav-section">Admin</div>
       <a class="nav-link {% if request.endpoint == 'admin_analytics' %}active{% endif %}" href="{{ url_for('admin_analytics') }}">

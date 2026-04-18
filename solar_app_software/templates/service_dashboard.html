@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% block title %}Service Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+
+  {# ── Header ────────────────────────────────────────────────────────────── #}
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h2 class="mb-0 fw-bold" style="color:#1A3C5E">
+        <i class="bi bi-tools me-2 text-warning"></i>Solar Service Management
+      </h2>
+      <small class="text-muted">Post-installation AMC — 5 visits over 5 years</small>
+    </div>
+    <div class="text-end">
+      <span class="text-muted small">Today: {{ today.strftime('%d %b %Y') }}</span>
+    </div>
+  </div>
+
+  {# ── Stat cards ────────────────────────────────────────────────────────── #}
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #dc3545 !important;border-radius:10px;">
+        <div class="card-body py-3">
+          <div class="d-flex align-items-center gap-2">
+            <div class="rounded-circle d-flex align-items-center justify-content-center"
+                 style="width:40px;height:40px;background:#fff3cd">
+              <i class="bi bi-exclamation-triangle-fill text-danger fs-5"></i>
+            </div>
+            <div>
+              <div class="fw-bold fs-3 lh-1 text-danger">{{ overdue|length }}</div>
+              <div class="text-muted small">Overdue</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #fd7e14 !important;border-radius:10px;">
+        <div class="card-body py-3">
+          <div class="d-flex align-items-center gap-2">
+            <div class="rounded-circle d-flex align-items-center justify-content-center"
+                 style="width:40px;height:40px;background:#fff3cd">
+              <i class="bi bi-clock-fill text-warning fs-5"></i>
+            </div>
+            <div>
+              <div class="fw-bold fs-3 lh-1" style="color:#fd7e14">{{ due|length }}</div>
+              <div class="text-muted small">Due (next 30d)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #0d6efd !important;border-radius:10px;">
+        <div class="card-body py-3">
+          <div class="d-flex align-items-center gap-2">
+            <div class="rounded-circle d-flex align-items-center justify-content-center"
+                 style="width:40px;height:40px;background:#e7f0ff">
+              <i class="bi bi-calendar2-check text-primary fs-5"></i>
+            </div>
+            <div>
+              <div class="fw-bold fs-3 lh-1 text-primary">{{ total_active }}</div>
+              <div class="text-muted small">Active visits</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #198754 !important;border-radius:10px;">
+        <div class="card-body py-3">
+          <div class="d-flex align-items-center gap-2">
+            <div class="rounded-circle d-flex align-items-center justify-content-center"
+                 style="width:40px;height:40px;background:#d1e7dd">
+              <i class="bi bi-check-circle-fill text-success fs-5"></i>
+            </div>
+            <div>
+              <div class="fw-bold fs-3 lh-1 text-success">{{ completed_year }}</div>
+              <div class="text-muted small">Done this year</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Overdue ───────────────────────────────────────────────────────────── #}
+  {% if overdue %}
+  <div class="card border-0 shadow-sm mb-4" style="border-radius:12px;border-top:3px solid #dc3545 !important">
+    <div class="card-header bg-white d-flex align-items-center gap-2 py-3" style="border-radius:12px 12px 0 0">
+      <i class="bi bi-exclamation-circle-fill text-danger"></i>
+      <span class="fw-semibold">Overdue Visits</span>
+      <span class="badge bg-danger ms-1">{{ overdue|length }}</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Project</th>
+              <th>Customer</th>
+              <th>Visit #</th>
+              <th>Scheduled</th>
+              <th>Days Overdue</th>
+              <th class="pe-3">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for rec in overdue %}
+            <tr>
+              <td class="ps-3">
+                <a href="{{ url_for('project_service', pid=rec.project_id) }}"
+                   class="fw-semibold text-decoration-none text-primary">
+                  {{ rec.project.project_code }}
+                </a>
+              </td>
+              <td>{{ rec.project.customer.name }}</td>
+              <td><span class="badge bg-secondary">Visit {{ rec.visit_number }}</span></td>
+              <td class="text-danger">{{ rec.scheduled_date.strftime('%d %b %Y') }}</td>
+              <td>
+                {% set days = (today - rec.scheduled_date).days %}
+                <span class="badge bg-danger">{{ days }} day{{ 's' if days != 1 }}</span>
+              </td>
+              <td class="pe-3">
+                <a href="{{ url_for('project_service', pid=rec.project_id) }}"
+                   class="btn btn-sm btn-outline-danger">
+                  <i class="bi bi-wrench me-1"></i>Service Now
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Due Soon ──────────────────────────────────────────────────────────── #}
+  {% if due %}
+  <div class="card border-0 shadow-sm mb-4" style="border-radius:12px;border-top:3px solid #fd7e14 !important">
+    <div class="card-header bg-white d-flex align-items-center gap-2 py-3" style="border-radius:12px 12px 0 0">
+      <i class="bi bi-clock-fill text-warning"></i>
+      <span class="fw-semibold">Due in Next 30 Days</span>
+      <span class="badge" style="background:#fd7e14">{{ due|length }}</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Project</th>
+              <th>Customer</th>
+              <th>kW</th>
+              <th>Visit #</th>
+              <th>Scheduled</th>
+              <th>Days Until</th>
+              <th class="pe-3">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for rec in due %}
+            <tr>
+              <td class="ps-3">
+                <a href="{{ url_for('project_service', pid=rec.project_id) }}"
+                   class="fw-semibold text-decoration-none text-primary">
+                  {{ rec.project.project_code }}
+                </a>
+              </td>
+              <td>{{ rec.project.customer.name }}</td>
+              <td>{{ rec.project.inverter_capacity_kw }} kW</td>
+              <td><span class="badge bg-secondary">Visit {{ rec.visit_number }}</span></td>
+              <td>{{ rec.scheduled_date.strftime('%d %b %Y') }}</td>
+              <td>
+                {% set days = (rec.scheduled_date - today).days %}
+                <span class="badge bg-warning text-dark">{{ days }} day{{ 's' if days != 1 }}</span>
+              </td>
+              <td class="pe-3">
+                <a href="{{ url_for('project_service', pid=rec.project_id) }}"
+                   class="btn btn-sm btn-outline-warning">
+                  <i class="bi bi-calendar-check me-1"></i>Plan
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Upcoming preview ──────────────────────────────────────────────────── #}
+  <div class="card border-0 shadow-sm mb-4" style="border-radius:12px">
+    <div class="card-header bg-white d-flex align-items-center gap-2 py-3" style="border-radius:12px 12px 0 0">
+      <i class="bi bi-calendar2 text-primary"></i>
+      <span class="fw-semibold">Upcoming Visits</span>
+      <span class="badge bg-primary">Next 20</span>
+    </div>
+    <div class="card-body p-0">
+      {% if upcoming %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Project</th>
+              <th>Customer</th>
+              <th>District</th>
+              <th>kW</th>
+              <th>Visit #</th>
+              <th class="pe-3">Scheduled</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for rec in upcoming %}
+            <tr>
+              <td class="ps-3">
+                <a href="{{ url_for('project_service', pid=rec.project_id) }}"
+                   class="fw-semibold text-decoration-none text-primary">
+                  {{ rec.project.project_code }}
+                </a>
+              </td>
+              <td>{{ rec.project.customer.name }}</td>
+              <td class="text-muted">{{ rec.project.customer.district or '—' }}</td>
+              <td>{{ rec.project.inverter_capacity_kw }} kW</td>
+              <td><span class="badge bg-light text-dark border">Visit {{ rec.visit_number }}</span></td>
+              <td class="pe-3 text-muted">{{ rec.scheduled_date.strftime('%d %b %Y') }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center py-5 text-muted">
+        <i class="bi bi-calendar-check fs-1 mb-2 d-block opacity-25"></i>
+        No upcoming visits scheduled.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Recently Completed ────────────────────────────────────────────────── #}
+  {% if recent %}
+  <div class="card border-0 shadow-sm" style="border-radius:12px">
+    <div class="card-header bg-white d-flex align-items-center gap-2 py-3" style="border-radius:12px 12px 0 0">
+      <i class="bi bi-check2-all text-success"></i>
+      <span class="fw-semibold">Recently Completed</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Project</th>
+              <th>Customer</th>
+              <th>Visit #</th>
+              <th>Completed</th>
+              <th>Checklist</th>
+              <th class="pe-3">By</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for rec in recent %}
+            <tr>
+              <td class="ps-3">
+                <a href="{{ url_for('project_service', pid=rec.project_id) }}"
+                   class="fw-semibold text-decoration-none text-primary">
+                  {{ rec.project.project_code }}
+                </a>
+              </td>
+              <td>{{ rec.project.customer.name }}</td>
+              <td><span class="badge bg-success">Visit {{ rec.visit_number }}</span></td>
+              <td>{{ rec.completed_date.strftime('%d %b %Y') if rec.completed_date else '—' }}</td>
+              <td>
+                <div class="progress" style="height:8px;width:80px">
+                  <div class="progress-bar bg-success" style="width:{{ rec.checklist_pct }}%"></div>
+                </div>
+                <small class="text-muted">{{ rec.checklist_pct }}%</small>
+              </td>
+              <td class="pe-3 text-muted small">
+                {{ rec.technician.full_name if rec.technician else '—' }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -469,6 +469,49 @@ class AppInstallation(db.Model):
     project        = db.relationship('Project', backref=db.backref('app_install', uselist=False))
 
 
+class ServiceRecord(db.Model):
+   
+    __tablename__ = 'service_records'
+ 
+    id              = db.Column(db.Integer, primary_key=True)
+    project_id      = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+ 
+    visit_number    = db.Column(db.Integer, nullable=False)          # 1–5
+    scheduled_date  = db.Column(db.Date, nullable=False)
+    completed_date  = db.Column(db.Date, nullable=True)
+    conducted_by    = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+ 
+    status          = db.Column(
+        db.Enum('Upcoming', 'Due', 'Overdue', 'Completed', 'Skipped'),
+        default='Upcoming', nullable=False
+    )
+ 
+    # Checklist
+    panel_cleaning         = db.Column(db.Boolean, default=False)
+    
+    notes                  = db.Column(db.Text, nullable=True)
+ 
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at  = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+ 
+    project     = db.relationship('Project', backref='service_records')
+    technician  = db.relationship('User', foreign_keys=[conducted_by])
+ 
+    @property
+    def checklist_pct(self):
+        items = [self.panel_cleaning, self.inverter_check, self.wiring_inspection,
+                 self.mounting_check, self.performance_reading]
+        done  = sum(1 for i in items if i)
+        return int(done / len(items) * 100)
+ 
+    @property
+    def is_overdue(self):
+        return (
+            self.status not in ('Completed', 'Skipped')
+            and self.scheduled_date < date.today()
+        )
+
+
 class SiteVisit(db.Model):
     __tablename__ = 'site_visits'
     id             = db.Column(db.Integer, primary_key=True)
@@ -686,7 +729,48 @@ def log_action(project_id, action, old_val=None, new_val=None):
         done_by=current_user.id,
     )
     db.session.add(entry)
-
+def create_service_schedule(project):
+    if ServiceRecord.query.filter_by(project_id=project.id).first():
+        return
+ 
+    base = date.today()
+    for visit_num in range(1, 6):
+        months_ahead = visit_num * 6
+        year_offset, month_offset = divmod(base.month - 1 + months_ahead, 12)
+        sched = base.replace(year=base.year + year_offset, month=month_offset + 1)
+        db.session.add(ServiceRecord(
+            project_id     = project.id,
+            visit_number   = visit_num,
+            scheduled_date = sched,
+            status         = 'Upcoming',
+        ))
+ 
+    notify_onsite_team(project.id,
+        f'Service schedule created for {project.project_code} — {project.customer.name}. '
+        f'5 panel-cleaning visits over 5 years starting {base.strftime("%d %b %Y")}.', 'info')
+    log_action(project.id, 'Service schedule created (5 visits x 6 months)', new_val='Upcoming')
+def refresh_service_statuses():
+   
+    today    = date.today()
+    due_soon = today + timedelta(days=30)
+ 
+    pending = ServiceRecord.query.filter(
+        ServiceRecord.status.in_(['Upcoming', 'Due'])
+    ).all()
+ 
+    changed = False
+    for rec in pending:
+        if rec.scheduled_date < today:
+            if rec.status != 'Overdue':
+                rec.status = 'Overdue'
+                changed = True
+        elif rec.scheduled_date <= due_soon:
+            if rec.status != 'Due':
+                rec.status = 'Due'
+                changed = True
+ 
+    if changed:
+        db.session.commit()
 
 def auto_advance_stage(proj):
     if proj.status in ('Cancelled', 'OnHold', 'Completed', 'Closed'):
@@ -744,6 +828,8 @@ def auto_advance_stage(proj):
         sub = proj.subsidy
         if sub and sub.status == 'Redeemed':
             proj.status = 'Completed'
+    if proj.status in ('Completed', 'Closed'):
+        create_service_schedule(proj)
 
     if proj.stage != old_stage or proj.status != old_status:
         proj.stage_changed_at = datetime.utcnow()
@@ -2546,7 +2632,132 @@ def installations():
     return render_template('installations.html',
         pending=AppInstallation.query.filter_by(status='Pending').all(),
         completed=AppInstallation.query.filter_by(status='Completed').all(), today=date.today())
-
+@app.route('/service')
+@login_required
+@roles_required('admin', 'onsite', 'coordinator')
+def service_dashboard():
+    refresh_service_statuses()
+    today    = date.today()
+ 
+    overdue  = ServiceRecord.query.filter_by(status='Overdue').order_by(ServiceRecord.scheduled_date).all()
+    due      = ServiceRecord.query.filter_by(status='Due').order_by(ServiceRecord.scheduled_date).all()
+    upcoming = ServiceRecord.query.filter_by(status='Upcoming').order_by(ServiceRecord.scheduled_date).limit(20).all()
+    recent   = (ServiceRecord.query
+                .filter_by(status='Completed')
+                .order_by(ServiceRecord.completed_date.desc())
+                .limit(10).all())
+ 
+    completed_year = ServiceRecord.query.filter(
+        ServiceRecord.status == 'Completed',
+        db.extract('year', ServiceRecord.completed_date) == today.year,
+    ).count()
+    total_active = ServiceRecord.query.filter(
+        ServiceRecord.status.in_(['Upcoming','Due','Overdue'])
+    ).count()
+ 
+    return render_template('service_dashboard.html',
+        overdue=overdue, due=due, upcoming=upcoming, recent=recent,
+        total_due=len(overdue)+len(due), completed_year=completed_year,
+        total_active=total_active, today=today)
+ 
+ 
+@app.route('/projects/<int:pid>/service')
+@login_required
+def project_service(pid):
+    proj    = Project.query.get_or_404(pid)
+    records = (ServiceRecord.query
+               .filter_by(project_id=pid)
+               .order_by(ServiceRecord.visit_number).all())
+    refresh_service_statuses()
+    return render_template('project_service.html', proj=proj, records=records, today=date.today())
+ 
+ 
+@app.route('/service/<int:sid>/complete', methods=['POST'])
+@login_required
+@roles_required('admin', 'onsite')
+def complete_service(sid):
+    rec = ServiceRecord.query.get_or_404(sid)
+    if rec.status == 'Completed':
+        flash('This service visit is already marked complete.', 'warning')
+        return redirect(url_for('project_service', pid=rec.project_id))
+ 
+    rec.status         = 'Completed'
+    rec.completed_date = (date.fromisoformat(request.form['completed_date'])
+                          if request.form.get('completed_date') else date.today())
+    rec.conducted_by   = current_user.id
+ 
+    rec.panel_cleaning      = 'panel_cleaning'      in request.form
+    # rec.inverter_check      = 'inverter_check'      in request.form
+    # rec.wiring_inspection   = 'wiring_inspection'   in request.form
+    # rec.mounting_check      = 'mounting_check'      in request.form
+    # rec.performance_reading = 'performance_reading' in request.form
+ 
+    # gen = request.form.get('generation_kwh', '').strip()
+    # rec.generation_kwh = float(gen) if gen else None
+    # rec.issues_found   = _clean(request.form.get('issues_found', ''), 1000)
+    # rec.work_done      = _clean(request.form.get('work_done', ''), 1000)
+    rec.notes          = _clean(request.form.get('notes', ''), 1000)
+ 
+    proj = rec.project
+    log_action(rec.project_id,
+        f'Service visit #{rec.visit_number} completed (checklist {rec.checklist_pct}%)',
+        new_val='Completed')
+ 
+    if proj.coordinator_id:
+        create_notification(proj.coordinator_id, rec.project_id,
+            f'{proj.project_code} — {proj.customer.name}: Service visit #{rec.visit_number} '
+            f'completed by {current_user.full_name}.', 'info')
+ 
+    db.session.commit()
+    flash(f'Service visit #{rec.visit_number} marked complete. Checklist: {rec.checklist_pct}%', 'success')
+    return redirect(url_for('project_service', pid=rec.project_id))
+ 
+ 
+@app.route('/service/<int:sid>/skip', methods=['POST'])
+@login_required
+@roles_required('admin')
+def skip_service(sid):
+    rec        = ServiceRecord.query.get_or_404(sid)
+    reason     = _clean(request.form.get('reason', ''), 500)
+    rec.status = 'Skipped'
+    rec.notes  = reason
+    log_action(rec.project_id,
+        f'Service visit #{rec.visit_number} skipped. Reason: {reason or "None"}',
+        old_val=rec.status, new_val='Skipped')
+    db.session.commit()
+    flash(f'Service visit #{rec.visit_number} skipped.', 'warning')
+    return redirect(url_for('project_service', pid=rec.project_id))
+ 
+ 
+@app.route('/service/<int:sid>/reschedule', methods=['POST'])
+@login_required
+@roles_required('admin', 'onsite')
+def reschedule_service(sid):
+    rec           = ServiceRecord.query.get_or_404(sid)
+    new_date_str  = request.form.get('new_date', '')
+    if not new_date_str:
+        flash('Please provide a new date.', 'danger')
+        return redirect(url_for('project_service', pid=rec.project_id))
+    old_date           = rec.scheduled_date
+    rec.scheduled_date = date.fromisoformat(new_date_str)
+    rec.status         = 'Upcoming'
+    log_action(rec.project_id, f'Service visit #{rec.visit_number} rescheduled',
+               old_val=str(old_date), new_val=str(rec.scheduled_date))
+    db.session.commit()
+    flash(f'Visit #{rec.visit_number} rescheduled to {rec.scheduled_date.strftime("%d %b %Y")}.', 'success')
+    return redirect(url_for('project_service', pid=rec.project_id))
+ 
+ 
+@app.route('/api/service_stats')
+@login_required
+def api_service_stats():
+    refresh_service_statuses()
+    return jsonify({
+        'overdue':         ServiceRecord.query.filter_by(status='Overdue').count(),
+        'due':             ServiceRecord.query.filter_by(status='Due').count(),
+        'upcoming':        ServiceRecord.query.filter_by(status='Upcoming').count(),
+        'completed_total': ServiceRecord.query.filter_by(status='Completed').count(),
+    })
 
 @app.route('/projects/<int:pid>/installation', methods=['POST'])
 @login_required
@@ -2563,6 +2774,7 @@ def update_installation(pid):
         proj.status = 'Completed'
         proj.stage  = 'App Installation'
         log_action(pid, 'App installation completed', new_val='Completed')
+        create_service_schedule(proj)
     if not install.id:
         db.session.add(install)
     db.session.flush()
