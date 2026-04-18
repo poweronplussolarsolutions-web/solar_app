@@ -87,7 +87,7 @@ if not _secret:
     )
     _secret = 'solar-dev-only-insecure-key-change-me'
 app.config['SECRET_KEY'] = _secret
-
+db_port=os.getenv("DB_PORT")or"3306"
 app.config['SQLALCHEMY_DATABASE_URI'] = (
     f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}"
     f"@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
@@ -118,7 +118,7 @@ def get_db_connection():
 
 import mysql.connector
 import os
-app.secret_key=os.getenv("SECRET_KEY")
+# app.secret_key=os.getenv("SECRET_KEY")
 # ── CSRF protection (covers all POST/PUT/DELETE forms automatically) ──────────
 csrf = CSRFProtect(app)
 
