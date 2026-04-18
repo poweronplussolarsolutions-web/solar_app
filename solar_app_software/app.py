@@ -3348,10 +3348,12 @@ if __name__ == '__main__':
     debug = os.environ.get('FLASK_ENV') != 'production'
     app.run(debug=debug, port=5000)
 
+from sqlalchemy import text
+
 @app.route('/db-check')
 def db_check():
     try:
-        result = db.session.execute("SHOW TABLES;")
+        result = db.session.execute(text("SHOW TABLES;"))
         tables = [row[0] for row in result]
         return f"Connected ✅ Tables: {tables}"
     except Exception as e:
