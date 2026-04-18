@@ -3347,3 +3347,12 @@ if __name__ == '__main__':
     # Never run debug=True in production
     debug = os.environ.get('FLASK_ENV') != 'production'
     app.run(debug=debug, port=5000)
+
+@app.route('/db-check')
+def db_check():
+    try:
+        result = db.session.execute("SHOW TABLES;")
+        tables = [row[0] for row in result]
+        return f"Connected ✅ Tables: {tables}"
+    except Exception as e:
+        return f"Error ❌ {str(e)}"
