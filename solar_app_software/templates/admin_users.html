@@ -131,7 +131,8 @@
       </div>
       <div class="user-card-actions">
         {% if u.id != current_user.id %}
-          <form method="POST" action="{{ url_for('change_user_status', user_id=u.id) }}" style="display:contents" value="{{ csrf_token }}">
+          <form method="POST" action="{{ url_for('change_user_status', user_id=u.id) }}" style="display:contents">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             {% if u.status != 'active' %}
               <button name="status" value="active" class="btn btn-sm btn-success">✓ Activate</button>
             {% endif %}
@@ -140,9 +141,10 @@
             {% endif %}
           </form>
           <a href="{{ url_for('edit_user', user_id=u.id) }}" class="btn btn-sm">Edit</a>
-          <form method="POST" action="{{ url_for('delete_user', user_id=u.id) }}" value="{{ csrf_token }}"
+          <form method="POST" action="{{ url_for('delete_user', user_id=u.id) }}" 
                 style="display:inline"
                 onsubmit="return confirm('Delete {{ u.username }}? This cannot be undone.')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="btn btn-sm btn-danger"
                     {% if u.id == current_user.id %}disabled{% endif %}>Delete</button>
           </form>
