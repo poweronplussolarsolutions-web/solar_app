@@ -2,181 +2,503 @@
 {% block title %}Service — {{ proj.project_code }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
-  <nav aria-label="breadcrumb" class="mb-3">
-    <ol class="breadcrumb mb-0 small">
-      <li class="breadcrumb-item"><a href="{{ url_for('project_detail', pid=proj.id) }}">{{ proj.project_code }}</a></li>
-      <li class="breadcrumb-item active">Service Schedule</li>
+  .svc-page { font-family: 'DM Sans', sans-serif; }
+
+  /* ── Timeline track ────────────────────────────────────────────────── */
+  .visit-timeline { position: relative; }
+  .visit-timeline::before {
+    content: '';
+    position: absolute;
+    left: 23px;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, #e2e8f0 0%, #e2e8f0 100%);
+    z-index: 0;
+  }
+
+  /* ── Visit card ────────────────────────────────────────────────────── */
+  .visit-card {
+    position: relative;
+    display: flex;
+    gap: 20px;
+    padding: 0 0 24px 0;
+    z-index: 1;
+  }
+  .visit-card:last-child { padding-bottom: 0; }
+
+  .visit-node {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.95rem;
+    font-weight: 500;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 2px var(--node-color, #94a3b8);
+    background: #fff;
+    color: var(--node-color, #94a3b8);
+    position: relative;
+    z-index: 2;
+    transition: transform .2s ease, box-shadow .2s ease;
+  }
+  .visit-card:hover .visit-node {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 2px var(--node-color, #94a3b8), 0 4px 16px rgba(0,0,0,.12);
+  }
+
+  .visit-node.done  { --node-color:#16a34a; background:#f0fdf4; }
+  .visit-node.over  { --node-color:#dc2626; background:#fef2f2; }
+  .visit-node.due   { --node-color:#ea580c; background:#fff7ed; }
+  .visit-node.skip  { --node-color:#9ca3af; background:#f9fafb; }
+  .visit-node.upcoming { --node-color:#2563eb; background:#eff6ff; }
+
+  .visit-body {
+    flex: 1;
+    background: #fff;
+    border: 1px solid #e8edf3;
+    border-radius: 14px;
+    padding: 18px 20px;
+    transition: box-shadow .2s ease, border-color .2s ease;
+  }
+  .visit-card:hover .visit-body {
+    box-shadow: 0 4px 20px rgba(0,0,0,.07);
+    border-color: #d1dae6;
+  }
+
+  .visit-body.done  { border-left: 4px solid #16a34a; }
+  .visit-body.over  { border-left: 4px solid #dc2626; background:#fefcfc; }
+  .visit-body.due   { border-left: 4px solid #ea580c; background:#fffaf7; }
+  .visit-body.skip  { border-left: 4px solid #d1d5db; opacity: .75; }
+  .visit-body.upcoming { border-left: 4px solid #2563eb; }
+
+  /* ── Status pill ───────────────────────────────────────────────────── */
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+  .pill-done     { background:#dcfce7; color:#15803d; }
+  .pill-overdue  { background:#fee2e2; color:#b91c1c; }
+  .pill-due      { background:#ffedd5; color:#c2410c; }
+  .pill-skip     { background:#f3f4f6; color:#6b7280; }
+  .pill-upcoming { background:#dbeafe; color:#1d4ed8; }
+
+  /* ── Checklist chip ────────────────────────────────────────────────── */
+  .check-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+  .check-chip.done { background:#f0fdf4; color:#16a34a; border: 1px solid #bbf7d0; }
+
+  /* ── Action buttons ────────────────────────────────────────────────── */
+  .svc-btn {
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 8px;
+    letter-spacing: .02em;
+    transition: all .15s ease;
+  }
+  .svc-btn:hover { transform: translateY(-1px); }
+  .svc-btn-complete { background:#16a34a; color:#fff; border: none; }
+  .svc-btn-complete:hover { background:#15803d; color:#fff; }
+  .svc-btn-reschedule { background:#fff; color:#374151; border: 1px solid #d1d5db; }
+  .svc-btn-reschedule:hover { background:#f9fafb; border-color:#9ca3af; }
+  .svc-btn-skip { background:#fff; color:#dc2626; border: 1px solid #fca5a5; }
+  .svc-btn-skip:hover { background:#fef2f2; }
+
+  /* ── Progress bar header ───────────────────────────────────────────── */
+  .progress-ring-wrap { position: relative; width: 60px; height: 60px; }
+  .progress-ring-wrap svg { transform: rotate(-90deg); }
+  .ring-bg { fill: none; stroke: #e2e8f0; stroke-width: 5; }
+  .ring-fg { fill: none; stroke: #16a34a; stroke-width: 5;
+             stroke-linecap: round; transition: stroke-dashoffset .6s ease; }
+  .ring-label {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem; font-weight: 500; color: #374151;
+  }
+
+  /* ── Modal ─────────────────────────────────────────────────────────── */
+  .svc-modal .modal-content {
+    border: none;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,.15);
+  }
+  .svc-modal .modal-header {
+    background: #1A3C5E;
+    color: #fff;
+    padding: 18px 24px;
+    border: none;
+  }
+  .svc-modal .modal-body { padding: 24px; }
+  .svc-modal .modal-footer { padding: 16px 24px; border-top: 1px solid #f1f5f9; }
+  .svc-modal .form-control, .svc-modal .form-select {
+    border-radius: 8px;
+    border: 1px solid #dde3ea;
+    font-size: 0.9rem;
+    padding: 8px 12px;
+  }
+  .svc-modal .form-control:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+  .svc-modal .form-label { font-size: 0.82rem; font-weight: 600; color: #374151; margin-bottom: 6px; }
+
+  .panel-check-box {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border: 1.5px solid #86efac;
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: all .15s ease;
+  }
+  .panel-check-box:hover { border-color: #4ade80; background: #dcfce7; }
+  .panel-check-box input { width: 18px; height: 18px; accent-color: #16a34a; cursor: pointer; }
+  .panel-check-box label { font-weight: 600; color: #15803d; font-size: 0.9rem; cursor: pointer; margin: 0; }
+
+  /* ── Header stat cards ─────────────────────────────────────────────── */
+  .hdr-stat { 
+    background:#fff; border:1px solid #e8edf3; border-radius:10px; 
+    padding:12px 18px; text-align:center;
+  }
+  .hdr-stat .val { font-family:'DM Mono',monospace; font-size:1.5rem; font-weight:500; line-height:1; }
+  .hdr-stat .lbl { font-size:0.72rem; color:#6b7280; margin-top:3px; text-transform:uppercase; letter-spacing:.05em; }
+
+  /* ── Empty state ───────────────────────────────────────────────────── */
+  .empty-service {
+    background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
+    border: 2px dashed #c7d7ed;
+    border-radius: 16px;
+    padding: 48px 24px;
+    text-align: center;
+  }
+
+  /* ── Technician tag ────────────────────────────────────────────────── */
+  .tech-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.75rem; color: #6b7280; background:#f9fafb;
+    border: 1px solid #e5e7eb; border-radius: 20px; padding: 2px 10px;
+  }
+</style>
+
+<div class="container-fluid py-4 svc-page" style="max-width:860px">
+
+  {# ── Breadcrumb ──────────────────────────────────────────────────────── #}
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb mb-0" style="font-size:.82rem">
+      <li class="breadcrumb-item">
+        <a href="{{ url_for('service_dashboard') }}" class="text-decoration-none text-muted">
+          <i class="bi bi-tools me-1"></i>Service
+        </a>
+      </li>
+      <li class="breadcrumb-item">
+        <a href="{{ url_for('project_detail', pid=proj.id) }}" class="text-decoration-none text-muted">
+          {{ proj.project_code }}
+        </a>
+      </li>
+      <li class="breadcrumb-item active text-dark fw-semibold">Schedule</li>
     </ol>
   </nav>
 
-  <div class="card border-0 shadow-sm mb-4" style="border-radius:12px;border-left:5px solid #1A3C5E !important">
-    <div class="card-body py-3">
-      <div class="row align-items-center">
-        <div class="col">
-          <h5 class="mb-1 fw-bold" style="color:#1A3C5E">
-            {{ proj.project_code }} — {{ proj.customer.name }}
-          </h5>
-          <span class="badge bg-primary me-1">{{ proj.inverter_capacity_kw }} kW</span>
-          <span class="badge bg-secondary me-1">{{ proj.project_type }}</span>
-          {% if proj.project_subtype %}
-          <span class="badge bg-info text-dark me-1">{{ proj.project_subtype }}</span>
-          {% endif %}
-          <span class="text-muted small ms-2">
-            <i class="bi bi-geo-alt me-1"></i>{{ proj.customer.district or '' }}
-            {% if proj.customer.address %}, {{ proj.customer.address[:60] }}{% endif %}
-          </span>
+  {# ── Project header ──────────────────────────────────────────────────── #}
+  {% set completed_count = records | selectattr('status','equalto','Completed') | list | length %}
+  {% set total = records | length %}
+  {% set pct = ((completed_count / total) * 100) | int if total > 0 else 0 %}
+  {% set circumference = 157 %}
+  {% set offset = circumference - (circumference * pct / 100) %}
+
+  <div class="card border-0 shadow-sm mb-5" style="border-radius:16px; overflow:hidden">
+    <div style="background:linear-gradient(135deg,#1A3C5E 0%,#1e5a8a 100%); padding:20px 24px">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+        <div>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span style="font-family:'DM Mono',monospace;font-size:1.25rem;font-weight:500;color:#fff">
+              {{ proj.project_code }}
+            </span>
+            <span style="color:#93c5fd;font-size:0.85rem">·</span>
+            <span style="color:#e2e8f0;font-size:0.9rem">{{ proj.customer.name }}</span>
+          </div>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="badge" style="background:rgba(255,255,255,.15);font-size:.72rem;font-weight:500">
+              <i class="bi bi-lightning me-1"></i>{{ proj.inverter_capacity_kw }} kW
+            </span>
+            <span class="badge" style="background:rgba(255,255,255,.12);font-size:.72rem;font-weight:500">
+              {{ proj.project_type }}
+            </span>
+            {% if proj.project_subtype %}
+            <span class="badge" style="background:rgba(255,255,255,.12);font-size:.72rem;font-weight:500">
+              {{ proj.project_subtype }}
+            </span>
+            {% endif %}
+            {% if proj.customer.district %}
+            <span style="color:#93c5fd;font-size:.78rem">
+              <i class="bi bi-geo-alt me-1"></i>{{ proj.customer.district }}
+            </span>
+            {% endif %}
+          </div>
         </div>
-        <div class="col-auto">
-          {% set completed_count = records | selectattr('status','equalto','Completed') | list | length %}
-          {% set total = records | length %}
-          <div class="text-center">
-            <div class="fw-bold fs-4 lh-1 text-success">{{ completed_count }}<span class="text-muted fs-6">/{{ total }}</span></div>
-            <div class="text-muted small">Visits done</div>
+        <div class="d-flex align-items-center gap-3">
+          <div class="hdr-stat" style="background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.15)">
+            <div class="val" style="color:#fff">{{ completed_count }}<span style="font-size:.9rem;color:#93c5fd">/{{ total }}</span></div>
+            <div class="lbl" style="color:#93c5fd">Visits done</div>
+          </div>
+          <div class="progress-ring-wrap">
+            <svg width="60" height="60" viewBox="0 0 60 60">
+              <circle class="ring-bg" cx="30" cy="30" r="25"/>
+              <circle class="ring-fg" cx="30" cy="30" r="25"
+                      stroke-dasharray="{{ circumference }}"
+                      stroke-dashoffset="{{ offset }}"/>
+            </svg>
+            <div class="ring-label">{{ pct }}%</div>
           </div>
         </div>
       </div>
     </div>
+
+    {# mini stats bar #}
+    {% if records %}
+    {% set overdue_c = records | selectattr('status','equalto','Overdue') | list | length %}
+    {% set due_c     = records | selectattr('status','equalto','Due')     | list | length %}
+    {% set upcoming_c= records | selectattr('status','equalto','Upcoming')| list | length %}
+    <div class="d-flex" style="border-top:1px solid #f1f5f9">
+      {% for label, count, color in [
+        ('Completed', completed_count, '#16a34a'),
+        ('Overdue',   overdue_c,  '#dc2626'),
+        ('Due soon',  due_c,      '#ea580c'),
+        ('Upcoming',  upcoming_c, '#2563eb'),
+      ] %}
+      <div class="flex-fill text-center py-2 px-1" style="border-right:1px solid #f1f5f9">
+        <div style="font-family:'DM Mono',monospace;font-size:1.1rem;font-weight:500;color:{{ color }}">{{ count }}</div>
+        <div style="font-size:.68rem;color:#9ca3af;text-transform:uppercase;letter-spacing:.04em">{{ label }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
   </div>
 
+  {# ── No records ──────────────────────────────────────────────────────── #}
   {% if not records %}
-  <div class="alert alert-info d-flex align-items-center gap-2" style="border-radius:10px">
-    <i class="bi bi-info-circle fs-5"></i>
-    <div>
-      Service visits are automatically scheduled when the project is marked
-      <strong>Completed</strong>. Complete the project to activate the service schedule.
+  <div class="empty-service">
+    <div style="width:64px;height:64px;background:#dbeafe;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+      <i class="bi bi-calendar-x" style="font-size:1.6rem;color:#2563eb"></i>
+    </div>
+    <div style="font-size:1rem;font-weight:600;color:#374151;margin-bottom:8px">No service schedule yet</div>
+    <div style="font-size:0.85rem;color:#6b7280;max-width:340px;margin:0 auto">
+      Service visits are automatically created when this project is marked
+      <strong>Completed</strong>. 5 visits will be scheduled 6 months apart.
     </div>
   </div>
 
   {% else %}
 
-  <div class="row g-4">
+  {# ── Section heading ─────────────────────────────────────────────────── #}
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <span style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#6b7280">
+      AMC Schedule — 5 visits over 5 years
+    </span>
+    <div style="flex:1;height:1px;background:#e5e7eb"></div>
+  </div>
+
+  {# ── Timeline ────────────────────────────────────────────────────────── #}
+  <div class="visit-timeline ps-2">
     {% for rec in records %}
     {% set is_done = rec.status == 'Completed' %}
     {% set is_over = rec.status == 'Overdue' %}
     {% set is_skip = rec.status == 'Skipped' %}
     {% set is_due  = rec.status == 'Due' %}
+    {% set state   = 'done' if is_done else 'over' if is_over else 'due' if is_due else 'skip' if is_skip else 'upcoming' %}
 
-    <div class="col-12">
-      <div class="card border-0 shadow-sm"
-           style="border-radius:12px;
-                  border-left:5px solid {{ '#198754' if is_done else '#dc3545' if is_over else '#fd7e14' if is_due else '#6c757d' if is_skip else '#0d6efd' }} !important;
-                  opacity: {{ '0.75' if is_skip else '1' }}">
-        <div class="card-body">
+    <div class="visit-card">
 
-          <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-2">
-            <div class="d-flex align-items-center gap-3">
-              <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold text-white"
-                   style="width:48px;height:48px;font-size:1.1rem;flex-shrink:0;
-                          background:{{ '#198754' if is_done else '#dc3545' if is_over else '#fd7e14' if is_due else '#adb5bd' if is_skip else '#0d6efd' }}">
-                {{ rec.visit_number }}
-              </div>
-              <div>
-                <div class="fw-semibold fs-5">Visit {{ rec.visit_number }}
-                  <span class="ms-2">
-                    {% if is_done %}<span class="badge bg-success">Completed</span>
-                    {% elif is_over %}<span class="badge bg-danger">Overdue</span>
-                    {% elif is_due %}<span class="badge" style="background:#fd7e14">Due Soon</span>
-                    {% elif is_skip %}<span class="badge bg-secondary">Skipped</span>
-                    {% else %}<span class="badge bg-primary">Upcoming</span>{% endif %}
-                  </span>
-                </div>
-                <div class="text-muted small">
-                  <i class="bi bi-calendar me-1"></i>
-                  Scheduled: <strong>{{ rec.scheduled_date.strftime('%d %b %Y') }}</strong>
-                  {% if is_done and rec.completed_date %}
-                    &nbsp;·&nbsp;<i class="bi bi-check-circle me-1 text-success"></i>
-                    Done: <strong class="text-success">{{ rec.completed_date.strftime('%d %b %Y') }}</strong>
-                  {% elif is_over %}
-                    &nbsp;·&nbsp;<span class="text-danger">{{ (today - rec.scheduled_date).days }} days overdue</span>
-                  {% elif not is_done and not is_skip %}
-                    {% set d = (rec.scheduled_date - today).days %}
-                    {% if d > 0 %}&nbsp;·&nbsp;<span class="text-muted">{{ d }} days away</span>{% endif %}
-                  {% endif %}
-                </div>
-              </div>
-            </div>
-
-            {% if not is_done and not is_skip %}
-            <div class="d-flex gap-2 flex-wrap">
-              {% if current_user.role in ['admin','onsite'] %}
-              <button class="btn btn-sm btn-success" data-bs-toggle="modal"
-                      data-bs-target="#completeModal{{ rec.id }}">
-                <i class="bi bi-check2 me-1"></i>Mark Complete
-              </button>
-              <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal"
-                      data-bs-target="#rescheduleModal{{ rec.id }}">
-                <i class="bi bi-calendar-event me-1"></i>Reschedule
-              </button>
-              {% endif %}
-              {% if current_user.role == 'admin' %}
-              <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
-                      data-bs-target="#skipModal{{ rec.id }}">
-                <i class="bi bi-x-circle me-1"></i>Skip
-              </button>
-              {% endif %}
-            </div>
-            {% endif %}
-          </div>
-
-          {% if is_done %}
-          <div class="d-flex align-items-center gap-3 mt-2 p-2 rounded" style="background:#f0fdf4">
-            <span class="badge bg-success px-3 py-2">
-              <i class="bi bi-brush me-1"></i>Panel cleaned
-            </span>
-            {% if rec.notes %}
-            <span class="text-muted small">{{ rec.notes }}</span>
-            {% endif %}
-            <span class="text-muted small ms-auto">
-              <i class="bi bi-person me-1"></i>{{ rec.technician.full_name if rec.technician else '—' }}
-            </span>
-          </div>
-          {% elif is_skip and rec.notes %}
-          <div class="text-muted small mt-1"><i class="bi bi-dash-circle me-1"></i>{{ rec.notes }}</div>
-          {% endif %}
-
-        </div>
+      {# Node #}
+      <div class="visit-node {{ state }}">
+        {% if is_done %}
+          <i class="bi bi-check2" style="font-size:1.1rem"></i>
+        {% elif is_skip %}
+          <i class="bi bi-dash" style="font-size:1.1rem"></i>
+        {% else %}
+          {{ rec.visit_number }}
+        {% endif %}
       </div>
-    </div>
 
+      {# Body #}
+      <div class="visit-body {{ state }}">
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
+
+          {# Left: title + meta #}
+          <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <span style="font-size:.9rem;font-weight:600;color:#111827">
+                Visit {{ rec.visit_number }}
+                <span style="color:#9ca3af;font-weight:400;font-size:.8rem">/ Year {{ rec.visit_number }}</span>
+              </span>
+              <span class="status-pill pill-{{ state }}">
+                {% if is_done %}
+                  <i class="bi bi-check2-circle"></i> Done
+                {% elif is_over %}
+                  <i class="bi bi-exclamation-circle"></i> Overdue
+                {% elif is_due %}
+                  <i class="bi bi-clock"></i> Due soon
+                {% elif is_skip %}
+                  <i class="bi bi-x-circle"></i> Skipped
+                {% else %}
+                  <i class="bi bi-calendar3"></i> Upcoming
+                {% endif %}
+              </span>
+            </div>
+
+            <div class="d-flex align-items-center gap-3 flex-wrap" style="font-size:.8rem;color:#6b7280">
+              <span>
+                <i class="bi bi-calendar-event me-1"></i>
+                Scheduled <strong style="color:#374151">{{ rec.scheduled_date.strftime('%d %b %Y') }}</strong>
+              </span>
+              {% if is_done and rec.completed_date %}
+                <span style="color:#16a34a">
+                  <i class="bi bi-check-circle me-1"></i>
+                  Completed <strong>{{ rec.completed_date.strftime('%d %b %Y') }}</strong>
+                </span>
+              {% elif is_over %}
+                <span style="color:#dc2626">
+                  <i class="bi bi-alarm me-1"></i>
+                  <strong>{{ (today - rec.scheduled_date).days }}</strong> days overdue
+                </span>
+              {% elif not is_done and not is_skip %}
+                {% set d = (rec.scheduled_date - today).days %}
+                {% if d > 0 %}
+                  <span><i class="bi bi-hourglass-split me-1"></i>{{ d }} days away</span>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+
+          {# Right: action buttons #}
+          {% if not is_done and not is_skip %}
+          <div class="d-flex gap-2 flex-wrap align-items-start">
+            {% if current_user.role in ['admin','onsite'] %}
+            <button class="svc-btn svc-btn-complete" data-bs-toggle="modal"
+                    data-bs-target="#completeModal{{ rec.id }}">
+              <i class="bi bi-check2-circle me-1"></i>Complete
+            </button>
+            <button class="svc-btn svc-btn-reschedule" data-bs-toggle="modal"
+                    data-bs-target="#rescheduleModal{{ rec.id }}">
+              <i class="bi bi-calendar-event me-1"></i>Reschedule
+            </button>
+            {% endif %}
+            {% if current_user.role == 'admin' %}
+            <button class="svc-btn svc-btn-skip" data-bs-toggle="modal"
+                    data-bs-target="#skipModal{{ rec.id }}">
+              <i class="bi bi-x-circle me-1"></i>Skip
+            </button>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+
+        {# Completion detail #}
+        {% if is_done %}
+        <div class="mt-3 pt-3" style="border-top:1px solid #e7f5eb">
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="check-chip done">
+              <i class="bi bi-sun-fill"></i> Panel cleaning done
+            </span>
+            {% if rec.technician %}
+            <span class="tech-tag">
+              <i class="bi bi-person"></i>{{ rec.technician.full_name }}
+            </span>
+            {% endif %}
+            {% if rec.notes %}
+            <span style="font-size:.78rem;color:#6b7280;font-style:italic">
+              <i class="bi bi-chat-left-text me-1"></i>{{ rec.notes }}
+            </span>
+            {% endif %}
+          </div>
+        </div>
+        {% elif is_skip and rec.notes %}
+        <div class="mt-2" style="font-size:.78rem;color:#9ca3af;font-style:italic">
+          <i class="bi bi-dash-circle me-1"></i>{{ rec.notes }}
+        </div>
+        {% endif %}
+
+      </div>{# /visit-body #}
+    </div>{# /visit-card #}
+
+    {# ── Complete Modal ──────────────────────────────────────────────── #}
     {% if not is_done and not is_skip and current_user.role in ['admin','onsite'] %}
-    <div class="modal fade" id="completeModal{{ rec.id }}" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content" style="border-radius:12px">
-          <div class="modal-header" style="background:#1A3C5E;color:#fff;border-radius:12px 12px 0 0">
-            <h5 class="modal-title"><i class="bi bi-brush me-2"></i>Complete Service Visit {{ rec.visit_number }}</h5>
+    <div class="modal fade svc-modal" id="completeModal{{ rec.id }}" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div>
+              <div style="font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:#93c5fd;font-weight:600;margin-bottom:2px">
+                {{ proj.project_code }}
+              </div>
+              <h5 class="modal-title mb-0" style="font-family:'DM Sans',sans-serif;font-weight:600">
+                <i class="bi bi-brush me-2"></i>Service Visit {{ rec.visit_number }}
+              </h5>
+            </div>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
-          <form method="POST" action="{{ url_for('complete_service', sid=rec.id) }}" value="{{ csrf_token() }}">
+          <form method="POST" action="{{ url_for('complete_service', sid=rec.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="modal-body">
-              <div class="row g-3">
-                <div class="col-12">
-                  <label class="form-label fw-semibold">Completion Date</label>
-                  <input type="date" name="completed_date" class="form-control"
-                         value="{{ today.isoformat() }}" required>
-                </div>
-                <div class="col-12">
-                  <div class="form-check p-3 border rounded bg-light" style="border-radius:8px!important">
-                    <input class="form-check-input" type="checkbox" name="panel_cleaning"
-                           id="panel_cleaning_{{ rec.id }}" value="1" checked>
-                    <label class="form-check-label fw-semibold" for="panel_cleaning_{{ rec.id }}">
-                      Panel cleaning done
-                    </label>
+              <div class="mb-4">
+                <label class="form-label">Date of Service</label>
+                <input type="date" name="completed_date" class="form-control"
+                       value="{{ today.isoformat() }}" required>
+              </div>
+
+              <div class="mb-4">
+                <label class="form-label d-block mb-2">Checklist</label>
+                <label class="panel-check-box w-100" for="panel_cleaning_{{ rec.id }}">
+                  <input class="form-check-input m-0" type="checkbox"
+                         name="panel_cleaning" id="panel_cleaning_{{ rec.id }}"
+                         value="1" checked>
+                  <div>
+                    <div style="font-weight:600;color:#15803d;font-size:.9rem">
+                      <i class="bi bi-sun-fill me-1" style="color:#f59e0b"></i>Panel Cleaning
+                    </div>
+                    <div style="font-size:.75rem;color:#4b7a57;margin-top:1px">
+                      Remove dust and debris from all panels
+                    </div>
                   </div>
-                </div>
-                <div class="col-12">
-                  <label class="form-label">Notes <span class="text-muted fw-normal">(optional)</span></label>
-                  <textarea name="notes" class="form-control" rows="3"
-                            placeholder="Any observations, issues noticed, remarks…"></textarea>
-                </div>
+                </label>
+              </div>
+
+              <div>
+                <label class="form-label">Notes <span style="font-weight:400;color:#9ca3af">(optional)</span></label>
+                <textarea name="notes" class="form-control" rows="3"
+                          placeholder="Any observations, issues noticed, remarks…"
+                          style="resize:none"></textarea>
               </div>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-              <button type="submit" class="btn btn-success">
-                <i class="bi bi-check2-circle me-1"></i>Save
+              <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal"
+                      style="border-radius:8px;font-size:.83rem;font-weight:500">
+                Cancel
+              </button>
+              <button type="submit" class="svc-btn svc-btn-complete px-4">
+                <i class="bi bi-check2-circle me-1"></i>Mark Complete
               </button>
             </div>
           </form>
@@ -184,26 +506,33 @@
       </div>
     </div>
 
-    <div class="modal fade" id="rescheduleModal{{ rec.id }}" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content" style="border-radius:12px">
-          <div class="modal-header">
-            <h5 class="modal-title">Reschedule Visit {{ rec.visit_number }}</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    {# ── Reschedule Modal ────────────────────────────────────────────── #}
+    <div class="modal fade svc-modal" id="rescheduleModal{{ rec.id }}" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+          <div class="modal-header" style="background:#374151">
+            <h5 class="modal-title" style="font-size:.95rem;font-weight:600">
+              <i class="bi bi-calendar-event me-2"></i>Reschedule Visit {{ rec.visit_number }}
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
-          <form method="POST" action="{{ url_for('reschedule_service', sid=rec.id) }}" value="{{ csrf_token() }}">
+          <form method="POST" action="{{ url_for('reschedule_service', sid=rec.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="modal-body">
-              <p class="text-muted small mb-3">
-                Currently scheduled: <strong>{{ rec.scheduled_date.strftime('%d %b %Y') }}</strong>
-              </p>
-              <label class="form-label fw-semibold">New Date</label>
+              <div class="mb-3 p-3 rounded" style="background:#f8fafc;border:1px solid #e2e8f0;font-size:.83rem;color:#374151">
+                <i class="bi bi-calendar3 me-1 text-muted"></i>
+                Currently: <strong>{{ rec.scheduled_date.strftime('%d %b %Y') }}</strong>
+              </div>
+              <label class="form-label">New Date</label>
               <input type="date" name="new_date" class="form-control"
                      min="{{ today.isoformat() }}" required>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-              <button type="submit" class="btn btn-primary">Reschedule</button>
+              <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal"
+                      style="border-radius:8px;font-size:.83rem">Cancel</button>
+              <button type="submit" class="btn btn-sm" style="background:#374151;color:#fff;border-radius:8px;font-size:.83rem;font-weight:600">
+                <i class="bi bi-calendar-check me-1"></i>Reschedule
+              </button>
             </div>
           </form>
         </div>
@@ -211,25 +540,37 @@
     </div>
     {% endif %}
 
+    {# ── Skip Modal ──────────────────────────────────────────────────── #}
     {% if not is_done and not is_skip and current_user.role == 'admin' %}
-    <div class="modal fade" id="skipModal{{ rec.id }}" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content" style="border-radius:12px">
-          <div class="modal-header" style="border-bottom:2px solid #dc3545">
-            <h5 class="modal-title text-danger">Skip Visit {{ rec.visit_number }}</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <div class="modal fade svc-modal" id="skipModal{{ rec.id }}" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+          <div class="modal-header" style="background:#dc2626">
+            <h5 class="modal-title" style="font-size:.95rem;font-weight:600">
+              <i class="bi bi-x-circle me-2"></i>Skip Visit {{ rec.visit_number }}
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
-          <form method="POST" action="{{ url_for('skip_service', sid=rec.id) }}" value="{{ csrf_token() }}">
+          <form method="POST" action="{{ url_for('skip_service', sid=rec.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="modal-body">
-              <div class="alert alert-warning">Skipping cannot be undone. Please provide a reason.</div>
-              <label class="form-label fw-semibold">Reason</label>
+              <div class="alert alert-warning d-flex align-items-start gap-2 py-2 px-3 mb-3"
+                   style="font-size:.82rem;border-radius:8px">
+                <i class="bi bi-exclamation-triangle-fill mt-1 flex-shrink-0"></i>
+                <span>This action cannot be undone. Please provide a reason.</span>
+              </div>
+              <label class="form-label">Reason for skipping</label>
               <textarea name="reason" class="form-control" rows="3" required
-                        placeholder="Customer request, inaccessible, cancelled…"></textarea>
+                        placeholder="e.g. Customer request, inaccessible site, cancelled…"
+                        style="resize:none"></textarea>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-              <button type="submit" class="btn btn-danger">Skip Visit</button>
+              <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal"
+                      style="border-radius:8px;font-size:.83rem">Cancel</button>
+              <button type="submit" class="btn btn-danger btn-sm"
+                      style="border-radius:8px;font-size:.83rem;font-weight:600">
+                <i class="bi bi-x-circle me-1"></i>Skip Visit
+              </button>
             </div>
           </form>
         </div>
@@ -238,7 +579,7 @@
     {% endif %}
 
     {% endfor %}
-  </div>
+  </div>{# /visit-timeline #}
   {% endif %}
 
 </div>

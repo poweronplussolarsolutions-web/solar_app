@@ -499,10 +499,7 @@ class ServiceRecord(db.Model):
  
     @property
     def checklist_pct(self):
-        items = [self.panel_cleaning, self.inverter_check, self.wiring_inspection,
-                 self.mounting_check, self.performance_reading]
-        done  = sum(1 for i in items if i)
-        return int(done / len(items) * 100)
+        return 100 if self.panel_cleaning else 0
  
     @property
     def is_overdue(self):
@@ -2635,31 +2632,51 @@ def installations():
 @app.route('/service')
 @login_required
 @roles_required('admin', 'onsite', 'coordinator')
+@app.route('/service')
+@login_required
+@roles_required('admin', 'onsite', 'coordinator')
 def service_dashboard():
     refresh_service_statuses()
-    today    = date.today()
- 
+    today = date.today()
+
     overdue  = ServiceRecord.query.filter_by(status='Overdue').order_by(ServiceRecord.scheduled_date).all()
     due      = ServiceRecord.query.filter_by(status='Due').order_by(ServiceRecord.scheduled_date).all()
-    upcoming = ServiceRecord.query.filter_by(status='Upcoming').order_by(ServiceRecord.scheduled_date).limit(20).all()
-    recent   = (ServiceRecord.query
-                .filter_by(status='Completed')
-                .order_by(ServiceRecord.completed_date.desc())
-                .limit(10).all())
- 
+
+    # Only the next pending visit per project
+    from sqlalchemy import func
+    subq = (db.session.query(
+                ServiceRecord.project_id,
+                func.min(ServiceRecord.visit_number).label('min_visit')
+            )
+            .filter(ServiceRecord.status == 'Upcoming')
+            .group_by(ServiceRecord.project_id)
+            .subquery())
+
+    upcoming = (ServiceRecord.query
+                .join(subq, db.and_(
+                    ServiceRecord.project_id == subq.c.project_id,
+                    ServiceRecord.visit_number == subq.c.min_visit
+                ))
+                .order_by(ServiceRecord.scheduled_date)
+                .limit(20).all())
+
+    recent = (ServiceRecord.query
+              .filter_by(status='Completed')
+              .order_by(ServiceRecord.completed_date.desc())
+              .limit(10).all())
+
     completed_year = ServiceRecord.query.filter(
         ServiceRecord.status == 'Completed',
         db.extract('year', ServiceRecord.completed_date) == today.year,
     ).count()
     total_active = ServiceRecord.query.filter(
-        ServiceRecord.status.in_(['Upcoming','Due','Overdue'])
+        ServiceRecord.status.in_(['Upcoming', 'Due', 'Overdue'])
     ).count()
- 
+
     return render_template('service_dashboard.html',
         overdue=overdue, due=due, upcoming=upcoming, recent=recent,
         total_due=len(overdue)+len(due), completed_year=completed_year,
         total_active=total_active, today=today)
- 
  
 @app.route('/projects/<int:pid>/service')
 @login_required
@@ -2680,36 +2697,26 @@ def complete_service(sid):
     if rec.status == 'Completed':
         flash('This service visit is already marked complete.', 'warning')
         return redirect(url_for('project_service', pid=rec.project_id))
- 
+
     rec.status         = 'Completed'
     rec.completed_date = (date.fromisoformat(request.form['completed_date'])
                           if request.form.get('completed_date') else date.today())
     rec.conducted_by   = current_user.id
- 
-    rec.panel_cleaning      = 'panel_cleaning'      in request.form
-    # rec.inverter_check      = 'inverter_check'      in request.form
-    # rec.wiring_inspection   = 'wiring_inspection'   in request.form
-    # rec.mounting_check      = 'mounting_check'      in request.form
-    # rec.performance_reading = 'performance_reading' in request.form
- 
-    # gen = request.form.get('generation_kwh', '').strip()
-    # rec.generation_kwh = float(gen) if gen else None
-    # rec.issues_found   = _clean(request.form.get('issues_found', ''), 1000)
-    # rec.work_done      = _clean(request.form.get('work_done', ''), 1000)
+    rec.panel_cleaning = 'panel_cleaning' in request.form
     rec.notes          = _clean(request.form.get('notes', ''), 1000)
- 
+
     proj = rec.project
     log_action(rec.project_id,
-        f'Service visit #{rec.visit_number} completed (checklist {rec.checklist_pct}%)',
+        f'Service visit #{rec.visit_number} completed — panel cleaning: {"Yes" if rec.panel_cleaning else "No"}',
         new_val='Completed')
- 
+
     if proj.coordinator_id:
         create_notification(proj.coordinator_id, rec.project_id,
             f'{proj.project_code} — {proj.customer.name}: Service visit #{rec.visit_number} '
             f'completed by {current_user.full_name}.', 'info')
- 
+
     db.session.commit()
-    flash(f'Service visit #{rec.visit_number} marked complete. Checklist: {rec.checklist_pct}%', 'success')
+    flash(f'Service visit #{rec.visit_number} marked complete.', 'success')
     return redirect(url_for('project_service', pid=rec.project_id))
  
  
