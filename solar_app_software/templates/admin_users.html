@@ -131,7 +131,7 @@
       </div>
       <div class="user-card-actions">
         {% if u.id != current_user.id %}
-          <form method="POST" action="{{ url_for('change_user_status', user_id=u.id) }}" style="display:contents" value="{{ csrf_token() }}">
+          <form method="POST" action="{{ url_for('change_user_status', user_id=u.id) }}" style="display:contents" value="{{ csrf_token }}">
             {% if u.status != 'active' %}
               <button name="status" value="active" class="btn btn-sm btn-success">✓ Activate</button>
             {% endif %}
