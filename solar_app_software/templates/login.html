@@ -84,7 +84,7 @@
       {% endfor %}
     {% endwith %}
 
-    <form method="POST" action="{{ url_for('login') }}" value="{{ csrf_token() }}">
+    <form method="POST" action="{{ url_for('login') }}" value="{{ csrf_token }}">
       <input type="hidden" name="csrf_token" value="{{csrf_token}}">
       <div class="form-group">
         <label for="username">Username</label>
