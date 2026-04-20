@@ -2629,9 +2629,7 @@ def installations():
     return render_template('installations.html',
         pending=AppInstallation.query.filter_by(status='Pending').all(),
         completed=AppInstallation.query.filter_by(status='Completed').all(), today=date.today())
-@app.route('/service')
-@login_required
-@roles_required('admin', 'onsite', 'coordinator')
+
 @app.route('/service')
 @login_required
 @roles_required('admin', 'onsite', 'coordinator')
