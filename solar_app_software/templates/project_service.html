@@ -139,29 +139,86 @@
   }
 
   /* ── Modal ─────────────────────────────────────────────────────────── */
-  .svc-modal .modal-content {
-    border: none;
-    border-radius: 16px;
-    overflow: hidden;
-    box-shadow: 0 20px 60px rgba(0,0,0,.15);
-  }
-  .svc-modal .modal-header {
-    background: #1A3C5E;
-    color: #fff;
-    padding: 18px 24px;
-    border: none;
-  }
-  .svc-modal .modal-body { padding: 24px; }
-  .svc-modal .modal-footer { padding: 16px 24px; border-top: 1px solid #f1f5f9; }
-  .svc-modal .form-control, .svc-modal .form-select {
-    border-radius: 8px;
-    border: 1px solid #dde3ea;
-    font-size: 0.9rem;
-    padding: 8px 12px;
-  }
-  .svc-modal .form-control:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
-  .svc-modal .form-label { font-size: 0.82rem; font-weight: 600; color: #374151; margin-bottom: 6px; }
+  /* ── Modal overlay ─────────────────────────────────────────────────── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal-overlay.open {
+  display: flex;
+}
+.modal-box {
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,.2);
+  width: 100%;
+  max-width: 480px;
+  animation: modalIn .18s ease;
+}
+.modal-box.modal-sm { max-width: 360px; }
 
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(12px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);    }
+}
+.modal-hdr {
+  background: #1A3C5E;
+  color: #fff;
+  padding: 18px 24px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.modal-close-btn {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,.75);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.modal-close-btn:hover { color: #fff; }
+.modal-bdy { padding: 24px; }
+.modal-ftr {
+  padding: 16px 24px;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.modal-overlay .form-control,
+.modal-overlay .form-select {
+  border-radius: 8px;
+  border: 1px solid #dde3ea;
+  font-size: 0.9rem;
+  padding: 8px 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.modal-overlay .form-control:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+}
+.modal-overlay .form-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
+  display: block;
+}
+.modal-overlay textarea.form-control { resize: none; }
   .panel-check-box {
     background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
     border: 1.5px solid #86efac;
@@ -426,25 +483,25 @@
 
       {# Right: action buttons — only when unlocked #}
       {% if not locked and not is_done and not is_skip %}
-      <div class="d-flex gap-2 flex-wrap align-items-start">
-        {% if current_user.role in ['admin','onsite'] %}
-        <button class="svc-btn svc-btn-complete" data-bs-toggle="modal"
-                data-bs-target="#completeModal{{ rec.id }}">
-          <i class="bi bi-check2-circle me-1"></i>Complete
-        </button>
-        <button class="svc-btn svc-btn-reschedule" data-bs-toggle="modal"
-                data-bs-target="#rescheduleModal{{ rec.id }}">
-          <i class="bi bi-calendar-event me-1"></i>Reschedule
-        </button>
-        {% endif %}
-        {% if current_user.role == 'admin' %}
-        <button class="svc-btn svc-btn-skip" data-bs-toggle="modal"
-                data-bs-target="#skipModal{{ rec.id }}">
-          <i class="bi bi-x-circle me-1"></i>Skip
-        </button>
-        {% endif %}
-      </div>
-      {% endif %}
+<div class="d-flex gap-2 flex-wrap align-items-start">
+  {% if current_user.role in ['admin','onsite'] %}
+  <button class="svc-btn svc-btn-complete"
+          onclick="openModal('completeModal{{ rec.id }}')">
+    <i class="bi bi-check2-circle me-1"></i>Complete
+  </button>
+  <button class="svc-btn svc-btn-reschedule"
+          onclick="openModal('rescheduleModal{{ rec.id }}')">
+    <i class="bi bi-calendar-event me-1"></i>Reschedule
+  </button>
+  {% endif %}
+  {% if current_user.role == 'admin' %}
+  <button class="svc-btn svc-btn-skip"
+          onclick="openModal('skipModal{{ rec.id }}')">
+    <i class="bi bi-x-circle me-1"></i>Skip
+  </button>
+  {% endif %}
+</div>
+{% endif %}
     </div>
 
     {# Completion detail #}
@@ -475,32 +532,35 @@
   </div>{# /visit-body #}
 </div>{# /visit-card #}
 
-{# ── Modals — only rendered when visit is unlocked ───────────────────── #}
-{% if not locked and not is_done and not is_skip and current_user.role in ['admin','onsite'] %}
-<div class="modal fade svc-modal" id="completeModal{{ rec.id }}" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
+{% if not locked and not is_done and not is_skip %}
+
+  {% if current_user.role in ['admin','onsite'] %}
+
+  {# ── Complete Modal ──────────────────────────────────────────────── #}
+  <div class="modal-overlay" id="completeModal{{ rec.id }}"
+       onclick="overlayClick(event, 'completeModal{{ rec.id }}')">
+    <div class="modal-box">
+      <div class="modal-hdr">
         <div>
           <div style="font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:#93c5fd;font-weight:600;margin-bottom:2px">
             {{ proj.project_code }}
           </div>
-          <h5 class="modal-title mb-0" style="font-family:'DM Sans',sans-serif;font-weight:600">
+          <div style="font-family:'DM Sans',sans-serif;font-weight:600;font-size:1rem">
             <i class="bi bi-brush me-2"></i>Service Visit {{ rec.visit_number }}
-          </h5>
+          </div>
         </div>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <button class="modal-close-btn" onclick="closeModal('completeModal{{ rec.id }}')">✕</button>
       </div>
       <form method="POST" action="{{ url_for('complete_service', sid=rec.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="modal-body">
+        <div class="modal-bdy">
           <div class="mb-4">
             <label class="form-label">Date of Service</label>
             <input type="date" name="completed_date" class="form-control"
                    value="{{ today.isoformat() }}" required>
           </div>
           <div class="mb-4">
-            <label class="form-label d-block mb-2">Checklist</label>
+            <label class="form-label">Checklist</label>
             <label class="panel-check-box w-100" for="panel_cleaning_{{ rec.id }}">
               <input class="form-check-input m-0" type="checkbox"
                      name="panel_cleaning" id="panel_cleaning_{{ rec.id }}"
@@ -518,12 +578,12 @@
           <div>
             <label class="form-label">Notes <span style="font-weight:400;color:#9ca3af">(optional)</span></label>
             <textarea name="notes" class="form-control" rows="3"
-                      placeholder="Any observations, issues noticed, remarks…"
-                      style="resize:none"></textarea>
+                      placeholder="Any observations, issues noticed, remarks…"></textarea>
           </div>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal"
+        <div class="modal-ftr">
+          <button type="button" class="btn btn-light btn-sm"
+                  onclick="closeModal('completeModal{{ rec.id }}')"
                   style="border-radius:8px;font-size:.83rem;font-weight:500">Cancel</button>
           <button type="submit" class="svc-btn svc-btn-complete px-4">
             <i class="bi bi-check2-circle me-1"></i>Mark Complete
@@ -532,30 +592,32 @@
       </form>
     </div>
   </div>
-</div>
 
-<div class="modal fade svc-modal" id="rescheduleModal{{ rec.id }}" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered modal-sm">
-    <div class="modal-content">
-      <div class="modal-header" style="background:#374151">
-        <h5 class="modal-title" style="font-size:.95rem;font-weight:600">
+  {# ── Reschedule Modal ────────────────────────────────────────────── #}
+  <div class="modal-overlay" id="rescheduleModal{{ rec.id }}"
+       onclick="overlayClick(event, 'rescheduleModal{{ rec.id }}')">
+    <div class="modal-box modal-sm">
+      <div class="modal-hdr" style="background:#374151">
+        <div style="font-weight:600;font-size:.95rem">
           <i class="bi bi-calendar-event me-2"></i>Reschedule Visit {{ rec.visit_number }}
-        </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('rescheduleModal{{ rec.id }}')">✕</button>
       </div>
       <form method="POST" action="{{ url_for('reschedule_service', sid=rec.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="modal-body">
-          <div class="mb-3 p-3 rounded" style="background:#f8fafc;border:1px solid #e2e8f0;font-size:.83rem;color:#374151">
-            <i class="bi bi-calendar3 me-1 text-muted"></i>
+        <div class="modal-bdy">
+          <div class="mb-3 p-3 rounded"
+               style="background:#f8fafc;border:1px solid #e2e8f0;font-size:.83rem;color:#374151">
+            <i class="bi bi-calendar3 me-1" style="color:#6b7280"></i>
             Currently: <strong>{{ rec.scheduled_date.strftime('%d %b %Y') }}</strong>
           </div>
           <label class="form-label">New Date</label>
           <input type="date" name="new_date" class="form-control"
                  min="{{ today.isoformat() }}" required>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal"
+        <div class="modal-ftr">
+          <button type="button" class="btn btn-light btn-sm"
+                  onclick="closeModal('rescheduleModal{{ rec.id }}')"
                   style="border-radius:8px;font-size:.83rem">Cancel</button>
           <button type="submit" class="btn btn-sm"
                   style="background:#374151;color:#fff;border-radius:8px;font-size:.83rem;font-weight:600">
@@ -565,48 +627,72 @@
       </form>
     </div>
   </div>
-</div>
-{% endif %}
 
-{% if not locked and not is_done and not is_skip and current_user.role == 'admin' %}
-<div class="modal fade svc-modal" id="skipModal{{ rec.id }}" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered modal-sm">
-    <div class="modal-content">
-      <div class="modal-header" style="background:#dc2626">
-        <h5 class="modal-title" style="font-size:.95rem;font-weight:600">
+  {% endif %}{# /admin|onsite #}
+
+  {# ── Skip Modal ──────────────────────────────────────────────────── #}
+  {% if current_user.role == 'admin' %}
+  <div class="modal-overlay" id="skipModal{{ rec.id }}"
+       onclick="overlayClick(event, 'skipModal{{ rec.id }}')">
+    <div class="modal-box modal-sm">
+      <div class="modal-hdr" style="background:#dc2626">
+        <div style="font-weight:600;font-size:.95rem">
           <i class="bi bi-x-circle me-2"></i>Skip Visit {{ rec.visit_number }}
-        </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('skipModal{{ rec.id }}')">✕</button>
       </div>
       <form method="POST" action="{{ url_for('skip_service', sid=rec.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="modal-body">
-          <div class="alert alert-warning d-flex align-items-start gap-2 py-2 px-3 mb-3"
-               style="font-size:.82rem;border-radius:8px">
-            <i class="bi bi-exclamation-triangle-fill mt-1 flex-shrink-0"></i>
+        <div class="modal-bdy">
+          <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;
+                      padding:10px 14px;font-size:.82rem;color:#92400e;
+                      display:flex;gap:8px;align-items:flex-start;margin-bottom:16px">
+            <i class="bi bi-exclamation-triangle-fill" style="margin-top:1px;flex-shrink:0"></i>
             <span>This action cannot be undone. Please provide a reason.</span>
           </div>
           <label class="form-label">Reason for skipping</label>
           <textarea name="reason" class="form-control" rows="3" required
-                    placeholder="e.g. Customer request, inaccessible site, cancelled…"
-                    style="resize:none"></textarea>
+                    placeholder="e.g. Customer request, inaccessible site, cancelled…"></textarea>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal"
+        <div class="modal-ftr">
+          <button type="button" class="btn btn-light btn-sm"
+                  onclick="closeModal('skipModal{{ rec.id }}')"
                   style="border-radius:8px;font-size:.83rem">Cancel</button>
-          <button type="submit" class="btn btn-danger btn-sm"
-                  style="border-radius:8px;font-size:.83rem;font-weight:600">
+          <button type="submit" class="btn btn-sm"
+                  style="background:#dc2626;color:#fff;border-radius:8px;font-size:.83rem;font-weight:600">
             <i class="bi bi-x-circle me-1"></i>Skip Visit
           </button>
         </div>
       </form>
     </div>
   </div>
-</div>
-{% endif %}
-
-{% endfor %}
   {% endif %}
 
+{% endif %}{# /not locked #}
+{% endfor %}
+{% endif %}
 </div>
+<script>
+  function openModal(id) {
+    document.getElementById(id).classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  // click outside the box to close
+  function overlayClick(e, id) {
+    if (e.target === e.currentTarget) closeModal(id);
+  }
+  // Esc key closes any open modal
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.modal-overlay.open').forEach(function(m) {
+        m.classList.remove('open');
+      });
+      document.body.style.overflow = '';
+    }
+  });
+</script>
 {% endblock %}
