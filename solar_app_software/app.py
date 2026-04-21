@@ -3567,11 +3567,5 @@ if __name__ == '__main__':
 
 from sqlalchemy import text
 
-@app.route('/db-check')
-def db_check():
-    try:
-        result = db.session.execute(text("SHOW TABLES;"))
-        tables = [row[0] for row in result]
-        return f"Connected ✅ Tables: {tables}"
-    except Exception as e:
-        return f"Error ❌ {str(e)}"
+if __name__ == "__main__":
+    app.run(debug=True)
