@@ -3579,7 +3579,7 @@ if __name__ == '__main__':
     app.run(debug=debug, port=5000)
 
 from sqlalchemy import text
-from app import app, db, ServiceRecord, Project
+app, db, ServiceRecord, Project
 from datetime import date
 
 with app.app_context():
