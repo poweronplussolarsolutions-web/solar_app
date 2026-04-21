@@ -729,9 +729,9 @@ def log_action(project_id, action, old_val=None, new_val=None):
 def create_service_schedule(project):
     if ServiceRecord.query.filter_by(project_id=project.id).first():
         return
- 
+
     base = date.today()
-    for visit_num in range(1, 6):
+    for visit_num in range(1, 11):
         months_ahead = visit_num * 6
         year_offset, month_offset = divmod(base.month - 1 + months_ahead, 12)
         sched = base.replace(year=base.year + year_offset, month=month_offset + 1)
@@ -741,11 +741,11 @@ def create_service_schedule(project):
             scheduled_date = sched,
             status         = 'Upcoming',
         ))
- 
+
     notify_onsite_team(project.id,
         f'Service schedule created for {project.project_code} — {project.customer.name}. '
-        f'5 panel-cleaning visits over 5 years starting {base.strftime("%d %b %Y")}.', 'info')
-    log_action(project.id, 'Service schedule created (5 visits x 6 months)', new_val='Upcoming')
+        f'10 panel-cleaning visits over 5 years starting {base.strftime("%d %b %Y")}.', 'info')
+    log_action(project.id, 'Service schedule created (10 visits x 6 months)', new_val='Upcoming')
 def refresh_service_statuses():
    
     today    = date.today()

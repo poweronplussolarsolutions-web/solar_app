@@ -373,7 +373,7 @@
     <div style="font-size:1rem;font-weight:600;color:#374151;margin-bottom:8px">No service schedule yet</div>
     <div style="font-size:0.85rem;color:#6b7280;max-width:340px;margin:0 auto">
       Service visits are automatically created when this project is marked
-      <strong>Completed</strong>. 5 visits will be scheduled 6 months apart.
+      <strong>Completed</strong>. 10 visits will be scheduled every 6 months over 5 years.
     </div>
   </div>
 
@@ -382,7 +382,7 @@
   {# ── Section heading ─────────────────────────────────────────────────── #}
   <div class="d-flex align-items-center gap-2 mb-3">
     <span style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#6b7280">
-      AMC Schedule — 5 visits over 5 years
+      Service Schedule — 10 visits over 5 years
     </span>
     <div style="flex:1;height:1px;background:#e5e7eb"></div>
   </div>
@@ -427,8 +427,11 @@
       <div>
         <div class="d-flex align-items-center gap-2 mb-1">
           <span style="font-size:.9rem;font-weight:600;color:#111827">
-            Visit {{ rec.visit_number }}
-            <span style="color:#9ca3af;font-weight:400;font-size:.8rem">/ Year {{ rec.visit_number }}</span>
+           Visit {{ rec.visit_number }}
+<span style="color:#9ca3af;font-weight:400;font-size:.8rem">
+  / Year {{ ((rec.visit_number - 1) // 2) + 1 }}
+  · {{ 'Jan–Jun' if rec.visit_number is odd else 'Jul–Dec' }}
+</span>
           </span>
           {% if locked %}
             <span class="status-pill" style="background:#f1f5f9;color:#94a3b8;">
