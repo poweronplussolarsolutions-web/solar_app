@@ -200,6 +200,16 @@
     font-size: 0.75rem; color: #6b7280; background:#f9fafb;
     border: 1px solid #e5e7eb; border-radius: 20px; padding: 2px 10px;
   }
+  /* ── Locked visit ──────────────────────────────────────────────────── */
+.visit-node.locked { --node-color:#cbd5e1; background:#f8fafc; }
+.visit-body.locked {
+  border-left: 4px solid #cbd5e1;
+  opacity: .55;
+  pointer-events: none;   /* disables accidental clicks inside card */
+  user-select: none;
+}
+.visit-card.locked-card:hover .visit-node { transform: none; box-shadow: 0 0 0 2px #cbd5e1; }
+.visit-card.locked-card:hover .visit-body { box-shadow: none; border-color: #e8edf3; }
 </style>
 
 <div class="container-fluid py-4 svc-page" style="max-width:860px">
@@ -321,265 +331,281 @@
   </div>
 
   {# ── Timeline ────────────────────────────────────────────────────────── #}
-  <div class="visit-timeline ps-2">
-    {% for rec in records %}
-    {% set is_done = rec.status == 'Completed' %}
-    {% set is_over = rec.status == 'Overdue' %}
-    {% set is_skip = rec.status == 'Skipped' %}
-    {% set is_due  = rec.status == 'Due' %}
-    {% set state   = 'done' if is_done else 'over' if is_over else 'due' if is_due else 'skip' if is_skip else 'upcoming' %}
+  {% for rec in records %}
+{% set is_done = rec.status == 'Completed' %}
+{% set is_over = rec.status == 'Overdue' %}
+{% set is_skip = rec.status == 'Skipped' %}
+{% set is_due  = rec.status == 'Due' %}
+{% set state   = 'done' if is_done else 'over' if is_over else 'due' if is_due else 'skip' if is_skip else 'upcoming' %}
 
-    <div class="visit-card">
+{# ── Lock logic: first visit is always open; rest need previous done ── #}
+{% if loop.first %}
+  {% set prev_done = true %}
+{% else %}
+  {% set prev_rec  = records[loop.index0 - 1] %}
+  {% set prev_done = prev_rec.status == 'Completed' %}
+{% endif %}
+{% set locked = not prev_done and not is_done and not is_skip %}
 
-      {# Node #}
-      <div class="visit-node {{ state }}">
-        {% if is_done %}
-          <i class="bi bi-check2" style="font-size:1.1rem"></i>
-        {% elif is_skip %}
-          <i class="bi bi-dash" style="font-size:1.1rem"></i>
-        {% else %}
-          {{ rec.visit_number }}
-        {% endif %}
-      </div>
+<div class="visit-card {% if locked %}locked-card{% endif %}">
 
-      {# Body #}
-      <div class="visit-body {{ state }}">
-        <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
+  {# Node #}
+  <div class="visit-node {% if locked %}locked{% else %}{{ state }}{% endif %}">
+    {% if locked %}
+      <i class="bi bi-lock-fill" style="font-size:.9rem"></i>
+    {% elif is_done %}
+      <i class="bi bi-check2" style="font-size:1.1rem"></i>
+    {% elif is_skip %}
+      <i class="bi bi-dash" style="font-size:1.1rem"></i>
+    {% else %}
+      {{ rec.visit_number }}
+    {% endif %}
+  </div>
 
-          {# Left: title + meta #}
-          <div>
-            <div class="d-flex align-items-center gap-2 mb-1">
-              <span style="font-size:.9rem;font-weight:600;color:#111827">
-                Visit {{ rec.visit_number }}
-                <span style="color:#9ca3af;font-weight:400;font-size:.8rem">/ Year {{ rec.visit_number }}</span>
-              </span>
-              <span class="status-pill pill-{{ state }}">
-                {% if is_done %}
-                  <i class="bi bi-check2-circle"></i> Done
-                {% elif is_over %}
-                  <i class="bi bi-exclamation-circle"></i> Overdue
-                {% elif is_due %}
-                  <i class="bi bi-clock"></i> Due soon
-                {% elif is_skip %}
-                  <i class="bi bi-x-circle"></i> Skipped
-                {% else %}
-                  <i class="bi bi-calendar3"></i> Upcoming
-                {% endif %}
-              </span>
-            </div>
+  {# Body #}
+  <div class="visit-body {% if locked %}locked{% else %}{{ state }}{% endif %}">
+    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
 
-            <div class="d-flex align-items-center gap-3 flex-wrap" style="font-size:.8rem;color:#6b7280">
-              <span>
-                <i class="bi bi-calendar-event me-1"></i>
-                Scheduled <strong style="color:#374151">{{ rec.scheduled_date.strftime('%d %b %Y') }}</strong>
-              </span>
-              {% if is_done and rec.completed_date %}
-                <span style="color:#16a34a">
-                  <i class="bi bi-check-circle me-1"></i>
-                  Completed <strong>{{ rec.completed_date.strftime('%d %b %Y') }}</strong>
-                </span>
+      {# Left: title + meta #}
+      <div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span style="font-size:.9rem;font-weight:600;color:#111827">
+            Visit {{ rec.visit_number }}
+            <span style="color:#9ca3af;font-weight:400;font-size:.8rem">/ Year {{ rec.visit_number }}</span>
+          </span>
+          {% if locked %}
+            <span class="status-pill" style="background:#f1f5f9;color:#94a3b8;">
+              <i class="bi bi-lock"></i> Locked
+            </span>
+          {% else %}
+            <span class="status-pill pill-{{ state }}">
+              {% if is_done %}
+                <i class="bi bi-check2-circle"></i> Done
               {% elif is_over %}
-                <span style="color:#dc2626">
-                  <i class="bi bi-alarm me-1"></i>
-                  <strong>{{ (today - rec.scheduled_date).days }}</strong> days overdue
-                </span>
-              {% elif not is_done and not is_skip %}
-                {% set d = (rec.scheduled_date - today).days %}
-                {% if d > 0 %}
-                  <span><i class="bi bi-hourglass-split me-1"></i>{{ d }} days away</span>
-                {% endif %}
+                <i class="bi bi-exclamation-circle"></i> Overdue
+              {% elif is_due %}
+                <i class="bi bi-clock"></i> Due soon
+              {% elif is_skip %}
+                <i class="bi bi-x-circle"></i> Skipped
+              {% else %}
+                <i class="bi bi-calendar3"></i> Upcoming
               {% endif %}
-            </div>
-          </div>
-
-          {# Right: action buttons #}
-          {% if not is_done and not is_skip %}
-          <div class="d-flex gap-2 flex-wrap align-items-start">
-            {% if current_user.role in ['admin','onsite'] %}
-            <button class="svc-btn svc-btn-complete" data-bs-toggle="modal"
-                    data-bs-target="#completeModal{{ rec.id }}">
-              <i class="bi bi-check2-circle me-1"></i>Complete
-            </button>
-            <button class="svc-btn svc-btn-reschedule" data-bs-toggle="modal"
-                    data-bs-target="#rescheduleModal{{ rec.id }}">
-              <i class="bi bi-calendar-event me-1"></i>Reschedule
-            </button>
-            {% endif %}
-            {% if current_user.role == 'admin' %}
-            <button class="svc-btn svc-btn-skip" data-bs-toggle="modal"
-                    data-bs-target="#skipModal{{ rec.id }}">
-              <i class="bi bi-x-circle me-1"></i>Skip
-            </button>
-            {% endif %}
-          </div>
+            </span>
           {% endif %}
         </div>
 
-        {# Completion detail #}
-        {% if is_done %}
-        <div class="mt-3 pt-3" style="border-top:1px solid #e7f5eb">
-          <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span class="check-chip done">
-              <i class="bi bi-sun-fill"></i> Panel cleaning done
-            </span>
-            {% if rec.technician %}
-            <span class="tech-tag">
-              <i class="bi bi-person"></i>{{ rec.technician.full_name }}
-            </span>
+        <div class="d-flex align-items-center gap-3 flex-wrap" style="font-size:.8rem;color:#6b7280">
+          <span>
+            <i class="bi bi-calendar-event me-1"></i>
+            Scheduled <strong style="color:#374151">{{ rec.scheduled_date.strftime('%d %b %Y') }}</strong>
+          </span>
+          {% if not locked %}
+            {% if is_done and rec.completed_date %}
+              <span style="color:#16a34a">
+                <i class="bi bi-check-circle me-1"></i>
+                Completed <strong>{{ rec.completed_date.strftime('%d %b %Y') }}</strong>
+              </span>
+            {% elif is_over %}
+              <span style="color:#dc2626">
+                <i class="bi bi-alarm me-1"></i>
+                <strong>{{ (today - rec.scheduled_date).days }}</strong> days overdue
+              </span>
+            {% elif not is_done and not is_skip %}
+              {% set d = (rec.scheduled_date - today).days %}
+              {% if d > 0 %}
+                <span><i class="bi bi-hourglass-split me-1"></i>{{ d }} days away</span>
+              {% endif %}
             {% endif %}
-            {% if rec.notes %}
-            <span style="font-size:.78rem;color:#6b7280;font-style:italic">
-              <i class="bi bi-chat-left-text me-1"></i>{{ rec.notes }}
+          {% else %}
+            <span style="color:#94a3b8;font-style:italic;font-size:.76rem">
+              <i class="bi bi-info-circle me-1"></i>Complete the previous visit to unlock
             </span>
-            {% endif %}
-          </div>
+          {% endif %}
         </div>
-        {% elif is_skip and rec.notes %}
-        <div class="mt-2" style="font-size:.78rem;color:#9ca3af;font-style:italic">
-          <i class="bi bi-dash-circle me-1"></i>{{ rec.notes }}
-        </div>
+      </div>
+
+      {# Right: action buttons — only when unlocked #}
+      {% if not locked and not is_done and not is_skip %}
+      <div class="d-flex gap-2 flex-wrap align-items-start">
+        {% if current_user.role in ['admin','onsite'] %}
+        <button class="svc-btn svc-btn-complete" data-bs-toggle="modal"
+                data-bs-target="#completeModal{{ rec.id }}">
+          <i class="bi bi-check2-circle me-1"></i>Complete
+        </button>
+        <button class="svc-btn svc-btn-reschedule" data-bs-toggle="modal"
+                data-bs-target="#rescheduleModal{{ rec.id }}">
+          <i class="bi bi-calendar-event me-1"></i>Reschedule
+        </button>
         {% endif %}
+        {% if current_user.role == 'admin' %}
+        <button class="svc-btn svc-btn-skip" data-bs-toggle="modal"
+                data-bs-target="#skipModal{{ rec.id }}">
+          <i class="bi bi-x-circle me-1"></i>Skip
+        </button>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
 
-      </div>{# /visit-body #}
-    </div>{# /visit-card #}
+    {# Completion detail #}
+    {% if is_done %}
+    <div class="mt-3 pt-3" style="border-top:1px solid #e7f5eb">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="check-chip done">
+          <i class="bi bi-sun-fill"></i> Panel cleaning done
+        </span>
+        {% if rec.technician %}
+        <span class="tech-tag">
+          <i class="bi bi-person"></i>{{ rec.technician.full_name }}
+        </span>
+        {% endif %}
+        {% if rec.notes %}
+        <span style="font-size:.78rem;color:#6b7280;font-style:italic">
+          <i class="bi bi-chat-left-text me-1"></i>{{ rec.notes }}
+        </span>
+        {% endif %}
+      </div>
+    </div>
+    {% elif is_skip and rec.notes %}
+    <div class="mt-2" style="font-size:.78rem;color:#9ca3af;font-style:italic">
+      <i class="bi bi-dash-circle me-1"></i>{{ rec.notes }}
+    </div>
+    {% endif %}
 
-    {# ── Complete Modal ──────────────────────────────────────────────── #}
-    {% if not is_done and not is_skip and current_user.role in ['admin','onsite'] %}
-    <div class="modal fade svc-modal" id="completeModal{{ rec.id }}" tabindex="-1" style="margin-left:50px;">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <div>
-              <div style="font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:#93c5fd;font-weight:600;margin-bottom:2px">
-                {{ proj.project_code }}
-              </div>
-              <h5 class="modal-title mb-0" style="font-family:'DM Sans',sans-serif;font-weight:600">
-                <i class="bi bi-brush me-2"></i>Service Visit {{ rec.visit_number }}
-              </h5>
-            </div>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+  </div>{# /visit-body #}
+</div>{# /visit-card #}
+
+{# ── Modals — only rendered when visit is unlocked ───────────────────── #}
+{% if not locked and not is_done and not is_skip and current_user.role in ['admin','onsite'] %}
+<div class="modal fade svc-modal" id="completeModal{{ rec.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <div style="font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:#93c5fd;font-weight:600;margin-bottom:2px">
+            {{ proj.project_code }}
           </div>
-          <form method="POST" action="{{ url_for('complete_service', sid=rec.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="modal-body">
-              <div class="mb-4">
-                <label class="form-label">Date of Service</label>
-                <input type="date" name="completed_date" class="form-control"
-                       value="{{ today.isoformat() }}" required>
-              </div>
-
-              <div class="mb-4">
-                <label class="form-label d-block mb-2">Checklist</label>
-                <label class="panel-check-box w-100" for="panel_cleaning_{{ rec.id }}">
-                  <input class="form-check-input m-0" type="checkbox"
-                         name="panel_cleaning" id="panel_cleaning_{{ rec.id }}"
-                         value="1" checked>
-                  <div>
-                    <div style="font-weight:600;color:#15803d;font-size:.9rem">
-                      <i class="bi bi-sun-fill me-1" style="color:#f59e0b"></i>Panel Cleaning
-                    </div>
-                    <div style="font-size:.75rem;color:#4b7a57;margin-top:1px">
-                      Remove dust and debris from all panels
-                    </div>
-                  </div>
-                </label>
-              </div>
-
+          <h5 class="modal-title mb-0" style="font-family:'DM Sans',sans-serif;font-weight:600">
+            <i class="bi bi-brush me-2"></i>Service Visit {{ rec.visit_number }}
+          </h5>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('complete_service', sid=rec.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-body">
+          <div class="mb-4">
+            <label class="form-label">Date of Service</label>
+            <input type="date" name="completed_date" class="form-control"
+                   value="{{ today.isoformat() }}" required>
+          </div>
+          <div class="mb-4">
+            <label class="form-label d-block mb-2">Checklist</label>
+            <label class="panel-check-box w-100" for="panel_cleaning_{{ rec.id }}">
+              <input class="form-check-input m-0" type="checkbox"
+                     name="panel_cleaning" id="panel_cleaning_{{ rec.id }}"
+                     value="1" checked>
               <div>
-                <label class="form-label">Notes <span style="font-weight:400;color:#9ca3af">(optional)</span></label>
-                <textarea name="notes" class="form-control" rows="3"
-                          placeholder="Any observations, issues noticed, remarks…"
-                          style="resize:none"></textarea>
+                <div style="font-weight:600;color:#15803d;font-size:.9rem">
+                  <i class="bi bi-sun-fill me-1" style="color:#f59e0b"></i>Panel Cleaning
+                </div>
+                <div style="font-size:.75rem;color:#4b7a57;margin-top:1px">
+                  Remove dust and debris from all panels
+                </div>
               </div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal"
-                      style="border-radius:8px;font-size:.83rem;font-weight:500">
-                Cancel
-              </button>
-              <button type="submit" class="svc-btn svc-btn-complete px-4">
-                <i class="bi bi-check2-circle me-1"></i>Mark Complete
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-
-    {# ── Reschedule Modal ────────────────────────────────────────────── #}
-    <div class="modal fade svc-modal" id="rescheduleModal{{ rec.id }}" tabindex="-1">
-      <div class="modal-dialog modal-dialog-centered modal-sm">
-        <div class="modal-content">
-          <div class="modal-header" style="background:#374151">
-            <h5 class="modal-title" style="font-size:.95rem;font-weight:600">
-              <i class="bi bi-calendar-event me-2"></i>Reschedule Visit {{ rec.visit_number }}
-            </h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </label>
           </div>
-          <form method="POST" action="{{ url_for('reschedule_service', sid=rec.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="modal-body">
-              <div class="mb-3 p-3 rounded" style="background:#f8fafc;border:1px solid #e2e8f0;font-size:.83rem;color:#374151">
-                <i class="bi bi-calendar3 me-1 text-muted"></i>
-                Currently: <strong>{{ rec.scheduled_date.strftime('%d %b %Y') }}</strong>
-              </div>
-              <label class="form-label">New Date</label>
-              <input type="date" name="new_date" class="form-control"
-                     min="{{ today.isoformat() }}" required>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal"
-                      style="border-radius:8px;font-size:.83rem">Cancel</button>
-              <button type="submit" class="btn btn-sm" style="background:#374151;color:#fff;border-radius:8px;font-size:.83rem;font-weight:600">
-                <i class="bi bi-calendar-check me-1"></i>Reschedule
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-    {% endif %}
-
-    {# ── Skip Modal ──────────────────────────────────────────────────── #}
-    {% if not is_done and not is_skip and current_user.role == 'admin' %}
-    <div class="modal fade svc-modal" id="skipModal{{ rec.id }}" tabindex="-1" style="margin: left 10px;">
-      <div class="modal-dialog modal-dialog-centered modal-sm">
-        <div class="modal-content">
-          <div class="modal-header" style="background:#dc2626">
-            <h5 class="modal-title" style="font-size:.95rem;font-weight:600">
-              <i class="bi bi-x-circle me-2"></i>Skip Visit {{ rec.visit_number }}
-            </h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          <div>
+            <label class="form-label">Notes <span style="font-weight:400;color:#9ca3af">(optional)</span></label>
+            <textarea name="notes" class="form-control" rows="3"
+                      placeholder="Any observations, issues noticed, remarks…"
+                      style="resize:none"></textarea>
           </div>
-          <form method="POST" action="{{ url_for('skip_service', sid=rec.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="modal-body">
-              <div class="alert alert-warning d-flex align-items-start gap-2 py-2 px-3 mb-3"
-                   style="font-size:.82rem;border-radius:8px">
-                <i class="bi bi-exclamation-triangle-fill mt-1 flex-shrink-0"></i>
-                <span>This action cannot be undone. Please provide a reason.</span>
-              </div>
-              <label class="form-label">Reason for skipping</label>
-              <textarea name="reason" class="form-control" rows="3" required
-                        placeholder="e.g. Customer request, inaccessible site, cancelled…"
-                        style="resize:none"></textarea>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal"
-                      style="border-radius:8px;font-size:.83rem">Cancel</button>
-              <button type="submit" class="btn btn-danger btn-sm"
-                      style="border-radius:8px;font-size:.83rem;font-weight:600">
-                <i class="bi bi-x-circle me-1"></i>Skip Visit
-              </button>
-            </div>
-          </form>
         </div>
-      </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal"
+                  style="border-radius:8px;font-size:.83rem;font-weight:500">Cancel</button>
+          <button type="submit" class="svc-btn svc-btn-complete px-4">
+            <i class="bi bi-check2-circle me-1"></i>Mark Complete
+          </button>
+        </div>
+      </form>
     </div>
-    {% endif %}
+  </div>
+</div>
 
-    {% endfor %}
-  </div>{# /visit-timeline #}
+<div class="modal fade svc-modal" id="rescheduleModal{{ rec.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#374151">
+        <h5 class="modal-title" style="font-size:.95rem;font-weight:600">
+          <i class="bi bi-calendar-event me-2"></i>Reschedule Visit {{ rec.visit_number }}
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('reschedule_service', sid=rec.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-body">
+          <div class="mb-3 p-3 rounded" style="background:#f8fafc;border:1px solid #e2e8f0;font-size:.83rem;color:#374151">
+            <i class="bi bi-calendar3 me-1 text-muted"></i>
+            Currently: <strong>{{ rec.scheduled_date.strftime('%d %b %Y') }}</strong>
+          </div>
+          <label class="form-label">New Date</label>
+          <input type="date" name="new_date" class="form-control"
+                 min="{{ today.isoformat() }}" required>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal"
+                  style="border-radius:8px;font-size:.83rem">Cancel</button>
+          <button type="submit" class="btn btn-sm"
+                  style="background:#374151;color:#fff;border-radius:8px;font-size:.83rem;font-weight:600">
+            <i class="bi bi-calendar-check me-1"></i>Reschedule
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if not locked and not is_done and not is_skip and current_user.role == 'admin' %}
+<div class="modal fade svc-modal" id="skipModal{{ rec.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#dc2626">
+        <h5 class="modal-title" style="font-size:.95rem;font-weight:600">
+          <i class="bi bi-x-circle me-2"></i>Skip Visit {{ rec.visit_number }}
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('skip_service', sid=rec.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-body">
+          <div class="alert alert-warning d-flex align-items-start gap-2 py-2 px-3 mb-3"
+               style="font-size:.82rem;border-radius:8px">
+            <i class="bi bi-exclamation-triangle-fill mt-1 flex-shrink-0"></i>
+            <span>This action cannot be undone. Please provide a reason.</span>
+          </div>
+          <label class="form-label">Reason for skipping</label>
+          <textarea name="reason" class="form-control" rows="3" required
+                    placeholder="e.g. Customer request, inaccessible site, cancelled…"
+                    style="resize:none"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal"
+                  style="border-radius:8px;font-size:.83rem">Cancel</button>
+          <button type="submit" class="btn btn-danger btn-sm"
+                  style="border-radius:8px;font-size:.83rem;font-weight:600">
+            <i class="bi bi-x-circle me-1"></i>Skip Visit
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endfor %}
   {% endif %}
 
 </div>
