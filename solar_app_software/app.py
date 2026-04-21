@@ -3579,5 +3579,48 @@ if __name__ == '__main__':
     app.run(debug=debug, port=5000)
 
 from sqlalchemy import text
+from app import app, db, ServiceRecord, Project
+from datetime import date
 
+with app.app_context():
+    from sqlalchemy import func
+
+    project_ids = (
+        db.session.query(ServiceRecord.project_id)
+        .group_by(ServiceRecord.project_id)
+        .having(func.count(ServiceRecord.id) == 5)
+        .all()
+    )
+
+    for (pid,) in project_ids:
+        records = ServiceRecord.query.filter_by(project_id=pid).order_by(ServiceRecord.visit_number).all()
+
+        # Visit 1 scheduled_date = base + 6 months, so reverse it
+        v1 = records[0].scheduled_date
+        # Subtract 6 months manually
+        month = v1.month - 6
+        year  = v1.year
+        if month <= 0:
+            month += 12
+            year  -= 1
+        original_base = v1.replace(year=year, month=month)
+
+        for visit_num in range(6, 11):
+            months_ahead = visit_num * 6
+            year_offset, month_offset = divmod(original_base.month - 1 + months_ahead, 12)
+            sched = original_base.replace(
+                year  = original_base.year + year_offset,
+                month = month_offset + 1
+            )
+            db.session.add(ServiceRecord(
+                project_id    = pid,
+                visit_number  = visit_num,
+                scheduled_date = sched,
+                status        = 'Upcoming',
+            ))
+
+        print(f'Extended project {pid} to 10 visits')
+
+    db.session.commit()
+    print('Done.')
 
