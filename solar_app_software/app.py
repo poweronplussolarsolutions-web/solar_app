@@ -2679,11 +2679,12 @@ def service_dashboard():
 @app.route('/projects/<int:pid>/service')
 @login_required
 def project_service(pid):
+    refresh_service_statuses()
     proj    = Project.query.get_or_404(pid)
     records = (ServiceRecord.query
                .filter_by(project_id=pid)
                .order_by(ServiceRecord.visit_number).all())
-    refresh_service_statuses()
+    
     return render_template('project_service.html', proj=proj, records=records, today=date.today())
  
  
@@ -2692,9 +2693,20 @@ def project_service(pid):
 @roles_required('admin', 'onsite')
 def complete_service(sid):
     rec = ServiceRecord.query.get_or_404(sid)
+
     if rec.status == 'Completed':
         flash('This service visit is already marked complete.', 'warning')
         return redirect(url_for('project_service', pid=rec.project_id))
+
+    # ← enforce sequential completion server-side
+    if rec.visit_number > 1:
+        prev = ServiceRecord.query.filter_by(
+            project_id=rec.project_id,
+            visit_number=rec.visit_number - 1
+        ).first()
+        if not prev or prev.status != 'Completed':
+            flash('Previous service visit must be completed first.', 'danger')
+            return redirect(url_for('project_service', pid=rec.project_id))
 
     rec.status         = 'Completed'
     rec.completed_date = (date.fromisoformat(request.form['completed_date'])
@@ -2723,12 +2735,13 @@ def complete_service(sid):
 @roles_required('admin')
 def skip_service(sid):
     rec        = ServiceRecord.query.get_or_404(sid)
+    old_status=rec.status
     reason     = _clean(request.form.get('reason', ''), 500)
     rec.status = 'Skipped'
     rec.notes  = reason
     log_action(rec.project_id,
         f'Service visit #{rec.visit_number} skipped. Reason: {reason or "None"}',
-        old_val=rec.status, new_val='Skipped')
+        old_val=old_status, new_val='Skipped')
     db.session.commit()
     flash(f'Service visit #{rec.visit_number} skipped.', 'warning')
     return redirect(url_for('project_service', pid=rec.project_id))
@@ -2779,7 +2792,7 @@ def update_installation(pid):
         proj.status = 'Completed'
         proj.stage  = 'App Installation'
         log_action(pid, 'App installation completed', new_val='Completed')
-        create_service_schedule(proj)
+        
     if not install.id:
         db.session.add(install)
     db.session.flush()
