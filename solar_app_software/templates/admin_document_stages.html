@@ -42,7 +42,8 @@
 
 <div class="card" style="max-width:800px;margin-bottom:20px">
   <div class="card-title">Add new stage</div>
-  <form method="POST" action="{{ url_for('new_document_stage') }}" value="{{ csrf_token() }}">
+  <form method="POST" action="{{ url_for('new_document_stage') }}" >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-grid">
       <div class="form-group">
         <label>Stage name *</label>
@@ -112,7 +113,8 @@
       </tr>
       <tr id="edit-{{ stage.id }}" class="edit-panel">
         <td colspan="6" style="padding:14px">
-          <form method="POST" action="{{ url_for('edit_document_stage', sid=stage.id) }}" value="{{ csrf_token() }}">
+          <form method="POST" action="{{ url_for('edit_document_stage', sid=stage.id) }}" >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-grid">
               <div class="form-group">
                 <label>Stage name</label>
@@ -142,10 +144,11 @@
               <button type="submit" class="btn btn-primary btn-sm">Save changes</button>
               <button type="button" class="btn btn-sm"
                       onclick="togglePanel('edit-{{ stage.id }}')">Cancel</button>
-              <form method="POST" value="{{ csrf_token() }}"
+              <form method="POST" 
                     action="{{ url_for('delete_document_stage', sid=stage.id) }}"
                     style="display:inline"
                     onsubmit="return confirm('Deactivate this stage?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-danger btn-sm">Deactivate</button>
               </form>
             </div>
@@ -184,7 +187,8 @@
                 onclick="toggleMobileEdit('medit-{{ stage.id }}', this)">Edit</button>
       </div>
       <div id="medit-{{ stage.id }}" class="edit-panel-mobile">
-        <form method="POST" action="{{ url_for('edit_document_stage', sid=stage.id) }}" value="{{ csrf_token() }}">
+        <form method="POST" action="{{ url_for('edit_document_stage', sid=stage.id) }}" >
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="form-grid">
             <div class="form-group">
               <label>Stage name</label>
@@ -214,10 +218,11 @@
             <button type="submit" class="btn btn-primary btn-sm">Save changes</button>
             <button type="button" class="btn btn-sm"
                     onclick="toggleMobileEdit('medit-{{ stage.id }}', this)">Cancel</button>
-            <form method="POST" value="{{ csrf_token() }}"
+            <form method="POST" 
                   action="{{ url_for('delete_document_stage', sid=stage.id) }}"
                   style="display:inline"
                   onsubmit="return confirm('Deactivate this stage?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-danger btn-sm">Deactivate</button>
             </form>
           </div>

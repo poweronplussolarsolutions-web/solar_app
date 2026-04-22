@@ -140,7 +140,8 @@
 <div style="font-size:13px;font-weight:500;margin-bottom:12px;color:var(--fg)">
   Docs team — update subsidy progress
 </div>
-<form method="POST" value="{{ csrf_token() }}">
+<form method="POST" >
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="form-grid">
     <div class="form-group">
       <label>Status</label>
@@ -185,7 +186,8 @@
 <div style="font-size:13px;font-weight:500;margin-bottom:12px;color:var(--fg)">
   Payments team — redeem &amp; receive subsidy
 </div>
-<form method="POST" id="subsidyForm" value="{{ csrf_token() }}">
+<form method="POST" id="subsidyForm" >
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="form-grid">
     <div class="form-group">
       <label>Status</label>
@@ -289,7 +291,8 @@ document.addEventListener('DOMContentLoaded', function() {
 {% elif current_user.role == 'admin' %}
 <details style="margin-top:4px">
   <summary style="font-size:12px;color:var(--hint);cursor:pointer">Admin override</summary>
-  <form method="POST" style="margin-top:10px" value="{{ csrf_token() }}">
+  <form method="POST" style="margin-top:10px" >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-grid">
       <div class="form-group">
         <label>Status</label>

@@ -115,11 +115,13 @@
           <td style="font-size:12px;color:var(--muted)">{{ jc.closer.full_name if jc.closer else '—' }}</td>
           <td>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
-              <form method="POST" action="{{ url_for('approve_job_card', card_id=jc.id) }}" style="display:inline" value="{{ csrf_token() }}">
+              <form method="POST" action="{{ url_for('approve_job_card', card_id=jc.id) }}" style="display:inline" >
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-primary btn-sm">✓ Approve</button>
               </form>
-              <form method="POST" action="{{ url_for('void_job_card', card_id=jc.id) }}" value="{{ csrf_token() }}"
+              <form method="POST" action="{{ url_for('void_job_card', card_id=jc.id) }}" 
                     onsubmit="return confirm('Void this job card?')" style="display:inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-sm btn-danger">Void</button>
               </form>
             </div>
@@ -350,11 +352,13 @@
           </div>
           {% if current_user.role in ['admin','onsite'] %}
           <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap">
-            <form method="POST" action="{{ url_for('approve_job_card', card_id=jc.id) }}" style="display:inline" value="{{ csrf_token() }}">
+            <form method="POST" action="{{ url_for('approve_job_card', card_id=jc.id) }}" style="display:inline" >
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-primary btn-sm">✓ Approve</button>
             </form>
-            <form method="POST" action="{{ url_for('void_job_card', card_id=jc.id) }}" value="{{ csrf_token() }}"
+            <form method="POST" action="{{ url_for('void_job_card', card_id=jc.id) }}" 
                   onsubmit="return confirm('Void this job card?')" style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-sm" style="color:var(--danger);border-color:var(--danger);background:none">Void</button>
             </form>
           </div>
@@ -402,7 +406,8 @@
         {# Close card form #}
         {% if current_user.role in ['admin','onsite'] %}
         <div id="close-card-{{ jc.id }}" style="display:none;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
-          <form method="POST" action="{{ url_for('close_job_card', card_id=jc.id) }}" value="{{ csrf_token() }}">
+          <form method="POST" action="{{ url_for('close_job_card', card_id=jc.id) }}" >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="close-card-grid">
               <div>
                 <label style="font-size:12px">Actual days</label>
@@ -557,8 +562,9 @@
           </div>
         </div>
         {% if current_user.role in ['admin','onsite'] %}
-        <form method="POST" action="{{ url_for('recover_advance', advance_id=adv.id) }}" value="{{ csrf_token() }}"
+        <form method="POST" action="{{ url_for('recover_advance', advance_id=adv.id) }}" 
               style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="number" name="recover_amount" min="1"
                  max="{{ still_owed | int }}"
                  value="{{ still_owed | int }}"
@@ -597,7 +603,8 @@
     <div style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
       <button class="btn btn-sm" onclick="togglePanel('advance-form-{{ w.id }}')">+ Record advance</button>
       <div id="advance-form-{{ w.id }}" style="display:none;margin-top:10px">
-        <form method="POST" action="{{ url_for('give_advance', worker_id=w.id) }}" value="{{ csrf_token() }}">
+        <form method="POST" action="{{ url_for('give_advance', worker_id=w.id) }}" >
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="advance-form-grid">
             <div>
               <label>Amount (₹)</label>
@@ -649,7 +656,8 @@
       ₹ Settle payment
     </button>
     <div id="settle-form-{{ w.id }}" style="display:none;margin-top:12px">
-      <form method="POST" action="{{ url_for('settle_worker', worker_id=w.id) }}" value="{{ csrf_token() }}">
+      <form method="POST" action="{{ url_for('settle_worker', worker_id=w.id) }}" >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="settle-form-grid">
           <div>
             <label>Amount to pay (₹)</label>
@@ -729,8 +737,9 @@
             <td style="padding:7px 8px;color:var(--hint)">{{ entry.recorder.full_name if entry.recorder else '—' }}</td>
             {% if current_user.role == 'admin' %}
             <td style="padding:7px 8px">
-              <form method="POST" action="{{ url_for('void_ledger_entry', entry_id=entry.id) }}" value="{{ csrf_token() }}"
+              <form method="POST" action="{{ url_for('void_ledger_entry', entry_id=entry.id) }}" 
                     onsubmit="return confirm('Void this ledger entry? Balance will be recalculated.')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-sm"
                         style="color:var(--danger);border-color:var(--danger);background:none;padding:2px 8px;font-size:11px">
                   Void

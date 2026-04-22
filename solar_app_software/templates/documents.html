@@ -321,7 +321,8 @@
         {{ doc.status }}
       </span>
       {% if current_user.role in ['admin','documents'] %}
-      <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline" value="{{ csrf_token() }}">
+      <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline" >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
         <input type="hidden" name="status"   value="Pending"/>
         <button type="submit" class="btn btn-sm" title="Revert to Pending">↩</button>
@@ -330,7 +331,8 @@
     {% elif doc and doc.status == 'Pending' %}
       <span class="badge badge-Pending">Pending</span>
       {% if current_user.role in ['admin','documents'] %}
-      <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline" value="{{ csrf_token() }}">
+      <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline" >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
         <input type="hidden" name="status"   value="{{ final_status }}"/>
         <button type="submit" class="btn btn-sm btn-primary">Mark {{ final_status }}</button>
@@ -351,7 +353,8 @@
 
           {% if current_user.role in ['admin','documents'] %}
           <div class="add-form" id="form-{{ stage.name | replace(' ','_') | replace('/','_') }}">
-  <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" value="{{ csrf_token() }}">
+  <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="add-form-grid">
       <div>
         <label>Document</label>
@@ -425,7 +428,8 @@
 
   {% if current_user.role in ['admin', 'documents'] %}
   <div id="{{ form_id }}" style="{{ 'display:none' if existing else '' }}">
-    <form method="POST" action="{{ url_for('update_expense', pid=proj.id) }}" value="{{ csrf_token() }}">
+    <form method="POST" action="{{ url_for('update_expense', pid=proj.id) }}" >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="expense_type" value="{{ label }}">
       <div class="expense-grid">
         <div>

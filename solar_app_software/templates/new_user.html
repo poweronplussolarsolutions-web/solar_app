@@ -6,7 +6,8 @@
 {% endblock %}
 {% block content %}
 <div class="card" style="max-width:480px;width:100%;box-sizing:border-box">
-  <form method="POST" action="{{ url_for('new_user') }}" value="{{ csrf_token() }}">
+  <form method="POST" action="{{ url_for('new_user') }}" >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group">
       <label>Full name</label>
       <input name="full_name" type="text" required placeholder="Full name"/>

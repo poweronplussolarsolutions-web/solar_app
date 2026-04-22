@@ -17,7 +17,8 @@
 
   {% if current_user.role == 'admin' %}
   <!-- Admin: editable customer fields inside the main form -->
-  <form method="POST" action="{{ url_for('edit_project', pid=proj.id) }}" value="{{ csrf_token() }}">
+  <form method="POST" action="{{ url_for('edit_project', pid=proj.id) }}" >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <div class="form-grid" style="margin-bottom:16px">
       <div class="form-group">
@@ -82,7 +83,8 @@
     </div>
   </div>
 
-  <form method="POST" action="{{ url_for('edit_project', pid=proj.id) }}" value="{{ csrf_token() }}">
+  <form method="POST" action="{{ url_for('edit_project', pid=proj.id) }}" >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% endif %}
 
     <!-- ── Project details ──────────────────────────────────────────────── -->
