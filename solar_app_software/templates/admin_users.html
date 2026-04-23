@@ -16,6 +16,7 @@
     vertical-align: middle;
   }
   .users-table thead th { font-weight: 500; color: var(--muted); font-size: 12px; }
+  .users-table tbody tr:last-child td { border-bottom: none; }
 
   .users-cards { display: none; }
 
@@ -39,18 +40,18 @@
     color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    padding: 18px 0 8px;
+    padding: 20px 0 8px;
   }
 
-  .deleted-banner {
-    padding: 10px 14px;
-    background: #fff3f3;
-    border-bottom: 0.5px solid #f5c6c6;
+  .section-banner {
+    padding: 9px 14px;
     font-size: 12px;
-    color: #721c24;
+    border-bottom: 0.5px solid var(--border);
   }
+  .section-banner.inactive { background: #fffbf0; color: #7a5c1e; border-color: #f5e4b8; }
+  .section-banner.deleted  { background: #fff8f8; color: #7a1e1e; border-color: #f5b8b8; }
 
-  .deleted-row { opacity: 0.65; }
+  .faded-row td { opacity: 0.6; }
 
   @media (max-width: 700px) {
     .users-table { display: none; }
@@ -58,7 +59,7 @@
   }
 </style>
 
-{# ── Active Users ── #}
+{# ─── ACTIVE USERS ─── #}
 <div class="section-label">Active Users</div>
 <div class="card">
   <table class="users-table">
@@ -68,7 +69,6 @@
         <th>Username</th>
         <th>Email</th>
         <th>Role</th>
-        <th>Status</th>
         <th>Joined</th>
         <th></th>
       </tr>
@@ -88,30 +88,21 @@
             {% elif u.role == 'onsite' %}badge-Loan
             {% else %}badge-Cash{% endif %}">{{ u.role }}</span>
         </td>
-        <td>
-          {% if u.status == 'active' %}
-            <span class="badge badge-success">Active</span>
-          {% elif u.status == 'inactive' %}
-            <span class="badge badge-secondary">Inactive</span>
-          {% endif %}
+        <td style="font-size:12px;color:var(--muted)">
+          {{ u.created_at.strftime('%d %b %Y') if u.created_at else '—' }}
         </td>
-        <td style="font-size:12px;color:var(--muted)">{{ u.created_at.strftime('%d %b %Y') if u.created_at else '—' }}</td>
         <td>
           {% if u.id != current_user.id %}
           <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
             <form method="POST" action="{{ url_for('change_user_status', user_id=u.id) }}" style="display:contents">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              {% if u.status != 'active' %}
-                <button name="status" value="active" class="btn btn-sm btn-success">✓ Activate</button>
-              {% endif %}
-              {% if u.status != 'inactive' %}
-                <button name="status" value="inactive" class="btn btn-sm">Deactivate</button>
-              {% endif %}
+              <button name="status" value="inactive" class="btn btn-sm"
+                      title="Deactivate: user cannot login but is not deleted">Deactivate</button>
             </form>
             <a href="{{ url_for('edit_user', user_id=u.id) }}" class="btn btn-sm">Edit</a>
             <form method="POST" action="{{ url_for('delete_user', user_id=u.id) }}"
                   style="display:inline"
-                  onsubmit="return confirm('Delete {{ u.username }}? They will be deactivated and can be restored later.')">
+                  onsubmit="return confirm('Delete {{ u.username }}? They will be moved to Deleted Users and can be restored later.')">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-sm btn-danger">Delete</button>
             </form>
@@ -122,10 +113,15 @@
         </td>
       </tr>
       {% endfor %}
+
+      {% if not users %}
+      <tr>
+        <td colspan="6" style="text-align:center;color:var(--muted);padding:20px">No active users.</td>
+      </tr>
+      {% endif %}
     </tbody>
   </table>
 
-  {# Mobile cards — active users #}
   <div class="users-cards">
     {% for u in users %}
     <div class="user-card">
@@ -143,33 +139,21 @@
           {% else %}badge-Cash{% endif %}">{{ u.role }}</span>
       </div>
       <div class="user-card-email">{{ u.email }}</div>
-      <div class="user-card-badges">
-        {% if u.status == 'active' %}
-          <span class="badge badge-success">Active</span>
-        {% elif u.status == 'inactive' %}
-          <span class="badge badge-secondary">Inactive</span>
-        {% endif %}
-      </div>
       <div class="user-card-actions">
         {% if u.id != current_user.id %}
           <form method="POST" action="{{ url_for('change_user_status', user_id=u.id) }}" style="display:contents">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            {% if u.status != 'active' %}
-              <button name="status" value="active" class="btn btn-sm btn-success">✓ Activate</button>
-            {% endif %}
-            {% if u.status != 'inactive' %}
-              <button name="status" value="inactive" class="btn btn-sm">Deactivate</button>
-            {% endif %}
+            <button name="status" value="inactive" class="btn btn-sm">Deactivate</button>
           </form>
           <a href="{{ url_for('edit_user', user_id=u.id) }}" class="btn btn-sm">Edit</a>
           <form method="POST" action="{{ url_for('delete_user', user_id=u.id) }}"
                 style="display:inline"
-                onsubmit="return confirm('Delete {{ u.username }}? They can be restored later.')">
+                onsubmit="return confirm('Delete {{ u.username }}?')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-sm btn-danger">Delete</button>
           </form>
         {% else %}
-          <span style="color:var(--text-muted);font-size:0.85em">—</span>
+          <span style="font-size:0.85em;color:var(--text-muted)">—</span>
         {% endif %}
       </div>
     </div>
@@ -177,15 +161,101 @@
   </div>
 </div>
 
-{# ── Deleted Users ── #}
+{# ─── INACTIVE USERS ─── #}
+{% if inactive_users %}
+<div class="section-label">Inactive Users</div>
+<div class="card">
+  <div class="section-banner inactive">
+    These users are deactivated and cannot log in. They can be reactivated at any time.
+  </div>
+
+  <table class="users-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Username</th>
+        <th>Email</th>
+        <th>Role</th>
+        <th>Joined</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in inactive_users %}
+      <tr class="faded-row">
+        <td style="font-weight:500">{{ u.full_name }}</td>
+        <td style="font-family:monospace;font-size:12px">{{ u.username }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ u.email }}</td>
+        <td>
+          <span class="badge
+            {% if u.role == 'admin' %}badge-Delayed
+            {% elif u.role == 'coordinator' %}badge-Created
+            {% elif u.role == 'documents' %}badge-InProgress
+            {% elif u.role == 'payments' %}badge-Completed
+            {% elif u.role == 'onsite' %}badge-Loan
+            {% else %}badge-Cash{% endif %}">{{ u.role }}</span>
+        </td>
+        <td style="font-size:12px;color:var(--muted)">
+          {{ u.created_at.strftime('%d %b %Y') if u.created_at else '—' }}
+        </td>
+        <td>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <form method="POST" action="{{ url_for('change_user_status', user_id=u.id) }}" style="display:contents">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button name="status" value="active" class="btn btn-sm btn-success">✓ Activate</button>
+            </form>
+            <a href="{{ url_for('edit_user', user_id=u.id) }}" class="btn btn-sm">Edit</a>
+            <form method="POST" action="{{ url_for('delete_user', user_id=u.id) }}"
+                  style="display:inline"
+                  onsubmit="return confirm('Delete {{ u.username }}? They will be moved to Deleted Users.')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="users-cards">
+    {% for u in inactive_users %}
+    <div class="user-card" style="opacity:0.8">
+      <div class="user-card-header">
+        <div>
+          <div class="user-card-name">{{ u.full_name }}</div>
+          <div class="user-card-username">@{{ u.username }}</div>
+        </div>
+        <span class="badge badge-secondary">Inactive</span>
+      </div>
+      <div class="user-card-email">{{ u.email }}</div>
+      <div class="user-card-actions">
+        <form method="POST" action="{{ url_for('change_user_status', user_id=u.id) }}" style="display:contents">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button name="status" value="active" class="btn btn-sm btn-success">✓ Activate</button>
+        </form>
+        <a href="{{ url_for('edit_user', user_id=u.id) }}" class="btn btn-sm">Edit</a>
+        <form method="POST" action="{{ url_for('delete_user', user_id=u.id) }}"
+              style="display:inline"
+              onsubmit="return confirm('Delete {{ u.username }}?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# ─── DELETED USERS ─── #}
 {% if deleted_users %}
 <div class="section-label">Deleted Users</div>
 <div class="card">
-  <div class="deleted-banner">
-    These users have been deleted and cannot log in. You can restore them at any time.
+  <div class="section-banner deleted">
+    These users have been deleted and cannot log in. Their data (projects, logs, payments) is preserved.
   </div>
 
-  {# Desktop table #}
   <table class="users-table">
     <thead>
       <tr>
@@ -199,7 +269,7 @@
     </thead>
     <tbody>
       {% for u in deleted_users %}
-      <tr class="deleted-row">
+      <tr class="faded-row">
         <td style="font-weight:500">{{ u.full_name }}</td>
         <td style="font-family:monospace;font-size:12px">{{ u.username }}</td>
         <td style="font-size:12px;color:var(--muted)">{{ u.email }}</td>
@@ -212,7 +282,9 @@
             {% elif u.role == 'onsite' %}badge-Loan
             {% else %}badge-Cash{% endif %}">{{ u.role }}</span>
         </td>
-        <td style="font-size:12px;color:var(--muted)">{{ u.created_at.strftime('%d %b %Y') if u.created_at else '—' }}</td>
+        <td style="font-size:12px;color:var(--muted)">
+          {{ u.created_at.strftime('%d %b %Y') if u.created_at else '—' }}
+        </td>
         <td>
           <form method="POST" action="{{ url_for('restore_user', user_id=u.id) }}"
                 style="display:inline"
@@ -226,16 +298,15 @@
     </tbody>
   </table>
 
-  {# Mobile cards — deleted users #}
   <div class="users-cards">
     {% for u in deleted_users %}
-    <div class="user-card" style="opacity:0.7">
+    <div class="user-card" style="opacity:0.6">
       <div class="user-card-header">
         <div>
           <div class="user-card-name">{{ u.full_name }}</div>
           <div class="user-card-username">@{{ u.username }}</div>
         </div>
-        <span class="badge badge-secondary">Deleted</span>
+        <span class="badge badge-Delayed">Deleted</span>
       </div>
       <div class="user-card-email">{{ u.email }}</div>
       <div class="user-card-actions">
