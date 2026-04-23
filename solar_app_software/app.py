@@ -2810,9 +2810,19 @@ def update_installation(pid):
 @login_required
 @roles_required('admin')
 def manage_users():
-    users = User.query.order_by(User.role, User.full_name).all()
-    return render_template('admin_users.html', users=users)
-
+    active_users  = User.query.filter_by(is_active=True).order_by(User.role, User.full_name).all()
+    deleted_users = User.query.filter_by(is_active=False).order_by(User.role, User.full_name).all()
+    return render_template('admin_users.html', users=active_users, deleted_users=deleted_users)
+@app.route('/admin/users/<int:user_id>/restore', methods=['POST'])
+@login_required
+@roles_required('admin')
+def restore_user(user_id):
+    u = User.query.get_or_404(user_id)
+    u.status    = 'active'
+    u.is_active = True
+    db.session.commit()
+    flash(f'User {u.username} restored.', 'success')
+    return redirect(url_for('manage_users'))
 
 @app.route('/admin/users/new', methods=['GET', 'POST'])
 @login_required

@@ -33,15 +33,34 @@
   .user-card-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
   .user-card-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 
+  .section-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 18px 0 8px;
+  }
+
+  .deleted-banner {
+    padding: 10px 14px;
+    background: #fff3f3;
+    border-bottom: 0.5px solid #f5c6c6;
+    font-size: 12px;
+    color: #721c24;
+  }
+
+  .deleted-row { opacity: 0.65; }
+
   @media (max-width: 700px) {
     .users-table { display: none; }
     .users-cards { display: block; }
   }
 </style>
 
+{# ── Active Users ── #}
+<div class="section-label">Active Users</div>
 <div class="card">
-
-  <!-- Desktop table -->
   <table class="users-table">
     <thead>
       <tr>
@@ -80,8 +99,6 @@
         <td>
           {% if u.id != current_user.id %}
           <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-
-            <!-- Activate / Deactivate -->
             <form method="POST" action="{{ url_for('change_user_status', user_id=u.id) }}" style="display:contents">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               {% if u.status != 'active' %}
@@ -91,17 +108,13 @@
                 <button name="status" value="inactive" class="btn btn-sm">Deactivate</button>
               {% endif %}
             </form>
-
             <a href="{{ url_for('edit_user', user_id=u.id) }}" class="btn btn-sm">Edit</a>
-
-            <!-- Delete -->
             <form method="POST" action="{{ url_for('delete_user', user_id=u.id) }}"
                   style="display:inline"
-                  onsubmit="return confirm('Delete {{ u.username }}? This cannot be undone.')">
+                  onsubmit="return confirm('Delete {{ u.username }}? They will be deactivated and can be restored later.')">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-sm btn-danger">Delete</button>
             </form>
-
           </div>
           {% else %}
             <span style="color:var(--text-muted);font-size:0.85em">—</span>
@@ -112,7 +125,7 @@
     </tbody>
   </table>
 
-  <!-- Mobile cards -->
+  {# Mobile cards — active users #}
   <div class="users-cards">
     {% for u in users %}
     <div class="user-card">
@@ -139,8 +152,6 @@
       </div>
       <div class="user-card-actions">
         {% if u.id != current_user.id %}
-
-          <!-- Activate / Deactivate -->
           <form method="POST" action="{{ url_for('change_user_status', user_id=u.id) }}" style="display:contents">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             {% if u.status != 'active' %}
@@ -150,17 +161,13 @@
               <button name="status" value="inactive" class="btn btn-sm">Deactivate</button>
             {% endif %}
           </form>
-
           <a href="{{ url_for('edit_user', user_id=u.id) }}" class="btn btn-sm">Edit</a>
-
-          <!-- Delete -->
           <form method="POST" action="{{ url_for('delete_user', user_id=u.id) }}"
                 style="display:inline"
-                onsubmit="return confirm('Delete {{ u.username }}? This cannot be undone.')">
+                onsubmit="return confirm('Delete {{ u.username }}? They can be restored later.')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-sm btn-danger">Delete</button>
           </form>
-
         {% else %}
           <span style="color:var(--text-muted);font-size:0.85em">—</span>
         {% endif %}
@@ -168,6 +175,81 @@
     </div>
     {% endfor %}
   </div>
-
 </div>
+
+{# ── Deleted Users ── #}
+{% if deleted_users %}
+<div class="section-label">Deleted Users</div>
+<div class="card">
+  <div class="deleted-banner">
+    These users have been deleted and cannot log in. You can restore them at any time.
+  </div>
+
+  {# Desktop table #}
+  <table class="users-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Username</th>
+        <th>Email</th>
+        <th>Role</th>
+        <th>Joined</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in deleted_users %}
+      <tr class="deleted-row">
+        <td style="font-weight:500">{{ u.full_name }}</td>
+        <td style="font-family:monospace;font-size:12px">{{ u.username }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ u.email }}</td>
+        <td>
+          <span class="badge
+            {% if u.role == 'admin' %}badge-Delayed
+            {% elif u.role == 'coordinator' %}badge-Created
+            {% elif u.role == 'documents' %}badge-InProgress
+            {% elif u.role == 'payments' %}badge-Completed
+            {% elif u.role == 'onsite' %}badge-Loan
+            {% else %}badge-Cash{% endif %}">{{ u.role }}</span>
+        </td>
+        <td style="font-size:12px;color:var(--muted)">{{ u.created_at.strftime('%d %b %Y') if u.created_at else '—' }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('restore_user', user_id=u.id) }}"
+                style="display:inline"
+                onsubmit="return confirm('Restore {{ u.username }}? They will be able to log in again.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-success">Restore</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {# Mobile cards — deleted users #}
+  <div class="users-cards">
+    {% for u in deleted_users %}
+    <div class="user-card" style="opacity:0.7">
+      <div class="user-card-header">
+        <div>
+          <div class="user-card-name">{{ u.full_name }}</div>
+          <div class="user-card-username">@{{ u.username }}</div>
+        </div>
+        <span class="badge badge-secondary">Deleted</span>
+      </div>
+      <div class="user-card-email">{{ u.email }}</div>
+      <div class="user-card-actions">
+        <form method="POST" action="{{ url_for('restore_user', user_id=u.id) }}"
+              style="display:inline"
+              onsubmit="return confirm('Restore {{ u.username }}?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm btn-success">Restore</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 {% endblock %}
