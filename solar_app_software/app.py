@@ -197,6 +197,7 @@ class User(UserMixin, db.Model):
     full_name  = db.Column(db.String(120), nullable=False)
     role       = db.Column(db.Enum('admin','coordinator','documents','payments','onsite','appinstall'), nullable=False)
     is_active  = db.Column(db.Boolean, default=True)
+    is_deleted  = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     status     = db.Column(db.String(20), nullable=False, default='active')
     # Login-attempt tracking persisted to DB (supplements in-memory cache)
@@ -950,7 +951,13 @@ def login():
         if u.status != 'active':
             flash('Your account is not active. Contact admin.', 'danger')
             return redirect(url_for('login'))
+        if u.is_deleted:
+            flash('This account no longer exists. Contact admin.', 'danger')
+            return redirect(url_for('login'))
 
+        if u.status != 'active':
+            flash('Your account is not active. Contact admin.', 'danger')
+            return redirect(url_for('login'))
         # Success
         u.reset_login_attempts()
         db.session.commit()
@@ -2810,18 +2817,29 @@ def update_installation(pid):
 @login_required
 @roles_required('admin')
 def manage_users():
-    active_users  = User.query.filter_by(is_active=True).order_by(User.role, User.full_name).all()
-    deleted_users = User.query.filter_by(is_active=False).order_by(User.role, User.full_name).all()
-    return render_template('admin_users.html', users=active_users, deleted_users=deleted_users)
+    active_users   = User.query.filter_by(is_deleted=False, is_active=True)\
+                               .order_by(User.role, User.full_name).all()
+    inactive_users = User.query.filter_by(is_deleted=False, is_active=False)\
+                               .order_by(User.role, User.full_name).all()
+    deleted_users  = User.query.filter_by(is_deleted=True)\
+                               .order_by(User.role, User.full_name).all()
+    return render_template('admin_users.html',
+        users=active_users,
+        inactive_users=inactive_users,
+        deleted_users=deleted_users)
 @app.route('/admin/users/<int:user_id>/restore', methods=['POST'])
 @login_required
 @roles_required('admin')
 def restore_user(user_id):
     u = User.query.get_or_404(user_id)
-    u.status    = 'active'
-    u.is_active = True
+    if not u.is_deleted:
+        flash('User is not deleted.', 'warning')
+        return redirect(url_for('manage_users'))
+    u.is_deleted = False
+    u.is_active  = True
+    u.status     = 'active'
     db.session.commit()
-    flash(f'User {u.username} restored.', 'success')
+    flash(f'User {u.username} restored successfully.', 'success')
     return redirect(url_for('manage_users'))
 
 @app.route('/admin/users/new', methods=['GET', 'POST'])
@@ -2884,18 +2902,16 @@ def edit_user(user_id):
 @login_required
 @roles_required('admin')
 def delete_user(user_id):
-    """Soft-delete: deactivate instead of hard-delete to preserve FK integrity."""
     u = User.query.get_or_404(user_id)
     if u.id == current_user.id:
         flash('You cannot delete your own account.', 'danger')
         return redirect(url_for('manage_users'))
-    # Soft delete — preserves referential integrity with logs, payments, notifications
-    u.status    = 'inactive'
-    u.is_active = False
+    u.is_deleted = True
+    u.is_active  = False
+    u.status     = 'inactive'
     db.session.commit()
-    flash(f'User {u.username} deactivated (soft-deleted).', 'success')
+    flash(f'User {u.username} deleted. You can restore them from the Deleted Users section.', 'success')
     return redirect(url_for('manage_users'))
-
 
 @app.route('/admin/users/<int:user_id>/status', methods=['POST'])
 @login_required
@@ -2904,6 +2920,9 @@ def change_user_status(user_id):
     u = User.query.get_or_404(user_id)
     if u.id == current_user.id:
         flash('You cannot change your own status.', 'danger')
+        return redirect(url_for('manage_users'))
+    if u.is_deleted:
+        flash('Cannot change status of a deleted user. Restore them first.', 'danger')
         return redirect(url_for('manage_users'))
     new_status = request.form.get('status')
     if new_status not in ('active', 'inactive'):
