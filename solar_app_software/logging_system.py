@@ -413,7 +413,8 @@ _VIEWER_HTML = """
 """
 
 def _register_routes(app):
-    from flask import request as freq, abort, Markup
+    from flask import request as freq, abort
+    from markupsafe import Markup
     from flask_login import login_required, current_user
     from functools import wraps
 
