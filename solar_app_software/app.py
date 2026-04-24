@@ -18,7 +18,11 @@ import re
 
 from flask import send_file
 import tempfile, calendar
-
+from logging_system import (
+    setup_logging, app_logger, security_log,
+    log_login_attempt, log_lockout, log_password_change,
+    log_admin_action, log_access_denied,
+)
 # ── Security imports ──────────────────────────────────────────────────────────
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
@@ -131,7 +135,7 @@ limiter = Limiter(
     default_limits=[],          # no global limit; apply per-route
     storage_uri='memory://',    # swap to 'redis://localhost:6379' in production
 )
-
+setup_logging(app)
 
 # ── Security headers (injected on every response) ────────────────────────────
 @app.after_request
@@ -701,6 +705,7 @@ def roles_required(*roles):
         @wraps(f)
         def wrapper(*args, **kwargs):
             if not current_user.is_authenticated or current_user.role not in roles:
+                log_access_denied(request.path, current_user.username)
                 flash('Access denied.', 'danger')
                 return redirect(url_for('dashboard'))
             return f(*args, **kwargs)
@@ -961,6 +966,10 @@ def login():
         # Success
         u.reset_login_attempts()
         db.session.commit()
+        log_login_attempt(username, False, 'unknown_user')   # user not found
+        log_lockout(username, remaining)                      # account locked check
+        log_login_attempt(username, False, 'bad_password')   # wrong password
+        log_login_attempt(username, True)                     # before login_user(u)
         login_user(u)
         # Regenerate session to prevent session fixation
         session.regenerate() if hasattr(session, 'regenerate') else None
@@ -1018,8 +1027,9 @@ def change_password():
                     ),
                     notif_type='info',
                 ))
- 
+        
         db.session.commit()
+        log_password_change(current_user.username, current_user.username)
         flash('Password changed successfully.', 'success')
         return redirect(url_for('dashboard'))
  
@@ -1077,6 +1087,7 @@ def admin_change_password():
                 notif_type='warning',
             ))
         db.session.commit()
+        log_password_change(target.username, current_user.username)
         flash(
             f'Password for {target.full_name} ({target.username}) has been reset successfully. '
             f'They have been notified.',
@@ -2870,6 +2881,7 @@ def new_user():
         u.set_password(password)
         db.session.add(u)
         db.session.commit()
+        log_admin_action('CREATE_USER', target=u.username, detail=u.role)
         flash(f'User {u.username} created.', 'success')
         return redirect(url_for('manage_users'))
     return render_template('new_user.html')
@@ -2893,6 +2905,7 @@ def edit_user(user_id):
                 return render_template('edit_user.html', user=u)
             u.set_password(new_pw)
         db.session.commit()
+        log_admin_action('EDIT_USER',   target=u.username)
         flash(f'User {u.username} updated.', 'success')
         return redirect(url_for('manage_users'))
     return render_template('edit_user.html', user=u)
@@ -2910,6 +2923,7 @@ def delete_user(user_id):
     u.is_active  = False
     u.status     = 'inactive'
     db.session.commit()
+    log_admin_action('DELETE_USER', target=u.username)
     flash(f'User {u.username} deleted. You can restore them from the Deleted Users section.', 'success')
     return redirect(url_for('manage_users'))
 
@@ -2931,6 +2945,7 @@ def change_user_status(user_id):
     u.status    = new_status
     u.is_active = (new_status == 'active')
     db.session.commit()
+    log_admin_action('USER_STATUS', target=u.username, detail=new_status)
     flash(f'{u.username} marked as {new_status}.', 'success')
     return redirect(url_for('manage_users'))
 
