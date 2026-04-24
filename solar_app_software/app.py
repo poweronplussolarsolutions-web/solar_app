@@ -18,7 +18,7 @@ import re
 
 from flask import send_file
 import tempfile, calendar
-from logging_system import (
+from solar_app_software.logging_system import (
     setup_logging, app_logger, security_log,
     log_login_attempt, log_lockout, log_password_change,
     log_admin_action, log_access_denied,
