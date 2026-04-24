@@ -97,7 +97,7 @@ ACCESS_FMT = (
 class _JsonFormatter(logging.Formatter):
     def format(self, record):
         self.format_exception_text(record)
-        doc = {{
+        doc = {
             'ts':         self.formatTime(record, DATE_FMT),
             'level':      record.levelname,
             'logger':     record.name,
@@ -107,7 +107,7 @@ class _JsonFormatter(logging.Formatter):
             'ip':         getattr(record, 'ip',         '-'),
             'method':     getattr(record, 'method',     '-'),
             'path':       getattr(record, 'path',       '-'),
-        }}
+        }
         if record.exc_info:
             doc['traceback'] = self.formatException(record.exc_info)
         return json.dumps(doc, ensure_ascii=False)
@@ -120,18 +120,18 @@ class _JsonFormatter(logging.Formatter):
 
 class _ColourFormatter(logging.Formatter):
     """Coloured console output for development."""
-    COLOURS = {{
+    COLOURS = {
         'DEBUG':    '\033[36m',
         'INFO':     '\033[32m',
         'WARNING':  '\033[33m',
         'ERROR':    '\033[31m',
         'CRITICAL': '\033[35m',
-    }}
+    }
     RESET = '\033[0m'
 
     def format(self, record):
         colour = self.COLOURS.get(record.levelname, '')
-        record.levelname = f'{{colour}}{{record.levelname:<8}}{{self.RESET}}'
+        record.levelname = f'{colour}{record.levelname:<8}{self.RESET}'
         return super().format(record)
 
 
@@ -217,19 +217,19 @@ def setup_logging(app):
     def _after(response):
         duration_ms = int((time.perf_counter() - getattr(g, 'request_start', time.perf_counter())) * 1000)
         # Skip noisy endpoints
-        skip = {{'/api/notifications', '/static'}}
+        skip = {'/api/notifications', '/static'}
         if not any(request.path.startswith(p) for p in skip):
             access_logger.info(
                 '%s %dms',
                 response.status_code,
                 duration_ms,
-                extra={{
+                extra={
                     'ip':     request.remote_addr,
                     'user':   _safe_username(),
                     'method': request.method,
                     'path':   request.path,
                     'request_id': getattr(g, 'request_id', '-'),
-                }},
+                },
             )
         return response
 
@@ -304,38 +304,38 @@ def log_login_attempt(username: str, success: bool, reason: str = ''):
     level = 'info' if success else 'warning'
     security_log(
         'LOGIN_SUCCESS' if success else 'LOGIN_FAIL',
-        f'user={{username}} reason={{reason or "-"}}',
+        f'user={username} reason={reason or "-"}',
         level=level,
     )
 
 
 def log_lockout(username: str, minutes: int):
-    security_log('ACCOUNT_LOCKED', f'user={{username}} locked_for={{minutes}}m', level='warning')
+    security_log('ACCOUNT_LOCKED', f'user={username} locked_for={minutes}m', level='warning')
 
 
 def log_password_change(username: str, changed_by: str):
-    security_log('PASSWORD_CHANGE', f'user={{username}} changed_by={{changed_by}}')
+    security_log('PASSWORD_CHANGE', f'user={username} changed_by={changed_by}')
 
 
 def log_admin_action(action: str, target: str = '', detail: str = ''):
-    security_log('ADMIN_ACTION', f'action={{action}} target={{target}} detail={{detail}}')
+    security_log('ADMIN_ACTION', f'action={action} target={target} detail={detail}')
 
 
 def log_access_denied(path: str, user: str):
-    security_log('ACCESS_DENIED', f'path={{path}} user={{user}}', level='warning')
+    security_log('ACCESS_DENIED', f'path={path} user={user}', level='warning')
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ADMIN LOG VIEWER ROUTE
 # ─────────────────────────────────────────────────────────────────────────────
 
-_LOG_FILES = {{
+_LOG_FILES = {
     'app':      'app.log',
     'security': 'security.log',
     'access':   'access.log',
     'error':    'error.log',
     'slow':     'slow_query.log',
-}}
+}
 
 _VIEWER_HTML = """
 <!DOCTYPE html>
@@ -382,31 +382,31 @@ _VIEWER_HTML = """
 <header>
   <h1>📋 Log Viewer</h1>
   <a href="/dashboard">← Dashboard</a>
-  <a href="/admin/logs?file={{current_file}}&lines={{lines}}&q={{q}}" style="margin-left:auto; background:#1e40af; padding:.3rem .8rem; border-radius:.375rem; color:#fff; font-size:.8rem;">↻ Refresh</a>
+  <a href="/admin/logs?file={current_file}&lines={lines}&q={q}" style="margin-left:auto; background:#1e40af; padding:.3rem .8rem; border-radius:.375rem; color:#fff; font-size:.8rem;">↻ Refresh</a>
 </header>
 <div class="controls">
   <form method="get" style="display:contents">
     <select name="file" onchange="this.form.submit()">
-      {{file_options}}
+      {file_options}
     </select>
-    <input type="number" name="lines" value="{{lines}}" min="10" max="5000" style="width:80px" title="Lines to show">
-    <input type="text" name="q" value="{{q}}" placeholder="Filter text…" style="width:200px">
+    <input type="number" name="lines" value="{lines}" min="10" max="5000" style="width:80px" title="Lines to show">
+    <input type="text" name="q" value="{q}" placeholder="Filter text…" style="width:200px">
     <button type="submit">Apply</button>
     <button type="button" class="secondary" onclick="document.querySelector('[name=q]').value='';this.form.submit()">Clear</button>
     <div class="stats">
-      <div>Errors <span class="badge err">{{cnt_error}}</span></div>
-      <div>Warnings <span class="badge warn">{{cnt_warn}}</span></div>
-      <div>Security <span class="badge sec">{{cnt_sec}}</span></div>
-      <div>Total <span>{{cnt_total}}</span></div>
+      <div>Errors <span class="badge err">{cnt_error}</span></div>
+      <div>Warnings <span class="badge warn">{cnt_warn}</span></div>
+      <div>Security <span class="badge sec">{cnt_sec}</span></div>
+      <div>Total <span>{cnt_total}</span></div>
     </div>
   </form>
 </div>
-<div id="log-box">{{log_content}}</div>
+<div id="log-box">{log_content}</div>
 <script>
   // Auto-scroll to bottom
   window.scrollTo(0, document.body.scrollHeight);
   // Keyboard shortcut: Ctrl+R to refresh
-  document.addEventListener('keydown', e => {{ if (e.ctrlKey && e.key==='r') location.reload(); }});
+  document.addEventListener('keydown', e => { if (e.ctrlKey && e.key==='r') location.reload(); }});
 </script>
 </body>
 </html>
@@ -464,14 +464,14 @@ def _register_routes(app):
             cls   = _classify(line)
             safe  = _html.escape(line.rstrip())
             if q:
-                safe = safe.replace(_html.escape(q), f'<mark class="highlight">{{_html.escape(q)}}</mark>')
-            return f'<div class="line {{cls}}">{{safe}}</div>'
+                safe = safe.replace(_html.escape(q), f'<mark class="highlight">{_html.escape(q)}</mark>')
+            return f'<div class="line {cls}">{safe}</div>'
 
         log_content = '\n'.join(_render_line(l) for l in raw_lines) if raw_lines else \
                       '<div style="color:#64748b;padding:2rem">No log entries found.</div>'
 
         file_options = '\n'.join(
-            f'<option value="{{k}}" {{"selected" if k==current_file else ""}}>{{v}}</option>'
+            f'<option value="{k}" {"selected" if k==current_file else ""}>{v}</option>'
             for k, v in _LOG_FILES.items()
         )
 
