@@ -932,12 +932,14 @@ def login():
         u = User.query.filter_by(username=username).first()
 
         if not u:
+            log_login_attempt(username, False, 'unknown_user')
             flash(_fail_msg, 'danger')
             return redirect(url_for('login'))
 
         # Account locked?
         if u.is_locked():
             remaining = int((u.locked_until - datetime.utcnow()).total_seconds() / 60) + 1
+            log_lockout(username, remaining)
             flash(f'Account temporarily locked. Try again in {remaining} minute(s).', 'danger')
             return redirect(url_for('login'))
 
@@ -945,7 +947,9 @@ def login():
         if not u.check_password(password):
             u.record_failed_login()
             db.session.commit()
+            log_login_attempt(username, False, 'bad_password')
             if u.is_locked():
+                log_lockout(username, LOCKOUT_MINUTES)
                 flash(f'Too many failed attempts. Account locked for {LOCKOUT_MINUTES} minutes.', 'danger')
             else:
                 remaining_attempts = MAX_LOGIN_ATTEMPTS - u.failed_logins
@@ -954,21 +958,23 @@ def login():
 
         # Inactive account
         if u.status != 'active':
+            log_login_attempt(username, False, 'inactive')
             flash('Your account is not active. Contact admin.', 'danger')
             return redirect(url_for('login'))
         if u.is_deleted:
+            log_login_attempt(username, False, 'deleted')
             flash('This account no longer exists. Contact admin.', 'danger')
             return redirect(url_for('login'))
 
-        if u.status != 'active':
-            flash('Your account is not active. Contact admin.', 'danger')
-            return redirect(url_for('login'))
+        # if u.status != 'active':
+        #     flash('Your account is not active. Contact admin.', 'danger')
+        #     return redirect(url_for('login'))
         # Success
         u.reset_login_attempts()
         db.session.commit()
-        log_login_attempt(username, False, 'unknown_user')   # user not found
-        log_lockout(username, remaining)                      # account locked check
-        log_login_attempt(username, False, 'bad_password')   # wrong password
+           # user not found
+                              # account locked check
+           # wrong password
         log_login_attempt(username, True)                     # before login_user(u)
         login_user(u)
         # Regenerate session to prevent session fixation
