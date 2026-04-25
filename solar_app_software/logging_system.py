@@ -382,31 +382,31 @@ _VIEWER_HTML = """
 <header>
   <h1>📋 Log Viewer</h1>
   <a href="/dashboard">← Dashboard</a>
-  <a href="/admin/logs?file={current_file}&lines={lines}&q={q}" style="margin-left:auto; background:#1e40af; padding:.3rem .8rem; border-radius:.375rem; color:#fff; font-size:.8rem;">↻ Refresh</a>
+  <a href="/admin/logs?file={{current_file}}&lines={{lines}}&q={{q}}" style="margin-left:auto; background:#1e40af; padding:.3rem .8rem; border-radius:.375rem; color:#fff; font-size:.8rem;">↻ Refresh</a>
 </header>
 <div class="controls">
   <form method="get" style="display:contents">
     <select name="file" onchange="this.form.submit()">
-      {file_options}
+      {{file_options}}
     </select>
-    <input type="number" name="lines" value="{lines}" min="10" max="5000" style="width:80px" title="Lines to show">
-    <input type="text" name="q" value="{q}" placeholder="Filter text…" style="width:200px">
+    <input type="number" name="lines" value="{{lines}}" min="10" max="5000" style="width:80px" title="Lines to show">
+    <input type="text" name="q" value="{{q}}" placeholder="Filter text…" style="width:200px">
     <button type="submit">Apply</button>
     <button type="button" class="secondary" onclick="document.querySelector('[name=q]').value='';this.form.submit()">Clear</button>
     <div class="stats">
-      <div>Errors <span class="badge err">{cnt_error}</span></div>
-      <div>Warnings <span class="badge warn">{cnt_warn}</span></div>
-      <div>Security <span class="badge sec">{cnt_sec}</span></div>
-      <div>Total <span>{cnt_total}</span></div>
+      <div>Errors <span class="badge err">{{cnt_error}}</span></div>
+      <div>Warnings <span class="badge warn">{{cnt_warn}}</span></div>
+      <div>Security <span class="badge sec">{{cnt_sec}}</span></div>
+      <div>Total <span>{{cnt_total}}</span></div>
     </div>
   </form>
 </div>
-<div id="log-box">{log_content}</div>
+<div id="log-box">{{log_content}}</div>
 <script>
   // Auto-scroll to bottom
   window.scrollTo(0, document.body.scrollHeight);
   // Keyboard shortcut: Ctrl+R to refresh
-  document.addEventListener('keydown', e => { if (e.ctrlKey && e.key==='r') location.reload(); }});
+  document.addEventListener('keydown', e => {{ if (e.ctrlKey && e.key==='r') location.reload(); }});
 </script>
 </body>
 </html>
