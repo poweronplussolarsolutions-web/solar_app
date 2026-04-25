@@ -19,7 +19,7 @@ import re
 from flask import send_file
 import tempfile, calendar
 from solar_app_software.logging_system import (
-    setup_logging, app_logger, security_log,
+    setup_logging, security_log,
     log_login_attempt, log_lockout, log_password_change,
     log_admin_action, log_access_denied,
 )
@@ -965,7 +965,14 @@ def login():
             log_login_attempt(username, False, 'deleted')
             flash('This account no longer exists. Contact admin.', 'danger')
             return redirect(url_for('login'))
-
+        if u and u.check_password(password):
+            login_user(u)
+            log_login_attempt(u,success=True)
+            return redirect(url_for('dashboard'))
+        else:
+            log_login_attempt(username,success=False, reason='invalid credentials')
+            flash('Invalid username or password')
+            return redirect(url_for('login'))
         # if u.status != 'active':
         #     flash('Your account is not active. Contact admin.', 'danger')
         #     return redirect(url_for('login'))
