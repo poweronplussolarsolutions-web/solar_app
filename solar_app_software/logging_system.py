@@ -475,11 +475,16 @@ def _register_routes(app):
             for k, v in _LOG_FILES.items()
         )
 
-        html = _VIEWER_HTML.format(
-            current_file=current_file, lines=lines, q=_html.escape(q),
-            file_options=file_options, log_content=log_content,
-            cnt_error=cnt_error, cnt_warn=cnt_warn, cnt_sec=cnt_sec, cnt_total=cnt_total,
-        )
+        html = _VIEWER_HTML \
+    .replace('{{current_file}}', current_file) \
+    .replace('{{lines}}',        str(lines)) \
+    .replace('{{q}}',            _html.escape(q)) \
+    .replace('{{file_options}}', file_options) \
+    .replace('{{log_content}}',  log_content) \
+    .replace('{{cnt_error}}',    str(cnt_error)) \
+    .replace('{{cnt_warn}}',     str(cnt_warn)) \
+    .replace('{{cnt_sec}}',      str(cnt_sec)) \
+    .replace('{{cnt_total}}',    str(cnt_total))
         from flask import Response
         return Response(html, mimetype='text/html')
 
