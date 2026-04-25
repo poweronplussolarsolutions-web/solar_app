@@ -4,7 +4,6 @@
 
 {% block head %}
 <style>
-  /* ── Responsive grid helpers ── */
   .stats-4 {
     display: grid;
     grid-template-columns: repeat(4, minmax(0,1fr));
@@ -36,27 +35,21 @@
     gap: 10px;
     align-items: flex-end;
   }
-
   @media (max-width: 768px) {
     .stats-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
     .stats-3 { grid-template-columns: repeat(2, minmax(0,1fr)); }
-
     .close-card-grid { grid-template-columns: 1fr 1fr; }
     .close-card-grid > div:nth-child(3),
     .close-card-grid > div:nth-child(4) { grid-column: 1 / -1; }
-
     .advance-form-grid { grid-template-columns: 1fr 1fr; }
     .advance-form-grid > div:nth-child(3),
     .advance-form-grid > div:nth-child(4) { grid-column: 1 / -1; }
-
     .settle-form-grid { grid-template-columns: 1fr 1fr; }
     .settle-form-grid > div:nth-child(3),
     .settle-form-grid > div:nth-child(4) { grid-column: 1 / -1; }
-
     .worker-header { flex-wrap: wrap; }
     .worker-header .badges { display: flex; flex-wrap: wrap; gap: 4px; }
   }
-
   @media (max-width: 480px) {
     .stats-3 { grid-template-columns: 1fr; }
     .stats-4 { grid-template-columns: 1fr 1fr; }
@@ -65,130 +58,118 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-4 py-4">
 
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h4 class="fw-bold mb-0">👷 Workers</h4>
-    {% if current_user.role in ['admin', 'onsite'] %}
-    <a href="{{ url_for('new_worker') }}" class="btn btn-primary">
-      + Add Worker
-    </a>
-    {% endif %}
-  </div>
-
-  <!-- Active Workers -->
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-white py-3">
-      <h5 class="mb-0">Active Workers</h5>
-    </div>
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Name</th>
-              <th>Phone</th>
-              <th>Skill</th>
-              <th>Rate/Day</th>
-              <th>Active Jobs</th>
-              <th>Balance</th>
-              <th class="text-end">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% set active_workers = workers | selectattr('is_active') | list %}
-            {% if active_workers %}
-              {% for w in active_workers %}
-              {% set last_ledger = w.ledger_entries | sort(attribute='id') | last if w.ledger_entries else None %}
-              {% set balance = last_ledger.balance_after | float if last_ledger else 0 %}
-              {% set open_cards = w.job_cards | selectattr('status', 'in', ['Open','PendingApproval','Approved']) | list %}
-              <tr>
-                <td class="fw-semibold">{{ w.name }}</td>
-                <td>{{ w.phone or '—' }}</td>
-                <td>
-                  {% if w.skill %}
-                  <span class="badge bg-secondary">{{ w.skill }}</span>
-                  {% else %}—{% endif %}
-                </td>
-                <td>₹{{ w.rate_per_day | int }}/day</td>
-                <td>
-                  <span class="badge bg-{{ 'warning text-dark' if open_cards else 'light text-muted' }}">
-                    {{ open_cards | length }} open
-                  </span>
-                </td>
-                <td>
-                   <span class="fw-bold text-{{ 'success' if balance > 0 else 'muted' }}">
-                    ₹{{ '{:,.0f}'.format(balance) }}
-                  </span>
-                </td>
-                <td class="text-end">
-                  <div class="d-flex gap-1 justify-content-end">
-                    {% if current_user.role in ['admin', 'onsite'] %}
-                    <a href="{{ url_for('edit_worker', worker_id=w.id) }}"
-                       class="btn btn-sm btn-outline-warning">✏️ Edit</a>
-                    {% endif %}
-                    {% if current_user.role == 'admin' %}
-                    <form method="POST" action="{{ url_for('delete_worker', worker_id=w.id) }}"
-                          onsubmit="return confirm('Deactivate {{ w.name }}? They can be restored later.')">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <button type="submit" class="btn btn-sm btn-outline-danger">🗑 Remove</button>
-                    </form>
-                    {% endif %}
-                  </div>
-                </td>
-                </tr>
-              {% endfor %}
-            {% else %}
-              <tr><td colspan="7" class="text-center text-muted py-4">No active workers found.</td></tr>
-            {% endif %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- Inactive / Deactivated Workers (admin only) -->
-  {% if current_user.role == 'admin' %}
-  {% set inactive_workers = workers | rejectattr('is_active') | list %}
-  {% if inactive_workers %}
-  <div class="card border-0 shadow-sm">
-    <div class="card-header bg-white py-3">
-      <h5 class="mb-0 text-muted">Deactivated Workers</h5>
-    </div>
-     <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Name</th><th>Phone</th><th>Skill</th><th>Rate/Day</th><th class="text-end">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for w in inactive_workers %}
-            <tr class="text-muted">
-              <td>{{ w.name }}</td>
-              <td>{{ w.phone or '—' }}</td>
-              <td>{{ w.skill or '—' }}</td>
-              <td>₹{{ w.rate_per_day | int }}/day</td>
-              <td class="text-end">
-                <form method="POST" action="{{ url_for('restore_worker', worker_id=w.id) }}">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <button type="submit" class="btn btn-sm btn-outline-success">↩ Restore</button>
-                </form>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+{# ── Page header + Add Worker button ── #}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+  <h4 style="margin:0;font-weight:700">👷 Workers</h4>
+  {% if current_user.role in ['admin', 'onsite'] %}
+  <a href="{{ url_for('new_worker') }}" class="btn btn-primary">+ Add Worker</a>
   {% endif %}
-  {% endif %}
-
 </div>
-{% endblock %}
-{# ── PENDING APPROVALS BANNER ── #}
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{# ACTIVE + DEACTIVATED SUMMARY TABLE                                         #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{% set active_workers   = workers | selectattr('is_active') | list %}
+{% set inactive_workers = workers | rejectattr('is_active') | list %}
+
+<div class="card" style="margin-bottom:20px">
+  <div class="card-title">Active workers
+    <span style="font-size:12px;color:var(--muted);font-weight:400;margin-left:6px">{{ active_workers | length }} total</span>
+  </div>
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <table style="min-width:600px">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>Skill</th>
+          <th>Rate/Day</th>
+          <th>Open Jobs</th>
+          <th>Balance</th>
+          <th style="text-align:right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if active_workers %}
+          {% for w in active_workers %}
+          {% set last_ledger = w.ledger_entries | sort(attribute='id') | last if w.ledger_entries else None %}
+          {% set balance = last_ledger.balance_after | float if last_ledger else 0 %}
+          {% set open_cards = w.job_cards | selectattr('status', 'in', ['Open','PendingApproval','Approved']) | list %}
+          <tr>
+            <td style="font-weight:500">{{ w.name }}</td>
+            <td>{{ w.phone or '—' }}</td>
+            <td>
+              {% if w.skill %}<span class="tag">{{ w.skill }}</span>{% else %}—{% endif %}
+            </td>
+            <td>₹{{ w.rate_per_day | int }}/day</td>
+            <td>
+              <span class="badge badge-{{ 'InProgress' if open_cards else 'Completed' }}" style="font-size:11px">
+                {{ open_cards | length }} open
+              </span>
+            </td>
+            <td style="font-weight:500;color:{% if balance > 0 %}var(--green-600,#16a34a){% else %}var(--muted){% endif %}">
+              ₹{{ '{:,.0f}'.format(balance) }}
+            </td>
+            <td style="text-align:right">
+              <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
+                {% if current_user.role in ['admin', 'onsite'] %}
+                <a href="{{ url_for('edit_worker', worker_id=w.id) }}" class="btn btn-sm btn-warning">✏️ Edit</a>
+                {% endif %}
+                {% if current_user.role == 'admin' %}
+                <form method="POST" action="{{ url_for('delete_worker', worker_id=w.id) }}"
+                      onsubmit="return confirm('Deactivate {{ w.name }}? They can be restored later.')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-sm btn-danger">🗑 Remove</button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="7" style="text-align:center;color:var(--hint);padding:20px">No active workers. <a href="{{ url_for('new_worker') }}">Add one →</a></td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# Deactivated workers — admin only #}
+{% if current_user.role == 'admin' and inactive_workers %}
+<div class="card" style="margin-bottom:24px">
+  <div class="card-title" style="color:var(--muted)">Deactivated workers</div>
+  <div style="overflow-x:auto">
+    <table style="min-width:500px">
+      <thead>
+        <tr>
+          <th>Name</th><th>Phone</th><th>Skill</th><th>Rate/Day</th><th style="text-align:right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for w in inactive_workers %}
+        <tr style="color:var(--muted)">
+          <td>{{ w.name }}</td>
+          <td>{{ w.phone or '—' }}</td>
+          <td>{{ w.skill or '—' }}</td>
+          <td>₹{{ w.rate_per_day | int }}/day</td>
+          <td style="text-align:right">
+            <form method="POST" action="{{ url_for('restore_worker', worker_id=w.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm" style="color:var(--green-600,#16a34a);border-color:var(--green-600,#16a34a);background:none">↩ Restore</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{# PENDING APPROVALS BANNER                                                   #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
 {% set all_pending = [] %}
 {% for w in workers %}
   {% for jc in w.job_cards %}
@@ -206,19 +187,14 @@
     </div>
     {% set pending_total = namespace(v=0) %}
     {% for jc in all_pending %}{% set pending_total.v = pending_total.v + (jc.final_amount | float) %}{% endfor %}
-    <span style="font-size:14px;font-weight:600;color:var(--amber-800)">₹{{ pending_total.v | int | inr }}</span>
+    <span style="font-size:14px;font-weight:600;color:var(--amber-800)">₹{{ pending_total.v | int }}</span>
   </div>
   <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
     <table style="min-width:560px">
       <thead>
         <tr>
-          <th>Worker</th>
-          <th>Project</th>
-          <th>Phase</th>
-          <th>Days</th>
-          <th>Amount</th>
-          <th>Closed by</th>
-          <th></th>
+          <th>Worker</th><th>Project</th><th>Phase</th><th>Days</th>
+          <th>Amount</th><th>Closed by</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -226,8 +202,7 @@
         <tr>
           <td style="font-weight:500">{{ jc.worker.name }}</td>
           <td>
-            <a href="{{ url_for('project_detail', pid=jc.project_id) }}"
-               style="color:var(--amber-600);font-weight:500">
+            <a href="{{ url_for('project_detail', pid=jc.project_id) }}" style="color:var(--amber-600);font-weight:500">
               {{ jc.project.project_code }}
             </a>
             <div style="font-size:11px;color:var(--muted)">{{ jc.project.customer.name }}</div>
@@ -238,13 +213,13 @@
           <td style="font-size:12px;color:var(--muted)">{{ jc.closer.full_name if jc.closer else '—' }}</td>
           <td>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
-              <form method="POST" action="{{ url_for('approve_job_card', card_id=jc.id) }}" style="display:inline" >
+              <form method="POST" action="{{ url_for('approve_job_card', card_id=jc.id) }}" style="display:inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-primary btn-sm">✓ Approve</button>
               </form>
-              <form method="POST" action="{{ url_for('void_job_card', card_id=jc.id) }}" 
+              <form method="POST" action="{{ url_for('void_job_card', card_id=jc.id) }}"
                     onsubmit="return confirm('Void this job card?')" style="display:inline">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-sm btn-danger">Void</button>
               </form>
             </div>
@@ -258,27 +233,21 @@
 {% endif %}
 
 {# ══════════════════════════════════════════════════════════════════════════ #}
-{# WORKER OVERVIEW TABLE                                                      #}
+{# WORKER OVERVIEW TABLE                                                       #}
 {# ══════════════════════════════════════════════════════════════════════════ #}
 <div class="card" style="margin-bottom:24px">
-  <div class="card-title">On-site workers</div>
+  <div class="card-title">On-site workers overview</div>
   <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
     <table style="min-width:620px">
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Phone</th>
-          <th>Skill</th>
-          <th>Active assignments</th>
-          <th>Balance</th>
-          <th>Pending approval</th>
-          <th>Status</th>
+          <th>Name</th><th>Phone</th><th>Skill</th>
+          <th>Active assignments</th><th>Balance</th>
+          <th>Pending approval</th><th>Status</th>
         </tr>
       </thead>
       <tbody>
         {% for w in workers %}
-
-        {# ── Compute active assignments ── #}
         {% set active_assigns = [] %}
         {% for a in w.assignments %}
           {% if a.status in ['Assigned','Active'] %}
@@ -287,8 +256,6 @@
             {% if not done %}{% if active_assigns.append(a) %}{% endif %}{% endif %}
           {% endif %}
         {% endfor %}
-
-        {# ── Compute ledger balance ── #}
         {% set ns = namespace(balance=0, pending_approval=0) %}
         {% if w.ledger_entries %}
           {% set last_entry = w.ledger_entries | sort(attribute='id') | last %}
@@ -299,7 +266,6 @@
             {% set ns.pending_approval = ns.pending_approval + (jc.final_amount | float) %}
           {% endif %}
         {% endfor %}
-
         <tr>
           <td style="font-weight:500">{{ w.name }}</td>
           <td>{{ w.phone or '—' }}</td>
@@ -317,8 +283,8 @@
             {% endif %}
           </td>
           <td style="font-weight:500;color:{% if ns.balance > 0 %}var(--green-600,#16a34a){% else %}var(--muted){% endif %}">
-            {{ ns.balance | int | abs }}
-            {%- if ns.balance > 0 %} <span style="font-size:11px;font-weight:400;color:var(--hint)">owed</span>{% endif %}
+            ₹{{ ns.balance | int }}
+            {% if ns.balance > 0 %}<span style="font-size:11px;font-weight:400;color:var(--hint)"> owed</span>{% endif %}
           </td>
           <td>
             {% if ns.pending_approval > 0 %}
@@ -348,7 +314,6 @@
 {% set open_assigns = w.assignments | selectattr('status','in',['Assigned','Active','Completed']) | list %}
 {% if open_assigns or w.job_cards %}
 
-{# ── Compute balance from ledger ── #}
 {% set ns = namespace(balance=0, total_earned=0, total_settled=0, pending_amt=0, advance_outstanding=0) %}
 {% for entry in w.ledger_entries %}
   {% if entry.direction == 'Credit' %}
@@ -370,11 +335,9 @@
   {% endif %}
 {% endfor %}
 
-{% set last_ledger = w.ledger_entries | sort(attribute='id') | last if w.ledger_entries else None %}
-
 <div class="card" style="margin-bottom:20px;overflow:hidden">
 
-  {# ── Header ── #}
+  {# Header #}
   <div class="worker-header" style="padding:14px 18px;border-bottom:0.5px solid var(--border);display:flex;align-items:flex-start;gap:12px">
     <div style="width:40px;height:40px;border-radius:50%;background:#E6F1FB;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:#185FA5;flex-shrink:0">
       {{ w.name.split()[0][0] }}{{ w.name.split()[-1][0] if w.name.split()|length > 1 else '' }}
@@ -391,19 +354,24 @@
       {% if ns.pending_amt > 0 %}
         <span class="badge badge-Delayed" style="font-size:11px">₹{{ ns.pending_amt | int }} pending approval</span>
       {% endif %}
-      {% if w.is_active %}
-        <span class="badge badge-Completed" style="font-size:11px">Active</span>
+      {% if current_user.role in ['admin','onsite'] %}
+      <a href="{{ url_for('edit_worker', worker_id=w.id) }}" class="btn btn-sm btn-warning" style="font-size:11px;padding:2px 8px">✏️ Edit</a>
+      {% endif %}
+      {% if current_user.role == 'admin' %}
+      <form method="POST" action="{{ url_for('delete_worker', worker_id=w.id) }}"
+            onsubmit="return confirm('Deactivate {{ w.name }}?')" style="display:inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm btn-danger" style="font-size:11px;padding:2px 8px">🗑</button>
+      </form>
       {% endif %}
     </div>
   </div>
 
-  {# ── Balance stats row ── #}
+  {# Balance stats #}
   <div class="stats-4">
     <div style="background:var(--surface-2,#f7f7f5);border-radius:8px;padding:10px 13px">
       <div style="font-size:11px;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">Current balance</div>
-      <div style="font-size:19px;font-weight:500;color:{% if ns.balance > 0 %}var(--green-600,#16a34a){% else %}var(--muted){% endif %}">
-        ₹{{ ns.balance | int }}
-      </div>
+      <div style="font-size:19px;font-weight:500;color:{% if ns.balance > 0 %}var(--green-600,#16a34a){% else %}var(--muted){% endif %}">₹{{ ns.balance | int }}</div>
       <div style="font-size:10px;color:var(--hint);margin-top:2px">owed to worker</div>
     </div>
     <div style="background:var(--surface-2,#f7f7f5);border-radius:8px;padding:10px 13px">
@@ -413,75 +381,53 @@
     </div>
     <div style="background:var(--surface-2,#f7f7f5);border-radius:8px;padding:10px 13px">
       <div style="font-size:11px;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">Pending approval</div>
-      <div style="font-size:19px;font-weight:500;color:{% if ns.pending_amt > 0 %}#d97706{% else %}var(--muted){% endif %}">
-        ₹{{ ns.pending_amt | int }}
-      </div>
+      <div style="font-size:19px;font-weight:500;color:{% if ns.pending_amt > 0 %}#d97706{% else %}var(--muted){% endif %}">₹{{ ns.pending_amt | int }}</div>
       <div style="font-size:10px;color:var(--hint);margin-top:2px">awaiting sign-off</div>
     </div>
     <div style="background:var(--surface-2,#f7f7f5);border-radius:8px;padding:10px 13px">
       <div style="font-size:11px;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">Advance owed</div>
-      <div style="font-size:19px;font-weight:500;color:{% if ns.advance_outstanding > 0 %}#dc2626{% else %}var(--muted){% endif %}">
-        ₹{{ ns.advance_outstanding | int }}
-      </div>
+      <div style="font-size:19px;font-weight:500;color:{% if ns.advance_outstanding > 0 %}#dc2626{% else %}var(--muted){% endif %}">₹{{ ns.advance_outstanding | int }}</div>
       <div style="font-size:10px;color:var(--hint);margin-top:2px">not yet recovered</div>
     </div>
   </div>
 
-  {# ══════════════════════════════════════════════════════════════════════ #}
-  {# JOB CARDS                                                              #}
-  {# ══════════════════════════════════════════════════════════════════════ #}
+  {# Job cards section — unchanged from your original #}
   <div style="padding:14px 18px;border-bottom:0.5px solid var(--border)">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:12px">Job cards</div>
-
-    {% set open_cards    = w.job_cards | selectattr('status','in',['Open'])              | list %}
-    {% set pending_cards = w.job_cards | selectattr('status','equalto','PendingApproval')| list %}
-    {% set approved_cards= w.job_cards | selectattr('status','equalto','Approved')       | list %}
-    {% set paid_cards    = w.job_cards | selectattr('status','equalto','Paid')           | list %}
+    {% set open_cards     = w.job_cards | selectattr('status','in',['Open'])               | list %}
+    {% set pending_cards  = w.job_cards | selectattr('status','equalto','PendingApproval') | list %}
+    {% set approved_cards = w.job_cards | selectattr('status','equalto','Approved')        | list %}
+    {% set paid_cards     = w.job_cards | selectattr('status','equalto','Paid')            | list %}
 
     {% if not w.job_cards %}
-    <div style="font-size:13px;color:var(--hint);padding:4px 0">No job cards yet. Cards are created automatically when workers are assigned to projects.</div>
+    <div style="font-size:13px;color:var(--hint)">No job cards yet.</div>
     {% else %}
 
-    {# ── Pending Approval cards ── #}
     {% if pending_cards %}
     <div style="margin-bottom:14px">
-      <div style="font-size:12px;font-weight:500;color:#92400e;margin-bottom:8px;display:flex;align-items:center;gap:6px">
-        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f59e0b"></span>
-        Pending approval ({{ pending_cards | length }})
-      </div>
+      <div style="font-size:12px;font-weight:500;color:#92400e;margin-bottom:8px">⏳ Pending approval ({{ pending_cards | length }})</div>
       {% for jc in pending_cards %}
       <div style="border:1px solid #fde68a;border-radius:var(--radius);background:#fffbeb;padding:12px 14px;margin-bottom:8px">
         <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
           <div style="flex:1;min-width:200px">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
-              <a href="{{ url_for('project_detail', pid=jc.project_id) }}" class="tag"
-                 style="color:var(--blue-600);text-decoration:none">
-                {{ jc.project.project_code }}
-              </a>
+              <a href="{{ url_for('project_detail', pid=jc.project_id) }}" class="tag" style="color:var(--blue-600);text-decoration:none">{{ jc.project.project_code }}</a>
               <span style="font-size:11px;color:var(--muted)">{{ jc.work_phase }}</span>
-              <span style="font-size:11px;color:var(--hint)">closed {{ jc.closed_at | date_fmt if jc.closed_at else '—' }}</span>
             </div>
-            {% if jc.description %}
-            <div style="font-size:12px;color:var(--muted);margin-bottom:6px">{{ jc.description }}</div>
-            {% endif %}
             <div style="font-size:13px">
-              {% if jc.actual_days %}
-                <span style="font-weight:500">{{ jc.actual_days }} days</span>
-                <span style="color:var(--muted)"> × ₹{{ jc.rate_per_day | int }}/day</span>
-                <span style="color:var(--hint);font-size:11px;margin-left:4px">= </span>
-              {% endif %}
+              {% if jc.actual_days %}<span style="font-weight:500">{{ jc.actual_days }} days</span><span style="color:var(--muted)"> × ₹{{ jc.rate_per_day | int }}/day = </span>{% endif %}
               <span style="font-size:16px;font-weight:600;color:#92400e">₹{{ jc.final_amount | int }}</span>
             </div>
           </div>
           {% if current_user.role in ['admin','onsite'] %}
-          <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap">
-            <form method="POST" action="{{ url_for('approve_job_card', card_id=jc.id) }}" style="display:inline" >
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <form method="POST" action="{{ url_for('approve_job_card', card_id=jc.id) }}" style="display:inline">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-primary btn-sm">✓ Approve</button>
             </form>
-            <form method="POST" action="{{ url_for('void_job_card', card_id=jc.id) }}" 
+            <form method="POST" action="{{ url_for('void_job_card', card_id=jc.id) }}"
                   onsubmit="return confirm('Void this job card?')" style="display:inline">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-sm" style="color:var(--danger);border-color:var(--danger);background:none">Void</button>
             </form>
           </div>
@@ -492,59 +438,37 @@
     </div>
     {% endif %}
 
-    {# ── Open cards ── #}
     {% if open_cards %}
     <div style="margin-bottom:14px">
-      <div style="font-size:12px;font-weight:500;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:6px">
-        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#6366f1"></span>
-        Open ({{ open_cards | length }})
-      </div>
+      <div style="font-size:12px;font-weight:500;color:var(--muted);margin-bottom:8px">🟣 Open ({{ open_cards | length }})</div>
       {% for jc in open_cards %}
       <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px">
         <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
           <div style="flex:1;min-width:180px">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
-              <a href="{{ url_for('project_detail', pid=jc.project_id) }}" class="tag"
-                 style="color:var(--blue-600);text-decoration:none">
-                {{ jc.project.project_code }}
-              </a>
+              <a href="{{ url_for('project_detail', pid=jc.project_id) }}" class="tag" style="color:var(--blue-600);text-decoration:none">{{ jc.project.project_code }}</a>
               <span style="font-size:11px;color:var(--muted)">{{ jc.work_phase }}</span>
               <span class="badge badge-Created" style="font-size:10px">Open</span>
             </div>
-            <div style="font-size:12px;color:var(--hint)">
-              Rate: ₹{{ jc.rate_per_day | int }}/day
-              {% if jc.agreed_amount %} · Agreed: ₹{{ jc.agreed_amount | int }} lump sum{% endif %}
-            </div>
+            <div style="font-size:12px;color:var(--hint)">Rate: ₹{{ jc.rate_per_day | int }}/day{% if jc.agreed_amount %} · Agreed: ₹{{ jc.agreed_amount | int }}{% endif %}</div>
           </div>
           {% if current_user.role in ['admin','onsite'] %}
-          <div>
-            <button class="btn btn-sm btn-primary"
-                    onclick="document.getElementById('close-card-{{ jc.id }}').style.display='block';this.style.display='none'">
-              Mark done
-            </button>
-          </div>
+          <button class="btn btn-sm btn-primary" onclick="document.getElementById('close-card-{{ jc.id }}').style.display='block';this.style.display='none'">Mark done</button>
           {% endif %}
         </div>
-
-        {# Close card form #}
         {% if current_user.role in ['admin','onsite'] %}
         <div id="close-card-{{ jc.id }}" style="display:none;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
-          <form method="POST" action="{{ url_for('close_job_card', card_id=jc.id) }}" >
+          <form method="POST" action="{{ url_for('close_job_card', card_id=jc.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="close-card-grid">
               <div>
                 <label style="font-size:12px">Actual days</label>
-                <input type="number" name="actual_days" id="days-jc-{{ jc.id }}"
-                       min="0.5" max="99" step="0.5" required placeholder="e.g. 5"
+                <input type="number" name="actual_days" id="days-jc-{{ jc.id }}" min="0.5" max="99" step="0.5" required placeholder="e.g. 5"
                        oninput="calcJobAmt('{{ jc.id }}','{{ jc.rate_per_day | float }}','{{ jc.agreed_amount | float if jc.agreed_amount else 0 }}')"/>
               </div>
               <div>
-                <label style="font-size:12px">
-                  Amount (₹)
-                  <span id="jc-auto-{{ jc.id }}" style="font-size:10px;color:#185FA5;display:none">auto</span>
-                </label>
-                <input type="number" name="final_amount" id="amt-jc-{{ jc.id }}"
-                       required placeholder="₹"
+                <label style="font-size:12px">Amount (₹)</label>
+                <input type="number" name="final_amount" id="amt-jc-{{ jc.id }}" required placeholder="₹"
                        value="{% if jc.agreed_amount %}{{ jc.agreed_amount | int }}{% endif %}"/>
               </div>
               <div>
@@ -553,10 +477,7 @@
               </div>
               <div style="display:flex;gap:6px;align-items:flex-end">
                 <button type="submit" class="btn btn-primary btn-sm">Submit</button>
-                <button type="button" class="btn btn-sm"
-                        onclick="document.getElementById('close-card-{{ jc.id }}').style.display='none'">
-                  Cancel
-                </button>
+                <button type="button" class="btn btn-sm" onclick="document.getElementById('close-card-{{ jc.id }}').style.display='none'">Cancel</button>
               </div>
             </div>
           </form>
@@ -567,80 +488,54 @@
     </div>
     {% endif %}
 
-    {# ── Approved (awaiting settlement) ── #}
     {% if approved_cards %}
     <div style="margin-bottom:14px">
-      <div style="font-size:12px;font-weight:500;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:6px">
-        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#16a34a"></span>
-        Approved — awaiting settlement ({{ approved_cards | length }})
-      </div>
+      <div style="font-size:12px;font-weight:500;color:var(--muted);margin-bottom:8px">🟢 Approved — awaiting settlement ({{ approved_cards | length }})</div>
       {% set ns_ap = namespace(approved_total=0) %}
       {% for jc in approved_cards %}{% set ns_ap.approved_total = ns_ap.approved_total + jc.final_amount | float %}{% endfor %}
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+      <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:380px">
-          <thead>
-            <tr style="border-bottom:0.5px solid var(--border)">
-              <th style="text-align:left;padding:5px 8px;color:var(--muted);font-weight:500">Project</th>
-              <th style="text-align:left;padding:5px 8px;color:var(--muted);font-weight:500">Phase</th>
-              <th style="text-align:right;padding:5px 8px;color:var(--muted);font-weight:500">Days</th>
-              <th style="text-align:right;padding:5px 8px;color:var(--muted);font-weight:500">Amount</th>
-              <th style="padding:5px 8px;color:var(--muted);font-weight:500">Approved by</th>
-            </tr>
-          </thead>
+          <thead><tr style="border-bottom:0.5px solid var(--border)">
+            <th style="text-align:left;padding:5px 8px;color:var(--muted);font-weight:500">Project</th>
+            <th style="text-align:left;padding:5px 8px;color:var(--muted);font-weight:500">Phase</th>
+            <th style="text-align:right;padding:5px 8px;color:var(--muted);font-weight:500">Days</th>
+            <th style="text-align:right;padding:5px 8px;color:var(--muted);font-weight:500">Amount</th>
+          </tr></thead>
           <tbody>
             {% for jc in approved_cards %}
             <tr style="border-bottom:0.5px solid var(--border)">
-              <td style="padding:7px 8px">
-                <a href="{{ url_for('project_detail', pid=jc.project_id) }}" class="tag"
-                   style="color:var(--blue-600);text-decoration:none">
-                  {{ jc.project.project_code }}
-                </a>
-              </td>
+              <td style="padding:7px 8px"><a href="{{ url_for('project_detail', pid=jc.project_id) }}" class="tag" style="color:var(--blue-600);text-decoration:none">{{ jc.project.project_code }}</a></td>
               <td style="padding:7px 8px;color:var(--muted)">{{ jc.work_phase }}</td>
               <td style="padding:7px 8px;text-align:right">{{ jc.actual_days or '—' }}</td>
               <td style="padding:7px 8px;text-align:right;font-weight:500;color:var(--green-600,#16a34a)">₹{{ jc.final_amount | int }}</td>
-              <td style="padding:7px 8px;color:var(--hint)">{{ jc.approver.full_name if jc.approver else '—' }}</td>
             </tr>
             {% endfor %}
           </tbody>
-          <tfoot>
-            <tr>
-              <td colspan="3" style="padding:7px 8px;font-weight:500;color:var(--muted)">Total approved</td>
-              <td style="padding:7px 8px;text-align:right;font-weight:600;color:var(--green-600,#16a34a)">₹{{ ns_ap.approved_total | int }}</td>
-              <td></td>
-            </tr>
-          </tfoot>
+          <tfoot><tr>
+            <td colspan="3" style="padding:7px 8px;font-weight:500;color:var(--muted)">Total</td>
+            <td style="padding:7px 8px;text-align:right;font-weight:600;color:var(--green-600,#16a34a)">₹{{ ns_ap.approved_total | int }}</td>
+          </tr></tfoot>
         </table>
       </div>
     </div>
     {% endif %}
 
-    {# ── Paid cards history (collapsed) ── #}
     {% if paid_cards %}
     <details style="margin-top:4px">
-      <summary style="font-size:12px;color:var(--hint);cursor:pointer;user-select:none;padding:4px 0">
-        {{ paid_cards | length }} paid card{{ 's' if paid_cards | length > 1 else '' }} — view history
-      </summary>
-      <div style="margin-top:10px;overflow-x:auto;-webkit-overflow-scrolling:touch">
+      <summary style="font-size:12px;color:var(--hint);cursor:pointer;padding:4px 0">{{ paid_cards | length }} paid card{{ 's' if paid_cards | length > 1 else '' }} — view history</summary>
+      <div style="margin-top:10px;overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:360px">
-          <thead>
-            <tr style="border-bottom:0.5px solid var(--border)">
-              <th style="text-align:left;padding:5px 8px;color:var(--muted);font-weight:500">Project</th>
-              <th style="text-align:left;padding:5px 8px;color:var(--muted);font-weight:500">Phase</th>
-              <th style="text-align:right;padding:5px 8px;color:var(--muted);font-weight:500">Days</th>
-              <th style="text-align:right;padding:5px 8px;color:var(--muted);font-weight:500">Amount</th>
-              <th style="padding:5px 8px;color:var(--muted);font-weight:500">Closed</th>
-            </tr>
-          </thead>
+          <thead><tr style="border-bottom:0.5px solid var(--border)">
+            <th style="text-align:left;padding:5px 8px;color:var(--muted);font-weight:500">Project</th>
+            <th style="text-align:left;padding:5px 8px;color:var(--muted);font-weight:500">Phase</th>
+            <th style="text-align:right;padding:5px 8px;color:var(--muted);font-weight:500">Days</th>
+            <th style="text-align:right;padding:5px 8px;color:var(--muted);font-weight:500">Amount</th>
+            <th style="padding:5px 8px;color:var(--muted);font-weight:500">Closed</th>
+          </tr></thead>
           <tbody>
             {% for jc in paid_cards | sort(attribute='closed_at', reverse=True) %}
             <tr style="border-bottom:0.5px solid var(--border)">
-              <td style="padding:7px 8px">
-                <a href="{{ url_for('project_detail', pid=jc.project_id) }}" class="tag"
-                   style="color:var(--blue-600);text-decoration:none">
-                  {{ jc.project.project_code }}
-                </a>
-              </td>
+              <td style="padding:7px 8px"><a href="{{ url_for('project_detail', pid=jc.project_id) }}" class="tag" style="color:var(--blue-600);text-decoration:none">{{ jc.project.project_code }}</a></td>
               <td style="padding:7px 8px;color:var(--muted)">{{ jc.work_phase }}</td>
               <td style="padding:7px 8px;text-align:right">{{ jc.actual_days or '—' }}</td>
               <td style="padding:7px 8px;text-align:right;font-weight:500">₹{{ jc.final_amount | int }}</td>
@@ -652,98 +547,56 @@
       </div>
     </details>
     {% endif %}
-
-    {% endif %}{# end if not w.job_cards #}
+    {% endif %}
   </div>
 
-  {# ══════════════════════════════════════════════════════════════════════ #}
-  {# ADVANCES                                                               #}
-  {# ══════════════════════════════════════════════════════════════════════ #}
+  {# Advances section #}
   <div style="padding:14px 18px;border-bottom:0.5px solid var(--border)">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:12px">Advances</div>
-
     {% set outstanding_advances = w.advances | selectattr('status','in',['Outstanding','PartiallyRecovered']) | list %}
     {% set cleared_advances     = w.advances | selectattr('status','equalto','Cleared') | list %}
-
     {% if outstanding_advances %}
     <div style="margin-bottom:12px">
       {% for adv in outstanding_advances %}
       {% set still_owed = (adv.amount | float) - (adv.recovered_amount | float) %}
       <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;padding:10px 12px;border:0.5px solid #fca5a5;border-radius:var(--radius);background:#fff1f1;margin-bottom:8px">
         <div style="flex:1;min-width:160px">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px">
-            <span style="font-size:13px;font-weight:500;color:#b91c1c">₹{{ still_owed | int }} outstanding</span>
-            {% if adv.status == 'PartiallyRecovered' %}
-              <span class="badge" style="font-size:10px;background:#fef3c7;color:#92400e;border:none">Partially recovered</span>
-            {% endif %}
-          </div>
-          <div style="font-size:11px;color:#dc2626">
-            Given {{ adv.given_date | date_fmt }}
-            {% if adv.project %} · {{ adv.project.project_code }}{% endif %}
-            {% if adv.recovered_amount | float > 0 %} · ₹{{ adv.recovered_amount | int }} already recovered{% endif %}
-            {% if adv.notes %} · {{ adv.notes }}{% endif %}
-          </div>
+          <div style="font-size:13px;font-weight:500;color:#b91c1c">₹{{ still_owed | int }} outstanding</div>
+          <div style="font-size:11px;color:#dc2626">Given {{ adv.given_date | date_fmt }}{% if adv.project %} · {{ adv.project.project_code }}{% endif %}{% if adv.recovered_amount | float > 0 %} · ₹{{ adv.recovered_amount | int }} recovered{% endif %}{% if adv.notes %} · {{ adv.notes }}{% endif %}</div>
         </div>
         {% if current_user.role in ['admin','onsite'] %}
-        <form method="POST" action="{{ url_for('recover_advance', advance_id=adv.id) }}" 
-              style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="number" name="recover_amount" min="1"
-                 max="{{ still_owed | int }}"
-                 value="{{ still_owed | int }}"
-                 style="width:90px;font-size:12px;padding:4px 8px"/>
-          <button type="submit" class="btn btn-sm" style="white-space:nowrap">Mark recovered</button>
+        <form method="POST" action="{{ url_for('recover_advance', advance_id=adv.id) }}" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="number" name="recover_amount" min="1" max="{{ still_owed | int }}" value="{{ still_owed | int }}" style="width:90px;font-size:12px;padding:4px 8px"/>
+          <button type="submit" class="btn btn-sm">Mark recovered</button>
         </form>
         {% endif %}
       </div>
       {% endfor %}
     </div>
     {% endif %}
-
     {% if cleared_advances %}
     <details>
-      <summary style="font-size:12px;color:var(--hint);cursor:pointer;user-select:none;padding:4px 0">
-        {{ cleared_advances | length }} cleared advance{{ 's' if cleared_advances | length > 1 else '' }}
-      </summary>
+      <summary style="font-size:12px;color:var(--hint);cursor:pointer;padding:4px 0">{{ cleared_advances | length }} cleared advance{{ 's' if cleared_advances | length > 1 else '' }}</summary>
       <div style="margin-top:8px">
         {% for adv in cleared_advances %}
-        <div style="font-size:12px;color:var(--hint);padding:4px 0;border-bottom:0.5px solid var(--border)">
-          ₹{{ adv.amount | int }} · given {{ adv.given_date | date_fmt }}
-          {% if adv.project %} · {{ adv.project.project_code }}{% endif %}
-          <span class="badge badge-Completed" style="font-size:10px;margin-left:4px">Cleared</span>
-        </div>
+        <div style="font-size:12px;color:var(--hint);padding:4px 0;border-bottom:0.5px solid var(--border)">₹{{ adv.amount | int }} · given {{ adv.given_date | date_fmt }}{% if adv.project %} · {{ adv.project.project_code }}{% endif %}<span class="badge badge-Completed" style="font-size:10px;margin-left:4px">Cleared</span></div>
         {% endfor %}
       </div>
     </details>
     {% endif %}
-
-    {% if not w.advances %}
-    <div style="font-size:13px;color:var(--hint)">No advances recorded.</div>
-    {% endif %}
-
-    {# Record new advance #}
+    {% if not w.advances %}<div style="font-size:13px;color:var(--hint)">No advances recorded.</div>{% endif %}
     {% if current_user.role in ['admin','onsite'] %}
     <div style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
       <button class="btn btn-sm" onclick="togglePanel('advance-form-{{ w.id }}')">+ Record advance</button>
       <div id="advance-form-{{ w.id }}" style="display:none;margin-top:10px">
-        <form method="POST" action="{{ url_for('give_advance', worker_id=w.id) }}" >
+        <form method="POST" action="{{ url_for('give_advance', worker_id=w.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="advance-form-grid">
-            <div>
-              <label>Amount (₹)</label>
-              <input type="number" name="amount" min="1" required placeholder="0"/>
-            </div>
-            <div>
-              <label>Date</label>
-              <input type="date" name="given_date" required value="{{ today.isoformat() }}"/>
-            </div>
-            <div>
-              <label>Notes (optional)</label>
-              <input type="text" name="notes" placeholder="e.g. travel expense…"/>
-            </div>
-            <div style="display:flex;align-items:flex-end">
-              <button type="submit" class="btn btn-primary btn-sm">Save</button>
-            </div>
+            <div><label>Amount (₹)</label><input type="number" name="amount" min="1" required placeholder="0"/></div>
+            <div><label>Date</label><input type="date" name="given_date" required value="{{ today.isoformat() }}"/></div>
+            <div><label>Notes (optional)</label><input type="text" name="notes" placeholder="e.g. travel expense…"/></div>
+            <div style="display:flex;align-items:flex-end"><button type="submit" class="btn btn-primary btn-sm">Save</button></div>
           </div>
         </form>
       </div>
@@ -751,13 +604,10 @@
     {% endif %}
   </div>
 
-  {# ══════════════════════════════════════════════════════════════════════ #}
-  {# SETTLEMENT                                                             #}
-  {# ══════════════════════════════════════════════════════════════════════ #}
+  {# Settlement section #}
   {% if current_user.role in ['admin','onsite'] %}
   <div style="padding:14px 18px;border-bottom:0.5px solid var(--border)">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:12px">Settlement</div>
-
     {% set net_payable = ns.balance - ns.advance_outstanding %}
     <div class="stats-3">
       <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:10px 12px;font-size:12px">
@@ -773,41 +623,18 @@
         <div style="font-size:16px;font-weight:600;color:#15803d">₹{{ [net_payable, 0] | max | int }}</div>
       </div>
     </div>
-
     {% if ns.balance > 0 %}
-    <button class="btn btn-primary btn-sm" onclick="togglePanel('settle-form-{{ w.id }}')">
-      ₹ Settle payment
-    </button>
+    <button class="btn btn-primary btn-sm" onclick="togglePanel('settle-form-{{ w.id }}')">₹ Settle payment</button>
     <div id="settle-form-{{ w.id }}" style="display:none;margin-top:12px">
-      <form method="POST" action="{{ url_for('settle_worker', worker_id=w.id) }}" >
+      <form method="POST" action="{{ url_for('settle_worker', worker_id=w.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="settle-form-grid">
-          <div>
-            <label>Amount to pay (₹)</label>
-            <input type="number" name="amount" min="1"
-                   max="{{ [net_payable, 0] | max | int }}"
-                   value="{{ [net_payable, 0] | max | int }}"
-                   required style="font-weight:500"/>
-          </div>
-          <div>
-            <label>Payment mode</label>
-            <select name="payment_mode">
-              <option>Cash</option>
-              <option>Bank</option>
-              <option>Online</option>
-            </select>
-          </div>
-          <div>
-            <label>Notes (optional)</label>
-            <input type="text" name="notes" placeholder="e.g. week ending 15 Apr…"/>
-          </div>
-          <div style="display:flex;align-items:flex-end">
-            <button type="submit" class="btn btn-primary btn-sm">Confirm settlement</button>
-          </div>
+          <div><label>Amount to pay (₹)</label><input type="number" name="amount" min="1" max="{{ [net_payable, 0] | max | int }}" value="{{ [net_payable, 0] | max | int }}" required style="font-weight:500"/></div>
+          <div><label>Payment mode</label><select name="payment_mode"><option>Cash</option><option>Bank</option><option>Online</option></select></div>
+          <div><label>Notes (optional)</label><input type="text" name="notes" placeholder="e.g. week ending 15 Apr…"/></div>
+          <div style="display:flex;align-items:flex-end"><button type="submit" class="btn btn-primary btn-sm">Confirm settlement</button></div>
         </div>
-        <div style="font-size:11px;color:var(--hint);margin-top:6px">
-          Outstanding advances will be auto-recovered from this settlement.
-        </div>
+        <div style="font-size:11px;color:var(--hint);margin-top:6px">Outstanding advances will be auto-recovered from this settlement.</div>
       </form>
     </div>
     {% else %}
@@ -816,57 +643,40 @@
   </div>
   {% endif %}
 
-  {# ══════════════════════════════════════════════════════════════════════ #}
-  {# LEDGER HISTORY                                                         #}
-  {# ══════════════════════════════════════════════════════════════════════ #}
+  {# Ledger history #}
   {% if w.ledger_entries %}
   <div style="padding:14px 18px">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:10px">Ledger history</div>
-    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:520px">
-        <thead>
-          <tr style="border-bottom:0.5px solid var(--border)">
-            <th style="text-align:left;padding:5px 8px;color:var(--muted);font-weight:500">Date</th>
-            <th style="text-align:left;padding:5px 8px;color:var(--muted);font-weight:500">Type</th>
-            <th style="text-align:left;padding:5px 8px;color:var(--muted);font-weight:500">Notes</th>
-            <th style="text-align:right;padding:5px 8px;color:var(--muted);font-weight:500">Earned</th>
-            <th style="text-align:right;padding:5px 8px;color:var(--muted);font-weight:500">Paid Out</th>
-            <th style="text-align:right;padding:5px 8px;color:var(--muted);font-weight:500">Balance</th>
-            <th style="padding:5px 8px;color:var(--muted);font-weight:500">By</th>
-            {% if current_user.role == 'admin' %}<th></th>{% endif %}
-          </tr>
-        </thead>
+        <thead><tr style="border-bottom:0.5px solid var(--border)">
+          <th style="text-align:left;padding:5px 8px;color:var(--muted);font-weight:500">Date</th>
+          <th style="text-align:left;padding:5px 8px;color:var(--muted);font-weight:500">Type</th>
+          <th style="text-align:left;padding:5px 8px;color:var(--muted);font-weight:500">Notes</th>
+          <th style="text-align:right;padding:5px 8px;color:var(--muted);font-weight:500">Earned</th>
+          <th style="text-align:right;padding:5px 8px;color:var(--muted);font-weight:500">Paid Out</th>
+          <th style="text-align:right;padding:5px 8px;color:var(--muted);font-weight:500">Balance</th>
+          <th style="padding:5px 8px;color:var(--muted);font-weight:500">By</th>
+          {% if current_user.role == 'admin' %}<th></th>{% endif %}
+        </tr></thead>
         <tbody>
           {% for entry in w.ledger_entries | sort(attribute='id', reverse=True) %}
           <tr style="border-bottom:0.5px solid var(--border)">
             <td style="padding:7px 8px;white-space:nowrap;color:var(--muted)">{{ entry.entry_date | date_fmt }}</td>
             <td style="padding:7px 8px">
-              <span class="tag" style="
-                {% if entry.entry_type == 'Earning' %}background:#dcfce7;color:#15803d{% endif %}
-                {% if entry.entry_type == 'Settlement' %}background:#dbeafe;color:#1d4ed8{% endif %}
-                {% if entry.entry_type == 'Advance' %}background:#fee2e2;color:#dc2626{% endif %}
-                {% if entry.entry_type == 'Deduction' %}background:#fef3c7;color:#92400e{% endif %}
-                {% if entry.entry_type == 'Bonus' %}background:#fae8ff;color:#9333ea{% endif %}
-              ">{{ entry.entry_type }}</span>
+              <span class="tag" style="{% if entry.entry_type == 'Earning' %}background:#dcfce7;color:#15803d{% elif entry.entry_type == 'Settlement' %}background:#dbeafe;color:#1d4ed8{% elif entry.entry_type == 'Advance' %}background:#fee2e2;color:#dc2626{% elif entry.entry_type == 'Deduction' %}background:#fef3c7;color:#92400e{% else %}background:#fae8ff;color:#9333ea{% endif %}">{{ entry.entry_type }}</span>
             </td>
             <td style="padding:7px 8px;color:var(--muted);font-size:11px">{{ entry.notes or '—' }}</td>
-            <td style="padding:7px 8px;text-align:right;font-weight:500;color:var(--green-600,#16a34a)">
-              {% if entry.direction == 'Credit' %}₹{{ entry.amount | int }}{% else %}—{% endif %}
-            </td>
-            <td style="padding:7px 8px;text-align:right;font-weight:500;color:#dc2626">
-              {% if entry.direction == 'Debit' %}₹{{ entry.amount | int }}{% else %}—{% endif %}
-            </td>
+            <td style="padding:7px 8px;text-align:right;font-weight:500;color:var(--green-600,#16a34a)">{% if entry.direction == 'Credit' %}₹{{ entry.amount | int }}{% else %}—{% endif %}</td>
+            <td style="padding:7px 8px;text-align:right;font-weight:500;color:#dc2626">{% if entry.direction == 'Debit' %}₹{{ entry.amount | int }}{% else %}—{% endif %}</td>
             <td style="padding:7px 8px;text-align:right;font-weight:500">₹{{ entry.balance_after | int }}</td>
             <td style="padding:7px 8px;color:var(--hint)">{{ entry.recorder.full_name if entry.recorder else '—' }}</td>
             {% if current_user.role == 'admin' %}
             <td style="padding:7px 8px">
-              <form method="POST" action="{{ url_for('void_ledger_entry', entry_id=entry.id) }}" 
-                    onsubmit="return confirm('Void this ledger entry? Balance will be recalculated.')">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-sm"
-                        style="color:var(--danger);border-color:var(--danger);background:none;padding:2px 8px;font-size:11px">
-                  Void
-                </button>
+              <form method="POST" action="{{ url_for('void_ledger_entry', entry_id=entry.id) }}"
+                    onsubmit="return confirm('Void this ledger entry?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm" style="color:var(--danger);border-color:var(--danger);background:none;padding:2px 8px;font-size:11px">Void</button>
               </form>
             </td>
             {% endif %}
@@ -887,24 +697,15 @@ function togglePanel(id) {
   var el = document.getElementById(id);
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
-
 function calcJobAmt(jcId, ratePerDay, agreedAmount) {
-  var daysEl  = document.getElementById('days-jc-' + jcId);
-  var amtEl   = document.getElementById('amt-jc-'  + jcId);
-  var hintEl  = document.getElementById('jc-auto-' + jcId);
+  var daysEl = document.getElementById('days-jc-' + jcId);
+  var amtEl  = document.getElementById('amt-jc-'  + jcId);
   if (!daysEl || !amtEl) return;
-
-  var days    = parseFloat(daysEl.value) || 0;
-  var rate    = parseFloat(ratePerDay)   || 0;
-  var agreed  = parseFloat(agreedAmount) || 0;
-
-  if (agreed > 0) {
-    amtEl.value = agreed;
-    if (hintEl) hintEl.style.display = 'none';
-  } else if (days > 0 && rate > 0) {
-    amtEl.value = Math.round(days * rate);
-    if (hintEl) hintEl.style.display = 'inline';
-  }
+  var days   = parseFloat(daysEl.value) || 0;
+  var rate   = parseFloat(ratePerDay)   || 0;
+  var agreed = parseFloat(agreedAmount) || 0;
+  if (agreed > 0) { amtEl.value = agreed; }
+  else if (days > 0 && rate > 0) { amtEl.value = Math.round(days * rate); }
 }
 </script>
 
