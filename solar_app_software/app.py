@@ -146,14 +146,15 @@ def set_security_headers(response):
     response.headers['Referrer-Policy']           = 'strict-origin-when-cross-origin'
     response.headers['Permissions-Policy']        = 'geolocation=(), microphone=(), camera=()'
     # Tight CSP — adjust 'unsafe-inline' once you move styles/scripts to files
-    if request.path.startswith('/admin/logs'):
-        response.headers['Content-Security-Policy'] = (
-            "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline'; "
-            "style-src 'self' 'unsafe-inline';"
-        )
-        return response
-    response.headers['X-Content-Type-Options']    = 'nosniff'
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data:; "
+        "connect-src 'self';"
+    )
+    return response
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -696,7 +697,7 @@ class DocumentStage(db.Model):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return db.session.get(User, int(user_id))
+    return User.query.get(int(user_id))
 
 
 def roles_required(*roles):
@@ -951,7 +952,8 @@ def login():
                 log_lockout(username, LOCKOUT_MINUTES)
                 flash(f'Too many failed attempts. Account locked for {LOCKOUT_MINUTES} minutes.', 'danger')
             else:
-                flash(f'{_fail_msg} {MAX_LOGIN_ATTEMPTS - u.failed_logins} attempt(s) remaining.', 'danger')
+                remaining_attempts = MAX_LOGIN_ATTEMPTS - u.failed_logins
+                flash(f'{_fail_msg} {remaining_attempts} attempt(s) remaining.', 'danger')
             return redirect(url_for('login'))
 
         # Inactive account
@@ -963,28 +965,21 @@ def login():
             log_login_attempt(username, False, 'deleted')
             flash('This account no longer exists. Contact admin.', 'danger')
             return redirect(url_for('login'))
-        if u and u.check_password(password):
-            login_user(u)
-            log_login_attempt(u,success=True)
-            return redirect(url_for('dashboard'))
-        else:
-            log_login_attempt(username,success=False, reason='invalid credentials')
-            flash('Invalid username or password')
-            return redirect(url_for('login'))
+
         # if u.status != 'active':
         #     flash('Your account is not active. Contact admin.', 'danger')
         #     return redirect(url_for('login'))
         # Success
-    u.reset_login_attempts()
-    db.session.commit()
+        u.reset_login_attempts()
+        db.session.commit()
            # user not found
                               # account locked check
            # wrong password
-    log_login_attempt(username, True)                     # before login_user(u)
-    login_user(u)
+        log_login_attempt(username, True)                     # before login_user(u)
+        login_user(u)
         # Regenerate session to prevent session fixation
-    session.regenerate() if hasattr(session, 'regenerate') else None
-    return redirect(url_for('dashboard'))
+        session.regenerate() if hasattr(session, 'regenerate') else None
+        return redirect(url_for('dashboard'))
 
     return render_template('login.html',csrf_token=csrf_token)
 
