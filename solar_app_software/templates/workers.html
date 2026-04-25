@@ -65,6 +65,129 @@
 {% endblock %}
 
 {% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0">👷 Workers</h4>
+    {% if current_user.role in ['admin', 'onsite'] %}
+    <a href="{{ url_for('new_worker') }}" class="btn btn-primary">
+      + Add Worker
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- Active Workers -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white py-3">
+      <h5 class="mb-0">Active Workers</h5>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Skill</th>
+              <th>Rate/Day</th>
+              <th>Active Jobs</th>
+              <th>Balance</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set active_workers = workers | selectattr('is_active') | list %}
+            {% if active_workers %}
+              {% for w in active_workers %}
+              {% set last_ledger = w.ledger_entries | sort(attribute='id') | last if w.ledger_entries else None %}
+              {% set balance = last_ledger.balance_after | float if last_ledger else 0 %}
+              {% set open_cards = w.job_cards | selectattr('status', 'in', ['Open','PendingApproval','Approved']) | list %}
+              <tr>
+                <td class="fw-semibold">{{ w.name }}</td>
+                <td>{{ w.phone or '—' }}</td>
+                <td>
+                  {% if w.skill %}
+                  <span class="badge bg-secondary">{{ w.skill }}</span>
+                  {% else %}—{% endif %}
+                </td>
+                <td>₹{{ w.rate_per_day | int }}/day</td>
+                <td>
+                  <span class="badge bg-{{ 'warning text-dark' if open_cards else 'light text-muted' }}">
+                    {{ open_cards | length }} open
+                  </span>
+                </td>
+                <td>
+                   <span class="fw-bold text-{{ 'success' if balance > 0 else 'muted' }}">
+                    ₹{{ '{:,.0f}'.format(balance) }}
+                  </span>
+                </td>
+                <td class="text-end">
+                  <div class="d-flex gap-1 justify-content-end">
+                    {% if current_user.role in ['admin', 'onsite'] %}
+                    <a href="{{ url_for('edit_worker', worker_id=w.id) }}"
+                       class="btn btn-sm btn-outline-warning">✏️ Edit</a>
+                    {% endif %}
+                    {% if current_user.role == 'admin' %}
+                    <form method="POST" action="{{ url_for('delete_worker', worker_id=w.id) }}"
+                          onsubmit="return confirm('Deactivate {{ w.name }}? They can be restored later.')">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button type="submit" class="btn btn-sm btn-outline-danger">🗑 Remove</button>
+                    </form>
+                    {% endif %}
+                  </div>
+                </td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="7" class="text-center text-muted py-4">No active workers found.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inactive / Deactivated Workers (admin only) -->
+  {% if current_user.role == 'admin' %}
+  {% set inactive_workers = workers | rejectattr('is_active') | list %}
+  {% if inactive_workers %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white py-3">
+      <h5 class="mb-0 text-muted">Deactivated Workers</h5>
+    </div>
+     <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Name</th><th>Phone</th><th>Skill</th><th>Rate/Day</th><th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for w in inactive_workers %}
+            <tr class="text-muted">
+              <td>{{ w.name }}</td>
+              <td>{{ w.phone or '—' }}</td>
+              <td>{{ w.skill or '—' }}</td>
+              <td>₹{{ w.rate_per_day | int }}/day</td>
+              <td class="text-end">
+                <form method="POST" action="{{ url_for('restore_worker', worker_id=w.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-sm btn-outline-success">↩ Restore</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}
+
+</div>
+{% endblock %}
 {# ── PENDING APPROVALS BANNER ── #}
 {% set all_pending = [] %}
 {% for w in workers %}

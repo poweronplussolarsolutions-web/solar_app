@@ -2103,9 +2103,115 @@ def kseb(pid):
 @login_required
 @roles_required('admin', 'onsite', 'payments')
 def workers():
+    all_workers = Worker.query.order_by(Worker.is_active.desc(), Worker.name).all()
     return render_template('workers.html',
-        workers=Worker.query.filter_by(is_active=True).all(), today=date.today())
+        workers=all_workers, today=date.today())
+@app.route('/workers/new', methods=['GET', 'POST'])
+@login_required
+@roles_required('admin', 'onsite')
+def new_worker():
+    if request.method == 'POST':
+        name     = _clean(request.form.get('name', ''), 100)
+        phone    = _clean(request.form.get('phone', ''), 20) or None
+        skill    = _clean(request.form.get('skill', ''), 80) or None
+        rate     = _safe_float(request.form.get('rate_per_day', 0))
 
+        if not name:
+            flash('Worker name is required.', 'danger')
+            return redirect(url_for('new_worker'))
+
+        worker = Worker(name=name, phone=phone, skill=skill, rate_per_day=rate)
+        db.session.add(worker)
+        db.session.commit()
+        log_admin_action('CREATE_WORKER', target=name)
+        flash(f'Worker {name} added successfully.', 'success')
+        return redirect(url_for('workers'))
+
+    return render_template('new_worker.html')
+
+
+@app.route('/workers/<int:worker_id>/edit', methods=['GET', 'POST'])
+@login_required
+@roles_required('admin', 'onsite')
+def edit_worker(worker_id):
+    worker = Worker.query.get_or_404(worker_id)
+
+    if request.method == 'POST':
+        name  = _clean(request.form.get('name', ''), 100)
+        phone = _clean(request.form.get('phone', ''), 20) or None
+        skill = _clean(request.form.get('skill', ''), 80) or None
+        rate  = _safe_float(request.form.get('rate_per_day', 0))
+
+        if not name:
+            flash('Worker name is required.', 'danger')
+            return redirect(url_for('edit_worker', worker_id=worker_id))
+
+        old_rate = float(worker.rate_per_day or 0)
+        worker.name         = name
+        worker.phone        = phone
+        worker.skill        = skill
+        worker.rate_per_day = rate
+        db.session.commit()
+
+        if abs(old_rate - rate) > 0.01:
+            log_admin_action('EDIT_WORKER', target=name,
+                             detail=f'rate changed ₹{old_rate:,.0f} → ₹{rate:,.0f}')
+        else:
+            log_admin_action('EDIT_WORKER', target=name)
+
+        flash(f'Worker {name} updated successfully.', 'success')
+        return redirect(url_for('workers'))
+
+    return render_template('edit_worker.html', worker=worker)
+
+
+@app.route('/workers/<int:worker_id>/delete', methods=['POST'])
+@login_required
+@roles_required('admin')
+def delete_worker(worker_id):
+    worker = Worker.query.get_or_404(worker_id)
+
+    # Check for active assignments
+    active = WorkerAssignment.query.filter_by(
+        worker_id=worker_id
+    ).filter(WorkerAssignment.status.in_(['Assigned', 'Active'])).first()
+
+    if active:
+        flash(
+            f'Cannot delete {worker.name} — they have active assignments. '
+            f'Complete or unassign them first.', 'danger'
+        )
+        return redirect(url_for('workers'))
+
+    # Check for open job cards
+    open_cards = JobCard.query.filter_by(
+        worker_id=worker_id
+    ).filter(JobCard.status.in_(['Open', 'PendingApproval', 'Approved'])).first()
+
+    if open_cards:
+        flash(
+            f'Cannot delete {worker.name} — they have open or approved job cards.', 'danger'
+        )
+        return redirect(url_for('workers'))
+
+    # Soft delete — keeps history intact
+    worker.is_active = False
+    db.session.commit()
+    log_admin_action('DELETE_WORKER', target=worker.name)
+    flash(f'Worker {worker.name} has been deactivated.', 'warning')
+    return redirect(url_for('workers'))
+
+
+@app.route('/workers/<int:worker_id>/restore', methods=['POST'])
+@login_required
+@roles_required('admin')
+def restore_worker(worker_id):
+    worker = Worker.query.get_or_404(worker_id)
+    worker.is_active = True
+    db.session.commit()
+    log_admin_action('RESTORE_WORKER', target=worker.name)
+    flash(f'Worker {worker.name} has been restored.', 'success')
+    return redirect(url_for('workers'))
 
 @app.route('/projects/<int:pid>/assign_worker', methods=['POST'])
 @login_required

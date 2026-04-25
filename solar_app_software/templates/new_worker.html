@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Add Worker{% endblock %}
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <div class="d-flex align-items-center gap-3 mb-4">
+    <a href="{{ url_for('workers') }}" class="btn btn-outline-secondary btn-sm">
+      ← Back to Workers
+    </a>
+    <h4 class="mb-0 fw-bold">Add New Worker</h4>
+  </div>
+
+  <div class="row justify-content-center">
+    <div class="col-lg-6">
+      <div class="card shadow-sm border-0">
+        <div class="card-header bg-primary text-white py-3">
+          <h5 class="mb-0">👷 Worker Details</h5>
+        </div>
+        <div class="card-body p-4">
+          <form method="POST" action="{{ url_for('new_worker') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Full Name <span class="text-danger">*</span></label>
+              <input type="text" name="name" class="form-control" 
+                     placeholder="e.g. Raju K" required maxlength="100">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Phone Number</label>
+              <input type="tel" name="phone" class="form-control"
+                     placeholder="e.g. 9876543210" maxlength="20">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Skill / Trade</label>
+              <select name="skill" class="form-select">
+                <option value="">— Select Skill —</option>
+                <option value="Panel Installation">Panel Installation</option>
+                <option value="Electrical Work">Electrical Work</option>
+                <option value="Structural Work">Structural Work</option>
+                <option value="General Labour">General Labour</option>
+                <option value="Plumbing">Plumbing</option>
+                <option value="Welding">Welding</option>
+              </select>
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label fw-semibold">Rate Per Day (₹)</label>
+              <div class="input-group">
+                <span class="input-group-text">₹</span>
+                <input type="number" name="rate_per_day" class="form-control"
+                       placeholder="e.g. 1200" min="0" max="10000" step="50" value="1200">
+              </div>
+              <div class="form-text">Daily wage rate used for job card calculations.</div>
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary px-4">
+                ✓ Add Worker
+              </button>
+              <a href="{{ url_for('workers') }}" class="btn btn-outline-secondary px-4">
+                Cancel
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
