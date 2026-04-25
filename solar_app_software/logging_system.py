@@ -210,16 +210,28 @@ def setup_logging(app):
     # ── Flask hooks ───────────────────────────────────────────────────────────
     @app.before_request
     def _before():
-        g.request_id    = uuid.uuid4().hex[:12]
+        g.request_id = uuid.uuid4().hex[:12]
         g.request_start = time.perf_counter()
+
+    # cache user
+        try:
+            if current_user.is_authenticated:
+                g.user = current_user
+            else:
+                g.user = None
+        except:
+            g.user = None
 
     @app.after_request
     def _after(response):
-        duration_ms = int((time.perf_counter() - getattr(g, 'request_start', time.perf_counter())) * 1000)
+        try:
+            if response is None:
+                return response
+            duration_ms = int((time.perf_counter() - getattr(g, 'request_start', time.perf_counter())) * 1000)
         # Skip noisy endpoints
-        skip = {'/api/notifications', '/static'}
-        if not any(request.path.startswith(p) for p in skip):
-            access_logger.info(
+            skip = {'/api/notifications', '/static'}
+            if not any(request.path.startswith(p) for p in skip):
+                access_logger.info(
                 '%s %dms',
                 response.status_code,
                 duration_ms,
@@ -231,6 +243,8 @@ def setup_logging(app):
                     'request_id': getattr(g, 'request_id', '-'),
                 },
             )
+        except Exception as e:
+                error_logger.error("After request logging failed: %s",e)
         return response
 
     @app.teardown_request
@@ -256,9 +270,8 @@ def _configure(logger, level, handlers):
 
 def _safe_username():
     try:
-        from flask_login import current_user
-        return current_user.username if current_user.is_authenticated else 'anon'
-    except Exception:
+        return g.user.username if g.get('user') else 'anon'
+    except:
         return '-'
 
 
@@ -281,11 +294,13 @@ def _register_sqlalchemy_listener(app):
             if start:
                 ms = (time.perf_counter() - start) * 1000
                 if ms >= SLOW_QUERY_MS:
-                    slow_logger.warning(
-                        'SLOW QUERY %.1fms: %s',
-                        ms,
-                        statement[:300].replace('\n', ' '),
-                    )
+                    if not hasattr(conn, "_logged_slow"):
+                        slow_logger.warning(
+            'SLOW QUERY %.1fms: %s',
+            ms,
+            statement[:300].replace('\n', ' ')
+        )
+                        conn._logged_slow = True
     except ImportError:
         pass
 
