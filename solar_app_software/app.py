@@ -96,6 +96,14 @@ if not _secret:
 app.config['SECRET_KEY'] = _secret
 db_port=os.getenv("DB_PORT")or"3306"
 app.config['SQLALCHEMY_DATABASE_URI']=os.getenv('DATABASE_URL')
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_recycle': 180,        
+    'pool_pre_ping': True,      
+    'pool_timeout': 30,
+    'pool_size': 5,
+    'max_overflow': 5,
+}
+
 # app.config['SQLALCHEMY_DATABASE_URI'] = (
 #     f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}"
 #     f"@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
@@ -3754,12 +3762,5 @@ if __name__ == '__main__':
     debug = os.environ.get('FLASK_ENV') != 'production'
     app.run(debug=debug, port=5000)
 
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_recycle': 280,        
-    'pool_pre_ping': True,      
-    'pool_timeout': 30,
-    'pool_size': 5,
-    'max_overflow': 10,
-}
 
 
