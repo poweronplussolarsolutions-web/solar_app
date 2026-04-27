@@ -23,11 +23,13 @@ from solar_app_software.logging_system import (
     log_login_attempt, log_lockout, log_password_change,
     log_admin_action, log_access_denied,
 )
+from sqlalchemy.orm import selectinload,joinedload
 # ── Security imports ──────────────────────────────────────────────────────────
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import generate_csrf
+
 
 DCR_SUBSIDY_AMOUNT = 78000
 
@@ -2103,7 +2105,15 @@ def kseb(pid):
 @login_required
 @roles_required('admin', 'onsite', 'payments')
 def workers():
-    all_workers = Worker.query.order_by(Worker.is_active.desc(), Worker.name).all()
+    all_workers = Worker.query.options(
+        selectinload(Worker.assignments).joinedload(WorkerAssignment.project),
+        selectinload(Worker.job_cards).joinedload(JobCard.project),
+        selectinload(Worker.job_cards).joinedload(JobCard.closer),
+        selectinload(Worker.job_cards).joinedload(JobCard.approver),
+        selectinload(Worker.advances).joinedload(WorkerAdvance.project),
+        selectinload(Worker.ledger_entries).joinedload(WorkerLedger.recorder),
+        selectinload(Worker.weekly_payments),
+    ).order_by(Worker.is_active.desc(), Worker.name).all()
     return render_template('workers.html',
         workers=all_workers, today=date.today())
 @app.route('/workers/new', methods=['GET', 'POST'])
@@ -3743,6 +3753,12 @@ if __name__ == '__main__':
     debug = os.environ.get('FLASK_ENV') != 'production'
     app.run(debug=debug, port=5000)
 
-from sqlalchemy import text
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_recycle': 280,        
+    'pool_pre_ping': True,      
+    'pool_timeout': 30,
+    'pool_size': 5,
+    'max_overflow': 10,
+}
 
 
