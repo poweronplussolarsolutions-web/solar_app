@@ -3715,47 +3715,47 @@ def download_docstaff_report():
 # DB INIT & SEED
 # ─────────────────────────────────────────────────────────────────────────────
 
-def seed_db():
-    if User.query.count() == 0:
-        roles_data = [
-            ('admin',   'admin@poweronplus.in',  'Admin User',    'admin',       'Admin@12345'),
-            ('anita',   'anita@poweronplus.in',  'Anita Nair',    'coordinator', 'Coord@12345'),
-            ('vinod',   'vinod@poweronplus.in',  'Vinod Menon',   'coordinator', 'Coord@12345'),
-            ('sreeja',  'sreeja@poweronplus.in', 'Sreeja K',      'documents',   'Docs@12345'),
-            ('priya',   'priya@poweronplus.in',  'Priya Das',     'documents',   'Docs@12345'),
-            ('rajan',   'pay@poweronplus.in',    'Rajan P',       'payments',    'Pay@12345'),
-            ('suresh',  'onsite@poweronplus.in', 'Suresh K',      'onsite',      'Site@12345'),
-            ('appteam', 'app@poweronplus.in',    'App Team Lead', 'appinstall',  'App@12345'),
-        ]
-        for uname, email, fname, role, pwd in roles_data:
-            u = User(username=uname, email=email, full_name=fname, role=role)
-            u.set_password(pwd)   # hashed via scrypt
-            db.session.add(u)
+# def seed_db():
+#     if User.query.count() == 0:
+#         roles_data = [
+#             ('admin',   'admin@poweronplus.in',  'Admin User',    'admin',       'Admin@12345'),
+#             ('anita',   'anita@poweronplus.in',  'Anita Nair',    'coordinator', 'Coord@12345'),
+#             ('vinod',   'vinod@poweronplus.in',  'Vinod Menon',   'coordinator', 'Coord@12345'),
+#             ('sreeja',  'sreeja@poweronplus.in', 'Sreeja K',      'documents',   'Docs@12345'),
+#             ('priya',   'priya@poweronplus.in',  'Priya Das',     'documents',   'Docs@12345'),
+#             ('rajan',   'pay@poweronplus.in',    'Rajan P',       'payments',    'Pay@12345'),
+#             ('suresh',  'onsite@poweronplus.in', 'Suresh K',      'onsite',      'Site@12345'),
+#             ('appteam', 'app@poweronplus.in',    'App Team Lead', 'appinstall',  'App@12345'),
+#         ]
+#         for uname, email, fname, role, pwd in roles_data:
+#             u = User(username=uname, email=email, full_name=fname, role=role)
+#             u.set_password(pwd)   # hashed via scrypt
+#             db.session.add(u)
 
-        workers_data = [
-            ('Arun K', '9845001111', 'Panel Installation', 1200),
-            ('Biju M', '9845002222', 'Electrical Work',    1200),
-            ('Cijo P', '9845003333', 'Structural Work',    1200),
-        ]
-        for name, phone, skill, rate in workers_data:
-            db.session.add(Worker(name=name, phone=phone, skill=skill, rate_per_day=rate))
-        db.session.commit()
-        print('✓ Database seeded with default users and workers.')
+#         workers_data = [
+#             ('Arun K', '9845001111', 'Panel Installation', 1200),
+#             ('Biju M', '9845002222', 'Electrical Work',    1200),
+#             ('Cijo P', '9845003333', 'Structural Work',    1200),
+#         ]
+#         for name, phone, skill, rate in workers_data:
+#             db.session.add(Worker(name=name, phone=phone, skill=skill, rate_per_day=rate))
+#         db.session.commit()
+#         print('✓ Database seeded with default users and workers.')
 
-    if DocumentStage.query.count() == 0:
-        seed_stages = [
-            ('Customer KYC',        'always',    'ID Proof,Pass Book,Electricity Bill',              0),
-            ('Bank / Loan file',    'loan_self', 'GEO Tag Photo,Bank Stamp Paper,Bank File',         1),
-            ('Feasibility',         'always',    'Feasibility Receipt',                              2),
-            ('KSEB filing',         'always',    'KSEB Stamp Paper,B-Class Licence,KSEB File',       3),
-            ('Inspection & conn.',  'always',    'Inspection,CD Payment Receipt,KSEB Connection',    4),
-            ('Subsidy',             'dcr',       'Subsidy Request,Subsidy Redeem',                   5),
-            ('Project closure',     'always',    'Payment Completion,Warranty Card,App Installation',6),
-        ]
-        for name, cond, docs, order in seed_stages:
-            db.session.add(DocumentStage(name=name, condition=cond, docs=docs, sort_order=order))
-        db.session.commit()
-        print('Document stages seeded.')
+#     if DocumentStage.query.count() == 0:
+#         seed_stages = [
+#             ('Customer KYC',        'always',    'ID Proof,Pass Book,Electricity Bill',              0),
+#             ('Bank / Loan file',    'loan_self', 'GEO Tag Photo,Bank Stamp Paper,Bank File',         1),
+#             ('Feasibility',         'always',    'Feasibility Receipt',                              2),
+#             ('KSEB filing',         'always',    'KSEB Stamp Paper,B-Class Licence,KSEB File',       3),
+#             ('Inspection & conn.',  'always',    'Inspection,CD Payment Receipt,KSEB Connection',    4),
+#             ('Subsidy',             'dcr',       'Subsidy Request,Subsidy Redeem',                   5),
+#             ('Project closure',     'always',    'Payment Completion,Warranty Card,App Installation',6),
+#         ]
+#         for name, cond, docs, order in seed_stages:
+#             db.session.add(DocumentStage(name=name, condition=cond, docs=docs, sort_order=order))
+#         db.session.commit()
+#         print('Document stages seeded.')
 
 
 @app.cli.command('mark_delayed')
@@ -3771,7 +3771,7 @@ def mark_delayed():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-        seed_db()
+        # seed_db()
     
     debug = os.environ.get('FLASK_ENV') != 'production'
     app.run(debug=debug, port=5000)
