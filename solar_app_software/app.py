@@ -2213,6 +2213,7 @@ def delete_worker(worker_id):
 
     except Exception as e:
         db.session.rollback()
+        print("DELETE ERROR:",e)
         flash('An error occurred. Please try again.', 'danger')
 
     return redirect(url_for('workers'))
@@ -3749,7 +3750,7 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         seed_db()
-    # Never run debug=True in production
+    
     debug = os.environ.get('FLASK_ENV') != 'production'
     app.run(debug=debug, port=5000)
 
