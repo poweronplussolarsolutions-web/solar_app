@@ -23,7 +23,8 @@ from solar_app_software.logging_system import (
     log_login_attempt, log_lockout, log_password_change,
     log_admin_action, log_access_denied,
 )
-from sqlalchemy.orm import selectinload,joinedload
+from sqlalchemy.orm import selectinload,joinedload,noload
+from flask_login import user_loaded_from_request
 # ── Security imports ──────────────────────────────────────────────────────────
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
@@ -709,11 +710,16 @@ class DocumentStage(db.Model):
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
-
+_user_cache={}
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
-
+    uid=int(user_id)
+    if uid not in _user_cache:
+        _user_cache[uid]=User.query.get(uid)
+    return _user_cache.get(uid)
+@app.teardown_request
+def clear_user_cache(exc=None):
+    _user_cache.clear()
 
 def roles_required(*roles):
     def decorator(f):
@@ -3234,6 +3240,7 @@ def api_dashboard_stats():
 def api_notifications():
     notifs = Notification.query.options(
         joinedload(Notification.project),
+        noload(Notification.user),
     ).filter_by(user_id=current_user.id).order_by(
         Notification.created_at.desc()).limit(40).all()
     return jsonify([{
@@ -3241,7 +3248,7 @@ def api_notifications():
         'project_id': n.project_id, 'code': n.project.project_code if n.project else '',
         'created_at': n.created_at.strftime('%d %b %H:%M'),
         'is_read': n.is_read,
-        'action_url': n.action_url or f'/projects/{n.project_id}',
+        'action_url': n.action_url or (f'/projects/{n.project_id}' if n.project_id else '/dashboard'),
     } for n in notifs])
 
 
