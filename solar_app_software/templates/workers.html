@@ -61,7 +61,7 @@
 
 {# ── Page header + Add Worker button ── #}
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
-  <h4 style="margin:0;font-weight:700">👷 Workers</h4>
+  <h4 style="margin:0;font-weight:700"> Workers</h4>
   {% if current_user.role in ['admin', 'onsite'] %}
   <a href="{{ url_for('new_worker') }}" class="btn btn-primary">+ Add Worker</a>
   {% endif %}
@@ -114,13 +114,13 @@
             <td style="text-align:right">
               <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
                 {% if current_user.role in ['admin', 'onsite'] %}
-                <a href="{{ url_for('edit_worker', worker_id=w.id) }}" class="btn btn-sm btn-warning">✏️ Edit</a>
+                <a href="{{ url_for('edit_worker', worker_id=w.id) }}" class="btn btn-sm btn-warning"> Edit</a>
                 {% endif %}
                 {% if current_user.role == 'admin' %}
                 <form method="POST" action="{{ url_for('delete_worker', worker_id=w.id) }}"
                       onsubmit="return confirm('Deactivate {{ w.name }}? They can be restored later.')">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <button type="submit" class="btn btn-sm btn-danger">🗑 Remove</button>
+                  <button type="submit" class="btn btn-sm btn-danger"> Remove</button>
                 </form>
                 {% endif %}
               </div>
@@ -440,7 +440,7 @@
 
     {% if open_cards %}
     <div style="margin-bottom:14px">
-      <div style="font-size:12px;font-weight:500;color:var(--muted);margin-bottom:8px">🟣 Open ({{ open_cards | length }})</div>
+      <div style="font-size:12px;font-weight:500;color:var(--muted);margin-bottom:8px"> Open ({{ open_cards | length }})</div>
       {% for jc in open_cards %}
       <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px">
         <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
