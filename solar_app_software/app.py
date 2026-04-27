@@ -103,7 +103,12 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_size': 5,
     'max_overflow': 5,
 }
-
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    try:
+        db.session.remove()
+    except Exception as e:
+        print("Session cleanup error:", e)
 # app.config['SQLALCHEMY_DATABASE_URI'] = (
 #     f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}"
 #     f"@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
@@ -3227,11 +3232,13 @@ def api_dashboard_stats():
 @login_required
 @limiter.limit('60 per minute')
 def api_notifications():
-    notifs = Notification.query.filter_by(user_id=current_user.id).order_by(
+    notifs = Notification.query.options(
+        joinedload(Notification.project),
+    ).filter_by(user_id=current_user.id).order_by(
         Notification.created_at.desc()).limit(40).all()
     return jsonify([{
         'id': n.id, 'message': n.message, 'type': n.notif_type,
-        'project_id': n.project_id, 'code': n.project.project_code,
+        'project_id': n.project_id, 'code': n.project.project_code if n.project else '',
         'created_at': n.created_at.strftime('%d %b %H:%M'),
         'is_read': n.is_read,
         'action_url': n.action_url or f'/projects/{n.project_id}',
