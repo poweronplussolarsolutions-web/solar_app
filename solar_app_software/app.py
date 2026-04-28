@@ -360,7 +360,20 @@ class Project(db.Model):
         if 'Second' not in done:
             return 'Second'
         return None
-
+class ConnectionDetails(db.Model):
+    __tablename__ = 'connection_details'
+    id                       = db.Column(db.Integer, primary_key=True)
+    project_id               = db.Column(db.Integer, db.ForeignKey('projects.id'), unique=True, nullable=False)
+    connection_type          = db.Column(db.Enum('Single Phase', 'Three Phase'), nullable=True)
+    ownership_change_needed  = db.Column(db.Boolean, default=False)
+    ownership_change_status  = db.Column(db.Enum('Not Required', 'Pending', 'InProgress', 'Completed'), default='Not Required')
+    load_clearance_needed    = db.Column(db.Boolean, default=False)
+    load_clearance_status    = db.Column(db.Enum('Not Required', 'Pending', 'InProgress', 'Completed'), default='Not Required')
+    notes                    = db.Column(db.Text, nullable=True)
+    updated_at               = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by               = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    project                  = db.relationship('Project', backref=db.backref('connection_details', uselist=False))
+    updater                  = db.relationship('User', foreign_keys=[updated_by])
 
 class Document(db.Model):
     __tablename__ = 'documents'
@@ -1537,7 +1550,27 @@ def edit_project(pid):
                        else f'Already collected ₹{float(proj.collected_amount or 0):,.0f}.')
                 )
                 create_notification(u.id, pid, msg, 'task' if pending > 0 else 'info')
+        # ── Connection details (inline save) ──────────────────────────────────
+        cd = proj.connection_details or ConnectionDetails(project_id=pid)
+        cd.connection_type = request.form.get('connection_type') or None
 
+        ownership_needed           = 'ownership_change_needed' in request.form
+        cd.ownership_change_needed = ownership_needed
+        cd.ownership_change_status = (
+            request.form.get('ownership_change_status', 'Pending')
+            if ownership_needed else 'Not Required'
+            )
+
+        load_needed              = 'load_clearance_needed' in request.form
+        cd.load_clearance_needed = load_needed
+        cd.load_clearance_status = (
+            request.form.get('load_clearance_status', 'Pending')
+            if load_needed else 'Not Required'
+            )
+        cd.notes      = _clean(request.form.get('cd_notes', ''), 500)
+        cd.updated_by = current_user.id
+        if not cd.id:
+            db.session.add(cd)
         log_action(pid, 'Project edited: ' + (', '.join(changes) if changes else 'details updated'))
         db.session.commit()
         pending = new_amount - float(proj.collected_amount or 0)
@@ -2041,7 +2074,52 @@ def documents(pid):
         flash(f'{doc_type} — {status}.', 'success')
 
     return render_template('documents.html', proj=proj, stages=stages)
+@app.route('/projects/<int:pid>/connection_details', methods=['POST'])
+@login_required
+@roles_required('admin', 'documents')
+def update_connection_details(pid):
+    proj = Project.query.get_or_404(pid)
+    cd   = proj.connection_details or ConnectionDetails(project_id=pid)
 
+    cd.connection_type = request.form.get('connection_type') or None
+
+    ownership_needed         = 'ownership_change_needed' in request.form
+    cd.ownership_change_needed = ownership_needed
+    cd.ownership_change_status = (
+        request.form.get('ownership_change_status', 'Pending')
+        if ownership_needed else 'Not Required'
+    )
+
+    load_needed              = 'load_clearance_needed' in request.form
+    cd.load_clearance_needed = load_needed
+    cd.load_clearance_status = (
+        request.form.get('load_clearance_status', 'Pending')
+        if load_needed else 'Not Required'
+    )
+
+    cd.notes      = _clean(request.form.get('notes', ''), 500)
+    cd.updated_by = current_user.id
+
+    if not cd.id:
+        db.session.add(cd)
+
+    log_action(pid, 'Connection details updated',
+               new_val=f'{cd.connection_type}, OC:{cd.ownership_change_status}, LC:{cd.load_clearance_status}')
+
+    # Notify coordinator if something is pending
+    pending_items = []
+    if ownership_needed and cd.ownership_change_status not in ('Completed', 'Not Required'):
+        pending_items.append('Ownership Change')
+    if load_needed and cd.load_clearance_status not in ('Completed', 'Not Required'):
+        pending_items.append('Load Clearance')
+    if pending_items and proj.coordinator_id:
+        create_notification(proj.coordinator_id, pid,
+            f'{proj.project_code} — {proj.customer.name}: Connection details updated. '
+            f'Pending: {", ".join(pending_items)}.', 'info')
+
+    db.session.commit()
+    flash('Connection details updated.', 'success')
+    return redirect(url_for('documents', pid=pid))
 
 @app.route('/projects/<int:pid>/documents/batch', methods=['POST'])
 @login_required

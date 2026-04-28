@@ -210,7 +210,68 @@
         <label>Notes</label>
         <textarea name="notes" rows="3">{{ proj.notes or '' }}</textarea>
       </div>
+<!-- ── Connection details ──────────────────────────────────────────── -->
+<div style="border-top:0.5px solid var(--border);margin:4px 0 14px;
+            font-size:13px;font-weight:500;padding-top:14px;color:var(--muted)">
+  Connection details
+</div>
 
+{% set cd = proj.connection_details %}
+
+<div class="form-grid">
+
+  <div class="form-group">
+    <label>Connection type</label>
+    <select name="connection_type">
+      <option value="">— Not set —</option>
+      <option value="Single Phase" {{ 'selected' if cd and cd.connection_type == 'Single Phase' }}>Single Phase</option>
+      <option value="Three Phase"  {{ 'selected' if cd and cd.connection_type == 'Three Phase'  }}>Three Phase</option>
+    </select>
+  </div>
+
+  <div class="form-group" style="display:flex;flex-direction:column;gap:6px">
+    <label>Ownership change</label>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:400;cursor:pointer">
+      <input type="checkbox" name="ownership_change_needed" id="oc_needed_edit"
+             onchange="toggleEditStatus('oc_status_edit', this.checked)"
+             {{ 'checked' if cd and cd.ownership_change_needed }}>
+      Required for this project
+    </label>
+    <div id="oc_status_edit"
+         style="{{ '' if cd and cd.ownership_change_needed else 'display:none' }}">
+      <select name="ownership_change_status">
+        {% for s in ['Pending', 'InProgress', 'Completed'] %}
+        <option value="{{ s }}" {{ 'selected' if cd and cd.ownership_change_status == s }}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="form-group" style="display:flex;flex-direction:column;gap:6px">
+    <label>Load clearance</label>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:400;cursor:pointer">
+      <input type="checkbox" name="load_clearance_needed" id="lc_needed_edit"
+             onchange="toggleEditStatus('lc_status_edit', this.checked)"
+             {{ 'checked' if cd and cd.load_clearance_needed }}>
+      Required for this project
+    </label>
+    <div id="lc_status_edit"
+         style="{{ '' if cd and cd.load_clearance_needed else 'display:none' }}">
+      <select name="load_clearance_status">
+        {% for s in ['Pending', 'InProgress', 'Completed'] %}
+        <option value="{{ s }}" {{ 'selected' if cd and cd.load_clearance_status == s }}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>Connection notes</label>
+    <input type="text" name="cd_notes" placeholder="Optional…"
+           value="{{ cd.notes or '' if cd else '' }}">
+  </div>
+
+</div>
     </div>
 
     <!-- Overpay warning -->
@@ -256,5 +317,8 @@ document.querySelector('[name="total_amount"]').addEventListener('input', functi
     preview.style.display = 'none';
   }
 });
+function toggleEditStatus(rowId, show) {
+  document.getElementById(rowId).style.display = show ? '' : 'none';
+}
 </script>
 {% endblock %}

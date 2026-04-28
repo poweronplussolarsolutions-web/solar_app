@@ -470,7 +470,138 @@
 </div>
 {% endif %}
 
+{# ── CONNECTION DETAILS ── #}
+{% set cd = proj.connection_details %}
+<div class="card" style="margin-top:20px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+    <div class="card-title" style="margin:0">Connection Details</div>
+    {% if current_user.role in ['admin','documents'] %}
+    <button class="btn btn-sm" onclick="toggleExpenseForm('conn-detail-form')">
+      {{ 'Edit' if cd else 'Add' }}
+    </button>
+    {% endif %}
+  </div>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
+    Connection type and any additional clearances required for this project.
+  </p>
 
+  {# Read-only summary #}
+  {% if cd %}
+  <div style="display:flex;gap:24px;flex-wrap:wrap;font-size:13px;margin-bottom:10px">
+    <div>
+      <span style="color:var(--muted);font-size:11px;display:block">Connection type</span>
+      <strong>{{ cd.connection_type or '—' }}</strong>
+    </div>
+    <div>
+      <span style="color:var(--muted);font-size:11px;display:block">Ownership change</span>
+      {% if not cd.ownership_change_needed %}
+        <span class="badge badge-Lead">Not required</span>
+      {% elif cd.ownership_change_status == 'Completed' %}
+        <span class="badge badge-Completed">Completed</span>
+      {% elif cd.ownership_change_status == 'InProgress' %}
+        <span class="badge badge-InProgress">In Progress</span>
+      {% else %}
+        <span class="badge badge-Pending">Pending</span>
+      {% endif %}
+    </div>
+    <div>
+      <span style="color:var(--muted);font-size:11px;display:block">Load clearance</span>
+      {% if not cd.load_clearance_needed %}
+        <span class="badge badge-Lead">Not required</span>
+      {% elif cd.load_clearance_status == 'Completed' %}
+        <span class="badge badge-Completed">Completed</span>
+      {% elif cd.load_clearance_status == 'InProgress' %}
+        <span class="badge badge-InProgress">In Progress</span>
+      {% else %}
+        <span class="badge badge-Pending">Pending</span>
+      {% endif %}
+    </div>
+    {% if cd.notes %}
+    <div>
+      <span style="color:var(--muted);font-size:11px;display:block">Notes</span>
+      {{ cd.notes }}
+    </div>
+    {% endif %}
+  </div>
+  {% if cd.updated_at %}
+  <div style="font-size:11px;color:var(--hint)">
+    Last updated {{ cd.updated_at | date_fmt }}{% if cd.updater %} by {{ cd.updater.full_name }}{% endif %}
+  </div>
+  {% endif %}
+  {% else %}
+  <div style="font-size:12px;color:var(--hint);margin-bottom:10px">No connection details recorded yet.</div>
+  {% endif %}
+
+  {# Edit form #}
+  {% if current_user.role in ['admin','documents'] %}
+  <div id="conn-detail-form" style="{{ '' if not cd else 'display:none' }};margin-top:12px">
+    <form method="POST" action="{{ url_for('update_connection_details', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:start">
+
+        <div>
+          <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Connection type</label>
+          <select name="connection_type">
+            <option value="">— Select —</option>
+            <option value="Single Phase" {{ 'selected' if cd and cd.connection_type == 'Single Phase' }}>Single Phase</option>
+            <option value="Three Phase"  {{ 'selected' if cd and cd.connection_type == 'Three Phase' }}>Three Phase</option>
+          </select>
+        </div>
+
+        <div style="padding-top:4px">
+          <label style="font-size:12px;font-weight:500;display:block;margin-bottom:8px">Ownership change</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:6px">
+            <input type="checkbox" name="ownership_change_needed" id="oc_needed"
+                   onchange="toggleStatus('oc_status_row',this.checked)"
+                   {{ 'checked' if cd and cd.ownership_change_needed }}>
+            Required for this project
+          </label>
+          <div id="oc_status_row" style="margin-top:4px;{{ 'display:none' if not (cd and cd.ownership_change_needed) }}">
+            <select name="ownership_change_status">
+              {% for s in ['Pending','InProgress','Completed'] %}
+              <option value="{{ s }}" {{ 'selected' if cd and cd.ownership_change_status == s }}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div style="padding-top:4px">
+          <label style="font-size:12px;font-weight:500;display:block;margin-bottom:8px">Load clearance</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:6px">
+            <input type="checkbox" name="load_clearance_needed" id="lc_needed"
+                   onchange="toggleStatus('lc_status_row',this.checked)"
+                   {{ 'checked' if cd and cd.load_clearance_needed }}>
+            Required for this project
+          </label>
+          <div id="lc_status_row" style="margin-top:4px;{{ 'display:none' if not (cd and cd.load_clearance_needed) }}">
+            <select name="load_clearance_status">
+              {% for s in ['Pending','InProgress','Completed'] %}
+              <option value="{{ s }}" {{ 'selected' if cd and cd.load_clearance_status == s }}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Notes</label>
+          <input type="text" name="notes" placeholder="Optional…"
+                 value="{{ cd.notes or '' if cd else '' }}">
+        </div>
+
+      </div>
+
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        {% if cd %}
+        <button type="button" class="btn btn-sm"
+                onclick="toggleExpenseForm('conn-detail-form')">Cancel</button>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+  {% endif %}
+</div>
 {% if all_docs_complete %}
 <div style="margin-top:20px;display:flex;align-items:center;justify-content:space-between;
             background:var(--teal-50);border:0.5px solid var(--teal-100);
@@ -522,6 +653,9 @@ function openAddForm(btn, docName, stageName) {
 function toggleExpenseForm(id) {
   const form = document.getElementById(id);
   form.style.display = form.style.display === 'none' ? '' : 'none';
+}
+function toggleStatus(rowId, show) {
+  document.getElementById(rowId).style.display = show ? '' : 'none';
 }
 </script>
 
