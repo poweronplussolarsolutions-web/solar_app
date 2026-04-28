@@ -1339,7 +1339,7 @@ def projects():
 
 @app.route('/projects/new', methods=['GET', 'POST'])
 @login_required
-@roles_required('coordinator')
+@roles_required('coordinator','admin')
 @limiter.limit('30 per minute')
 def new_project():
     customers       = Customer.query.order_by(Customer.name).all()
