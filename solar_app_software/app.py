@@ -3009,58 +3009,172 @@ def restore_user(user_id):
 @roles_required('admin')
 def new_user():
     if request.method == 'POST':
-        username  = _clean(request.form.get('username', ''), 80)
-        email     = _clean(request.form.get('email', ''), 120)
+        username  = _clean(request.form.get('username', ''), 80).lower()
         full_name = _clean(request.form.get('full_name', ''), 120)
         role      = request.form.get('role', '')
         password  = request.form.get('password', '')
-
-        # Validate password strength
+        raw_email = _clean(request.form.get('email', ''), 120).lower()
+        raw_phone = _clean(request.form.get('phone', ''), 20)
+ 
+        # ── Normalise phone: keep digits only, strip leading +91 / 0 ────────
+        phone_digits = ''.join(c for c in raw_phone if c.isdigit())
+        if phone_digits.startswith('91') and len(phone_digits) == 12:
+            phone_digits = phone_digits[2:]          # strip country code
+        if phone_digits.startswith('0') and len(phone_digits) == 11:
+            phone_digits = phone_digits[1:]
+        phone_clean = phone_digits if len(phone_digits) == 10 else ''
+ 
+        # ── At least one contact method required ────────────────────────────
+        if not raw_email and not phone_clean:
+            flash('Please provide at least an email address or a phone number.', 'danger')
+            return render_template('new_user.html')
+ 
+        # ── Validate email format when provided ─────────────────────────────
+        if raw_email and not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', raw_email):
+            flash('Please enter a valid email address.', 'danger')
+            return render_template('new_user.html')
+ 
+        # ── Validate phone when provided ─────────────────────────────────────
+        if raw_phone and not phone_clean:
+            flash('Please enter a valid 10-digit phone number.', 'danger')
+            return render_template('new_user.html')
+ 
+        # ── Password strength ────────────────────────────────────────────────
         errors = _validate_password(password)
         if errors:
             flash(f'Password must contain: {", ".join(errors)}.', 'danger')
             return render_template('new_user.html')
-
+ 
+        # ── Duplicate username ───────────────────────────────────────────────
         if User.query.filter_by(username=username).first():
             flash('Username already taken.', 'danger')
             return render_template('new_user.html')
-        if User.query.filter_by(email=email).first():
-            flash('Email already registered.', 'danger')
+ 
+        # ── Duplicate email (only when a real email is provided) ─────────────
+        if raw_email and User.query.filter(
+                db.func.lower(User.email) == raw_email,
+                ~User.email.like('%@noemail.local')).first():
+            flash('Email address is already registered.', 'danger')
             return render_template('new_user.html')
-
-        u = User(username=username, email=email, full_name=full_name, role=role)
+ 
+        # ── Duplicate phone ──────────────────────────────────────────────────
+        if phone_clean and User.query.filter_by(phone=phone_clean).first():
+            flash('Phone number is already registered.', 'danger')
+            return render_template('new_user.html')
+ 
+        # ── Build the email stored in DB ─────────────────────────────────────
+        # When no email is given, use a placeholder so User.email is never NULL.
+        # The login route looks up by phone first in that case.
+        stored_email = raw_email if raw_email else f'{username}@noemail.local'
+ 
+        u = User(
+            username  = username,
+            email     = stored_email,
+            phone     = phone_clean or None,
+            full_name = full_name,
+            role      = role,
+        )
         u.set_password(password)
         db.session.add(u)
         db.session.commit()
         log_admin_action('CREATE_USER', target=u.username, detail=u.role)
-        flash(f'User {u.username} created.', 'success')
+ 
+        contact_info = raw_email if raw_email else f'+91 {phone_clean}'
+        flash(
+            f'User {u.username} created. '
+            f'OTP login codes will be sent to: {contact_info}.',
+            'success'
+        )
         return redirect(url_for('manage_users'))
+ 
     return render_template('new_user.html')
-
 
 @app.route('/admin/users/<int:user_id>/edit', methods=['GET', 'POST'])
 @login_required
 @roles_required('admin')
 def edit_user(user_id):
     u = User.query.get_or_404(user_id)
+ 
     if request.method == 'POST':
-        u.username  = _clean(request.form.get('username', ''), 80)
-        u.email     = _clean(request.form.get('email', ''), 120)
-        u.full_name = _clean(request.form.get('full_name', ''), 120)
-        u.role      = request.form.get('role', u.role)
-        new_pw      = request.form.get('password', '')
+        full_name  = _clean(request.form.get('full_name', ''), 120)
+        username   = _clean(request.form.get('username',  ''), 80).lower()
+        role       = request.form.get('role', u.role)
+        new_pw     = request.form.get('password', '')
+        raw_email  = _clean(request.form.get('email', ''), 120).lower()
+        raw_phone  = _clean(request.form.get('phone', ''), 20)
+ 
+        # ── Normalise phone ───────────────────────────────────────────────
+        phone_digits = ''.join(c for c in raw_phone if c.isdigit())
+        if phone_digits.startswith('91') and len(phone_digits) == 12:
+            phone_digits = phone_digits[2:]
+        if phone_digits.startswith('0') and len(phone_digits) == 11:
+            phone_digits = phone_digits[1:]
+        phone_clean = phone_digits if len(phone_digits) == 10 else ''
+ 
+        # ── At least one contact method ───────────────────────────────────
+        if not raw_email and not phone_clean:
+            flash('Please provide at least an email address or a phone number.', 'danger')
+            return render_template('edit_user.html', user=u)
+ 
+        # ── Validate email format ─────────────────────────────────────────
+        if raw_email and not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', raw_email):
+            flash('Please enter a valid email address.', 'danger')
+            return render_template('edit_user.html', user=u)
+ 
+        # ── Validate phone ────────────────────────────────────────────────
+        if raw_phone and not phone_clean:
+            flash('Please enter a valid 10-digit phone number.', 'danger')
+            return render_template('edit_user.html', user=u)
+ 
+        # ── Duplicate username (exclude self) ─────────────────────────────
+        if User.query.filter(User.username == username, User.id != user_id).first():
+            flash('Username already taken.', 'danger')
+            return render_template('edit_user.html', user=u)
+ 
+        # ── Duplicate email (exclude self and @noemail.local rows) ─────────
+        if raw_email and User.query.filter(
+                db.func.lower(User.email) == raw_email,
+                User.id != user_id,
+                ~User.email.like('%@noemail.local')).first():
+            flash('Email address is already registered.', 'danger')
+            return render_template('edit_user.html', user=u)
+ 
+        # ── Duplicate phone (exclude self) ────────────────────────────────
+        if phone_clean and User.query.filter(
+                User.phone == phone_clean,
+                User.id != user_id).first():
+            flash('Phone number is already registered.', 'danger')
+            return render_template('edit_user.html', user=u)
+ 
+        # ── Password strength (only when a new password is supplied) ──────
         if new_pw:
             errors = _validate_password(new_pw)
             if errors:
                 flash(f'Password must contain: {", ".join(errors)}.', 'danger')
                 return render_template('edit_user.html', user=u)
             u.set_password(new_pw)
+ 
+        # ── Build stored email ────────────────────────────────────────────
+        stored_email = raw_email if raw_email else f'{username}@noemail.local'
+ 
+        u.full_name = full_name
+        u.username  = username
+        u.email     = stored_email
+        u.phone     = phone_clean or None
+        u.role      = role
+ 
         db.session.commit()
-        log_admin_action('EDIT_USER',   target=u.username)
-        flash(f'User {u.username} updated.', 'success')
+        log_admin_action('EDIT_USER', target=u.username)
+ 
+        contact_info = raw_email if raw_email else f'+91 {phone_clean}'
+        flash(
+            f'User {u.username} updated. '
+            f'OTP login contact: {contact_info}.',
+            'success'
+        )
         return redirect(url_for('manage_users'))
+ 
     return render_template('edit_user.html', user=u)
-
 
 @app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
 @login_required

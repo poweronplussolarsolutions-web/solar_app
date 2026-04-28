@@ -5,25 +5,82 @@
   <a href="{{ url_for('manage_users') }}" class="btn btn-sm">← Back</a>
 {% endblock %}
 {% block content %}
-<div class="card" style="max-width:480px;width:100%;box-sizing:border-box">
-  <form method="POST" action="{{ url_for('new_user') }}" >
+<div class="card" style="max-width:520px;width:100%;box-sizing:border-box">
+
+  <div style="background:linear-gradient(135deg,#1A3C5E,#2E6DA4);padding:16px 20px;border-radius:8px 8px 0 0;margin:-1px -1px 20px;">
+    <h5 style="color:#fff;margin:0;font-size:15px;">☀ Create Staff Account</h5>
+    <p style="color:rgba(255,255,255,.65);margin:4px 0 0;font-size:12px;">
+      Login OTP will be sent to the registered email or phone number.
+    </p>
+  </div>
+
+  <form method="POST" action="{{ url_for('new_user') }}" id="newUserForm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
     <div class="form-group">
-      <label>Full name</label>
-      <input name="full_name" type="text" required placeholder="Full name"/>
+      <label>Full Name <span style="color:#dc2626">*</span></label>
+      <input name="full_name" type="text" required placeholder="e.g. Arun Kumar" maxlength="120"/>
     </div>
+
     <div class="form-group">
-      <label>Username</label>
-      <input name="username" type="text" required placeholder="username (no spaces)"/>
+      <label>Username <span style="color:#dc2626">*</span></label>
+      <input name="username" type="text" required placeholder="lowercase, no spaces" maxlength="80"
+             pattern="[a-z0-9_]+" title="Only lowercase letters, digits, underscores"/>
+      <small style="color:#64748b;font-size:11.5px;display:block;margin-top:3px">
+        Used for system logs. Cannot be changed after creation.
+      </small>
     </div>
+
+    {{/* ── Contact method ── */}}
     <div class="form-group">
-      <label>Email</label>
-      <input name="email" type="email" required placeholder="email@poweronplus.in"/>
+      <label>Login Contact Method <span style="color:#dc2626">*</span></label>
+      <div style="display:flex;gap:0;border:1px solid #d1d5db;border-radius:8px;overflow:hidden;margin-bottom:10px">
+        <button type="button" id="tabEmail" onclick="switchTab('email')"
+          style="flex:1;padding:9px 0;font-size:13px;font-weight:600;border:none;cursor:pointer;
+                 background:#1A3C5E;color:#fff;transition:background .2s">
+          ✉ Email
+        </button>
+        <button type="button" id="tabPhone" onclick="switchTab('phone')"
+          style="flex:1;padding:9px 0;font-size:13px;font-weight:600;border:none;cursor:pointer;
+                 background:#f1f5f9;color:#64748b;transition:background .2s">
+          📱 Phone (SMS)
+        </button>
+      </div>
+
+      {{/* Email panel */}}
+      <div id="panelEmail">
+        <input name="email" id="emailInput" type="email" placeholder="name@poweronplus.in"
+               maxlength="120" autocomplete="email"/>
+        <small style="color:#64748b;font-size:11.5px;display:block;margin-top:3px">
+          ✉ OTP login codes will be sent to this email address.
+        </small>
+      </div>
+
+      {{/* Phone panel */}}
+      <div id="panelPhone" style="display:none">
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="background:#f1f5f9;border:1px solid #d1d5db;border-radius:6px;
+                       padding:9px 12px;font-size:13px;color:#374151;white-space:nowrap">+91</span>
+          <input name="phone" id="phoneInput" type="tel" placeholder="9876543210"
+                 maxlength="10" pattern="[6-9][0-9]{9}"
+                 title="Enter a valid 10-digit Indian mobile number"
+                 autocomplete="tel" style="flex:1"/>
+        </div>
+        <small style="color:#64748b;font-size:11.5px;display:block;margin-top:3px">
+          📱 OTP will be sent via SMS to this number.
+        </small>
+        <div style="background:#fff8e1;border:1px solid #fcd34d;border-radius:6px;
+                    padding:9px 12px;margin-top:8px;font-size:12px;color:#92400e">
+          ⚠ SMS delivery requires an SMS gateway configured in the backend
+          (e.g. Twilio, MSG91). Ensure it is set up before using phone login.
+        </div>
+      </div>
     </div>
+
     <div class="form-group">
-      <label>Role</label>
+      <label>Role <span style="color:#dc2626">*</span></label>
       <select name="role" required>
-        <option value="">Select role</option>
+        <option value="">— Select role —</option>
         <option value="admin">Admin</option>
         <option value="coordinator">Coordinator</option>
         <option value="documents">Documents Team</option>
@@ -32,13 +89,33 @@
         <option value="appinstall">App Installation Team</option>
       </select>
     </div>
+
     <div class="form-group">
-      <label>Password</label>
-      <input name="password" type="password" required placeholder="Set password"/>
+      <label>Initial Password <span style="color:#dc2626">*</span></label>
+      <div style="position:relative">
+        <input name="password" type="password" required placeholder="Min 8 chars, 1 uppercase, 1 digit"
+               id="pwField" maxlength="128"/>
+        <button type="button" onclick="togglePw()" style="
+          position:absolute;right:10px;top:50%;transform:translateY(-50%);
+          background:none;border:none;cursor:pointer;color:#64748b;font-size:13px;padding:4px;">
+          👁
+        </button>
+      </div>
+      <small style="color:#64748b;font-size:11.5px;display:block;margin-top:3px">
+        Emergency fallback only. Standard login uses OTP sent to email/phone.
+      </small>
     </div>
+
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;
+                padding:12px 14px;margin:16px 0;font-size:12.5px;color:#166534;">
+      <strong>ℹ What happens next:</strong><br>
+      The account will be created immediately. When this user logs in for the first time,
+      an OTP will be sent to their registered email or phone. No separate activation step needed.
+    </div>
+
     <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
-      <button type="submit" class="btn btn-primary" style="flex:1;min-width:120px;justify-content:center">
-        Create user
+      <button type="submit" class="btn btn-primary" style="flex:1;min-width:140px;justify-content:center">
+        Create Account
       </button>
       <a href="{{ url_for('manage_users') }}" class="btn" style="flex:1;min-width:100px;text-align:center">
         Cancel
@@ -46,4 +123,62 @@
     </div>
   </form>
 </div>
+
+<script>
+// ── Tab switcher ──────────────────────────────────────────────────────────────
+let activeTab = 'email';
+
+function switchTab(tab) {
+  activeTab = tab;
+
+  const emailPanel = document.getElementById('panelEmail');
+  const phonePanel = document.getElementById('panelPhone');
+  const tabEmail   = document.getElementById('tabEmail');
+  const tabPhone   = document.getElementById('tabPhone');
+  const emailInput = document.getElementById('emailInput');
+  const phoneInput = document.getElementById('phoneInput');
+
+  if (tab === 'email') {
+    emailPanel.style.display = '';
+    phonePanel.style.display = 'none';
+    tabEmail.style.background = '#1A3C5E';
+    tabEmail.style.color = '#fff';
+    tabPhone.style.background = '#f1f5f9';
+    tabPhone.style.color = '#64748b';
+    emailInput.required = true;
+    phoneInput.required = false;
+    phoneInput.value = '';
+  } else {
+    emailPanel.style.display = 'none';
+    phonePanel.style.display = '';
+    tabEmail.style.background = '#f1f5f9';
+    tabEmail.style.color = '#64748b';
+    tabPhone.style.background = '#1A3C5E';
+    tabPhone.style.color = '#fff';
+    phoneInput.required = true;
+    emailInput.required = false;
+    emailInput.value = '';
+  }
+}
+
+// ── Validate on submit: at least one contact method ───────────────────────────
+document.getElementById('newUserForm').addEventListener('submit', function(e) {
+  const email = document.getElementById('emailInput').value.trim();
+  const phone = document.getElementById('phoneInput').value.trim();
+  if (!email && !phone) {
+    e.preventDefault();
+    alert('Please provide either an email address or a phone number.');
+  }
+});
+
+// ── Password toggle ───────────────────────────────────────────────────────────
+function togglePw() {
+  const f = document.getElementById('pwField');
+  f.type = f.type === 'password' ? 'text' : 'password';
+}
+
+// Set initial required state
+document.getElementById('emailInput').required = true;
+document.getElementById('phoneInput').required = false;
+</script>
 {% endblock %}

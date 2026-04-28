@@ -5,47 +5,165 @@
   <a href="{{ url_for('manage_users') }}" class="btn btn-sm">← Back</a>
 {% endblock %}
 {% block content %}
-<div class="card" style="max-width:480px">
-  <form method="POST" action="{{ url_for('edit_user', user_id=user.id) }}" >
+
+{# Determine which contact method this user currently has #}
+{% set has_real_email = user.email and not user.email.endswith('@noemail.local') %}
+{% set has_phone      = user.phone and user.phone|length > 0 %}
+
+<div class="card" style="max-width:520px;width:100%;box-sizing:border-box">
+  <form method="POST" action="{{ url_for('edit_user', user_id=user.id) }}" id="editUserForm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
     <div class="form-group">
-      <label>Full name</label>
-      <input name="full_name" type="text" required value="{{ user.full_name }}"/>
+      <label>Full Name <span style="color:#dc2626">*</span></label>
+      <input name="full_name" type="text" required value="{{ user.full_name }}" maxlength="120"/>
     </div>
+
     <div class="form-group">
-      <label>Username</label>
-      <input name="username" type="text" required value="{{ user.username }}"/>
+      <label>Username <span style="color:#dc2626">*</span></label>
+      <input name="username" type="text" required value="{{ user.username }}" maxlength="80"
+             pattern="[a-z0-9_]+" title="Only lowercase letters, digits, underscores"/>
     </div>
+
+    {# ── Contact method toggle ── #}
     <div class="form-group">
-      <label>Email</label>
-      <input name="email" type="email" required value="{{ user.email }}"/>
+      <label>Login Contact Method <span style="color:#dc2626">*</span></label>
+      <div style="display:flex;gap:0;border:1px solid #d1d5db;border-radius:8px;overflow:hidden;margin-bottom:10px">
+        <button type="button" id="tabEmail" onclick="switchTab('email')"
+          style="flex:1;padding:9px 0;font-size:13px;font-weight:600;border:none;cursor:pointer;transition:background .2s;
+                 {% if has_real_email or not has_phone %}background:#1A3C5E;color:#fff{% else %}background:#f1f5f9;color:#64748b{% endif %}">
+          ✉ Email
+        </button>
+        <button type="button" id="tabPhone" onclick="switchTab('phone')"
+          style="flex:1;padding:9px 0;font-size:13px;font-weight:600;border:none;cursor:pointer;transition:background .2s;
+                 {% if has_phone and not has_real_email %}background:#1A3C5E;color:#fff{% else %}background:#f1f5f9;color:#64748b{% endif %}">
+          📱 Phone (SMS)
+        </button>
+      </div>
+
+      {# Email panel #}
+      <div id="panelEmail" {% if has_phone and not has_real_email %}style="display:none"{% endif %}>
+        <input name="email" id="emailInput" type="email"
+               placeholder="name@poweronplus.in" maxlength="120" autocomplete="email"
+               value="{{ user.email if has_real_email else '' }}"/>
+        <small style="color:#64748b;font-size:11.5px;display:block;margin-top:3px">
+          ✉ OTP login codes will be sent to this email address.
+        </small>
+      </div>
+
+      {# Phone panel #}
+      <div id="panelPhone" {% if not (has_phone and not has_real_email) %}style="display:none"{% endif %}>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="background:#f1f5f9;border:1px solid #d1d5db;border-radius:6px;
+                       padding:9px 12px;font-size:13px;color:#374151;white-space:nowrap">+91</span>
+          <input name="phone" id="phoneInput" type="tel"
+                 placeholder="9876543210" maxlength="10"
+                 pattern="[6-9][0-9]{9}" title="Enter a valid 10-digit Indian mobile number"
+                 autocomplete="tel" style="flex:1"
+                 value="{{ user.phone if has_phone else '' }}"/>
+        </div>
+        <small style="color:#64748b;font-size:11.5px;display:block;margin-top:3px">
+          📱 OTP will be sent via SMS to this number.
+        </small>
+      </div>
     </div>
+
     <div class="form-group">
-      <label>Role</label>
+      <label>Role <span style="color:#dc2626">*</span></label>
       <select name="role" required>
-        <option value="">Select role</option>
+        <option value="">— Select role —</option>
         {% for val, label in [
-            ('admin',      'Admin'),
-            ('coordinator','Coordinator'),
-            ('documents',  'Documents Team'),
-            ('payments',   'Payments Team'),
-            ('onsite',     'On-site Management'),
-            ('appinstall', 'App Installation Team'),
+            ('admin',       'Admin'),
+            ('coordinator', 'Coordinator'),
+            ('documents',   'Documents Team'),
+            ('payments',    'Payments Team'),
+            ('onsite',      'On-site Management'),
+            ('appinstall',  'App Installation Team'),
         ] %}
-          <option value="{{ val }}" {% if user.role == val %}selected{% endif %}>
-            {{ label }}
-          </option>
+          <option value="{{ val }}" {% if user.role == val %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </div>
+
     <div class="form-group">
-      <label>New password <small style="color:var(--text-muted)">(leave blank to keep current)</small></label>
-      <input name="password" type="password" placeholder="Leave blank to keep current"/>
+      <label>New Password
+        <small style="color:var(--text-muted);font-weight:400">(leave blank to keep current)</small>
+      </label>
+      <div style="position:relative">
+        <input name="password" id="pwField" type="password"
+               placeholder="Leave blank to keep current" maxlength="128"/>
+        <button type="button" onclick="togglePw()" style="
+          position:absolute;right:10px;top:50%;transform:translateY(-50%);
+          background:none;border:none;cursor:pointer;color:#64748b;font-size:13px;padding:4px;">
+          👁
+        </button>
+      </div>
     </div>
-    <div style="display:flex;gap:10px;margin-top:8px">
-      <button type="submit" class="btn btn-primary">Save changes</button>
-      <a href="{{ url_for('manage_users') }}" class="btn">Cancel</a>
+
+    <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
+      <button type="submit" class="btn btn-primary" style="flex:1;min-width:140px;justify-content:center">
+        Save Changes
+      </button>
+      <a href="{{ url_for('manage_users') }}" class="btn" style="flex:1;min-width:100px;text-align:center">
+        Cancel
+      </a>
     </div>
   </form>
 </div>
+
+<script>
+// ── Initialise from server-rendered state ─────────────────────────────────────
+const hasRealEmail = "{{ 'true' if has_real_email else 'false' }}" === 'true';
+const hasPhone     = "{{ 'true' if has_phone else 'false' }}" === 'true';
+let activeTab      = (hasPhone && !hasRealEmail) ? 'phone' : 'email';
+
+// Set initial required attributes to match the visible panel
+document.getElementById('emailInput').required = (activeTab === 'email');
+document.getElementById('phoneInput').required = (activeTab === 'phone');
+
+function switchTab(tab) {
+  activeTab = tab;
+
+  const emailPanel = document.getElementById('panelEmail');
+  const phonePanel = document.getElementById('panelPhone');
+  const tabEmail   = document.getElementById('tabEmail');
+  const tabPhone   = document.getElementById('tabPhone');
+  const emailInput = document.getElementById('emailInput');
+  const phoneInput = document.getElementById('phoneInput');
+
+  if (tab === 'email') {
+    emailPanel.style.display = '';
+    phonePanel.style.display = 'none';
+    tabEmail.style.background = '#1A3C5E'; tabEmail.style.color = '#fff';
+    tabPhone.style.background = '#f1f5f9'; tabPhone.style.color = '#64748b';
+    emailInput.required = true;
+    phoneInput.required = false;
+    phoneInput.value = '';
+  } else {
+    emailPanel.style.display = 'none';
+    phonePanel.style.display = '';
+    tabEmail.style.background = '#f1f5f9'; tabEmail.style.color = '#64748b';
+    tabPhone.style.background = '#1A3C5E'; tabPhone.style.color = '#fff';
+    phoneInput.required = true;
+    emailInput.required = false;
+    emailInput.value = '';
+  }
+}
+
+// ── Guard: at least one contact method ───────────────────────────────────────
+document.getElementById('editUserForm').addEventListener('submit', function(e) {
+  const email = document.getElementById('emailInput').value.trim();
+  const phone = document.getElementById('phoneInput').value.trim();
+  if (!email && !phone) {
+    e.preventDefault();
+    alert('Please provide either an email address or a phone number.');
+  }
+});
+
+// ── Password toggle ───────────────────────────────────────────────────────────
+function togglePw() {
+  const f = document.getElementById('pwField');
+  f.type = f.type === 'password' ? 'text' : 'password';
+}
+</script>
 {% endblock %}
