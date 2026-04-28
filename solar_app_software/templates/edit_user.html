@@ -46,9 +46,9 @@
         <input name="email" id="emailInput" type="email"
                placeholder="name@poweronplus.in" maxlength="120" autocomplete="email"
                value="{{ user.email if has_real_email else '' }}"/>
-        <small style="color:#64748b;font-size:11.5px;display:block;margin-top:3px">
+        <!-- <small style="color:#64748b;font-size:11.5px;display:block;margin-top:3px">
           ✉ OTP login codes will be sent to this email address.
-        </small>
+        </small> -->
       </div>
 
       {# Phone panel #}
@@ -57,14 +57,14 @@
           <span style="background:#f1f5f9;border:1px solid #d1d5db;border-radius:6px;
                        padding:9px 12px;font-size:13px;color:#374151;white-space:nowrap">+91</span>
           <input name="phone" id="phoneInput" type="tel"
-                 placeholder="9876543210" maxlength="10"
+                 placeholder="enter mobile number" maxlength="10"
                  pattern="[6-9][0-9]{9}" title="Enter a valid 10-digit Indian mobile number"
                  autocomplete="tel" style="flex:1"
                  value="{{ user.phone if has_phone else '' }}"/>
         </div>
-        <small style="color:#64748b;font-size:11.5px;display:block;margin-top:3px">
+        <!-- <small style="color:#64748b;font-size:11.5px;display:block;margin-top:3px">
           📱 OTP will be sent via SMS to this number.
-        </small>
+        </small> -->
       </div>
     </div>
 
