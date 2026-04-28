@@ -3082,8 +3082,7 @@ def new_user():
  
         contact_info = raw_email if raw_email else f'+91 {phone_clean}'
         flash(
-            f'User {u.username} created. '
-            f'OTP login codes will be sent to: {contact_info}.',
+            f'User {u.username} created. ',
             'success'
         )
         return redirect(url_for('manage_users'))
