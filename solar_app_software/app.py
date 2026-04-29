@@ -100,9 +100,9 @@ app.config['SQLALCHEMY_DATABASE_URI']=os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_recycle': 180,        
     'pool_pre_ping': True,      
-    'pool_timeout': 30,
-    'pool_size': 5,
-    'max_overflow': 5,
+    'pool_timeout': 10,
+    'pool_size': 10,
+    'max_overflow': 20,
 }
 @app.teardown_appcontext
 def shutdown_session(exception=None):
@@ -736,16 +736,13 @@ class DocumentStage(db.Model):
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
-_user_cache={}
+# _user_cache={}
 @login_manager.user_loader
 def load_user(user_id):
-    uid=int(user_id)
-    if uid not in _user_cache:
-        _user_cache[uid]=User.query.get(uid)
-    return _user_cache.get(uid)
-@app.teardown_request
-def clear_user_cache(exc=None):
-    _user_cache.clear()
+    return db.session.get(User, int(user_id))
+# @app.teardown_request
+# def clear_user_cache(exc=None):
+#     _user_cache.clear()
 
 def roles_required(*roles):
     def decorator(f):
@@ -3486,6 +3483,7 @@ def api_notifications():
 
 @app.route('/api/notifications/read/<int:nid>', methods=['POST'])
 @login_required
+@csrf.exempt
 def mark_notification_read(nid):
     n = Notification.query.get_or_404(nid)
     if n.user_id != current_user.id:
@@ -3497,6 +3495,7 @@ def mark_notification_read(nid):
 
 @app.route('/api/notifications/read_all', methods=['POST'])
 @login_required
+@csrf.exempt
 def mark_all_read():
     Notification.query.filter_by(user_id=current_user.id, is_read=False).update({'is_read': True})
     db.session.commit()
