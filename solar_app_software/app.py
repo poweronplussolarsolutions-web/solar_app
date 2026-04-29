@@ -100,16 +100,17 @@ app.config['SQLALCHEMY_DATABASE_URI']=os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_recycle': 180,        
     'pool_pre_ping': True,      
-    'pool_timeout': 10,
-    'pool_size': 10,
-    'max_overflow': 20,
+    'pool_timeout': 5,
+    'pool_size': 5,
+    'max_overflow': 10,
+    'connect_args':{'connect_timeout':5},
 }
-@app.teardown_appcontext
-def shutdown_session(exception=None):
-    try:
-        db.session.remove()
-    except Exception as e:
-        print("Session cleanup error:", e)
+# @app.teardown_appcontext
+# def shutdown_session(exception=None):
+#     try:
+#         db.session.remove()
+#     except Exception as e:
+#         print("Session cleanup error:", e)
 # app.config['SQLALCHEMY_DATABASE_URI'] = (
 #     f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}"
 #     f"@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
@@ -738,9 +739,13 @@ class DocumentStage(db.Model):
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 # _user_cache={}
+from flask import g
+
 @login_manager.user_loader
 def load_user(user_id):
-    return db.session.get(User, int(user_id))
+    if '_cached_user' not in g:
+        g._cached_user = db.session.get(User, int(user_id))
+    return g._cached_user
 # @app.teardown_request
 # def clear_user_cache(exc=None):
 #     _user_cache.clear()
@@ -756,6 +761,7 @@ def roles_required(*roles):
             return f(*args, **kwargs)
         return wrapper
     return decorator
+
 
 
 def log_action(project_id, action, old_val=None, new_val=None):
@@ -821,6 +827,7 @@ def refresh_service_statuses():
         db.session.commit()
 
 def auto_advance_stage(proj):
+
     if proj.status in ('Cancelled', 'OnHold', 'Completed', 'Closed'):
         return
 
