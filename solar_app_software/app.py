@@ -376,7 +376,17 @@ class ConnectionDetails(db.Model):
     updated_by               = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     project                  = db.relationship('Project', backref=db.backref('connection_details', uselist=False))
     updater                  = db.relationship('User', foreign_keys=[updated_by])
-
+class LoanDetail(db.Model):
+    __tablename__ = 'loan_details'
+    id          = db.Column(db.Integer, primary_key=True)
+    project_id  = db.Column(db.Integer, db.ForeignKey('projects.id'), unique=True, nullable=False)
+    bank_name   = db.Column(db.String(120), nullable=True)
+    loan_amount = db.Column(db.Numeric(12, 2), nullable=True)
+    notes       = db.Column(db.String(300), nullable=True)
+    updated_at  = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by  = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    project     = db.relationship('Project', backref=db.backref('loan_detail', uselist=False))
+    updater     = db.relationship('User', foreign_keys=[updated_by])
 class Document(db.Model):
     __tablename__ = 'documents'
     id            = db.Column(db.Integer, primary_key=True)
@@ -2131,7 +2141,26 @@ def update_connection_details(pid):
     db.session.commit()
     flash('Connection details updated.', 'success')
     return redirect(url_for('documents', pid=pid))
-
+@app.route('/projects/<int:pid>/loan_details', methods=['POST'])
+@login_required
+@roles_required('admin', 'documents')
+def update_loan_details(pid):
+    proj = Project.query.get_or_404(pid)
+    if proj.project_type != 'Loan':
+        flash('Loan details can only be added to Loan projects.', 'danger')
+        return redirect(url_for('documents', pid=pid))
+    ld = proj.loan_detail or LoanDetail(project_id=pid)
+    ld.bank_name   = _clean(request.form.get('bank_name', ''), 120) or None
+    ld.loan_amount = _safe_float(request.form.get('loan_amount')) or None
+    ld.notes       = _clean(request.form.get('notes', ''), 300) or None
+    ld.updated_by  = current_user.id
+    if not ld.id:
+        db.session.add(ld)
+    log_action(pid, 'Loan details updated',
+               new_val=f'{ld.bank_name}, ₹{float(ld.loan_amount or 0):,.0f}')
+    db.session.commit()
+    flash('Loan details updated.', 'success')
+    return redirect(url_for('documents', pid=pid))
 @app.route('/projects/<int:pid>/documents/batch', methods=['POST'])
 @login_required
 def batch_documents(pid):

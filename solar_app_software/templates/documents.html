@@ -621,6 +621,80 @@
   </div>
   {% endif %}
 </div>
+{% if proj.project_type == 'Loan' %}
+<div class="card" style="margin-top:20px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+    <div class="card-title" style="margin:0">Loan Details</div>
+    {% if current_user.role in ['admin','documents'] %}
+    <button class="btn btn-sm" onclick="toggleExpenseForm('loan-detail-form')">
+      {{ 'Edit' if proj.loan_detail else 'Add' }}
+    </button>
+    {% endif %}
+  </div>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
+    Bank and loan amount for this project.
+  </p>
+
+  {% set ld = proj.loan_detail %}
+  {% if ld %}
+  <div style="display:flex;gap:24px;flex-wrap:wrap;font-size:13px;margin-bottom:10px">
+    <div>
+      <span style="color:var(--muted);font-size:11px;display:block">Bank</span>
+      <strong>{{ ld.bank_name or '—' }}</strong>
+    </div>
+    <div>
+      <span style="color:var(--muted);font-size:11px;display:block">Loan amount</span>
+      <strong>{{ ld.loan_amount | inr if ld.loan_amount else '—' }}</strong>
+    </div>
+    {% if ld.notes %}
+    <div>
+      <span style="color:var(--muted);font-size:11px;display:block">Notes</span>
+      {{ ld.notes }}
+    </div>
+    {% endif %}
+  </div>
+  {% if ld.updated_at %}
+  <div style="font-size:11px;color:var(--hint)">
+    Last updated {{ ld.updated_at | date_fmt }}{% if ld.updater %} by {{ ld.updater.full_name }}{% endif %}
+  </div>
+  {% endif %}
+  {% else %}
+  <div style="font-size:12px;color:var(--hint);margin-bottom:10px">No loan details recorded yet.</div>
+  {% endif %}
+
+  {% if current_user.role in ['admin','documents'] %}
+  <div id="loan-detail-form" style="{{ '' if not ld else 'display:none' }};margin-top:12px">
+    <form method="POST" action="{{ url_for('update_loan_details', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:start">
+        <div>
+          <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Bank name</label>
+          <input type="text" name="bank_name" placeholder="e.g. SBI, Canara…"
+                 value="{{ ld.bank_name or '' if ld else '' }}">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Loan amount (₹)</label>
+          <input type="number" name="loan_amount" step="1" min="0" placeholder="0"
+                 value="{{ ld.loan_amount | int if ld and ld.loan_amount else '' }}">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Notes</label>
+          <input type="text" name="notes" placeholder="Optional…"
+                 value="{{ ld.notes or '' if ld else '' }}">
+        </div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        {% if ld %}
+        <button type="button" class="btn btn-sm"
+                onclick="toggleExpenseForm('loan-detail-form')">Cancel</button>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
 {% if all_docs_complete %}
 <div style="margin-top:20px;display:flex;align-items:center;justify-content:space-between;
             background:var(--teal-50);border:0.5px solid var(--teal-100);
