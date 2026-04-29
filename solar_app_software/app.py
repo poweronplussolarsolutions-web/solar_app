@@ -1274,7 +1274,10 @@ def dashboard():
         subsidy_list   = Subsidy.query.filter(Subsidy.project_id.in_(my_project_ids)).all() if my_project_ids else []
         data['projects']         = my_projects
         data['pending']          = Project.query.filter(Project.status.in_(['Lead','Created'])).count()
-        data['site_visits']      = SiteVisit.query.filter_by(status='Scheduled').all()
+        data['site_visits'] = SiteVisit.query.filter(
+    SiteVisit.project_id.in_(my_project_ids),
+    SiteVisit.status == 'Scheduled'
+).all() if my_project_ids else []
         data['delayed']          = Project.query.filter_by(status='Delayed').count()
         data['total_value']      = total_value
         data['total_collected']  = total_collected
