@@ -566,7 +566,7 @@
             <input type="checkbox" name="ownership_change_needed" id="oc_needed"
                    onchange="toggleStatus('oc_status_row',this.checked)"
                    {{ 'checked' if cd and cd.ownership_change_needed }}>
-            Required for this project
+            <!-- Required for this project -->
           </label>
           <div id="oc_status_row" style="margin-top:4px;{{ 'display:none' if not (cd and cd.ownership_change_needed) }}">
             <select name="ownership_change_status">
@@ -583,7 +583,7 @@
             <input type="checkbox" name="load_clearance_needed" id="lc_needed"
                    onchange="toggleStatus('lc_status_row',this.checked)"
                    {{ 'checked' if cd and cd.load_clearance_needed }}>
-            Required for this project
+            <!-- Required for this project -->
           </label>
           <div id="lc_status_row" style="margin-top:4px;{{ 'display:none' if not (cd and cd.load_clearance_needed) }}">
             <select name="load_clearance_status">
