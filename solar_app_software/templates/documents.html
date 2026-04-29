@@ -535,6 +535,10 @@
   <span style="color:var(--muted);font-size:11px;display:block">Category</span>
   <strong>{{ cd.category or '—' }}</strong>
 </div>
+<div>
+  <span style="color:var(--muted);font-size:11px;display:block">Consumer number</span>
+  <strong>{{ cd.consumer_number or '—' }}</strong>
+</div>
   {# Edit form #}
   {% if current_user.role in ['admin','documents'] %}
   <div id="conn-detail-form" style="{{ '' if not cd else 'display:none' }};margin-top:12px">
@@ -559,7 +563,11 @@
             <option value="Commercial"  {{ 'selected' if cd and cd.category == 'Commercial' }}>Commercial</option>
           </select>
         </div>
-         
+         <div>
+  <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Consumer number</label>
+  <input type="text" name="consumer_number" placeholder="e.g. 12345678"
+         value="{{ cd.consumer_number or '' if cd else '' }}">
+</div>
         <div style="padding-top:4px">
           <label style="font-size:12px;font-weight:500;display:block;margin-bottom:8px">Ownership change</label>
           <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:6px">

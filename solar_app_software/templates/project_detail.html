@@ -123,6 +123,10 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Address</td><td style="font-size:12px">{{ proj.customer.address or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">System size</td><td>{{ proj.system_kw }} kW</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Type</td><td><span class="badge badge-{{ proj.project_type }}">{{ proj.project_type }}</span></td></tr>
+      {% set cd = proj.connection_details %}
+      <tr><td style="color:var(--muted);padding:5px 0">Connection type</td><td>{{ cd.connection_type if cd and cd.connection_type else '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Category</td><td>{{ cd.category if cd and cd.category else '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Consumer no.</td><td>{{ cd.consumer_number if cd and cd.consumer_number else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Stage</td><td>{{ proj.stage }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Coordinator</td><td>{{ proj.coordinator.full_name if proj.coordinator else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Docs staff</td><td>{{ proj.doc_staff.full_name if proj.doc_staff else '—' }}</td></tr>

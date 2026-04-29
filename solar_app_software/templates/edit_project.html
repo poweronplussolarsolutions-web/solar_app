@@ -236,6 +236,11 @@
     <option value="Commercial"  {{ 'selected' if cd and cd.category == 'Commercial'  }}>Commercial</option>
   </select>
 </div>
+<div class="form-group">
+  <label>Consumer number</label>
+  <input type="text" name="consumer_number" placeholder="Optional…"
+         value="{{ cd.consumer_number or '' if cd else '' }}">
+</div>
   <div class="form-group" style="display:flex;flex-direction:column;gap:6px">
     <label>Ownership change</label>
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:400;cursor:pointer">

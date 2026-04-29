@@ -366,6 +366,7 @@ class ConnectionDetails(db.Model):
     project_id               = db.Column(db.Integer, db.ForeignKey('projects.id'), unique=True, nullable=False)
     connection_type          = db.Column(db.Enum('Single Phase', 'Three Phase'), nullable=True)
     category          = db.Column(db.Enum('Residential', 'Commercial'), nullable=True)
+    consumer_number = db.Column(db.String(50),nullable=True)
     ownership_change_needed  = db.Column(db.Boolean, default=False)
     ownership_change_status  = db.Column(db.Enum('Not Required', 'Pending', 'InProgress', 'Completed'), default='Not Required')
     load_clearance_needed    = db.Column(db.Boolean, default=False)
@@ -1562,6 +1563,7 @@ def edit_project(pid):
         cd = proj.connection_details or ConnectionDetails(project_id=pid)
         cd.connection_type = request.form.get('connection_type') or None
         cd.category=request.form.get('category') or None
+        cd.consumer_number = _clean(request.form.get('consumer_number', ''), 50) or None
         ownership_needed           = 'ownership_change_needed' in request.form
         cd.ownership_change_needed = ownership_needed
         cd.ownership_change_status = (
@@ -2091,6 +2093,7 @@ def update_connection_details(pid):
 
     cd.connection_type = request.form.get('connection_type') or None
     cd.category=request.form.get('category') or None
+    cd.consumer_number = _clean(request.form.get('consumer_number', ''), 50) or None
     ownership_needed         = 'ownership_change_needed' in request.form
     cd.ownership_change_needed = ownership_needed
     cd.ownership_change_status = (
