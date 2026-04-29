@@ -523,11 +523,7 @@
     </div>
     {% endif %}
   </div>
-  {% if cd.updated_at %}
-  <div style="font-size:11px;color:var(--hint)">
-    Last updated {{ cd.updated_at | date_fmt }}{% if cd.updater %} by {{ cd.updater.full_name }}{% endif %}
-  </div>
-  {% endif %}
+  
   {% else %}
   <div style="font-size:12px;color:var(--hint);margin-bottom:10px">No connection details recorded yet.</div>
   {% endif %}
@@ -607,7 +603,11 @@
           <input type="text" name="notes" placeholder="Optional…"
                  value="{{ cd.notes or '' if cd else '' }}">
         </div>
-
+{% if cd.updated_at %}
+  <div style="font-size:11px;color:var(--hint)">
+    Last updated {{ cd.updated_at | date_fmt }}{% if cd.updater %} by {{ cd.updater.full_name }}{% endif %}
+  </div>
+  {% endif %}
       </div>
 
       <div style="margin-top:12px;display:flex;gap:8px">
