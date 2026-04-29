@@ -228,7 +228,14 @@
       <option value="Three Phase"  {{ 'selected' if cd and cd.connection_type == 'Three Phase'  }}>Three Phase</option>
     </select>
   </div>
-
+<div class="form-group">
+  <label>Category</label>
+  <select name="category">
+    <option value="">— Select —</option>
+    <option value="Residential" {{ 'selected' if cd and cd.category == 'Residential' }}>Residential</option>
+    <option value="Commercial"  {{ 'selected' if cd and cd.category == 'Commercial'  }}>Commercial</option>
+  </select>
+</div>
   <div class="form-group" style="display:flex;flex-direction:column;gap:6px">
     <label>Ownership change</label>
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:400;cursor:pointer">

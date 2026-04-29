@@ -531,7 +531,10 @@
   {% else %}
   <div style="font-size:12px;color:var(--hint);margin-bottom:10px">No connection details recorded yet.</div>
   {% endif %}
-
+ <div>
+  <span style="color:var(--muted);font-size:11px;display:block">Category</span>
+  <strong>{{ cd.category or '—' }}</strong>
+</div>
   {# Edit form #}
   {% if current_user.role in ['admin','documents'] %}
   <div id="conn-detail-form" style="{{ '' if not cd else 'display:none' }};margin-top:12px">
@@ -548,7 +551,10 @@
             <option value="Three Phase"  {{ 'selected' if cd and cd.connection_type == 'Three Phase' }}>Three Phase</option>
           </select>
         </div>
-
+         <div>
+  <span style="color:var(--muted);font-size:11px;display:block">Category</span>
+  <strong>{{ cd.category or '—' }}</strong>
+</div>
         <div style="padding-top:4px">
           <label style="font-size:12px;font-weight:500;display:block;margin-bottom:8px">Ownership change</label>
           <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:6px">
