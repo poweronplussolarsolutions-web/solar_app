@@ -535,6 +535,15 @@
   <span style="color:var(--muted);font-size:11px;display:block">Consumer number</span>
   <strong>{{ cd.consumer_number or '—' }}</strong>
 </div>
+<div>
+  <span style="color:var(--muted);font-size:11px;display:block">KSEB section</span>
+  <strong>{{ cd.kseb_section or '—' }}</strong>
+</div>
+{% if cd.updated_at %}
+  <div style="font-size:11px;color:var(--hint)">
+    Last updated {{ cd.updated_at | date_fmt }}{% if cd.updater %} by {{ cd.updater.full_name }}{% endif %}
+  </div>
+  {% endif %}
   {# Edit form #}
   {% if current_user.role in ['admin','documents'] %}
   <div id="conn-detail-form" style="{{ '' if not cd else 'display:none' }};margin-top:12px">
@@ -597,17 +606,17 @@
             </select>
           </div>
         </div>
-
+        <div>
+  <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">KSEB section</label>
+  <input type="text" name="kseb_section" placeholder="e.g. Thrissur South"
+         value="{{ cd.kseb_section or '' if cd else '' }}">
+</div>
         <div>
           <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Notes</label>
           <input type="text" name="notes" placeholder="Optional…"
                  value="{{ cd.notes or '' if cd else '' }}">
         </div>
-{% if cd.updated_at %}
-  <div style="font-size:11px;color:var(--hint)">
-    Last updated {{ cd.updated_at | date_fmt }}{% if cd.updater %} by {{ cd.updater.full_name }}{% endif %}
-  </div>
-  {% endif %}
+
       </div>
 
       <div style="margin-top:12px;display:flex;gap:8px">

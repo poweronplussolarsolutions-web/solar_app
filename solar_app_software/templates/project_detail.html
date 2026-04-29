@@ -127,6 +127,10 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Connection type</td><td>{{ cd.connection_type if cd and cd.connection_type else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Category</td><td>{{ cd.category if cd and cd.category else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Consumer no.</td><td>{{ cd.consumer_number if cd and cd.consumer_number else '—' }}</td></tr>
+      <div>
+  <span style="color:var(--muted);font-size:11px;display:block">KSEB section</span>
+  <strong>{{ proj.connection_details.kseb_section if proj.connection_details else '—' }}</strong>
+</div>
       {% if proj.project_type == 'Loan' %}
       {% set ld = proj.loan_detail %}
       <tr><td style="color:var(--muted);padding:5px 0">Bank</td><td>{{ ld.bank_name if ld and ld.bank_name else '—' }}</td></tr>
