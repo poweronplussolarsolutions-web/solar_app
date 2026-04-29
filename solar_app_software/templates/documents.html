@@ -551,10 +551,15 @@
             <option value="Three Phase"  {{ 'selected' if cd and cd.connection_type == 'Three Phase' }}>Three Phase</option>
           </select>
         </div>
-         <div>
-  <span style="color:var(--muted);font-size:11px;display:block">Category</span>
-  <strong>{{ cd.category or '—' }}</strong>
-</div>
+        <div>
+          <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Category</label>
+          <select name="connection_type">
+            <option value="">— Select —</option>
+            <option value="Residential" {{ 'selected' if cd and cd.category == 'Residential' }}>Residential</option>
+            <option value="Commercial"  {{ 'selected' if cd and cd.category == 'Commercial' }}>Commercial</option>
+          </select>
+        </div>
+         
         <div style="padding-top:4px">
           <label style="font-size:12px;font-weight:500;display:block;margin-bottom:8px">Ownership change</label>
           <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:6px">
