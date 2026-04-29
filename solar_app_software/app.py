@@ -1234,7 +1234,7 @@ def dashboard():
     stale  = Project.query.filter(
         Project.status == 'InProgress',
         Project.created_at <= cutoff,
-    ).all()
+    ).update({'status':'Delayed'},synchronize_session=False)
     if stale:
         for proj in stale:
             proj.status = 'Delayed'
@@ -1277,34 +1277,82 @@ def dashboard():
         data['subsidy_list']     = subsidy_list
 
     elif role == 'documents':
-        all_my_projects  = Project.query.filter_by(doc_staff_id=current_user.id).order_by(Project.updated_at.desc()).all()
-        my_projects      = [p for p in all_my_projects if p.status not in ['Cancelled', 'OnHold']]
+
+        from sqlalchemy.orm import joinedload
+        from sqlalchemy import func
+
+    # ✅ Load projects with documents (no lazy loading)
+        all_my_projects = Project.query.options(
+        joinedload(Project.documents)
+    ).filter_by(doc_staff_id=current_user.id).all()
+
+    # ✅ Filter active projects
+        my_projects = [p for p in all_my_projects if p.status not in ['Cancelled', 'OnHold']]
+
+        project_ids = [p.id for p in my_projects]
+
+    # ✅ SINGLE QUERY to get document counts (replaces get_doc_completion)
+        doc_counts = []
+        if project_ids:
+            doc_counts = db.session.query(
+            Document.project_id,
+            func.sum(Document.status == 'Completed').label('done'),
+            func.count(Document.id).label('total')
+        ).filter(
+            Document.project_id.in_(project_ids)
+        ).group_by(Document.project_id).all()
+
+    # ✅ Convert to dict for fast lookup
+        doc_map = {
+        d.project_id: (int(d.done or 0), int(d.total or 0))
+        for d in doc_counts
+    }
+
+    # ✅ Build data WITHOUT extra DB queries
         projects_with_counts = []
         for p in my_projects:
-            done, total = get_doc_completion(p)
+            done, total = doc_map.get(p.id, (0, 0))
+
             projects_with_counts.append({
-                'project':    p,
-                'done_docs':  done,
-                'total_docs': total,
-                'doc_pct':    int(done / total * 100) if total > 0 else 0,
-            })
-        page, per_page = request.args.get('page', 1, type=int), 20
+            'project': p,
+            'done_docs': done,
+            'total_docs': total,
+            'doc_pct': int(done / total * 100) if total > 0 else 0,
+        })
+
+    # ✅ Pagination (in memory - OK for moderate data)
+        page = request.args.get('page', 1, type=int)
+        per_page = 20
         total = len(projects_with_counts)
         start = (page - 1) * per_page
-        data['projects']             = my_projects
-        data['projects_with_counts'] = projects_with_counts[start:start+per_page]
-        data['page']                 = page
-        data['per_page']             = per_page
-        data['total_projects']       = total
-        data['total_pages']          = (total + per_page - 1) // per_page
-        data['queue']                = len(my_projects)
-        data['new_projects']         = [p for p in my_projects if p.status == 'InProgress' and len(p.documents) == 0]
-        data['new_count']            = len(data['new_projects'])
-        data['completed_projects']   = [p for p in my_projects if p.status in ['Completed', 'Closed']]
-        data['completed_count']      = len(data['completed_projects'])
-        data['notifications']        = Notification.query.filter_by(
-            user_id=current_user.id, is_read=False).order_by(Notification.created_at.desc()).all()
 
+        data['projects'] = my_projects
+        data['projects_with_counts'] = projects_with_counts[start:start+per_page]
+        data['page'] = page
+        data['per_page'] = per_page
+        data['total_projects'] = total
+        data['total_pages'] = (total + per_page - 1) // per_page
+
+    # ✅ These are now SAFE (no extra queries due to joinedload)
+        data['queue'] = len(my_projects)
+
+        data['new_projects'] = [
+        p for p in my_projects
+        if p.status == 'InProgress' and len(p.documents) == 0
+    ]
+        data['new_count'] = len(data['new_projects'])
+
+        data['completed_projects'] = [
+        p for p in my_projects
+        if p.status in ['Completed', 'Closed']
+    ]
+        data['completed_count'] = len(data['completed_projects'])
+
+    # ✅ Limit notifications (good fix already)
+        data['notifications'] = Notification.query.filter_by(
+        user_id=current_user.id,
+        is_read=False
+    ).order_by(Notification.created_at.desc()).limit(20).all()
     elif role == 'payments':
         active_ids = db.session.query(Project.id).filter(
             Project.status.notin_(['Cancelled', 'OnHold'])).subquery()
