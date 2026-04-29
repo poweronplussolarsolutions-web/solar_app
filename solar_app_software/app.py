@@ -940,7 +940,13 @@ def next_project_code():
             numeric.append(int(code))
         except (ValueError, TypeError):
             pass
-    return str(max(numeric) + 1) if numeric else None
+    if not numeric:
+        return None
+    existing = set(numeric)
+    candidate = max(numeric) + 1
+    while candidate in existing:
+        candidate += 1
+    return str(candidate)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1363,14 +1369,15 @@ def new_project():
     if request.method == 'POST':
         code = _clean(request.form.get('project_code', ''), 20)
         if not code:
-            flash('MNRE number is required.', 'danger')
-            return render_template('new_project.html', customers=customers,
-                                   doc_staff=doc_staff, suggested_code=suggested_code)
+            auto = next_project_code() or '1'
+            # Ensure auto-generated code is truly free
+            while Project.query.filter_by(project_code=auto).first():
+                auto = str(int(auto) + 1)
+            code = auto
         if Project.query.filter_by(project_code=code).first():
             flash(f'MNRE number {code} is already registered.', 'danger')
             return render_template('new_project.html', customers=customers,
                                    doc_staff=doc_staff, suggested_code=suggested_code)
-
         cust_id = request.form.get('customer_id')
         if not cust_id:
             cust = Customer(

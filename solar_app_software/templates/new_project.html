@@ -52,19 +52,17 @@
       <!-- MNRE Number -->
       <div class="form-group">
         <label>MNRE Number *</label>
-        <input name="project_code" type="text" required
-               value="{{ suggested_code or '' }}"
-               pattern="\d+" title="Digits only — no letters or spaces"
-               placeholder="{% if not suggested_code %}Enter starting MNRE number{% endif %}"/>
-        {% if suggested_code %}
-        <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
-          Auto-filled from last project — edit if needed
-        </span>
-        {% else %}
-        <span style="font-size:11px;color:var(--amber-600);margin-top:3px;display:block">
-          No projects yet — enter the first MNRE number manually
-        </span>
-        {% endif %}
+        <input name="project_code" type="text"
+       value="{{ suggested_code or '' }}"
+       pattern="\d*" title="Digits only — no letters or spaces"
+       placeholder="Leave blank to auto-assign"/>
+<span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
+  {% if suggested_code %}
+    Next: {{ suggested_code }} — edit if needed, or leave blank to auto-assign
+  {% else %}
+    Leave blank to auto-assign, or enter manually for the first project
+  {% endif %}
+</span>
       </div>
 
       <div class="form-group">
