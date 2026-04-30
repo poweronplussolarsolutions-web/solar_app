@@ -831,7 +831,7 @@ def auto_advance_stage(proj):
     if proj.status in ('Cancelled', 'OnHold', 'Completed', 'Closed'):
         return
 
-    db.session.expire(proj, ['documents', 'site_visits', 'onsite_progress',
+    db.session.expire(proj, ['documents','site_visits', 'onsite_progress',
                               'app_install', 'subsidy', 'assignments'])
 
     old_stage  = proj.stage
@@ -852,8 +852,8 @@ def auto_advance_stage(proj):
             proj.status = 'Lead'
     elif proj.stage == 'Site Visit':
         if [v for v in proj.site_visits if v.status == 'Completed']:
-            proj.stage  = 'Documentation'
-            proj.status = 'InProgress'
+             proj.stage  = 'Documentation'
+             proj.status = 'InProgress'
     elif proj.stage == 'Documentation':
         if doc_done('Feasibility Receipt'):
             proj.stage  = 'Onsite Work'

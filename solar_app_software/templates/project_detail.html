@@ -769,11 +769,11 @@ function syncStatus(stageSelect) {
     <span class="btn btn-sm" style="opacity:0.5;cursor:not-allowed" title="All documents completed — locked">
       🔒 Documents complete
     </span>
-    {% elif proj.stage in ('Lead', 'Site Visit') %}
+    <!-- {% elif proj.stage in ('Lead', 'Site Visit') %}
     <span class="btn btn-sm" style="opacity:0.5;cursor:not-allowed"
           title="Complete the site visit first">
       🔒 Locked until site visit done
-    </span>
+    </span> -->
     {% else %}
     <a href="{{ url_for('documents', pid=proj.id) }}" class="btn btn-sm btn-primary">
       Manage documents
