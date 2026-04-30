@@ -3516,7 +3516,7 @@ def api_notifications():
         joinedload(Notification.project),
         noload(Notification.user),
     ).filter_by(user_id=current_user.id).order_by(
-        Notification.created_at.desc()).limit(40).all()
+        Notification.created_at.desc()).limit(20).all()
     return jsonify([{
         'id': n.id, 'message': n.message, 'type': n.notif_type,
         'project_id': n.project_id, 'code': n.project.project_code if n.project else '',
