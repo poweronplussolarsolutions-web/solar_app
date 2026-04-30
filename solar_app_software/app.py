@@ -185,10 +185,10 @@ def _clean(value: str, max_len: int = 255) -> str:
 
 def _safe_float(value, default: float = 0.0) -> float:
     try:
-        v = float(value)
+        v = float(str(value).replace(',', '.').strip())
         if v < 0 or v > 1_000_000_000:
             return default
-        return v
+        return round(v, 2)
     except (TypeError, ValueError):
         return default
 
@@ -265,8 +265,8 @@ class Project(db.Model):
     id               = db.Column(db.Integer, primary_key=True)
     project_code     = db.Column(db.String(20), unique=True, nullable=False)
     customer_id      = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=False)
-    inverter_capacity_kw = db.Column(db.Numeric(6, 2), nullable=False)
-    panel_capacity_kw    = db.Column(db.Numeric(6, 2), nullable=False)
+    inverter_capacity_kw = db.Column(db.Numeric(8, 2), nullable=False)
+    panel_capacity_kw    = db.Column(db.Numeric(8, 2), nullable=False)
     project_type     = db.Column(db.Enum('Loan', 'Cash'), nullable=False)
     status           = db.Column(db.Enum('Lead','Created','InProgress','Completed','Delayed','Pending','Closed','OnHold','Cancelled'), default='Lead')
     stage            = db.Column(db.String(100), default='Lead')
