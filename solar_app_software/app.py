@@ -3212,11 +3212,11 @@ def new_user():
             return render_template('new_user.html')
  
         # ── Duplicate email (only when a real email is provided) ─────────────
-        if raw_email and User.query.filter(
-                db.func.lower(User.email) == raw_email,
-                ~User.email.like('%@noemail.local')).first():
-            flash('Email address is already registered.', 'danger')
-            return render_template('new_user.html')
+        # if raw_email and User.query.filter(
+        #         db.func.lower(User.email) == raw_email,
+        #         ~User.email.like('%@noemail.local')).first():
+        #     flash('Email address is already registered.', 'danger')
+        #     return render_template('new_user.html')
  
         # ── Duplicate phone ──────────────────────────────────────────────────
         if phone_clean and User.query.filter_by(phone=phone_clean).first():
