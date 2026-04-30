@@ -109,5 +109,18 @@
     
   </div>
 </div>
+<script>
+  function togglePw() {
+    const input = document.getElementById('password');
+    const btn = input.nextElementSibling;
+    if (input.type === 'password') {
+      input.type = 'text';
+      btn.textContent = '🙈';
+    } else {
+      input.type = 'password';
+      btn.textContent = '👁';
+    }
+  }
+</script>
 </body>
 </html>
