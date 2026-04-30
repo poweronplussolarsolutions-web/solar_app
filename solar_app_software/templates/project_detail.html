@@ -271,10 +271,14 @@ function togglePanel(id) {
   </details>
   {% endif %}
 </div>
-{# ── SITE VISITS ── #}
+{# ── SITE VISITS (optional) ── #}
 {% if current_user.role in ['admin', 'coordinator'] and proj.status not in ['Cancelled'] %}
 <div class="card">
-  <div class="card-title">Site visits</div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <div class="card-title" style="margin:0">Site visit</div>
+    <span style="font-size:11px;background:var(--surface);border:0.5px solid var(--border);
+                 border-radius:20px;padding:2px 8px;color:var(--muted)">Optional</span>
+  </div>
 
   {% if proj.site_visits %}
   <div class="table-wrap">
@@ -289,14 +293,14 @@ function togglePanel(id) {
         <td style="font-size:12px;color:var(--muted)">{{ v.observations or '—' }}</td>
         <td>
           {% if v.status == 'Scheduled' %}
-<button id="mark-btn-{{ v.id }}" class="btn btn-sm btn-primary"
-        onclick="document.getElementById('complete-visit-{{ v.id }}').style.display='block';this.style.display='none'">
-  Mark complete
-</button>
+          <button id="mark-btn-{{ v.id }}" class="btn btn-sm btn-primary"
+                  onclick="document.getElementById('complete-visit-{{ v.id }}').style.display='block';this.style.display='none'">
+            Mark complete
+          </button>
           <div id="complete-visit-{{ v.id }}" style="display:none;margin-top:8px">
             <form method="POST"
-                  action="{{ url_for('complete_site_visit', pid=proj.id, vid=v.id) }}" >
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  action="{{ url_for('complete_site_visit', pid=proj.id, vid=v.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
                 <div class="form-group" style="margin:0">
                   <label style="font-size:12px">Visit date</label>
@@ -308,10 +312,11 @@ function togglePanel(id) {
                   <input type="text" name="observations" placeholder="Optional notes"/>
                 </div>
                 <button type="submit" class="btn btn-primary btn-sm">Save</button>
-<button type="button" class="btn btn-sm"
-        onclick="document.getElementById('complete-visit-{{ v.id }}').style.display='none';document.getElementById('mark-btn-{{ v.id }}').style.display='inline-block'">
-  Cancel
-</button>
+                <button type="button" class="btn btn-sm"
+                        onclick="document.getElementById('complete-visit-{{ v.id }}').style.display='none';
+                                 document.getElementById('mark-btn-{{ v.id }}').style.display='inline-block'">
+                  Cancel
+                </button>
               </div>
             </form>
           </div>
@@ -323,23 +328,25 @@ function togglePanel(id) {
   </table>
   </div>
   {% else %}
-  <div style="color:var(--hint);font-size:13px;padding:4px 0 10px">No site visits scheduled yet.</div>
+  <div style="color:var(--hint);font-size:13px;padding:4px 0 10px">
+    No site visit scheduled — this is optional and won't affect the project flow.
+  </div>
   {% endif %}
 
-  {% if (proj.stage == 'Lead' or proj.stage == 'Site Visit') and not proj.site_visits %}
-  <form method="POST" action="{{ url_for('add_site_visit', pid=proj.id) }}" >
+  {% if not proj.site_visits %}
+  <form method="POST" action="{{ url_for('add_site_visit', pid=proj.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div style="display:flex;gap:8px;align-items:flex-end">
       <div class="form-group" style="margin:0">
         <label style="font-size:12px">Schedule date</label>
         <input type="date" name="scheduled_date" required/>
       </div>
-      <button type="submit" class="btn btn-sm btn-primary">Schedule site visit</button>
+      <button type="submit" class="btn btn-sm">Schedule site visit</button>
     </div>
   </form>
-  {% elif proj.site_visits %}
+  {% else %}
   <div style="font-size:12px;color:var(--hint);margin-top:4px">
-     Site visit already scheduled — only one visit is allowed per project.
+    Only one visit is allowed per project.
   </div>
   {% endif %}
 </div>
@@ -769,11 +776,7 @@ function syncStatus(stageSelect) {
     <span class="btn btn-sm" style="opacity:0.5;cursor:not-allowed" title="All documents completed — locked">
       🔒 Documents complete
     </span>
-    <!-- {% elif proj.stage in ('Lead', 'Site Visit') %}
-    <span class="btn btn-sm" style="opacity:0.5;cursor:not-allowed"
-          title="Complete the site visit first">
-      🔒 Locked until site visit done
-    </span> -->
+    
     {% else %}
     <a href="{{ url_for('documents', pid=proj.id) }}" class="btn btn-sm btn-primary">
       Manage documents

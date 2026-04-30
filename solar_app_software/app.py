@@ -845,15 +845,11 @@ def auto_advance_stage(proj):
         )
 
     if proj.stage == 'Lead':
-        if proj.site_visits:
-            proj.stage  = 'Site Visit'
-            proj.status = 'InProgress'
-        else:
-            proj.status = 'Lead'
+        proj.stage  = 'Documentation'
+        proj.status = 'InProgress'
     elif proj.stage == 'Site Visit':
-        if [v for v in proj.site_visits if v.status == 'Completed']:
-             proj.stage  = 'Documentation'
-             proj.status = 'InProgress'
+        proj.stage  = 'Documentation'
+        proj.status = 'InProgress'
     elif proj.stage == 'Documentation':
         if doc_done('Feasibility Receipt'):
             proj.stage  = 'Onsite Work'
@@ -1465,8 +1461,8 @@ def new_project():
             inverter_capacity_kw = _safe_float(request.form.get('inverter_capacity_kw')),
             panel_capacity_kw    = _safe_float(request.form.get('panel_capacity_kw')),
             project_type         = request.form['project_type'],
-            status               = 'Lead',
-            stage                = 'Lead',
+            status               = 'InProgress',
+            stage                = 'Documentation',
             project_subtype      = request.form.get('project_subtype') or None,
             loan_subtype         = request.form.get('loan_subtype') or None,
             total_amount         = _safe_float(request.form.get('total_amount', 0)),
@@ -1678,9 +1674,7 @@ def add_site_visit(pid):
         status         = 'Scheduled',
     )
     db.session.add(visit)
-    db.session.flush()
     log_action(pid, 'Site visit scheduled', new_val='Scheduled')
-    auto_advance_stage(proj)
     db.session.commit()
     flash('Site visit scheduled.', 'success')
     return redirect(url_for('project_detail', pid=pid))
@@ -1691,18 +1685,14 @@ def add_site_visit(pid):
 @roles_required('admin', 'coordinator')
 def complete_site_visit(vid, pid):
     visit              = SiteVisit.query.get_or_404(vid)
-    proj               = Project.query.get_or_404(pid)
     visit.status       = 'Completed'
     visit.visited_date = date.fromisoformat(request.form['visited_date']) \
                          if request.form.get('visited_date') else date.today()
     visit.observations = _clean(request.form.get('observations', ''), 2000)
     log_action(pid, 'Site visit completed', new_val='Completed')
-    db.session.flush()
-    auto_advance_stage(proj)
     db.session.commit()
     flash('Site visit marked complete.', 'success')
     return redirect(url_for('project_detail', pid=pid))
-
 
 @app.route('/projects/<int:pid>')
 @login_required
@@ -2096,10 +2086,6 @@ def documents(pid):
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
-        if proj.stage in ('Lead', 'Site Visit'):
-            flash('Documents cannot be updated until the site visit is completed.', 'danger')
-            return redirect(url_for('documents', pid=pid))
-
         done_before, expected = get_doc_completion(proj)
         was_complete = (expected > 0 and done_before == expected)
         if current_user.role != 'admin' and was_complete:
@@ -2226,9 +2212,7 @@ def batch_documents(pid):
     if current_user.role == 'documents' and proj.doc_staff_id != current_user.id:
         flash('This project is not assigned to you.', 'danger')
         return redirect(url_for('dashboard'))
-    if proj.stage in ('Lead', 'Site Visit'):
-        flash('Documents cannot be updated until the site visit is completed.', 'danger')
-        return redirect(url_for('documents', pid=pid))
+    
 
     doc_types = request.form.getlist('doc_types')
     status    = request.form.get('status', 'Received')
