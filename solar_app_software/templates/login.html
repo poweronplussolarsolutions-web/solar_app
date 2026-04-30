@@ -111,16 +111,9 @@
 </div>
 <script>
   function togglePw() {
-    const input = document.getElementById('password');
-    const btn = input.nextElementSibling;
-    if (input.type === 'password') {
-      input.type = 'text';
-      btn.textContent = '🙈';
-    } else {
-      input.type = 'password';
-      btn.textContent = '👁';
-    }
-  }
+  const f = document.getElementById('pwField');
+  f.type = f.type === 'password' ? 'text' : 'password';
+}
 </script>
 </body>
 </html>
