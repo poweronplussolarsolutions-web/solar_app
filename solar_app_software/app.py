@@ -4034,7 +4034,7 @@ def download_docstaff_report():
 
 @app.cli.command('mark_delayed')
 def mark_delayed():
-    cutoff = datetime.utcnow() - timedelta(days=30)
+    cutoff = datetime.utcnow() - timedelta(days=60)
     stale  = Project.query.filter(Project.status == 'InProgress', Project.created_at <= cutoff).all()
     for proj in stale:
         proj.status = 'Delayed'
