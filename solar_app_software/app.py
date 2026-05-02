@@ -1234,13 +1234,11 @@ def reorder_document_stages():
 @login_required
 def dashboard():
     cutoff = datetime.utcnow() - timedelta(days=30)
-    stale  = Project.query.filter(
+    update_rows  = Project.query.filter(
         Project.status == 'InProgress',
         Project.created_at <= cutoff,
     ).update({'status':'Delayed'},synchronize_session=False)
-    if stale:
-        for proj in stale:
-            proj.status = 'Delayed'
+    if update_rows:
         db.session.commit()
 
     role = current_user.role
