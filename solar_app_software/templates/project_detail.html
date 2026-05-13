@@ -875,6 +875,10 @@ function syncStatus(stageSelect) {
         <td>{{ pd.num_panels or '—' }}</td>
       </tr>
       <tr>
+  <td style="color:var(--muted);padding:5px 0">Inverter brand</td>
+  <td style="font-weight:500">{{ pd.inverter_brand or '—' }}</td>
+</tr>
+      <tr>
         <td style="color:var(--muted);padding:5px 0">Inverter serial no.</td>
         <td style="font-family:monospace;font-size:12px">{{ pd.inverter_serial_number or '—' }}</td>
       </tr>
@@ -944,7 +948,12 @@ function syncStatus(stageSelect) {
                  value="{{ pd.num_panels or '' if pd else '' }}"
                  placeholder="e.g. 8"/>
         </div>
-
+       <div class="form-group">
+  <label>Inverter brand</label>
+  <input type="text" name="inverter_brand"
+         value="{{ pd.inverter_brand or '' if pd else '' }}"
+         placeholder="e.g. Growatt, Solis, Deye"/>
+</div>
         <div class="form-group">
           <label>Inverter serial number</label>
           <input type="text" name="inverter_serial_number"

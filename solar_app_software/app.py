@@ -521,6 +521,7 @@ class PanelDetails(db.Model):
     id                      = db.Column(db.Integer, primary_key=True)
     project_id              = db.Column(db.Integer, db.ForeignKey('projects.id'), unique=True, nullable=False)
     panel_brand             = db.Column(db.String(100), nullable=True)
+    inverter_brand             = db.Column(db.String(100), nullable=True)
     num_panels              = db.Column(db.Integer,     nullable=True)
     panel_serial_numbers    = db.Column(db.Text,        nullable=True)   # newline-separated
     inverter_serial_number  = db.Column(db.String(100), nullable=True)
@@ -2231,6 +2232,7 @@ def update_panel_details(pid):
     pd_.inverter_serial_number     = _clean(request.form.get('inverter_serial_number', ''), 100) or None
     pd_.net_meter_serial_number    = _clean(request.form.get('net_meter_serial_number', ''), 100) or None
     pd_.energy_meter_serial_number = _clean(request.form.get('energy_meter_serial_number', ''), 100) or None
+    pd_.inverter_brand = _clean(request.form.get('inverter_brand', ''), 100) or None
     pd_.notes                      = _clean(request.form.get('notes', ''), 1000) or None
     pd_.updated_by                 = current_user.id
 
