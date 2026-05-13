@@ -1477,7 +1477,7 @@ def new_project():
             status               = 'InProgress',
             stage                = 'Documentation',
             project_subtype      = request.form.get('project_subtype') or None,
-            loan_subtype         = request.form.get('loan_subtype') or None,
+            # loan_subtype         = request.form.get('loan_subtype') or None,
             total_amount         = _safe_float(request.form.get('total_amount', 0)),
             coordinator_id       = current_user.id,
             doc_staff_id         = request.form.get('doc_staff_id') or None,
@@ -1527,14 +1527,14 @@ def edit_project(pid):
 
         new_type     = request.form['project_type']
         new_subtype  = request.form.get('project_subtype') or None
-        new_loan_sub = request.form.get('loan_subtype') or None
+        # new_loan_sub = request.form.get('loan_subtype') or None
         new_amount   = _safe_float(request.form.get('total_amount'))
 
         proj.inverter_capacity_kw = _safe_float(request.form.get('inverter_capacity_kw'))
         proj.panel_capacity_kw    = _safe_float(request.form.get('panel_capacity_kw'))
         proj.project_type         = new_type
         proj.project_subtype      = new_subtype
-        proj.loan_subtype         = new_loan_sub
+        # proj.loan_subtype         = new_loan_sub
         proj.total_amount         = new_amount
         proj.notes                = _clean(request.form.get('notes', ''), 2000)
 
@@ -1609,8 +1609,8 @@ def edit_project(pid):
             changes.append(f'Type: {old_type} → {new_type}')
         if old_subtype != new_subtype:
             changes.append(f'Subtype: {old_subtype or "None"} → {new_subtype or "None"}')
-        if old_loan_sub != new_loan_sub:
-            changes.append(f'Loan type: {old_loan_sub or "None"} → {new_loan_sub or "None"}')
+        # if old_loan_sub != new_loan_sub:
+        #     changes.append(f'Loan type: {old_loan_sub or "None"} → {new_loan_sub or "None"}')
         if abs(old_amount - new_amount) > 0.01:
             changes.append(f'Amount: ₹{old_amount:,.0f} → ₹{new_amount:,.0f}')
 
