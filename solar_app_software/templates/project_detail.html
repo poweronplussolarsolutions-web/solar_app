@@ -850,7 +850,151 @@ function syncStatus(stageSelect) {
   </div>
 </div>
 {% endif %}
+{# ── PANEL & METER DETAILS ── #}
+{% set pd = proj.panel_details %}
+<div class="card" id="panel-details">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div class="card-title" style="margin:0">Panel &amp; meter details</div>
+    {% if current_user.role in ['admin','documents','onsite'] %}
+    <button class="btn btn-sm" onclick="togglePanel('panelDetailsForm')">
+      {% if pd %}✏ Edit{% else %}＋ Add{% endif %}
+    </button>
+    {% endif %}
+  </div>
 
+  {# ── View mode ── #}
+  {% if pd %}
+  <div class="table-wrap">
+    <table style="font-size:13px">
+      <tr>
+        <td style="color:var(--muted);width:180px;padding:5px 0">Panel brand</td>
+        <td style="font-weight:500">{{ pd.panel_brand or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="color:var(--muted);padding:5px 0">No. of panels</td>
+        <td>{{ pd.num_panels or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="color:var(--muted);padding:5px 0">Inverter serial no.</td>
+        <td style="font-family:monospace;font-size:12px">{{ pd.inverter_serial_number or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="color:var(--muted);padding:5px 0">Net meter serial no.</td>
+        <td style="font-family:monospace;font-size:12px">{{ pd.net_meter_serial_number or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="color:var(--muted);padding:5px 0">Energy meter serial no.</td>
+        <td style="font-family:monospace;font-size:12px">{{ pd.energy_meter_serial_number or '—' }}</td>
+      </tr>
+      {% if pd.panel_serial_numbers %}
+      <tr>
+        <td style="color:var(--muted);padding:5px 0;vertical-align:top">Panel serial nos.</td>
+        <td>
+          <div style="display:flex;flex-wrap:wrap;gap:4px">
+            {% for sn in pd.panel_serial_numbers.splitlines() %}
+              {% if sn.strip() %}
+              <span style="font-family:monospace;font-size:11px;background:var(--bg);
+                           border:0.5px solid var(--border);border-radius:4px;
+                           padding:2px 6px;color:var(--text)">{{ sn.strip() }}</span>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </td>
+      </tr>
+      {% endif %}
+      {% if pd.notes %}
+      <tr>
+        <td style="color:var(--muted);padding:5px 0;vertical-align:top">Notes</td>
+        <td style="font-size:12px;color:var(--hint)">{{ pd.notes }}</td>
+      </tr>
+      {% endif %}
+      <tr>
+        <td style="color:var(--muted);padding:5px 0">Last updated</td>
+        <td style="font-size:12px;color:var(--hint)">
+          {{ pd.updated_at | date_fmt }}
+          {% if pd.updater %} by {{ pd.updater.full_name }}{% endif %}
+        </td>
+      </tr>
+    </table>
+  </div>
+  {% else %}
+  <div style="color:var(--hint);font-size:13px;padding:4px 0 10px">
+    No panel or meter details recorded yet.
+  </div>
+  {% endif %}
+
+  {# ── Edit / Add form ── #}
+  {% if current_user.role in ['admin','documents','onsite'] %}
+  <div id="panelDetailsForm" style="display:{% if not pd %}block{% else %}none{% endif %};
+       margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
+    <form method="POST" action="{{ url_for('update_panel_details', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+
+        <div class="form-group">
+          <label>Panel brand</label>
+          <input type="text" name="panel_brand"
+                 value="{{ pd.panel_brand or '' if pd else '' }}"
+                 placeholder="e.g. Waaree, Adani, Vikram"/>
+        </div>
+
+        <div class="form-group">
+          <label>Number of panels</label>
+          <input type="number" name="num_panels" min="1" max="500"
+                 value="{{ pd.num_panels or '' if pd else '' }}"
+                 placeholder="e.g. 8"/>
+        </div>
+
+        <div class="form-group">
+          <label>Inverter serial number</label>
+          <input type="text" name="inverter_serial_number"
+                 value="{{ pd.inverter_serial_number or '' if pd else '' }}"
+                 placeholder="INV-XXXX"/>
+        </div>
+
+        <div class="form-group">
+          <label>Net meter serial number</label>
+          <input type="text" name="net_meter_serial_number"
+                 value="{{ pd.net_meter_serial_number or '' if pd else '' }}"
+                 placeholder="NM-XXXX"/>
+        </div>
+
+        <div class="form-group">
+          <label>Energy meter serial number</label>
+          <input type="text" name="energy_meter_serial_number"
+                 value="{{ pd.energy_meter_serial_number or '' if pd else '' }}"
+                 placeholder="EM-XXXX"/>
+        </div>
+
+        <div class="form-group full">
+          <label>
+            Panel serial numbers
+            <span style="color:var(--muted);font-weight:400;font-size:11px">
+              — one per line
+            </span>
+          </label>
+          <textarea name="panel_serial_numbers" rows="4"
+                    placeholder="SN-001&#10;SN-002&#10;SN-003">{{ pd.panel_serial_numbers or '' if pd else '' }}</textarea>
+        </div>
+
+        <div class="form-group full">
+          <label>Notes <span style="color:var(--muted);font-weight:400;font-size:11px">(optional)</span></label>
+          <textarea name="notes" rows="2"
+                    placeholder="Any additional info…">{{ pd.notes or '' if pd else '' }}</textarea>
+        </div>
+
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button type="submit" class="btn btn-primary btn-sm">Save details</button>
+        {% if pd %}
+        <button type="button" class="btn btn-sm"
+                onclick="togglePanel('panelDetailsForm')">Cancel</button>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+  {% endif %}
+</div>
 {# ── WORKER ASSIGNMENTS ── #}
 <div class="card" id="workers">
   <div class="card-title">Worker assignments</div>

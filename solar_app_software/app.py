@@ -516,7 +516,21 @@ class AppInstallation(db.Model):
     notes          = db.Column(db.Text)
     created_at     = db.Column(db.DateTime, default=datetime.utcnow)
     project        = db.relationship('Project', backref=db.backref('app_install', uselist=False))
-
+class PanelDetails(db.Model):
+    __tablename__ = 'panel_details'
+    id                      = db.Column(db.Integer, primary_key=True)
+    project_id              = db.Column(db.Integer, db.ForeignKey('projects.id'), unique=True, nullable=False)
+    panel_brand             = db.Column(db.String(100), nullable=True)
+    num_panels              = db.Column(db.Integer,     nullable=True)
+    panel_serial_numbers    = db.Column(db.Text,        nullable=True)   # newline-separated
+    inverter_serial_number  = db.Column(db.String(100), nullable=True)
+    net_meter_serial_number = db.Column(db.String(100), nullable=True)
+    energy_meter_serial_number = db.Column(db.String(100), nullable=True)
+    notes                   = db.Column(db.Text,        nullable=True)
+    updated_at              = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by              = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    project                 = db.relationship('Project', backref=db.backref('panel_details', uselist=False))
+    updater                 = db.relationship('User', foreign_keys=[updated_by])
 
 class ServiceRecord(db.Model):
    
@@ -2203,6 +2217,31 @@ def update_loan_details(pid):
     db.session.commit()
     flash('Loan details updated.', 'success')
     return redirect(url_for('documents', pid=pid))
+@app.route('/projects/<int:pid>/panel_details', methods=['POST'])
+@login_required
+@roles_required('admin', 'documents', 'onsite')
+def update_panel_details(pid):
+    proj = Project.query.get_or_404(pid)
+    pd_  = proj.panel_details or PanelDetails(project_id=pid)
+
+    pd_.panel_brand                = _clean(request.form.get('panel_brand', ''), 100) or None
+    raw_num                        = request.form.get('num_panels', '')
+    pd_.num_panels                 = int(raw_num) if raw_num.strip().isdigit() else None
+    pd_.panel_serial_numbers       = _clean(request.form.get('panel_serial_numbers', ''), 2000) or None
+    pd_.inverter_serial_number     = _clean(request.form.get('inverter_serial_number', ''), 100) or None
+    pd_.net_meter_serial_number    = _clean(request.form.get('net_meter_serial_number', ''), 100) or None
+    pd_.energy_meter_serial_number = _clean(request.form.get('energy_meter_serial_number', ''), 100) or None
+    pd_.notes                      = _clean(request.form.get('notes', ''), 1000) or None
+    pd_.updated_by                 = current_user.id
+
+    if not pd_.id:
+        db.session.add(pd_)
+
+    log_action(pid, 'Panel details updated',
+               new_val=f'{pd_.panel_brand}, {pd_.num_panels} panels')
+    db.session.commit()
+    flash('Panel details saved.', 'success')
+    return redirect(url_for('project_detail', pid=pid))
 @app.route('/projects/<int:pid>/documents/batch', methods=['POST'])
 @login_required
 def batch_documents(pid):
