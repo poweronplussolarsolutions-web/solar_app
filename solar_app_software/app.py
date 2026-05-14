@@ -30,7 +30,8 @@ from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import generate_csrf
-
+from dotenv import load_dotenv
+load_dotenv()
 
 DCR_SUBSIDY_AMOUNT = 78000
 
