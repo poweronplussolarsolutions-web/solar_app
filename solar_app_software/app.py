@@ -97,7 +97,7 @@ if not _secret:
     _secret = 'solar-dev-only-insecure-key-change-me'
 app.config['SECRET_KEY'] = _secret
 db_port=os.getenv("DB_PORT")or"3306"
-app.config['SQLALCHEMY_DATABASE_URI']='mysql+pymysql://poweronplus:Poweron25402026@localhost/poweronplus_db'
+app.config['SQLALCHEMY_DATABASE_URI']='mysql+pymysql://poweronplus:Poweron%25402026@localhost/poweronplus_db'
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_recycle': 180,        
     'pool_pre_ping': True,      
