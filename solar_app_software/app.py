@@ -18,11 +18,11 @@ import re
 
 from flask import send_file
 import tempfile, calendar
-from solar_app_software.logging_system import (
-    setup_logging, security_log,
-    log_login_attempt, log_lockout, log_password_change,
-    log_admin_action, log_access_denied,
-)
+# from solar_app_software.logging_system import (
+#     setup_logging, security_log,
+#     log_login_attempt, log_lockout, log_password_change,
+#     log_admin_action, log_access_denied,
+# )
 from sqlalchemy.orm import selectinload,joinedload,noload
 from flask_login import user_loaded_from_request
 # ── Security imports ──────────────────────────────────────────────────────────
@@ -153,7 +153,7 @@ limiter = Limiter(
     default_limits=[],          # no global limit; apply per-route
     storage_uri='memory://',    # swap to 'redis://localhost:6379' in production
 )
-setup_logging(app)
+# setup_logging(app)
 
 # ── Security headers (injected on every response) ────────────────────────────
 @app.after_request
@@ -771,7 +771,7 @@ def roles_required(*roles):
         @wraps(f)
         def wrapper(*args, **kwargs):
             if not current_user.is_authenticated or current_user.role not in roles:
-                log_access_denied(request.path, current_user.username)
+                # log_access_denied(request.path, current_user.username)
                 flash('Access denied.', 'danger')
                 return redirect(url_for('dashboard'))
             return f(*args, **kwargs)
@@ -1002,14 +1002,14 @@ def login():
         u = User.query.filter_by(username=username).first()
 
         if not u:
-            log_login_attempt(username, False, 'unknown_user')
+            # log_login_attempt(username, False, 'unknown_user')
             flash(_fail_msg, 'danger')
             return redirect(url_for('login'))
 
         # Account locked?
         if u.is_locked():
             remaining = int((u.locked_until - datetime.utcnow()).total_seconds() / 60) + 1
-            log_lockout(username, remaining)
+            # log_lockout(username, remaining)
             flash(f'Account temporarily locked. Try again in {remaining} minute(s).', 'danger')
             return redirect(url_for('login'))
 
@@ -1017,9 +1017,9 @@ def login():
         if not u.check_password(password):
             u.record_failed_login()
             db.session.commit()
-            log_login_attempt(username, False, 'bad_password')
+            # log_login_attempt(username, False, 'bad_password')
             if u.is_locked():
-                log_lockout(username, LOCKOUT_MINUTES)
+                # log_lockout(username, LOCKOUT_MINUTES)
                 flash(f'Too many failed attempts. Account locked for {LOCKOUT_MINUTES} minutes.', 'danger')
             else:
                 remaining_attempts = MAX_LOGIN_ATTEMPTS - u.failed_logins
@@ -1028,11 +1028,11 @@ def login():
 
         # Inactive account
         if u.status != 'active':
-            log_login_attempt(username, False, 'inactive')
+            # log_login_attempt(username, False, 'inactive')
             flash('Your account is not active. Contact admin.', 'danger')
             return redirect(url_for('login'))
         if u.is_deleted:
-            log_login_attempt(username, False, 'deleted')
+            # log_login_attempt(username, False, 'deleted')
             flash('This account no longer exists. Contact admin.', 'danger')
             return redirect(url_for('login'))
 
@@ -1045,7 +1045,7 @@ def login():
            # user not found
                               # account locked check
            # wrong password
-        log_login_attempt(username, True)                     # before login_user(u)
+        # log_login_attempt(username, True)                     # before login_user(u)
         login_user(u)
         # Regenerate session to prevent session fixation
         session.regenerate() if hasattr(session, 'regenerate') else None
@@ -1105,7 +1105,7 @@ def change_password():
                 ))
         
         db.session.commit()
-        log_password_change(current_user.username, current_user.username)
+        # log_password_change(current_user.username, current_user.username)
         flash('Password changed successfully.', 'success')
         return redirect(url_for('dashboard'))
  
@@ -1163,7 +1163,7 @@ def admin_change_password():
                 notif_type='warning',
             ))
         db.session.commit()
-        log_password_change(target.username, current_user.username)
+        # log_password_change(target.username, current_user.username)
         flash(
             f'Password for {target.full_name} ({target.username}) has been reset successfully. '
             f'They have been notified.',
@@ -2354,7 +2354,7 @@ def new_worker():
             worker = Worker(name=name, phone=phone, skill=skill, rate_per_day=rate)
             db.session.add(worker)
             db.session.commit()
-            log_admin_action('CREATE_WORKER', target=name)
+            # log_admin_action('CREATE_WORKER', target=name)
             flash(f'Worker {name} added successfully.', 'success')
             return redirect(url_for('workers'))
         except Exception as e:
@@ -2387,8 +2387,8 @@ def edit_worker(worker_id):
             worker.rate_per_day = rate
             db.session.commit()
 
-            log_admin_action('EDIT_WORKER', target=name,
-                             detail=f'rate ₹{old_rate:,.0f}→₹{rate:,.0f}' if abs(old_rate - rate) > 0.01 else '')
+            # log_admin_action('EDIT_WORKER', target=name,
+                            #  detail=f'rate ₹{old_rate:,.0f}→₹{rate:,.0f}' if abs(old_rate - rate) > 0.01 else '')
             flash(f'Worker {name} updated successfully.', 'success')
             return redirect(url_for('workers'))
         except Exception as e:
@@ -2428,7 +2428,7 @@ def delete_worker(worker_id):
 
         worker.is_active = False
         db.session.commit()
-        log_admin_action('DELETE_WORKER', target=worker.name)
+        # log_admin_action('DELETE_WORKER', target=worker.name)
         flash(f'Worker {worker.name} has been deactivated.', 'warning')
 
     except Exception as e:
@@ -2446,7 +2446,7 @@ def restore_worker(worker_id):
         worker = Worker.query.get_or_404(worker_id)
         worker.is_active = True
         db.session.commit()
-        log_admin_action('RESTORE_WORKER', target=worker.name)
+        # log_admin_action('RESTORE_WORKER', target=worker.name)
         flash(f'Worker {worker.name} has been restored.', 'success')
     except Exception as e:
         db.session.rollback()
@@ -3278,7 +3278,7 @@ def new_user():
         u.set_password(password)
         db.session.add(u)
         db.session.commit()
-        log_admin_action('CREATE_USER', target=u.username, detail=u.role)
+        # log_admin_action('CREATE_USER', target=u.username, detail=u.role)
  
         contact_info = raw_email if raw_email else f'+91 {phone_clean}'
         flash(
@@ -3364,7 +3364,7 @@ def edit_user(user_id):
         u.role      = role
  
         db.session.commit()
-        log_admin_action('EDIT_USER', target=u.username)
+        # log_admin_action('EDIT_USER', target=u.username)
  
         contact_info = raw_email if raw_email else f'+91 {phone_clean}'
         flash(
@@ -3388,7 +3388,7 @@ def delete_user(user_id):
     u.is_active  = False
     u.status     = 'inactive'
     db.session.commit()
-    log_admin_action('DELETE_USER', target=u.username)
+    # log_admin_action('DELETE_USER', target=u.username)
     flash(f'User {u.username} deleted. You can restore them from the Deleted Users section.', 'success')
     return redirect(url_for('manage_users'))
 
@@ -3410,7 +3410,7 @@ def change_user_status(user_id):
     u.status    = new_status
     u.is_active = (new_status == 'active')
     db.session.commit()
-    log_admin_action('USER_STATUS', target=u.username, detail=new_status)
+    # log_admin_action('USER_STATUS', target=u.username, detail=new_status)
     flash(f'{u.username} marked as {new_status}.', 'success')
     return redirect(url_for('manage_users'))
 
