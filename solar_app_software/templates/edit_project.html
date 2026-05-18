@@ -8,114 +8,125 @@
   <!-- ── Customer info ─────────────────────────────────────────────────── -->
   <div style="font-size:13px;font-weight:500;margin-bottom:14px;color:var(--muted)">
     Customer details
-    {% if current_user.role != 'admin' %}
+    {% if current_user.role == 'coordinator' %}
     <span style="font-size:11px;font-weight:400;margin-left:8px;color:var(--hint)">
-      (contact admin to change customer)
+      (contact admin or documents staff to change customer)
     </span>
     {% endif %}
   </div>
 
-  {% if current_user.role == 'admin' %}
-  <!-- Admin: editable customer fields inside the main form -->
-  <form method="POST" action="{{ url_for('edit_project', pid=proj.id) }}" >
+  {% if current_user.role in ('admin', 'documents') %}
+  <!-- Admin / Documents staff: editable customer fields inside the main form -->
+  <form method="POST" action="{{ url_for('edit_project', pid=proj.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <div class="form-grid" style="margin-bottom:16px">
-  <div class="form-group">
-    <label>MNRE Number *</label>
-    <input name="project_code" type="text" required
-           value="{{ proj.project_code }}"
-           pattern="\d+" title="Digits only"/>
-  </div>
-  <div class="form-group">
-    <label>Customer name *</label>
-    <input name="customer_name" type="text" required
-           value="{{ proj.customer.name }}"/>
-  </div>
-  <div class="form-group">
-    <label>Phone</label>
-    <input name="customer_phone" type="text"
-           value="{{ proj.customer.phone or '' }}"/>
-  </div>
-  <div class="form-group">
-    <label>Email</label>
-    <input name="customer_email" type="email"
-           value="{{ proj.customer.email or '' }}"/>
-  </div>
-  <div class="form-group">
-    <label>House name</label>
-    <input name="customer_house_name" type="text"
-           value="{{ proj.customer.house_name or '' }}"
-           placeholder="e.g. Sreelakshmi Bhavan"/>
-  </div>
-  <div class="form-group">
-    <label>Place</label>
-    <input name="customer_place" type="text"
-           value="{{ proj.customer.place or '' }}"
-           placeholder="e.g. Kodungallur"/>
-  </div>
-  <div class="form-group">
-    <label>Post</label>
-    <input name="customer_post" type="text"
-           value="{{ proj.customer.post or '' }}"
-           placeholder="e.g. Kodungallur PO"/>
-  </div>
-  <div class="form-group">
-    <label>Pincode</label>
-    <input name="customer_pincode" type="text" maxlength="6"
-           value="{{ proj.customer.pincode or '' }}"
-           placeholder="680001"/>
-  </div>
-  <div class="form-group">
-    <label>Village</label>
-    <input name="customer_village" type="text"
-           value="{{ proj.customer.village or '' }}"
-           placeholder="e.g. Kodungallur"/>
-  </div>
-  <div class="form-group">
-    <label>Taluk</label>
-    <input name="customer_taluk" type="text"
-           value="{{ proj.customer.taluk or '' }}"
-           placeholder="e.g. Kodungallur"/>
-  </div>
-  <div class="form-group">
-    <label>District</label>
-    <select name="customer_district">
-      <option value="">Select district</option>
-      {% for d in ['Thiruvananthapuram','Kollam','Pathanamthitta','Alappuzha','Kottayam','Idukki','Ernakulam','Thrissur','Palakkad','Malappuram','Kozhikode','Wayanad','Kannur','Kasaragod'] %}
-      <option value="{{ d }}" {% if proj.customer.district == d %}selected{% endif %}>{{ d }}</option>
-      {% endfor %}
-    </select>
-  </div>
-</div>
+
+      {% if current_user.role == 'admin' %}
+      <div class="form-group">
+        <label>MNRE Number *</label>
+        <input name="project_code" type="text" required
+               value="{{ proj.project_code }}"
+               pattern="\d+" title="Digits only"/>
+      </div>
+      {% else %}
+      <div class="form-group">
+        <label>MNRE Number</label>
+        <input type="text" value="{{ proj.project_code }}" disabled
+               style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
+      </div>
+      {% endif %}
+
+      <div class="form-group">
+        <label>Customer name *</label>
+        <input name="customer_name" type="text" required
+               value="{{ proj.customer.name }}"/>
+      </div>
+      <div class="form-group">
+        <label>Phone</label>
+        <input name="customer_phone" type="text"
+               value="{{ proj.customer.phone or '' }}"/>
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input name="customer_email" type="email"
+               value="{{ proj.customer.email or '' }}"/>
+      </div>
+      <div class="form-group">
+        <label>House name</label>
+        <input name="customer_house_name" type="text"
+               value="{{ proj.customer.house_name or '' }}"
+               placeholder="e.g. Sreelakshmi Bhavan"/>
+      </div>
+      <div class="form-group">
+        <label>Place</label>
+        <input name="customer_place" type="text"
+               value="{{ proj.customer.place or '' }}"
+               placeholder="e.g. Kodungallur"/>
+      </div>
+      <div class="form-group">
+        <label>Post</label>
+        <input name="customer_post" type="text"
+               value="{{ proj.customer.post or '' }}"
+               placeholder="e.g. Kodungallur PO"/>
+      </div>
+      <div class="form-group">
+        <label>Pincode</label>
+        <input name="customer_pincode" type="text" maxlength="6"
+               value="{{ proj.customer.pincode or '' }}"
+               placeholder="680001"/>
+      </div>
+      <div class="form-group">
+        <label>Village</label>
+        <input name="customer_village" type="text"
+               value="{{ proj.customer.village or '' }}"
+               placeholder="e.g. Kodungallur"/>
+      </div>
+      <div class="form-group">
+        <label>Taluk</label>
+        <input name="customer_taluk" type="text"
+               value="{{ proj.customer.taluk or '' }}"
+               placeholder="e.g. Kodungallur"/>
+      </div>
+      <div class="form-group">
+        <label>District</label>
+        <select name="customer_district">
+          <option value="">Select district</option>
+          {% for d in ['Thiruvananthapuram','Kollam','Pathanamthitta','Alappuzha','Kottayam','Idukki','Ernakulam','Thrissur','Palakkad','Malappuram','Kozhikode','Wayanad','Kannur','Kasaragod'] %}
+          <option value="{{ d }}" {% if proj.customer.district == d %}selected{% endif %}>{{ d }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+    </div>
 
   {% else %}
-  <!-- Non-admin: read-only customer display, separate form below -->
+  <!-- Coordinator / others: read-only customer display, separate form below -->
   <div class="form-grid" style="margin-bottom:16px">
     <div class="form-group">
-  <label>MNRE Number</label>
-  <input type="text" value="{{ proj.project_code }}" disabled
-         style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
-</div>
-<div class="form-group">
-  <label>Customer name</label>
-  <input type="text" value="{{ proj.customer.name }}" disabled
-         style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
-</div>
-<div class="form-group">
-  <label>Phone</label>
-  <input type="text" value="{{ proj.customer.phone or '—' }}" disabled
-         style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
-</div>
-<div class="form-group">
-  <label>Place</label>
-  <input type="text"
-         value="{{ [proj.customer.house_name, proj.customer.place, proj.customer.post, proj.customer.district] | select | join(', ') or '—' }}"
-         disabled style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
-</div>
+      <label>MNRE Number</label>
+      <input type="text" value="{{ proj.project_code }}" disabled
+             style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
+    </div>
+    <div class="form-group">
+      <label>Customer name</label>
+      <input type="text" value="{{ proj.customer.name }}" disabled
+             style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
+    </div>
+    <div class="form-group">
+      <label>Phone</label>
+      <input type="text" value="{{ proj.customer.phone or '—' }}" disabled
+             style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
+    </div>
+    <div class="form-group">
+      <label>Address</label>
+      <input type="text"
+             value="{{ [proj.customer.house_name, proj.customer.place, proj.customer.post, proj.customer.district] | select | join(', ') or '—' }}"
+             disabled style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
+    </div>
   </div>
 
-  <form method="POST" action="{{ url_for('edit_project', pid=proj.id) }}" >
+  <form method="POST" action="{{ url_for('edit_project', pid=proj.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% endif %}
 
@@ -159,32 +170,16 @@
           <option value="Non-DCR" {% if proj.project_subtype == 'Non-DCR' %}selected{% endif %}>Non-DCR (no subsidy)</option>
         </select>
       </div>
-      <div class="form-group">
-  <label>Roof type</label>
-  <select name="roof_type">
-    <option value="">— Select —</option>
-    {% for rt in ['F','C','S'] %}
-    <option value="{{ rt }}" {% if proj.roof_type == rt %}selected{% endif %}>{{ rt }}</option>
-    {% endfor %}
-  </select>
-</div>
 
-      <!-- <div class="form-group" id="loan-subtype-field" style="display:none">
-        <label>Loan type</label>
-        <select name="loan_subtype">
+      <div class="form-group">
+        <label>Roof type</label>
+        <select name="roof_type">
           <option value="">— Select —</option>
-          <option value="Assisted" {% if proj.loan_subtype == 'Assisted' %}selected{% endif %}>
-            Assisted — we send bank file (SBI etc.)
-          </option>
-          <option value="Self" {% if proj.loan_subtype == 'Self' %}selected{% endif %}>
-            Self — bank handles own file (Bajaj etc.)
-          </option>
+          {% for rt in ['RCC','Sheet','Tile','Ground Mount','Other'] %}
+          <option value="{{ rt }}" {% if proj.roof_type == rt %}selected{% endif %}>{{ rt }}</option>
+          {% endfor %}
         </select>
-        <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
-          <strong>Assisted:</strong> docs team prepares &amp; submits the bank file.
-          <strong>Self:</strong> bank's staff handles paperwork — bank file docs skipped.
-        </span>
-      </div> -->
+      </div>
 
       <div class="form-group">
         <label>Total contract amount (₹)</label>
@@ -215,7 +210,7 @@
       </div>
 
       {% if current_user.role == 'admin' %}
-      <!-- Admin-only: stage and status override -->
+      <!-- Admin-only: stage, status, coordinator, created_at override -->
       <div class="form-group">
         <label>Stage</label>
         <select name="stage">
@@ -245,14 +240,17 @@
           {% endfor %}
         </select>
       </div>
+
       <div class="form-group">
-  <label>Created at <span style="font-size:11px;color:var(--warning);font-weight:400">⚠ admin override</span></label>
-  <input type="datetime-local" name="created_at_override"
-         value="{{ proj.created_at.strftime('%Y-%m-%dT%H:%M') if proj.created_at else '' }}"/>
-  <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
-    Edit only to backfill historical project dates
-  </span>
-</div>
+        <label>Created at
+          <span style="font-size:11px;color:var(--warning);font-weight:400">⚠ admin override</span>
+        </label>
+        <input type="datetime-local" name="created_at_override"
+               value="{{ proj.created_at.strftime('%Y-%m-%dT%H:%M') if proj.created_at else '' }}"/>
+        <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
+          Edit only to backfill historical project dates
+        </span>
+      </div>
       {% endif %}
 
       <div class="form-group full">
@@ -286,7 +284,7 @@
 function toggleLoanSubtype() {
   const type  = document.getElementById('project_type').value;
   const field = document.getElementById('loan-subtype-field');
-  field.style.display = (type === 'Loan') ? '' : 'none';
+  if (field) field.style.display = (type === 'Loan') ? '' : 'none';
 }
 toggleLoanSubtype();
 

@@ -1565,7 +1565,7 @@ def edit_project(pid):
                     return redirect(url_for('edit_project', pid=pid))
                 changes.append(f'MNRE: {proj.project_code} → {new_code}')
                 proj.project_code = new_code
-
+        if current_user.role in ('admin','documents'):
             proj.customer.name       = _clean(request.form.get('customer_name', proj.customer.name), 120)
             proj.customer.phone      = _clean(request.form.get('customer_phone', ''), 20) or None
             proj.customer.email      = _clean(request.form.get('customer_email', ''), 120) or None
