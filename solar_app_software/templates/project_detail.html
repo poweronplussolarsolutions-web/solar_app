@@ -119,7 +119,6 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);width:140px;padding:5px 0">Project code</td><td style="font-weight:500">{{ proj.project_code }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Customer</td><td>{{ proj.customer.name }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Phone</td><td>{{ proj.customer.phone or '—' }}</td></tr>
-      <tr><td style="color:var(--muted);padding:5px 0">Location</td><td>{{ proj.customer.district }}{% if proj.customer.pincode %} — {{ proj.customer.pincode }}{% endif %}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">House</td><td style="font-size:12px">{{ proj.customer.house_name or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Place</td><td style="font-size:12px">{{ proj.customer.place or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Post</td><td style="font-size:12px">{{ proj.customer.post or '—' }}</td></tr>
