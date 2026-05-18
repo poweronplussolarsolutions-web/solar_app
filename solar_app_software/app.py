@@ -254,9 +254,13 @@ class Customer(db.Model):
     name       = db.Column(db.String(120), nullable=False)
     phone      = db.Column(db.String(20))
     email      = db.Column(db.String(120))
-    address    = db.Column(db.Text)
-    district   = db.Column(db.String(80))
+    house_name = db.Column(db.String(120))
+    place      = db.Column(db.String(120))
+    post       = db.Column(db.String(120))
     pincode    = db.Column(db.String(10))
+    village    = db.Column(db.String(120))
+    district   = db.Column(db.String(80))
+    taluk      = db.Column(db.String(120))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     projects   = db.relationship('Project', backref='customer', lazy=True)
 
@@ -1459,13 +1463,17 @@ def new_project():
         cust_id = request.form.get('customer_id')
         if not cust_id:
             cust = Customer(
-                name     = _clean(request.form.get('customer_name', ''), 120),
-                phone    = _clean(request.form.get('phone', ''), 20) or None,
-                email    = _clean(request.form.get('email', ''), 120) or None,
-                address  = _clean(request.form.get('address', ''), 500) or None,
-                district = _clean(request.form.get('district', ''), 80) or None,
-                pincode  = _clean(request.form.get('pincode', ''), 10) or None,
-            )
+        name       = _clean(request.form.get('customer_name', ''), 120),
+        phone      = _clean(request.form.get('phone', ''), 20) or None,
+        email      = _clean(request.form.get('email', ''), 120) or None,
+        house_name = _clean(request.form.get('house_name', ''), 120) or None,
+        place      = _clean(request.form.get('place', ''), 120) or None,
+        post       = _clean(request.form.get('post', ''), 120) or None,
+        pincode    = _clean(request.form.get('pincode', ''), 10) or None,
+        village    = _clean(request.form.get('village', ''), 120) or None,
+        district   = _clean(request.form.get('district', ''), 80) or None,
+        taluk      = _clean(request.form.get('taluk', ''), 120) or None,
+        )
             db.session.add(cust)
             db.session.flush()
             cust_id = cust.id
@@ -1558,12 +1566,16 @@ def edit_project(pid):
                 changes.append(f'MNRE: {proj.project_code} → {new_code}')
                 proj.project_code = new_code
 
-            proj.customer.name     = _clean(request.form.get('customer_name', proj.customer.name), 120)
-            proj.customer.phone    = _clean(request.form.get('customer_phone', ''), 20) or None
-            proj.customer.email    = _clean(request.form.get('customer_email', ''), 120) or None
-            proj.customer.district = _clean(request.form.get('customer_district', ''), 80) or None
-            proj.customer.pincode  = _clean(request.form.get('customer_pincode', ''), 10) or None
-            proj.customer.address  = _clean(request.form.get('customer_address', ''), 500) or None
+            proj.customer.name       = _clean(request.form.get('customer_name', proj.customer.name), 120)
+            proj.customer.phone      = _clean(request.form.get('customer_phone', ''), 20) or None
+            proj.customer.email      = _clean(request.form.get('customer_email', ''), 120) or None
+            proj.customer.house_name = _clean(request.form.get('customer_house_name', ''), 120) or None
+            proj.customer.place      = _clean(request.form.get('customer_place', ''), 120) or None
+            proj.customer.post       = _clean(request.form.get('customer_post', ''), 120) or None
+            proj.customer.pincode    = _clean(request.form.get('customer_pincode', ''), 10) or None
+            proj.customer.village    = _clean(request.form.get('customer_village', ''), 120) or None
+            proj.customer.district   = _clean(request.form.get('customer_district', ''), 80) or None
+            proj.customer.taluk      = _clean(request.form.get('customer_taluk', ''), 120) or None
 
             new_stage  = request.form.get('stage')
             new_status = request.form.get('status')

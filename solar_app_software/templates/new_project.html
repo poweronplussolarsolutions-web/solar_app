@@ -10,38 +10,54 @@
     <div style="font-size:13px;font-weight:500;margin-bottom:14px;color:var(--muted)">Customer details</div>
 
     <div id="new-cust-fields">
-      <div class="form-grid">
-        <div class="form-group">
-          <label>Customer name *</label>
-          <input name="customer_name" type="text" placeholder="Full name"/>
-        </div>
-        <div class="form-group">
-          <label>Phone</label>
-          <input name="phone" type="tel" placeholder="otp number"/>
-        </div>
-        <div class="form-group">
-          <label>Email</label>
-          <input name="email" type="email" placeholder="customer@email.com"/>
-        </div>
-        <div class="form-group">
-          <label>District</label>
-          <select name="district">
-            <option value="">Select district</option>
-            {% for d in ['Thiruvananthapuram','Kollam','Pathanamthitta','Alappuzha','Kottayam','Idukki','Ernakulam','Thrissur','Palakkad','Malappuram','Kozhikode','Wayanad','Kannur','Kasaragod'] %}
-            <option>{{ d }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Pincode</label>
-          <input name="pincode" type="text" maxlength="6" placeholder="680001"/>
-        </div>
-        <div class="form-group full">
-          <label>Address</label>
-          <textarea name="address" rows="2" placeholder="Full address"></textarea>
-        </div>
-      </div>
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Customer name *</label>
+      <input name="customer_name" type="text" required placeholder="Full name"/>
     </div>
+    <div class="form-group">
+      <label>Phone</label>
+      <input name="phone" type="tel" placeholder="10-digit mobile"/>
+    </div>
+    <div class="form-group">
+      <label>Email</label>
+      <input name="email" type="email" placeholder="customer@email.com"/>
+    </div>
+    <div class="form-group">
+      <label>House name</label>
+      <input name="house_name" type="text" placeholder="e.g. Sreelakshmi Bhavan"/>
+    </div>
+    <div class="form-group">
+      <label>Place</label>
+      <input name="place" type="text" placeholder="e.g. Kodungallur"/>
+    </div>
+    <div class="form-group">
+      <label>Post</label>
+      <input name="post" type="text" placeholder="e.g. Kodungallur PO"/>
+    </div>
+    <div class="form-group">
+      <label>Pincode</label>
+      <input name="pincode" type="text" maxlength="6" placeholder="680001"/>
+    </div>
+    <div class="form-group">
+      <label>Village</label>
+      <input name="village" type="text" placeholder="e.g. Kodungallur"/>
+    </div>
+    <div class="form-group">
+      <label>Taluk</label>
+      <input name="taluk" type="text" placeholder="e.g. Kodungallur"/>
+    </div>
+    <div class="form-group">
+      <label>District</label>
+      <select name="district">
+        <option value="">Select district</option>
+        {% for d in ['Thiruvananthapuram','Kollam','Pathanamthitta','Alappuzha','Kottayam','Idukki','Ernakulam','Thrissur','Palakkad','Malappuram','Kozhikode','Wayanad','Kannur','Kasaragod'] %}
+        <option>{{ d }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+</div>
 
     <div style="border-top:0.5px solid var(--border);margin:16px 0 14px;font-size:13px;font-weight:500;padding-top:14px;color:var(--muted)">
       Project details
@@ -91,7 +107,7 @@
   <label>Roof type</label>
   <select name="roof_type">
     <option value="">— Select —</option>
-    {% for rt in ['RCC','Sheet','Tile','Ground Mount','Other'] %}
+    {% for rt in ['F','C','S'] %}
     <option value="{{ rt }}">{{ rt }}</option>
     {% endfor %}
   </select>

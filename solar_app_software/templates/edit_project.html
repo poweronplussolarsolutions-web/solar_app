@@ -21,66 +21,98 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <div class="form-grid" style="margin-bottom:16px">
-      <div class="form-group">
-        <label>MNRE Number *</label>
-        <input name="project_code" type="text" required
-               value="{{ proj.project_code }}"
-               pattern="\d+" title="Digits only"/>
-      </div>
-      <div class="form-group">
-        <label>Customer name *</label>
-        <input name="customer_name" type="text" required
-               value="{{ proj.customer.name }}"/>
-      </div>
-      <div class="form-group">
-        <label>Phone</label>
-        <input name="customer_phone" type="text"
-               value="{{ proj.customer.phone or '' }}"/>
-      </div>
-      <div class="form-group">
-        <label>Email</label>
-        <input name="customer_email" type="email"
-               value="{{ proj.customer.email or '' }}"/>
-      </div>
-      <div class="form-group">
-        <label>District</label>
-        <input name="customer_district" type="text"
-               value="{{ proj.customer.district or '' }}"/>
-      </div>
-      <div class="form-group">
-        <label>Pincode</label>
-        <input name="customer_pincode" type="text"
-               value="{{ proj.customer.pincode or '' }}"/>
-      </div>
-      <div class="form-group full">
-        <label>Address</label>
-        <textarea name="customer_address" rows="2">{{ proj.customer.address or '' }}</textarea>
-      </div>
-    </div>
+  <div class="form-group">
+    <label>MNRE Number *</label>
+    <input name="project_code" type="text" required
+           value="{{ proj.project_code }}"
+           pattern="\d+" title="Digits only"/>
+  </div>
+  <div class="form-group">
+    <label>Customer name *</label>
+    <input name="customer_name" type="text" required
+           value="{{ proj.customer.name }}"/>
+  </div>
+  <div class="form-group">
+    <label>Phone</label>
+    <input name="customer_phone" type="text"
+           value="{{ proj.customer.phone or '' }}"/>
+  </div>
+  <div class="form-group">
+    <label>Email</label>
+    <input name="customer_email" type="email"
+           value="{{ proj.customer.email or '' }}"/>
+  </div>
+  <div class="form-group">
+    <label>House name</label>
+    <input name="customer_house_name" type="text"
+           value="{{ proj.customer.house_name or '' }}"
+           placeholder="e.g. Sreelakshmi Bhavan"/>
+  </div>
+  <div class="form-group">
+    <label>Place</label>
+    <input name="customer_place" type="text"
+           value="{{ proj.customer.place or '' }}"
+           placeholder="e.g. Kodungallur"/>
+  </div>
+  <div class="form-group">
+    <label>Post</label>
+    <input name="customer_post" type="text"
+           value="{{ proj.customer.post or '' }}"
+           placeholder="e.g. Kodungallur PO"/>
+  </div>
+  <div class="form-group">
+    <label>Pincode</label>
+    <input name="customer_pincode" type="text" maxlength="6"
+           value="{{ proj.customer.pincode or '' }}"
+           placeholder="680001"/>
+  </div>
+  <div class="form-group">
+    <label>Village</label>
+    <input name="customer_village" type="text"
+           value="{{ proj.customer.village or '' }}"
+           placeholder="e.g. Kodungallur"/>
+  </div>
+  <div class="form-group">
+    <label>Taluk</label>
+    <input name="customer_taluk" type="text"
+           value="{{ proj.customer.taluk or '' }}"
+           placeholder="e.g. Kodungallur"/>
+  </div>
+  <div class="form-group">
+    <label>District</label>
+    <select name="customer_district">
+      <option value="">Select district</option>
+      {% for d in ['Thiruvananthapuram','Kollam','Pathanamthitta','Alappuzha','Kottayam','Idukki','Ernakulam','Thrissur','Palakkad','Malappuram','Kozhikode','Wayanad','Kannur','Kasaragod'] %}
+      <option value="{{ d }}" {% if proj.customer.district == d %}selected{% endif %}>{{ d }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
 
   {% else %}
   <!-- Non-admin: read-only customer display, separate form below -->
   <div class="form-grid" style="margin-bottom:16px">
     <div class="form-group">
-      <label>MNRE Number</label>
-      <input type="text" value="{{ proj.project_code }}" disabled
-             style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
-    </div>
-    <div class="form-group">
-      <label>Customer name</label>
-      <input type="text" value="{{ proj.customer.name }}" disabled
-             style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
-    </div>
-    <div class="form-group">
-      <label>Phone</label>
-      <input type="text" value="{{ proj.customer.phone or '—' }}" disabled
-             style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
-    </div>
-    <div class="form-group">
-      <label>District</label>
-      <input type="text" value="{{ proj.customer.district or '—' }}" disabled
-             style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
-    </div>
+  <label>MNRE Number</label>
+  <input type="text" value="{{ proj.project_code }}" disabled
+         style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
+</div>
+<div class="form-group">
+  <label>Customer name</label>
+  <input type="text" value="{{ proj.customer.name }}" disabled
+         style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
+</div>
+<div class="form-group">
+  <label>Phone</label>
+  <input type="text" value="{{ proj.customer.phone or '—' }}" disabled
+         style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
+</div>
+<div class="form-group">
+  <label>Place</label>
+  <input type="text"
+         value="{{ [proj.customer.house_name, proj.customer.place, proj.customer.post, proj.customer.district] | select | join(', ') or '—' }}"
+         disabled style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
+</div>
   </div>
 
   <form method="POST" action="{{ url_for('edit_project', pid=proj.id) }}" >
@@ -131,7 +163,7 @@
   <label>Roof type</label>
   <select name="roof_type">
     <option value="">— Select —</option>
-    {% for rt in ['RCC','Sheet','Tile','Ground Mount','Other'] %}
+    {% for rt in ['F','C','S'] %}
     <option value="{{ rt }}" {% if proj.roof_type == rt %}selected{% endif %}>{{ rt }}</option>
     {% endfor %}
   </select>
