@@ -288,6 +288,7 @@ class Project(db.Model):
     materials        = db.relationship('Material',         backref='project', lazy=True)
     assignments      = db.relationship('WorkerAssignment', backref='project', lazy=True)
     loan_subtype     = db.Column(db.Enum('Assisted','Self'), nullable=True)
+    roof_type=db.Colun(db.Enum('F','C','S'),nullable=True)
 
     @property
     def contract_amount(self):
@@ -1483,6 +1484,7 @@ def new_project():
             coordinator_id       = current_user.id,
             doc_staff_id         = request.form.get('doc_staff_id') or None,
             notes                = _clean(request.form.get('notes', ''), 2000),
+            roof_type=request.form.get('roof_type') or None,
         )
         db.session.add(proj)
         db.session.flush()
@@ -1538,10 +1540,16 @@ def edit_project(pid):
         # proj.loan_subtype         = new_loan_sub
         proj.total_amount         = new_amount
         proj.notes                = _clean(request.form.get('notes', ''), 2000)
-
+        proj.roof_type=request.form.get('roof_type') or None
         changes = []
 
         if current_user.role == 'admin':
+            new_created_at = request.form.get('created_at_override')
+            if new_created_at:
+                try:
+                    proj.created_at=datetime.fromisoformat(new_created_at)
+                except ValueError:
+                    flash('Invalid data format for Created At.','danger')
             new_code = _clean(request.form.get('project_code', ''), 20)
             if new_code and new_code != proj.project_code:
                 if Project.query.filter(Project.project_code == new_code, Project.id != pid).first():

@@ -87,7 +87,15 @@
           <option value="Non-DCR">Non-DCR (no subsidy)</option>
         </select>
       </div>
-
+      <div class="form-group">
+  <label>Roof type</label>
+  <select name="roof_type">
+    <option value="">— Select —</option>
+    {% for rt in ['RCC','Sheet','Tile','Ground Mount','Other'] %}
+    <option value="{{ rt }}">{{ rt }}</option>
+    {% endfor %}
+  </select>
+</div>
       <!-- <div class="form-group" id="loan-subtype-field" style="display:none">
         <label>Loan type</label>
         <select name="loan_subtype" id="loan_subtype">
