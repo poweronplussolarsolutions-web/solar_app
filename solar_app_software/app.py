@@ -288,7 +288,7 @@ class Project(db.Model):
     materials        = db.relationship('Material',         backref='project', lazy=True)
     assignments      = db.relationship('WorkerAssignment', backref='project', lazy=True)
     loan_subtype     = db.Column(db.Enum('Assisted','Self'), nullable=True)
-    roof_type=db.Colun(db.Enum('F','C','S'),nullable=True)
+    roof_type=db.Column(db.Enum('F','C','S'),nullable=True)
 
     @property
     def contract_amount(self):
