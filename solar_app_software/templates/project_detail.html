@@ -120,7 +120,13 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Customer</td><td>{{ proj.customer.name }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Phone</td><td>{{ proj.customer.phone or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Location</td><td>{{ proj.customer.district }}{% if proj.customer.pincode %} — {{ proj.customer.pincode }}{% endif %}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">House</td><td style="font-size:12px">{{ proj.customer.house_name or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Place</td><td style="font-size:12px">{{ proj.customer.place or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Post</td><td style="font-size:12px">{{ proj.customer.post or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Pin</td><td style="font-size:12px">{{ proj.customer.pin or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Village</td><td style="font-size:12px">{{ proj.customer.village or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Taluk</td><td style="font-size:12px">{{ proj.customer.taluk or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">District</td><td style="font-size:12px">{{ proj.customer.district or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">System size</td><td>{{ proj.inverter_capacity_kw }} kW , {{ proj.panel_capacity_kw }} kW (panel) </td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Type</td><td><span class="badge badge-{{ proj.project_type }}">{{ proj.project_type }}</span></td></tr>
       {% set cd = proj.connection_details %}
