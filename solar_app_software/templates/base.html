@@ -455,7 +455,7 @@
         <span class="dot"></span> Dashboard
       </a>
       {% if current_user.role in ['admin','onsite'] %}
-      <a class="nav-link {% if request.endpoint == 'onsite_dashboard' %}active{% endif %}" href="{{ url_for('onsite_dashboard') }}">
+      <a class="nav-link {% if request.endpoint == 'onsite_board' %}active{% endif %}" href="{{ url_for('onsite_board') }}">
         <span class="dot"></span> Work status
       </a>
       {% endif %}
