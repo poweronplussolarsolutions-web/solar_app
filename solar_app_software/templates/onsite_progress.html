@@ -7,313 +7,275 @@
   </span>
 {% endblock %}
 {% block topbar_actions %}
-  <a href="{{ url_for('project_detail', pid=proj.id) }}" class="btn btn-sm">
-    <span class="back-label-full">← Back to project</span>
-    <span class="back-label-short" style="display:none">← Back</span>
-  </a>
+  <a href="{{ url_for('project_detail', pid=proj.id) }}" class="btn btn-sm">← Back to project</a>
 {% endblock %}
 
 {% block content %}
 <style>
-.phase-timeline {
-  display: flex;
-  gap: 0;
-  margin-bottom: 24px;
-  border-radius: var(--radius);
-  overflow: hidden;
-  border: 0.5px solid var(--border);
-}
-.phase-block {
-  flex: 1;
-  padding: 16px 20px;
-  background: var(--surface);
-}
-.phase-block + .phase-block { border-left: 0.5px solid var(--border); }
-.phase-block.done   { background: color-mix(in srgb, #16a34a 6%, var(--surface)); }
-.phase-block.active { background: color-mix(in srgb, #f59e0b 6%, var(--surface)); }
-.phase-block.locked { opacity: 0.55; }
-.phase-label {
-  font-size: 11px; font-weight: 600; letter-spacing: 0.05em;
-  text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
-}
-.phase-status {
-  font-size: 13px; font-weight: 500;
-  display: flex; align-items: center; gap: 6px;
-}
-.phase-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.dot-done    { background: #16a34a; }
-.dot-active  { background: #f59e0b; }
-.dot-pending { background: var(--border); }
-.phase-meta  { font-size: 11px; color: var(--hint); margin-top: 4px; }
-
-.lock-banner {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 14px; border-radius: var(--radius);
-  border: 0.5px solid var(--border); background: var(--bg);
-  font-size: 13px; color: var(--hint); margin-bottom: 16px;
-}
 .section-label {
-  font-size: 11px; font-weight: 600; letter-spacing: 0.07em;
-  text-transform: uppercase; color: var(--muted);
-  margin-bottom: 12px; padding-bottom: 8px;
-  border-bottom: 0.5px solid var(--border);
+  font-size:11px;font-weight:600;letter-spacing:0.07em;
+  text-transform:uppercase;color:var(--muted);
+  margin-bottom:12px;padding-bottom:8px;
+  border-bottom:0.5px solid var(--border);
 }
-.form-group.disabled-group label { color: var(--hint); }
-.form-group.disabled-group input,
-.form-group.disabled-group select,
-.form-group.disabled-group textarea {
-  background: var(--bg); color: var(--hint);
-  cursor: not-allowed; border-color: var(--border);
+.lock-banner {
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;border-radius:var(--radius);
+  border:0.5px solid var(--border);background:var(--bg);
+  font-size:13px;color:var(--hint);margin-bottom:16px;
 }
+.step-track {
+  display:flex;gap:0;margin-bottom:24px;
+  border-radius:var(--radius);overflow:hidden;
+  border:0.5px solid var(--border);
+}
+.step-block {
+  flex:1;padding:14px 16px;background:var(--surface);
+  border-right:0.5px solid var(--border);
+}
+.step-block:last-child { border-right:none; }
+.step-block.done   { background:color-mix(in srgb,#16a34a 8%,var(--surface)); }
+.step-block.active { background:color-mix(in srgb,#f59e0b 8%,var(--surface)); }
+.step-label { font-size:10px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:var(--muted);margin-bottom:5px; }
+.step-status { font-size:12px;font-weight:500;display:flex;align-items:center;gap:5px; }
+.dot { width:7px;height:7px;border-radius:50%;flex-shrink:0; }
+.dot-done   { background:#16a34a; }
+.dot-active { background:#f59e0b; }
+.dot-none   { background:var(--border); }
+
 .material-row {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr auto;
-  gap: 10px; align-items: center;
-  padding: 10px 0;
-  border-bottom: 0.5px solid var(--border);
-  font-size: 13px;
+  display:grid;grid-template-columns:1fr auto auto;
+  gap:10px;align-items:center;
+  padding:9px 0;border-bottom:0.5px solid var(--border);font-size:13px;
 }
-.material-row:last-child { border-bottom: none; }
-.material-row-head {
-  font-size: 11px; font-weight: 600; color: var(--muted);
-  text-transform: uppercase; letter-spacing: 0.04em;
+.material-row:last-child { border-bottom:none; }
+.tag-pill {
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:11px;font-weight:500;padding:2px 8px;
+  border-radius:20px;white-space:nowrap;
 }
-
-@media (max-width: 640px) {
-  /* Phase timeline: stack vertically */
-  .phase-timeline {
-    flex-direction: column;
-  }
-  .phase-block + .phase-block {
-    border-left: none;
-    border-top: 0.5px solid var(--border);
-  }
-  .phase-block {
-    padding: 12px 14px;
-  }
-
-  /* Material rows: stack into a mini-card each */
-  .material-row-head { display: none; }
-  .material-row {
-    grid-template-columns: 1fr auto;
-    grid-template-rows: auto auto;
-    gap: 4px;
-    padding: 10px 0;
-  }
-  .material-row > div:nth-child(1) { grid-column: 1; grid-row: 1; font-weight: 500; }
-  .material-row > div:nth-child(2),
-  .material-row > div:nth-child(3) {
-    font-size: 11px; color: var(--muted);
-    display: inline; 
-  }
-  .material-row > div:nth-child(2)::after { content: ' · '; }
-  .material-row > div:nth-child(2),
-  .material-row > div:nth-child(3) {
-    grid-column: 1; grid-row: 2;
-    display: block;
-  }
-  .material-row > div:nth-child(2) {
-    display: inline;
-  }
-  .material-row > div:nth-child(3) {
-    display: inline;
-  }
-  /* Wrap qty+date+status into row 2, edit btn to right */
-  .material-row {
-    grid-template-columns: 1fr auto;
-  }
-  .material-row > div:nth-child(4) { grid-column: 1; grid-row: 2; }
-  .material-row > div:nth-child(5) { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
-
-  /* Material edit form: single column */
- 
-  [id^="mat-form-"] form > div {
-    grid-template-columns: 1fr 1fr !important;
-  }
-
-  /* Bulk dispatch form: stack */
-  .bulk-form-grid {
-    grid-template-columns: 1fr !important;
-  }
-
-  /* Daily log form: stack */
-  .log-form-grid {
-    grid-template-columns: 1fr !important;
-  }
-
-  /* Daily log entries: wrap logger name */
-  .log-entry { flex-wrap: wrap; gap: 6px; }
-  .log-entry .log-meta { margin-left: 0 !important; }
-}
+.pill-pending  { background:var(--bg);color:var(--muted);border:0.5px solid var(--border); }
+.pill-malabar  { background:#fef3c7;color:#92400e;border:0.5px solid #fcd34d; }
+.pill-delivered{ background:#d1fae5;color:#065f46;border:0.5px solid #6ee7b7; }
 </style>
 
-{% set struct_done   = progress.structure_work_status == 'Completed' %}
-{% set all_delivered = proj.materials | length > 0 and proj.materials | selectattr('dispatch_status','ne','Delivered') | list | length == 0 %}
+{# ── Compute overall state ── #}
+{% set total_mats = proj.materials | length %}
+{% set given_to_malabar = proj.materials | selectattr('dispatch_status','in',['Dispatched','Delivered']) | list | length %}
+{% set all_delivered = total_mats > 0 and proj.materials | selectattr('dispatch_status','ne','Delivered') | list | length == 0 %}
+{% set struct_done = progress.structure_work_status == 'Completed' %}
+{% set install_done = progress.installation_status == 'Completed' %}
 
-{# ── PHASE TIMELINE ── #}
-<div class="phase-timeline">
-
-  {# ① Structure #}
-  {% if progress.structure_work_status == 'Completed' %}
-  <div class="phase-block done">
-    <div class="phase-label">① Structure work</div>
-    <div class="phase-status"><span class="phase-dot dot-done"></span> Completed</div>
-    {% if progress.structure_start_date %}
-    <div class="phase-meta">
-      {{ progress.structure_start_date | date_fmt }}
-      {% if progress.structure_end_date %} → {{ progress.structure_end_date | date_fmt }}{% endif %}
-    </div>
-    {% endif %}
-  </div>
-  {% elif progress.structure_work_status == 'InProgress' %}
-  <div class="phase-block active">
-    <div class="phase-label">① Structure work</div>
-    <div class="phase-status"><span class="phase-dot dot-active"></span> In Progress</div>
-    {% if progress.structure_start_date %}
-    <div class="phase-meta">Started {{ progress.structure_start_date | date_fmt }}</div>
-    {% endif %}
-  </div>
-  {% else %}
-  <div class="phase-block">
-    <div class="phase-label">① Structure work</div>
-    <div class="phase-status"><span class="phase-dot dot-pending"></span> Not Started</div>
-  </div>
-  {% endif %}
-
-  {# ② Material dispatch #}
-  <div class="phase-block {% if not struct_done %}locked{% elif all_delivered %}done{% else %}active{% endif %}">
-    <div class="phase-label">② Material dispatch</div>
-    <div class="phase-status">
-      {% if not struct_done %}
-        <span class="phase-dot dot-pending"></span> Locked
-      {% elif all_delivered %}
-        <span class="phase-dot dot-done"></span> All delivered
+{# ── STEP TRACK ── #}
+<div class="step-track">
+  <div class="step-block {% if given_to_malabar == total_mats and total_mats > 0 %}done{% elif given_to_malabar > 0 %}active{% endif %}">
+    <div class="step-label">① Malabar</div>
+    <div class="step-status">
+      {% if given_to_malabar == total_mats and total_mats > 0 %}
+        <span class="dot dot-done"></span> All sent
+      {% elif given_to_malabar > 0 %}
+        <span class="dot dot-active"></span> {{ given_to_malabar }}/{{ total_mats }} sent
       {% else %}
-        <span class="phase-dot dot-active"></span> In progress
+        <span class="dot dot-none"></span> Pending
       {% endif %}
     </div>
-    {% if not struct_done %}
-    <div class="phase-meta">Requires structure completion</div>
-    {% elif proj.materials %}
-    {% set delivered = proj.materials | selectattr('dispatch_status','eq','Delivered') | list | length %}
-    <div class="phase-meta">{{ delivered }} / {{ proj.materials | length }} delivered</div>
-    {% endif %}
   </div>
+  <div class="step-block {% if all_delivered %}done{% elif given_to_malabar > 0 %}active{% endif %}">
+    <div class="step-label">② Delivered</div>
+    <div class="step-status">
+      {% set delivered_count = proj.materials | selectattr('dispatch_status','eq','Delivered') | list | length %}
+      {% if all_delivered %}
+        <span class="dot dot-done"></span> All delivered
+      {% elif delivered_count > 0 %}
+        <span class="dot dot-active"></span> {{ delivered_count }}/{{ total_mats }} done
+      {% else %}
+        <span class="dot dot-none"></span> Awaiting
+      {% endif %}
+    </div>
+  </div>
+  <div class="step-block {% if struct_done %}done{% elif all_delivered %}active{% endif %}">
+    <div class="step-label">③ Structure</div>
+    <div class="step-status">
+      {% if struct_done %}
+        <span class="dot dot-done"></span> Completed
+      {% elif progress.structure_work_status == 'InProgress' %}
+        <span class="dot dot-active"></span> In progress
+      {% else %}
+        <span class="dot dot-none"></span> Not started
+      {% endif %}
+    </div>
+  </div>
+  <div class="step-block {% if install_done %}done{% elif struct_done %}active{% endif %}">
+    <div class="step-label">④ Installation</div>
+    <div class="step-status">
+      {% if install_done %}
+        <span class="dot dot-done"></span> Completed
+      {% elif progress.installation_status == 'InProgress' %}
+        <span class="dot dot-active"></span> In progress
+      {% else %}
+        <span class="dot dot-none"></span> Not started
+      {% endif %}
+    </div>
+  </div>
+</div>
 
-  {# ③ Panel installation #}
-  {% if progress.installation_status == 'Completed' %}
-  <div class="phase-block done">
-    <div class="phase-label">③ Panel installation</div>
-    <div class="phase-status"><span class="phase-dot dot-done"></span> Completed</div>
-    {% if progress.installation_start_date %}
-    <div class="phase-meta">
-      {{ progress.installation_start_date | date_fmt }}
-      {% if progress.installation_end_date %} → {{ progress.installation_end_date | date_fmt }}{% endif %}
+{# ═══════════════════════════════════════════ #}
+{# ① MATERIALS — MALABAR DISPATCH              #}
+{# ═══════════════════════════════════════════ #}
+<div class="card">
+  <div class="section-label">① Materials — given to Malabar</div>
+
+  {% if proj.materials %}
+  <div style="margin-bottom:14px">
+    {% for m in proj.materials %}
+    <div class="material-row" id="matrow-{{ m.id }}">
+      {# Item name + qty #}
+      <div>
+        <div style="font-weight:500">{{ m.item_name }}</div>
+        {% if m.quantity %}<div style="font-size:11px;color:var(--muted)">Qty: {{ m.quantity }}</div>{% endif %}
+      </div>
+
+      {# Status pill #}
+      <div>
+        {% if m.dispatch_status == 'Pending' %}
+          <span class="tag-pill pill-pending">Pending</span>
+        {% elif m.dispatch_status == 'Dispatched' %}
+          <span class="tag-pill pill-malabar">Given to Malabar</span>
+        {% elif m.dispatch_status == 'Delivered' %}
+          <span class="tag-pill pill-delivered">✓ Delivered</span>
+        {% endif %}
+      </div>
+
+      {# Actions #}
+      {% if current_user.role in ['admin','onsite'] %}
+      <div style="display:flex;gap:6px">
+        {% if m.dispatch_status == 'Pending' %}
+        <form method="POST" action="{{ url_for('update_material', pid=proj.id, mid=m.id) }}" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="item_name" value="{{ m.item_name }}">
+          <input type="hidden" name="quantity" value="{{ m.quantity or '' }}">
+          <input type="hidden" name="dispatch_status" value="Dispatched">
+          <input type="hidden" name="dispatch_date" value="{{ today.isoformat() }}">
+          <button type="submit" class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 10px">
+            Send to Malabar
+          </button>
+        </form>
+        {% elif m.dispatch_status == 'Dispatched' %}
+        <form method="POST" action="{{ url_for('update_material', pid=proj.id, mid=m.id) }}" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="item_name" value="{{ m.item_name }}">
+          <input type="hidden" name="quantity" value="{{ m.quantity or '' }}">
+          <input type="hidden" name="dispatch_status" value="Delivered">
+          <input type="hidden" name="dispatch_date" value="{{ m.dispatch_date or '' }}">
+          <button type="submit" class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 10px;background:#16a34a;border-color:#16a34a">
+            Mark Delivered
+          </button>
+        </form>
+        {% else %}
+        <span style="font-size:11px;color:var(--hint)">{{ m.dispatch_date | date_fmt if m.dispatch_date else '—' }}</span>
+        {% endif %}
+
+        {# Edit toggle #}
+        <button class="btn btn-sm" style="font-size:11px;padding:3px 8px"
+                onclick="toggleMatEdit('{{ m.id }}')">Edit</button>
+      </div>
+      {% endif %}
+    </div>
+
+    {# Inline edit form #}
+    {% if current_user.role in ['admin','onsite'] %}
+    <div id="matedit-{{ m.id }}" style="display:none;padding:10px 0 12px;border-bottom:0.5px solid var(--border)">
+      <form method="POST" action="{{ url_for('update_material', pid=proj.id, mid=m.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:flex-end">
+          <div>
+            <label style="font-size:11px">Item name</label>
+            <input type="text" name="item_name" value="{{ m.item_name }}" style="font-size:13px"/>
+          </div>
+          <div>
+            <label style="font-size:11px">Qty</label>
+            <input type="number" name="quantity" value="{{ m.quantity or '' }}" step="0.01" min="0" style="font-size:13px"/>
+          </div>
+          <div>
+            <label style="font-size:11px">Date</label>
+            <input type="date" name="dispatch_date" value="{{ m.dispatch_date or '' }}" style="font-size:13px"/>
+          </div>
+          <div>
+            <label style="font-size:11px">Status</label>
+            <select name="dispatch_status" style="font-size:13px">
+              {% for s in ['Pending','Dispatched','Delivered'] %}
+              <option value="{{ s }}" {% if m.dispatch_status == s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="display:flex;gap:4px">
+            <button type="submit" class="btn btn-primary btn-sm" style="font-size:11px">Save</button>
+            <button type="button" class="btn btn-sm" style="font-size:11px"
+                    onclick="toggleMatEdit('{{ m.id }}')">✕</button>
+          </div>
+        </div>
+      </form>
     </div>
     {% endif %}
-  </div>
-  {% elif progress.installation_status == 'InProgress' %}
-  <div class="phase-block active">
-    <div class="phase-label">③ Panel installation</div>
-    <div class="phase-status"><span class="phase-dot dot-active"></span> In Progress</div>
+    {% endfor %}
   </div>
   {% else %}
-  <div class="phase-block {% if not struct_done %}locked{% endif %}">
-    <div class="phase-label">③ Panel installation</div>
-    <div class="phase-status">
-      <span class="phase-dot dot-pending"></span>
-      {% if struct_done %}Not Started{% else %}Locked{% endif %}
-    </div>
-    {% if not struct_done %}
-    <div class="phase-meta">Requires materials dispatch completion</div>
-    {% endif %}
-  </div>
+  <div style="color:var(--hint);font-size:13px;padding:4px 0 10px">No materials added yet.</div>
   {% endif %}
-{# ④ Electrical work #}
-  {% if progress.electrical_status == 'Completed' %}
-  <div class="phase-block done">
-    <div class="phase-label">④ Electrical work</div>
-    <div class="phase-status"><span class="phase-dot dot-done"></span> Completed</div>
-    {% if progress.electrical_start_date %}
-    <div class="phase-meta">
-      {{ progress.electrical_start_date | date_fmt }}
-      {% if progress.electrical_end_date %} → {{ progress.electrical_end_date | date_fmt }}{% endif %}
-    </div>
-    {% endif %}
-  </div>
-  {% elif progress.electrical_status == 'InProgress' %}
-  <div class="phase-block active">
-    <div class="phase-label">④ Electrical work</div>
-    <div class="phase-status"><span class="phase-dot dot-active"></span> In Progress</div>
-    {% if progress.electrical_start_date %}
-    <div class="phase-meta">Started {{ progress.electrical_start_date | date_fmt }}</div>
-    {% endif %}
-  </div>
-  {% else %}
-  <div class="phase-block {% if not struct_done %}locked{% endif %}">
-    <div class="phase-label">④ Electrical work</div>
-    <div class="phase-status">
-      <span class="phase-dot dot-pending"></span>
-      {% if struct_done %}Not Started{% else %}Locked{% endif %}
-    </div>
-    {% if not struct_done %}
-    <div class="phase-meta">Requires structure completion</div>
-    {% endif %}
+
+  {# Add material form #}
+  {% if current_user.role in ['admin','onsite'] %}
+  <div style="border-top:0.5px solid var(--border);padding-top:12px;margin-top:4px">
+    <div style="font-size:12px;font-weight:500;margin-bottom:8px;color:var(--muted)">Add material</div>
+    <form method="POST" action="{{ url_for('add_material', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px;align-items:flex-end">
+        <div>
+          <label style="font-size:11px">Item name</label>
+          <input type="text" name="item_name" required placeholder="e.g. Solar panel 440W"/>
+        </div>
+        <div>
+          <label style="font-size:11px">Qty</label>
+          <input type="number" name="quantity" min="0" step="0.01" placeholder="0"/>
+        </div>
+        <div>
+          <button type="submit" class="btn btn-primary btn-sm">Add</button>
+        </div>
+      </div>
+    </form>
   </div>
   {% endif %}
 </div>
 
-{# ══════════════════════════════════════════════════════ #}
-{# ① STRUCTURE WORK                                       #}
-{# ══════════════════════════════════════════════════════ #}
+{# ═══════════════════════════════════════════ #}
+{# ③ STRUCTURE WORK                            #}
+{# ═══════════════════════════════════════════ #}
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--border)">
-    <div class="section-label" style="margin:0;padding:0;border:none">① Structure work</div>
-    {% if progress.structure_work_status == 'Completed' %}
-      <button class="btn btn-sm" id="struct-edit-btn">Edit</button>
+    <div class="section-label" style="margin:0;padding:0;border:none">③ Structure work</div>
+    {% if struct_done %}
+    <button class="btn btn-sm" id="struct-edit-btn">Edit</button>
     {% endif %}
   </div>
 
-  {% if progress.structure_work_status == 'Completed' %}
-  {# ── Read-only view ── #}
+  {% if struct_done %}
+  {# Read-only #}
   <div id="struct-view">
     <table style="font-size:13px;width:100%">
-      <tr>
-        <td style="color:var(--muted);width:120px;padding:5px 0">Status</td>
-        <td><span class="badge badge-Completed">Completed</span></td>
-      </tr>
-      <tr>
-        <td style="color:var(--muted);padding:5px 0">Start date</td>
-        <td>{{ progress.structure_start_date | date_fmt }}</td>
-      </tr>
-      <tr>
-        <td style="color:var(--muted);padding:5px 0">End date</td>
-        <td>{{ progress.structure_end_date | date_fmt }}</td>
-      </tr>
+      <tr><td style="color:var(--muted);width:120px;padding:5px 0">Status</td>
+          <td><span class="badge badge-Completed">Completed</span></td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Start</td>
+          <td>{{ progress.structure_start_date | date_fmt }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">End</td>
+          <td>{{ progress.structure_end_date | date_fmt }}</td></tr>
       {% if progress.structure_notes %}
-      <tr>
-        <td style="color:var(--muted);padding:5px 0">Notes</td>
-        <td style="font-size:12px">{{ progress.structure_notes }}</td>
-      </tr>
+      <tr><td style="color:var(--muted);padding:5px 0;vertical-align:top">Notes</td>
+          <td style="font-size:12px">{{ progress.structure_notes }}</td></tr>
       {% endif %}
     </table>
   </div>
-
-  {# ── Edit form (hidden by default) ── #}
   <div id="struct-form" style="display:none">
-   
-{% set struct_workers = proj.assignments | selectattr('work_phase','eq','Structure') | selectattr('status','ne','Paid') | list %}
-{% if not struct_workers %}
-<div class="lock-banner" style="margin-bottom:14px">
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-       stroke="currentColor" stroke-width="2" stroke-linecap="round">
-    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
-    <line x1="12" y1="16" x2="12.01" y2="16"/>
-  </svg>
-  No Structure workers assigned. Assign a worker before updating progress.
-</div>
-{% endif %}
-    <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}" >
+    <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-grid">
         <div class="form-group">
@@ -326,31 +288,27 @@
         </div>
         <div class="form-group">
           <label>Start date</label>
-          <input type="date" name="structure_start_date"
-                 value="{{ progress.structure_start_date or '' }}"/>
+          <input type="date" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
         </div>
         <div class="form-group">
           <label>End date</label>
-          <input type="date" name="structure_end_date"
-                 value="{{ progress.structure_end_date or '' }}"/>
+          <input type="date" name="structure_end_date" value="{{ progress.structure_end_date or '' }}"/>
         </div>
         <div class="form-group full">
           <label>Notes</label>
-          <textarea name="structure_notes" rows="2"
-                    placeholder="Optional notes">{{ progress.structure_notes or '' }}</textarea>
+          <textarea name="structure_notes" rows="2">{{ progress.structure_notes or '' }}</textarea>
         </div>
       </div>
-      <input type="hidden" name="installation_status"
-             value="{{ progress.installation_status if progress.installation_status and progress.installation_status != 'None' else 'NotStarted' }}"/>
-      <input type="hidden" name="installation_notes"
-             value="{{ progress.installation_notes or '' }}"/>
+      {# Pass through other fields unchanged #}
+      <input type="hidden" name="installation_status" value="{{ progress.installation_status or 'NotStarted' }}"/>
       <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
-<input type="hidden" name="installation_end_date"   value="{{ progress.installation_end_date or '' }}"/>
-<input type="hidden" name="electrical_status"       value="{{ progress.electrical_status or 'NotStarted' }}"/>
-<input type="hidden" name="electrical_start_date"   value="{{ progress.electrical_start_date or '' }}"/>
-<input type="hidden" name="electrical_end_date"     value="{{ progress.electrical_end_date or '' }}"/>
-<input type="hidden" name="electrical_notes"        value="{{ progress.electrical_notes or '' }}"/>
-      <div style="display:flex;gap:8px;margin-top:14px">
+      <input type="hidden" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
+      <input type="hidden" name="installation_notes" value="{{ progress.installation_notes or '' }}"/>
+      <input type="hidden" name="electrical_status" value="{{ progress.electrical_status or 'NotStarted' }}"/>
+      <input type="hidden" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
+      <input type="hidden" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
+      <input type="hidden" name="electrical_notes" value="{{ progress.electrical_notes or '' }}"/>
+      <div style="display:flex;gap:8px;margin-top:12px">
         <button type="submit" class="btn btn-primary btn-sm">Save</button>
         <button type="button" class="btn btn-sm" id="struct-cancel-btn">Cancel</button>
       </div>
@@ -358,8 +316,8 @@
   </div>
 
   {% else %}
-  {# ── Active form (not yet completed) ── #}
-  <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}" >
+  {# Active form #}
+  <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-grid">
       <div class="form-group">
@@ -372,269 +330,66 @@
       </div>
       <div class="form-group">
         <label>Start date</label>
-        <input type="date" name="structure_start_date"
-               value="{{ progress.structure_start_date or '' }}"/>
+        <input type="date" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
       </div>
       <div class="form-group">
         <label>End date</label>
-        <input type="date" name="structure_end_date"
-               value="{{ progress.structure_end_date or '' }}"/>
+        <input type="date" name="structure_end_date" value="{{ progress.structure_end_date or '' }}"/>
       </div>
       <div class="form-group full">
         <label>Notes</label>
-        <textarea name="structure_notes" rows="2"
-                  placeholder="Optional notes">{{ progress.structure_notes or '' }}</textarea>
+        <textarea name="structure_notes" rows="2" placeholder="Optional notes">{{ progress.structure_notes or '' }}</textarea>
       </div>
     </div>
-    <input type="hidden" name="installation_status"
-           value="{{ progress.installation_status if progress.installation_status and progress.installation_status != 'None' else 'NotStarted' }}"/>
+    <input type="hidden" name="installation_status" value="{{ progress.installation_status or 'NotStarted' }}"/>
     <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
-    <input type="hidden" name="installation_end_date"   value="{{ progress.installation_end_date or '' }}"/>
-    <input type="hidden" name="installation_notes"
-           value="{{ progress.installation_notes or '' }}"/>
-    <input type="hidden" name="electrical_status"     value="{{ progress.electrical_status or 'NotStarted' }}"/>
+    <input type="hidden" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
+    <input type="hidden" name="installation_notes" value="{{ progress.installation_notes or '' }}"/>
+    <input type="hidden" name="electrical_status" value="{{ progress.electrical_status or 'NotStarted' }}"/>
     <input type="hidden" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
-    <input type="hidden" name="electrical_end_date"   value="{{ progress.electrical_end_date or '' }}"/>
-    <input type="hidden" name="electrical_notes"      value="{{ progress.electrical_notes or '' }}"/>
-    <div style="margin-top:14px">
+    <input type="hidden" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
+    <input type="hidden" name="electrical_notes" value="{{ progress.electrical_notes or '' }}"/>
+    <div style="margin-top:12px">
       <button type="submit" class="btn btn-primary btn-sm">Save structure</button>
     </div>
   </form>
   {% endif %}
 </div>
 
-{# ══════════════════════════════════════════════════════ #}
-{# ② MATERIAL DISPATCH                                    #}
-{# ══════════════════════════════════════════════════════ #}
-<div class="card">
-  <div class="section-label">② Material dispatch</div>
-
-  {% if not struct_done %}
-  <div class="lock-banner">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-         stroke="currentColor" stroke-width="2" stroke-linecap="round">
-      <rect x="3" y="11" width="18" height="11" rx="2"/>
-      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-    </svg>
-    Locked until structure work is marked <strong style="margin-left:2px">Completed</strong>.
-  </div>
-
-  {% else %}
-
-  {# ── Bulk dispatch form ── #}
-  {% if struct_done and not all_delivered %}
-  {% if current_user.role in ['admin','onsite'] %}
-  <div style="background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:16px">
-    <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.05em">
-      Bulk update all materials
-    </div>
-    <form method="POST" action="{{ url_for('bulk_update_materials', pid=proj.id) }}" >
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:flex-end"
-     class="bulk-form-grid">
-        <div>
-          <label>Status</label>
-          <select name="dispatch_status">
-            <option value="Dispatched">Dispatched</option>
-            <option value="Delivered">Delivered</option>
-          </select>
-        </div>
-        <div>
-          <label>Date</label>
-          <input type="date" name="dispatch_date" required/>
-        </div>
-        <div>
-          <button type="submit" class="btn btn-primary btn-sm">Apply to all</button>
-        </div>
-      </div>
-    </form>
-  </div>
-  {% endif %}
-  {% endif %}
-
-  {% if all_delivered %}
-  <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:color-mix(in srgb,#16a34a 6%,var(--surface));border:0.5px solid color-mix(in srgb,#16a34a 20%,var(--border));border-radius:var(--radius);margin-bottom:14px;font-size:13px;color:#15803d">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2">
-      <polyline points="20 6 9 17 4 12"/>
-    </svg>
-    All {{ proj.materials | length }} materials delivered.
-  </div>
-  {% endif %}
-
-  {% if proj.materials %}
-  <div class="material-row material-row-head">
-    <div>Item</div>
-    <div>Qty</div>
-    <div>Date</div>
-    <div>Status</div>
-    <div></div>
-  </div>
-
-  {% for m in proj.materials %}
-  <div class="material-row" id="mat-view-{{ m.id }}">
-    <div style="font-weight:500">{{ m.item_name }}</div>
-    <div style="color:var(--muted)">{{ m.quantity or '—' }}</div>
-    <div style="color:var(--muted);font-size:12px">
-      {% if m.dispatch_date %}{{ m.dispatch_date | date_fmt }}
-      {% elif m.received_date %}{{ m.received_date | date_fmt }}
-      {% else %}—{% endif %}
-    </div>
-    <div><span class="badge badge-{{ m.dispatch_status }}">{{ m.dispatch_status }}</span></div>
-    <div>
-      <button class="btn btn-sm mat-edit-btn" data-mid="{{ m.id }}">Edit</button>
-    </div>
-  </div>
-
-  <div id="mat-form-{{ m.id }}"
-       style="display:none;padding:12px 0 14px;border-bottom:0.5px solid var(--border)">
-    <form method="POST" action="{{ url_for('update_material', pid=proj.id, mid=m.id) }}" >
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto auto;gap:10px;align-items:flex-end">
-        <div>
-          <label>Item name</label>
-          <input type="text" name="item_name" value="{{ m.item_name }}"/>
-        </div>
-        <div>
-          <label>Quantity</label>
-          <input type="number" name="quantity" min="0" step="0.01" value="{{ m.quantity or '' }}"/>
-        </div>
-        <div>
-          <label>Date</label>
-          <input type="date" name="dispatch_date" value="{{ m.dispatch_date or '' }}"/>
-        </div>
-        <div>
-          <label>Status</label>
-          <select name="dispatch_status">
-            {% for s in ['Pending','Dispatched','Delivered'] %}
-            <option value="{{ s }}" {% if m.dispatch_status == s %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <button type="submit" class="btn btn-primary btn-sm">Save</button>
-        </div>
-        <div>
-          <button type="button" class="btn btn-sm mat-cancel-btn" data-mid="{{ m.id }}">Cancel</button>
-        </div>
-      </div>
-    </form>
-  </div>
-  {% endfor %}
-
-  {% else %}
-  <div style="color:var(--hint);font-size:13px;padding:4px 0">No materials added yet.</div>
-  {% endif %}
-
-  {% endif %}{# end struct_done #}
-
-  {# Add material #}
-  {% if current_user.role in ['admin','onsite'] %}
-  <div style="margin-top:16px;border-top:0.5px solid var(--border);padding-top:14px">
-    {% if struct_done and not all_delivered %}
-      <div style="font-size:13px;font-weight:500;margin-bottom:10px">Add material</div>
-      <form method="POST" action="{{ url_for('add_material', pid=proj.id) }}" >
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:flex-end">
-          <div>
-            <label>Item name</label>
-            <input type="text" name="item_name" required placeholder="e.g. Solar panel 440W"/>
-          </div>
-          <div>
-            <label>Quantity</label>
-            <input type="number" name="quantity" min="0" step="0.01" placeholder="0"/>
-          </div>
-          <div>
-            <button type="submit" class="btn btn-primary btn-sm">Add</button>
-          </div>
-        </div>
-      </form>
-    {% elif struct_done and all_delivered %}
-      <div class="lock-banner">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <rect x="3" y="11" width="18" height="11" rx="2"/>
-          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-        </svg>
-        All materials have been delivered. Dispatch is closed.
-      </div>
-    {% else %}
-      <div class="lock-banner">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <rect x="3" y="11" width="18" height="11" rx="2"/>
-          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-        </svg>
-        Adding materials unlocks after structure work is marked
-        <strong style="margin-left:2px">Completed</strong>.
-      </div>
-    {% endif %}
-  </div>
-  {% endif %}
-</div>
-{# ══════════════════════════════════════════════════════ #}
-{# ③ PANEL INSTALLATION                                   #}
-{# ══════════════════════════════════════════════════════ #}
+{# ═══════════════════════════════════════════ #}
+{# ④ PANEL INSTALLATION                        #}
+{# ═══════════════════════════════════════════ #}
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--border)">
-    <div class="section-label" style="margin:0;padding:0;border:none">③ Panel installation</div>
-    {% if progress.installation_status == 'Completed' %}
-      <button class="btn btn-sm" id="install-edit-btn">Edit</button>
+    <div class="section-label" style="margin:0;padding:0;border:none">④ Panel installation &amp; electrical</div>
+    {% if install_done %}
+    <button class="btn btn-sm" id="install-edit-btn">Edit</button>
     {% endif %}
   </div>
 
-  {% if not struct_done %}
-  {# Locked #}
-  <div class="lock-banner">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-         stroke="currentColor" stroke-width="2" stroke-linecap="round">
-      <rect x="3" y="11" width="18" height="11" rx="2"/>
-      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-    </svg>
-    Locked until materials dispatch is marked <strong style="margin-left:2px">Completed</strong>.
-  </div>
-
-  {% elif progress.installation_status == 'Completed' %}
-  {# Read-only view #}
+  {% if install_done %}
   <div id="install-view">
     <table style="font-size:13px;width:100%">
-      <tr>
-        <td style="color:var(--muted);width:120px;padding:5px 0">Status</td>
-        <td><span class="badge badge-Completed">Completed</span></td>
-      </tr>
-      <tr>
-      <td style="color:var(--muted);padding:5px 0">Start date</td>
-      <td>{{ progress.installation_start_date | date_fmt }}</td>
-    </tr>
-    <tr>
-      <td style="color:var(--muted);padding:5px 0">End date</td>
-      <td>{{ progress.installation_end_date | date_fmt }}</td>
-    </tr>
+      <tr><td style="color:var(--muted);width:120px;padding:5px 0">Status</td>
+          <td><span class="badge badge-Completed">Completed</span></td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Start</td>
+          <td>{{ progress.installation_start_date | date_fmt }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">End</td>
+          <td>{{ progress.installation_end_date | date_fmt }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Electrical</td>
+          <td><span class="badge badge-{{ progress.electrical_status }}">{{ progress.electrical_status }}</span></td></tr>
       {% if progress.installation_notes %}
-      <tr>
-        <td style="color:var(--muted);padding:5px 0">Notes</td>
-        <td style="font-size:12px">{{ progress.installation_notes }}</td>
-      </tr>
+      <tr><td style="color:var(--muted);padding:5px 0;vertical-align:top">Notes</td>
+          <td style="font-size:12px">{{ progress.installation_notes }}</td></tr>
       {% endif %}
     </table>
   </div>
-{% set install_workers = proj.assignments | selectattr('work_phase','eq','Installation') | selectattr('status','ne','Paid') | list %}
-{% if struct_done and not install_workers %}
-<div class="lock-banner" style="margin-bottom:14px">
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-       stroke="currentColor" stroke-width="2" stroke-linecap="round">
-    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
-    <line x1="12" y1="16" x2="12.01" y2="16"/>
-  </svg>
-  No Installation workers assigned. Assign a worker before updating installation status.
-</div>
-{% endif %}
-  {# Edit form (hidden by default) #}
   <div id="install-form" style="display:none">
-    <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}" >
+    <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-grid">
         <div class="form-group">
-          <label>Status</label>
+          <label>Installation status</label>
           <select name="installation_status">
             {% for s in ['NotStarted','InProgress','Completed'] %}
             <option value="{{ s }}" {% if progress.installation_status == s %}selected{% endif %}>{{ s }}</option>
@@ -642,137 +397,15 @@
           </select>
         </div>
         <div class="form-group">
-  <label>Start date</label>
-  <input type="date" name="installation_start_date"
-         value="{{ progress.installation_start_date or '' }}"/>
-</div>
-<div class="form-group">
-  <label>End date</label>
-  <input type="date" name="installation_end_date"
-         value="{{ progress.installation_end_date or '' }}"/>
-</div>
-        <div class="form-group full">
-          <label>Notes</label>
-          <textarea name="installation_notes" rows="2"
-                    placeholder="Optional notes">{{ progress.installation_notes or '' }}</textarea>
+          <label>Start date</label>
+          <input type="date" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
         </div>
-      </div>
-      <input type="hidden" name="structure_work_status" value="{{ progress.structure_work_status or 'NotStarted' }}"/>
-      <input type="hidden" name="structure_start_date"  value="{{ progress.structure_start_date or '' }}"/>
-      <input type="hidden" name="structure_end_date"    value="{{ progress.structure_end_date or '' }}"/>
-      <input type="hidden" name="structure_notes"       value="{{ progress.structure_notes or '' }}"/>
-      <input type="hidden" name="electrical_status"     value="{{ progress.electrical_status or 'NotStarted' }}"/>
-      <input type="hidden" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
-      <input type="hidden" name="electrical_end_date"   value="{{ progress.electrical_end_date or '' }}"/>
-      <input type="hidden" name="electrical_notes"      value="{{ progress.electrical_notes or '' }}"/>
-      <div style="display:flex;gap:8px;margin-top:14px">
-        <button type="submit" class="btn btn-primary btn-sm">Save</button>
-        <button type="button" class="btn btn-sm" id="install-cancel-btn">Cancel</button>
-      </div>
-    </form>
-  </div>
-
-  {% else %}
-  {# Active form (unlocked, not yet completed) #}
-  <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}" >
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Status</label>
-        <select name="installation_status">
-          {% for s in ['NotStarted','InProgress','Completed'] %}
-          <option value="{{ s }}" {% if progress.installation_status == s %}selected{% endif %}>{{ s }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="form-group full">
-        <label>Notes</label>
-        <textarea name="installation_notes" rows="2"
-                  placeholder="Optional notes">{{ progress.installation_notes or '' }}</textarea>
-      </div>
-    </div>
-    <input type="hidden" name="structure_work_status" value="{{ progress.structure_work_status or 'NotStarted' }}"/>
-    <input type="hidden" name="structure_start_date"  value="{{ progress.structure_start_date or '' }}"/>
-    <input type="hidden" name="structure_end_date"    value="{{ progress.structure_end_date or '' }}"/>
-    <input type="hidden" name="structure_notes"       value="{{ progress.structure_notes or '' }}"/>
-    <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
-    <input type="hidden" name="installation_end_date"   value="{{ progress.installation_end_date or '' }}"/>
-    <input type="hidden" name="electrical_status"       value="{{ progress.electrical_status or 'NotStarted' }}"/>
-    <input type="hidden" name="electrical_start_date"   value="{{ progress.electrical_start_date or '' }}"/>
-    <input type="hidden" name="electrical_end_date"     value="{{ progress.electrical_end_date or '' }}"/>
-    <input type="hidden" name="electrical_notes"        value="{{ progress.electrical_notes or '' }}"/>
-    <div style="margin-top:14px">
-      <button type="submit" class="btn btn-primary btn-sm">Save installation</button>
-    </div>
-  </form>
-  {% endif %}
-
-</div>
-{# ══════════════════════════════════════════════════════ #}
-{# ④ ELECTRICAL WORK                                      #}
-{# ══════════════════════════════════════════════════════ #}
-<div class="card">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--border)">
-    <div class="section-label" style="margin:0;padding:0;border:none">④ Electrical work</div>
-    {% if progress.electrical_status == 'Completed' %}
-      <button class="btn btn-sm" id="elec-edit-btn">Edit</button>
-    {% endif %}
-  </div>
-
-  {% if not struct_done %}
-  <div class="lock-banner">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-         stroke="currentColor" stroke-width="2" stroke-linecap="round">
-      <rect x="3" y="11" width="18" height="11" rx="2"/>
-      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-    </svg>
-    Locked until structure work is marked <strong style="margin-left:2px">Completed</strong>.
-  </div>
-
-  {% elif progress.electrical_status == 'Completed' %}
-  {# Read-only view #}
-  <div id="elec-view">
-    <table style="font-size:13px;width:100%">
-      <tr>
-        <td style="color:var(--muted);width:120px;padding:5px 0">Status</td>
-        <td><span class="badge badge-Completed">Completed</span></td>
-      </tr>
-      <tr>
-        <td style="color:var(--muted);padding:5px 0">Start date</td>
-        <td>{{ progress.electrical_start_date | date_fmt }}</td>
-      </tr>
-      <tr>
-        <td style="color:var(--muted);padding:5px 0">End date</td>
-        <td>{{ progress.electrical_end_date | date_fmt }}</td>
-      </tr>
-      {% if progress.electrical_notes %}
-      <tr>
-        <td style="color:var(--muted);padding:5px 0">Notes</td>
-        <td style="font-size:12px">{{ progress.electrical_notes }}</td>
-      </tr>
-      {% endif %}
-    </table>
-  </div>
-
-  {% set elec_workers = proj.assignments | selectattr('work_phase','eq','Electrical') | selectattr('status','ne','Paid') | list %}
-  {% if not elec_workers %}
-  <div class="lock-banner" style="margin-top:12px">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-         stroke="currentColor" stroke-width="2" stroke-linecap="round">
-      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
-      <line x1="12" y1="16" x2="12.01" y2="16"/>
-    </svg>
-    No Electrical workers assigned. Assign a worker before updating.
-  </div>
-  {% endif %}
-
-  {# Edit form (hidden) #}
-  <div id="elec-form" style="display:none">
-    <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}" >
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="form-grid">
         <div class="form-group">
-          <label>Status</label>
+          <label>End date</label>
+          <input type="date" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
+        </div>
+        <div class="form-group">
+          <label>Electrical status</label>
           <select name="electrical_status">
             {% for s in ['NotStarted','InProgress','Completed'] %}
             <option value="{{ s }}" {% if progress.electrical_status == s %}selected{% endif %}>{{ s }}</option>
@@ -780,51 +413,55 @@
           </select>
         </div>
         <div class="form-group">
-          <label>Start date</label>
+          <label>Electrical start</label>
           <input type="date" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
         </div>
         <div class="form-group">
-          <label>End date</label>
+          <label>Electrical end</label>
           <input type="date" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
         </div>
         <div class="form-group full">
           <label>Notes</label>
-          <textarea name="electrical_notes" rows="2" placeholder="Optional notes">{{ progress.electrical_notes or '' }}</textarea>
+          <textarea name="installation_notes" rows="2">{{ progress.installation_notes or '' }}</textarea>
+        </div>
+        <div class="form-group full">
+          <label>Electrical notes</label>
+          <textarea name="electrical_notes" rows="2">{{ progress.electrical_notes or '' }}</textarea>
         </div>
       </div>
-      <input type="hidden" name="structure_work_status"   value="{{ progress.structure_work_status or 'NotStarted' }}"/>
-      <input type="hidden" name="structure_start_date"    value="{{ progress.structure_start_date or '' }}"/>
-      <input type="hidden" name="structure_end_date"      value="{{ progress.structure_end_date or '' }}"/>
-      <input type="hidden" name="structure_notes"         value="{{ progress.structure_notes or '' }}"/>
-      <input type="hidden" name="installation_status"     value="{{ progress.installation_status or 'NotStarted' }}"/>
-      <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
-      <input type="hidden" name="installation_end_date"   value="{{ progress.installation_end_date or '' }}"/>
-      <input type="hidden" name="installation_notes"      value="{{ progress.installation_notes or '' }}"/>
-      <div style="display:flex;gap:8px;margin-top:14px">
+      <input type="hidden" name="structure_work_status" value="{{ progress.structure_work_status or 'NotStarted' }}"/>
+      <input type="hidden" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
+      <input type="hidden" name="structure_end_date" value="{{ progress.structure_end_date or '' }}"/>
+      <input type="hidden" name="structure_notes" value="{{ progress.structure_notes or '' }}"/>
+      <div style="display:flex;gap:8px;margin-top:12px">
         <button type="submit" class="btn btn-primary btn-sm">Save</button>
-        <button type="button" class="btn btn-sm" id="elec-cancel-btn">Cancel</button>
+        <button type="button" class="btn btn-sm" id="install-cancel-btn">Cancel</button>
       </div>
     </form>
   </div>
 
   {% else %}
-  {# Active form #}
-  {% set elec_workers = proj.assignments | selectattr('work_phase','eq','Electrical') | selectattr('status','ne','Paid') | list %}
-  {% if not elec_workers %}
-  <div class="lock-banner" style="margin-bottom:14px">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-         stroke="currentColor" stroke-width="2" stroke-linecap="round">
-      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
-      <line x1="12" y1="16" x2="12.01" y2="16"/>
-    </svg>
-    No Electrical workers assigned. Assign a worker before updating.
-  </div>
-  {% endif %}
-  <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}" >
+  <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-grid">
       <div class="form-group">
-        <label>Status</label>
+        <label>Installation status</label>
+        <select name="installation_status">
+          {% for s in ['NotStarted','InProgress','Completed'] %}
+          <option value="{{ s }}" {% if progress.installation_status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Start date</label>
+        <input type="date" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
+      </div>
+      <div class="form-group">
+        <label>End date</label>
+        <input type="date" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
+      </div>
+      <div class="form-group">
+        <label>Electrical status</label>
         <select name="electrical_status">
           {% for s in ['NotStarted','InProgress','Completed'] %}
           <option value="{{ s }}" {% if progress.electrical_status == s %}selected{% endif %}>{{ s }}</option>
@@ -832,133 +469,48 @@
         </select>
       </div>
       <div class="form-group">
-        <label>Start date</label>
+        <label>Electrical start</label>
         <input type="date" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
       </div>
       <div class="form-group">
-        <label>End date</label>
+        <label>Electrical end</label>
         <input type="date" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
       </div>
       <div class="form-group full">
         <label>Notes</label>
-        <textarea name="electrical_notes" rows="2" placeholder="Optional notes">{{ progress.electrical_notes or '' }}</textarea>
+        <textarea name="installation_notes" rows="2" placeholder="Optional">{{ progress.installation_notes or '' }}</textarea>
+      </div>
+      <div class="form-group full">
+        <label>Electrical notes</label>
+        <textarea name="electrical_notes" rows="2" placeholder="Optional">{{ progress.electrical_notes or '' }}</textarea>
       </div>
     </div>
-    <input type="hidden" name="structure_work_status"   value="{{ progress.structure_work_status or 'NotStarted' }}"/>
-    <input type="hidden" name="structure_start_date"    value="{{ progress.structure_start_date or '' }}"/>
-    <input type="hidden" name="structure_end_date"      value="{{ progress.structure_end_date or '' }}"/>
-    <input type="hidden" name="structure_notes"         value="{{ progress.structure_notes or '' }}"/>
-    <input type="hidden" name="installation_status"     value="{{ progress.installation_status or 'NotStarted' }}"/>
-    <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
-    <input type="hidden" name="installation_end_date"   value="{{ progress.installation_end_date or '' }}"/>
-    <input type="hidden" name="installation_notes"      value="{{ progress.installation_notes or '' }}"/>
-    
-    <div style="margin-top:14px">
-      <button type="submit" class="btn btn-primary btn-sm">Save electrical</button>
+    <input type="hidden" name="structure_work_status" value="{{ progress.structure_work_status or 'NotStarted' }}"/>
+    <input type="hidden" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
+    <input type="hidden" name="structure_end_date" value="{{ progress.structure_end_date or '' }}"/>
+    <input type="hidden" name="structure_notes" value="{{ progress.structure_notes or '' }}"/>
+    <div style="margin-top:12px">
+      <button type="submit" class="btn btn-primary btn-sm">Save installation</button>
     </div>
   </form>
   {% endif %}
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-
-  // Material toggle
-  document.addEventListener('click', function(e) {
-  if (e.target.classList.contains('mat-edit-btn')) {
-    var mid  = e.target.getAttribute('data-mid');
-    var form = document.getElementById('mat-form-' + mid);
-    var view = document.getElementById('mat-view-' + mid);
-    if (form) form.style.display = 'block';
-    if (view) view.style.display = 'none';
-  }
-});
-document.addEventListener('click', function(e) {
-  if (e.target.classList.contains('mat-cancel-btn')) {
-    var mid  = e.target.getAttribute('data-mid');
-    var form = document.getElementById('mat-form-' + mid);
-    var view = document.getElementById('mat-view-' + mid);
-    if (form) form.style.display = 'none';
-    if (view) view.style.display = 'grid';
-  }
-});
-
-  // Structure edit/cancel
-  var structEditBtn   = document.getElementById('struct-edit-btn');
-  var structCancelBtn = document.getElementById('struct-cancel-btn');
-  var structView      = document.getElementById('struct-view');
-  var structForm      = document.getElementById('struct-form');
-  if (structEditBtn) {
-    structEditBtn.addEventListener('click', function() {
-      structView.style.display = 'none';
-      structForm.style.display = 'block';
-      structEditBtn.style.display = 'none';
-    });
-  }
-  if (structCancelBtn) {
-    structCancelBtn.addEventListener('click', function() {
-      structForm.style.display = 'none';
-      structView.style.display = 'block';
-      structEditBtn.style.display = 'inline-block';
-    });
-  }
-
-  // Installation edit/cancel
-  var installEditBtn   = document.getElementById('install-edit-btn');
-  var installCancelBtn = document.getElementById('install-cancel-btn');
-  var installView      = document.getElementById('install-view');
-  var installForm      = document.getElementById('install-form');
-  if (installEditBtn) {
-    installEditBtn.addEventListener('click', function() {
-      installView.style.display = 'none';
-      installForm.style.display = 'block';
-      installEditBtn.style.display = 'none';
-    });
-  }
-  if (installCancelBtn) {
-    installCancelBtn.addEventListener('click', function() {
-      installForm.style.display = 'none';
-      installView.style.display = 'block';
-      installEditBtn.style.display = 'inline-block';
-    });
-  }
-// Electrical edit/cancel
-  var elecEditBtn   = document.getElementById('elec-edit-btn');
-  var elecCancelBtn = document.getElementById('elec-cancel-btn');
-  var elecView      = document.getElementById('elec-view');
-  var elecForm      = document.getElementById('elec-form');
-  if (elecEditBtn) {
-    elecEditBtn.addEventListener('click', function() {
-      elecView.style.display = 'none';
-      elecForm.style.display = 'block';
-      elecEditBtn.style.display = 'none';
-    });
-  }
-  if (elecCancelBtn) {
-    elecCancelBtn.addEventListener('click', function() {
-      elecForm.style.display = 'none';
-      elecView.style.display = 'block';
-      elecEditBtn.style.display = 'inline-block';
-    });
-  }
-});
-</script>
-{# ══════════════════════════════════════════════════════ #}
-{# ⑤ DAILY WORK LOG                                       #}
-{# ══════════════════════════════════════════════════════ #}
+{# ═══════════════════════════════════════════ #}
+{# DAILY LOG                                   #}
+{# ═══════════════════════════════════════════ #}
 <div class="card">
-  <div class="section-label">⑤ Daily work log</div>
- 
+  <div class="section-label">Daily work log</div>
   {% if proj.onsite_logs %}
-  <div style="margin-bottom:16px">
+  <div style="margin-bottom:14px">
     {% for entry in proj.onsite_logs | sort(attribute='log_date', reverse=True) %}
-    <div style="display:flex;gap:12px;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px" class="log-entry">
+    <div style="display:flex;gap:12px;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px">
       <div style="white-space:nowrap;color:var(--hint);min-width:90px">{{ entry.log_date | date_fmt }}</div>
       <div>
         <span class="tag" style="margin-right:6px">{{ entry.work_phase }}</span>
         {{ entry.note }}
       </div>
-      <div style="margin-left:auto;font-size:11px;color:var(--hint);white-space:nowrap" class="log-meta">
+      <div style="margin-left:auto;font-size:11px;color:var(--hint);white-space:nowrap">
         {{ entry.logger.full_name if entry.logger else '—' }}
       </div>
     </div>
@@ -967,11 +519,10 @@ document.addEventListener('click', function(e) {
   {% else %}
   <div style="font-size:13px;color:var(--hint);margin-bottom:14px">No daily logs yet.</div>
   {% endif %}
- 
   {% if current_user.role in ['admin','onsite'] %}
-  <form method="POST" action="{{ url_for('add_onsite_log', pid=proj.id) }}" >
+  <form method="POST" action="{{ url_for('add_onsite_log', pid=proj.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div style="display:grid;grid-template-columns:1fr 2fr auto;gap:10px;align-items:flex-end" class="log-form-grid">
+    <div style="display:grid;grid-template-columns:1fr 2fr auto;gap:10px;align-items:flex-end">
       <div>
         <label>Phase</label>
         <select name="work_phase">
@@ -982,7 +533,7 @@ document.addEventListener('click', function(e) {
       </div>
       <div>
         <label>Note</label>
-        <input type="text" name="note" required placeholder="e.g. Placed 8 panels, 4 remaining…"/>
+        <input type="text" name="note" required placeholder="e.g. Placed 8 panels…"/>
       </div>
       <div>
         <button type="submit" class="btn btn-primary btn-sm">Add log</button>
@@ -991,4 +542,49 @@ document.addEventListener('click', function(e) {
   </form>
   {% endif %}
 </div>
+
+<script>
+function toggleMatEdit(mid) {
+  var row  = document.getElementById('matedit-' + mid);
+  if (row) row.style.display = row.style.display === 'none' ? 'block' : 'none';
+}
+
+var structEditBtn   = document.getElementById('struct-edit-btn');
+var structCancelBtn = document.getElementById('struct-cancel-btn');
+var structView      = document.getElementById('struct-view');
+var structForm      = document.getElementById('struct-form');
+if (structEditBtn) {
+  structEditBtn.addEventListener('click', function() {
+    structView.style.display = 'none';
+    structForm.style.display = 'block';
+    structEditBtn.style.display = 'none';
+  });
+}
+if (structCancelBtn) {
+  structCancelBtn.addEventListener('click', function() {
+    structForm.style.display = 'none';
+    structView.style.display = 'block';
+    structEditBtn.style.display = 'inline-block';
+  });
+}
+
+var installEditBtn   = document.getElementById('install-edit-btn');
+var installCancelBtn = document.getElementById('install-cancel-btn');
+var installView      = document.getElementById('install-view');
+var installForm      = document.getElementById('install-form');
+if (installEditBtn) {
+  installEditBtn.addEventListener('click', function() {
+    installView.style.display = 'none';
+    installForm.style.display = 'block';
+    installEditBtn.style.display = 'none';
+  });
+}
+if (installCancelBtn) {
+  installCancelBtn.addEventListener('click', function() {
+    installForm.style.display = 'none';
+    installView.style.display = 'block';
+    installEditBtn.style.display = 'inline-block';
+  });
+}
+</script>
 {% endblock %}

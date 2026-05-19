@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}Onsite Dashboard{% endblock %}
+{% block page_title %}Onsite Dashboard{% endblock %}
+
+{% block content %}
+<style>
+.stage-col { }
+.stage-header {
+  font-size:11px;font-weight:600;letter-spacing:0.07em;
+  text-transform:uppercase;color:var(--muted);
+  padding:10px 14px 8px;
+  border-bottom:2px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.stage-header .count {
+  font-size:10px;background:var(--bg);border:0.5px solid var(--border);
+  border-radius:20px;padding:1px 8px;color:var(--hint);font-weight:500;
+}
+.proj-card {
+  padding:10px 14px;border-bottom:0.5px solid var(--border);
+  font-size:13px;cursor:pointer;transition:background 0.1s;
+}
+.proj-card:last-child { border-bottom:none; }
+.proj-card:hover { background:var(--bg); }
+.proj-card-code { font-weight:500;font-size:12px;color:var(--hint); }
+.proj-card-name { font-weight:500;margin-bottom:2px; }
+.proj-card-meta { font-size:11px;color:var(--muted);margin-top:3px; }
+.tag-pill {
+  display:inline-flex;align-items:center;gap:3px;
+  font-size:10px;font-weight:500;padding:1px 7px;
+  border-radius:20px;white-space:nowrap;
+}
+.pill-malabar  { background:#fef3c7;color:#92400e;border:0.5px solid #fcd34d; }
+.pill-delivered{ background:#d1fae5;color:#065f46;border:0.5px solid #6ee7b7; }
+.pill-struct   { background:#dbeafe;color:#1e40af;border:0.5px solid #93c5fd; }
+.pill-install  { background:#f3e8ff;color:#6b21a8;border:0.5px solid #d8b4fe; }
+.pill-done     { background:#d1fae5;color:#065f46;border:0.5px solid #6ee7b7; }
+.empty-col { padding:14px;font-size:13px;color:var(--hint);text-align:center; }
+
+@media (max-width:640px) {
+  .board-grid { grid-template-columns:1fr !important; }
+}
+</style>
+
+{# ── Bucket each project into onsite stages ── #}
+{# 
+  We receive `data.projects` from the onsite dashboard query in app.py.
+  We compute buckets here in Jinja.
+#}
+
+{% set ns = namespace(
+  needs_malabar=[],
+  with_malabar=[],
+  delivered=[],
+  structure=[],
+  installation=[],
+  done=[]
+) %}
+
+{% for p in data.projects %}
+  {% set op = p.onsite_progress %}
+  {% set total_mats = p.materials | length %}
+  {% set dispatched = p.materials | selectattr('dispatch_status','in',['Dispatched','Delivered']) | list | length %}
+  {% set all_delivered = total_mats > 0 and p.materials | selectattr('dispatch_status','ne','Delivered') | list | length == 0 %}
+  {% set struct_done = op and op.structure_work_status == 'Completed' %}
+  {% set install_done = op and op.installation_status == 'Completed' %}
+
+  {% if install_done %}
+    {% set _ = ns.done.append(p) %}
+  {% elif struct_done %}
+    {% set _ = ns.installation.append(p) %}
+  {% elif all_delivered %}
+    {% set _ = ns.structure.append(p) %}
+  {% elif dispatched > 0 %}
+    {% set _ = ns.with_malabar.append(p) %}
+  {% else %}
+    {% set _ = ns.needs_malabar.append(p) %}
+  {% endif %}
+{% endfor %}
+
+{# ── Summary strip ── #}
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+  {% for label, count, color in [
+    ('Pending dispatch', ns.needs_malabar | length, '#92400e'),
+    ('With Malabar',     ns.with_malabar | length,  '#92400e'),
+    ('Materials ready',  ns.delivered | length,     '#1e40af'),
+    ('Structure',        ns.structure | length,      '#1e40af'),
+    ('Installation',     ns.installation | length,   '#6b21a8'),
+    ('Completed',        ns.done | length,           '#065f46'),
+  ] %}
+  <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:10px 16px;min-width:110px">
+    <div style="font-size:22px;font-weight:500;color:{{ color }}">{{ count }}</div>
+    <div style="font-size:11px;color:var(--muted)">{{ label }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+{# ── Board columns ── #}
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px" class="board-grid">
+
+  {# Column A: Needs Malabar + With Malabar #}
+  <div class="card" style="padding:0">
+    <div class="stage-header">
+      <span>① Malabar dispatch</span>
+      <span class="count">{{ (ns.needs_malabar | length) + (ns.with_malabar | length) }}</span>
+    </div>
+    {% if ns.needs_malabar or ns.with_malabar %}
+      {% for p in ns.needs_malabar %}
+      <a href="{{ url_for('onsite_progress', pid=p.id) }}" style="text-decoration:none;color:inherit;display:block">
+        <div class="proj-card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div class="proj-card-code">{{ p.project_code }}</div>
+            <span class="tag-pill pill-malabar">Pending</span>
+          </div>
+          <div class="proj-card-name">{{ p.customer.name }}</div>
+          <div class="proj-card-meta">
+            {{ p.inverter_capacity_kw }} kW ·
+            {{ p.materials | length }} material(s) pending
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+      {% for p in ns.with_malabar %}
+      {% set dispatched_count = p.materials | selectattr('dispatch_status','in',['Dispatched','Delivered']) | list | length %}
+      <a href="{{ url_for('onsite_progress', pid=p.id) }}" style="text-decoration:none;color:inherit;display:block">
+        <div class="proj-card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div class="proj-card-code">{{ p.project_code }}</div>
+            <span class="tag-pill pill-malabar">With Malabar</span>
+          </div>
+          <div class="proj-card-name">{{ p.customer.name }}</div>
+          <div class="proj-card-meta">
+            {{ p.inverter_capacity_kw }} kW ·
+            {{ dispatched_count }}/{{ p.materials | length }} sent
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="empty-col">No projects</div>
+    {% endif %}
+  </div>
+
+  {# Column B: Structure work #}
+  <div class="card" style="padding:0">
+    <div class="stage-header">
+      <span>③ Structure work</span>
+      <span class="count">{{ ns.structure | length }}</span>
+    </div>
+    {% if ns.structure %}
+      {% for p in ns.structure %}
+      {% set op = p.onsite_progress %}
+      <a href="{{ url_for('onsite_progress', pid=p.id) }}" style="text-decoration:none;color:inherit;display:block">
+        <div class="proj-card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div class="proj-card-code">{{ p.project_code }}</div>
+            <span class="tag-pill pill-struct">
+              {% if op and op.structure_work_status == 'InProgress' %}In progress{% else %}Not started{% endif %}
+            </span>
+          </div>
+          <div class="proj-card-name">{{ p.customer.name }}</div>
+          <div class="proj-card-meta">
+            {{ p.inverter_capacity_kw }} kW · Materials ready
+            {% if op and op.structure_start_date %} · Started {{ op.structure_start_date | date_fmt }}{% endif %}
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="empty-col">No projects</div>
+    {% endif %}
+  </div>
+
+  {# Column C: Installation #}
+  <div class="card" style="padding:0">
+    <div class="stage-header">
+      <span>④ Installation</span>
+      <span class="count">{{ ns.installation | length }}</span>
+    </div>
+    {% if ns.installation %}
+      {% for p in ns.installation %}
+      {% set op = p.onsite_progress %}
+      <a href="{{ url_for('onsite_progress', pid=p.id) }}" style="text-decoration:none;color:inherit;display:block">
+        <div class="proj-card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div class="proj-card-code">{{ p.project_code }}</div>
+            <span class="tag-pill pill-install">
+              {% if op and op.installation_status == 'InProgress' %}In progress{% else %}Ready{% endif %}
+            </span>
+          </div>
+          <div class="proj-card-name">{{ p.customer.name }}</div>
+          <div class="proj-card-meta">
+            {{ p.inverter_capacity_kw }} kW
+            {% if op and op.installation_start_date %} · Started {{ op.installation_start_date | date_fmt }}{% endif %}
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="empty-col">No projects</div>
+    {% endif %}
+  </div>
+
+  {# Column D: Completed #}
+  <div class="card" style="padding:0">
+    <div class="stage-header">
+      <span>✓ Done</span>
+      <span class="count">{{ ns.done | length }}</span>
+    </div>
+    {% if ns.done %}
+      {% for p in ns.done %}
+      {% set op = p.onsite_progress %}
+      <a href="{{ url_for('onsite_progress', pid=p.id) }}" style="text-decoration:none;color:inherit;display:block">
+        <div class="proj-card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div class="proj-card-code">{{ p.project_code }}</div>
+            <span class="tag-pill pill-done">Complete</span>
+          </div>
+          <div class="proj-card-name">{{ p.customer.name }}</div>
+          <div class="proj-card-meta">
+            {{ p.inverter_capacity_kw }} kW
+            {% if op and op.installation_end_date %} · {{ op.installation_end_date | date_fmt }}{% endif %}
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="empty-col">No projects</div>
+    {% endif %}
+  </div>
+
+</div>
+
+{# ── Worker tasks ── #}
+{% if data.tasks %}
+<div class="card" style="margin-top:4px">
+  <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px">
+    Your task notifications
+  </div>
+  {% for n in data.tasks %}
+  <div style="display:flex;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px">
+    <div style="flex:1">{{ n.message }}</div>
+    <div style="font-size:11px;color:var(--hint);white-space:nowrap">
+      {{ n.created_at | date_fmt }}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}

@@ -450,7 +450,7 @@ class WorkerAssignment(db.Model):
     start_date  = db.Column(db.Date)
     end_date    = db.Column(db.Date)
     days_worked = db.Column(db.Integer, default=0)
-    work_phase  = db.Column(db.Enum('Structure','Installation','Electrical'), default='Structure')
+    work_phase  = db.Column(db.Enum('Structure','Electrical/Installation','Full Work'), default='Structure')
     status      = db.Column(db.Enum('Assigned','Active','Completed','Paid'), default='Assigned')
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -671,13 +671,13 @@ class JobCard(db.Model):
     id           = db.Column(db.Integer, primary_key=True)
     project_id   = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
     worker_id    = db.Column(db.Integer, db.ForeignKey('workers.id'),  nullable=False)
-    work_phase   = db.Column(db.Enum('Structure','Installation','Electrical'), nullable=False)
+    work_phase   = db.Column(db.Enum('Structure','Installation/Electrical','Full Work'), nullable=False)
     description  = db.Column(db.String(300))
     agreed_amount   = db.Column(db.Numeric(10, 2), nullable=True)
     actual_days     = db.Column(db.Numeric(4, 1),  nullable=True)
     rate_per_day    = db.Column(db.Numeric(10, 2), nullable=True)
     final_amount    = db.Column(db.Numeric(10, 2), nullable=True)
-    status       = db.Column(db.Enum('Open','PendingApproval','Approved','Paid','Voided'), default='Open')
+    status = db.Column(db.Enum('Open','Approved','Paid','Voided'), default='Open')
     created_at   = db.Column(db.DateTime, default=datetime.utcnow)
     closed_at    = db.Column(db.DateTime, nullable=True)
     approved_at  = db.Column(db.DateTime, nullable=True)
@@ -1306,17 +1306,17 @@ def dashboard():
         from sqlalchemy.orm import joinedload
         from sqlalchemy import func
 
-    # ✅ Load projects with documents (no lazy loading)
+   
         all_my_projects = Project.query.options(
         joinedload(Project.documents)
     ).filter_by(doc_staff_id=current_user.id).all()
 
-    # ✅ Filter active projects
+    
         my_projects = [p for p in all_my_projects if p.status not in ['Cancelled', 'OnHold']]
 
         project_ids = [p.id for p in my_projects]
 
-    # ✅ SINGLE QUERY to get document counts (replaces get_doc_completion)
+    
         doc_counts = []
         if project_ids:
             doc_counts = db.session.query(
@@ -1327,13 +1327,13 @@ def dashboard():
             Document.project_id.in_(project_ids)
         ).group_by(Document.project_id).all()
 
-    # ✅ Convert to dict for fast lookup
+    
         doc_map = {
         d.project_id: (int(d.done or 0), int(d.total or 0))
         for d in doc_counts
     }
 
-    # ✅ Build data WITHOUT extra DB queries
+    
         projects_with_counts = []
         for p in my_projects:
             done, total = doc_map.get(p.id, (0, 0))
@@ -1345,7 +1345,7 @@ def dashboard():
             'doc_pct': int(done / total * 100) if total > 0 else 0,
         })
 
-    # ✅ Pagination (in memory - OK for moderate data)
+    
         page = request.args.get('page', 1, type=int)
         per_page = 20
         total = len(projects_with_counts)
@@ -1358,7 +1358,7 @@ def dashboard():
         data['total_projects'] = total
         data['total_pages'] = (total + per_page - 1) // per_page
 
-    # ✅ These are now SAFE (no extra queries due to joinedload)
+    
         data['queue'] = len(my_projects)
 
         data['new_projects'] = [
@@ -1373,7 +1373,7 @@ def dashboard():
     ]
         data['completed_count'] = len(data['completed_projects'])
 
-    # ✅ Limit notifications (good fix already)
+    
         data['notifications'] = Notification.query.filter_by(
         user_id=current_user.id,
         is_read=False
@@ -1391,17 +1391,18 @@ def dashboard():
             page=request.args.get('page', 1, type=int), per_page=20, error_out=False)
 
     elif role == 'onsite':
-        feasibility_ids = db.session.query(Document.project_id).filter(
-            Document.doc_type == 'Feasibility Receipt',
-            Document.status.in_(['Received', 'Completed'])).subquery()
-        completed_ids   = db.session.query(OnsiteProgress.project_id).filter(
-            OnsiteProgress.electrical_status == 'Completed').subquery()
-        data['projects'] = Project.query.filter(
-            Project.status.in_(['InProgress','Delayed']),
-            Project.id.in_(feasibility_ids),
-            Project.id.notin_(completed_ids)).all()
-        data['workers']  = Worker.query.filter_by(is_active=True).all()
-        data['tasks']    = Notification.query.filter_by(
+        from sqlalchemy.orm import joinedload
+        data['projects'] = (Project.query
+            .options(
+                joinedload(Project.onsite_progress),
+                joinedload(Project.materials),
+                joinedload(Project.customer),
+            )
+            .filter(Project.status.in_(['InProgress','Delayed','Lead','Created']))
+            .order_by(Project.updated_at.desc())
+            .all())
+        data['workers'] = Worker.query.filter_by(is_active=True).all()
+        data['tasks']   = Notification.query.filter_by(
             user_id=current_user.id, notif_type='task', is_read=False).order_by(
             Notification.created_at.desc()).all()
 
@@ -1415,7 +1416,26 @@ def dashboard():
         data['completed']       = AppInstallation.query.filter_by(status='Completed').count()
 
     return render_template('dashboard.html', data=data)
-
+@app.route('/onsite')
+@login_required
+@roles_required('admin', 'onsite')
+def onsite_board():
+    from sqlalchemy.orm import joinedload
+    projects = (Project.query
+        .options(
+            joinedload(Project.onsite_progress),
+            joinedload(Project.materials),
+            joinedload(Project.customer),
+        )
+        .filter(Project.status.in_(['InProgress','Delayed','Lead','Created']))
+        .order_by(Project.updated_at.desc())
+        .all())
+    workers = Worker.query.filter_by(is_active=True).all()
+    tasks   = Notification.query.filter_by(
+        user_id=current_user.id, notif_type='task', is_read=False).order_by(
+        Notification.created_at.desc()).all()
+    data = {'projects': projects, 'workers': workers, 'tasks': tasks}
+    return render_template('onsite_dashboard.html', data=data)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PROJECTS
@@ -2477,26 +2497,10 @@ def restore_worker(worker_id):
 @login_required
 @roles_required('admin', 'onsite')
 def assign_worker(pid):
-    if current_user.role == 'onsite':
-        if not Document.query.filter_by(project_id=pid, doc_type='Feasibility Receipt').filter(
-                Document.status.in_(['Received','Completed'])).first():
-            flash('Worker assignment is not allowed until the Feasibility Receipt is received', 'danger')
-            return redirect(url_for('project_detail', pid=pid))
-
     start    = request.form.get('start_date')
     end      = request.form.get('end_date')
     days     = max((date.fromisoformat(end) - date.fromisoformat(start)).days + 1, 0) if start and end else 0
     phase    = request.form.get('work_phase', 'Structure')
-    progress = Project.query.get_or_404(pid).onsite_progress
-
-    if phase in ('Installation', 'Electrical'):
-        if not progress or progress.structure_work_status != 'Completed':
-            flash(f'{phase} workers cannot be assigned until structure work is marked Completed.', 'danger')
-            return redirect(url_for('project_detail', pid=pid))
-    if phase == 'Installation':
-        if not [m for m in Project.query.get_or_404(pid).materials if m.dispatch_status in ('Dispatched','Delivered')]:
-            flash('At least one material must be Dispatched before assigning Installation workers.', 'danger')
-            return redirect(url_for('project_detail', pid=pid))
 
     worker_id = int(request.form['worker_id'])
     wa = WorkerAssignment(project_id=pid, worker_id=worker_id,
@@ -2539,19 +2543,8 @@ def unassign_worker(pid, aid):
 @login_required
 @roles_required('admin', 'onsite')
 def update_assignment(pid, aid):
-    if current_user.role == 'onsite':
-        if not Document.query.filter_by(project_id=pid, doc_type='Feasibility Receipt').filter(
-                Document.status.in_(['Received','Completed'])).first():
-            flash('Worker assignment is not allowed until the Feasibility Receipt is received', 'danger')
-            return redirect(url_for('project_detail', pid=pid))
-
     wa        = WorkerAssignment.query.get_or_404(aid)
     new_phase = request.form.get('work_phase', wa.work_phase)
-    if new_phase in ('Installation', 'Electrical'):
-        progress = Project.query.get_or_404(pid).onsite_progress
-        if not progress or progress.structure_work_status != 'Completed':
-            flash('Installation and Electrical phases require structure work to be Completed.', 'danger')
-            return redirect(url_for('project_detail', pid=pid))
     wa.work_phase = new_phase
 
     new_status = request.form.get('status', wa.status)
@@ -2600,20 +2593,6 @@ def onsite_progress(pid):
         new_struct  = request.form.get('structure_work_status', progress.structure_work_status)
         new_install = request.form.get('installation_status', '')
         new_elec    = request.form.get('electrical_status', '')
-
-        struct_workers  = [a for a in proj.assignments if a.work_phase == 'Structure' and a.status != 'Paid']
-        install_workers = [a for a in proj.assignments if a.work_phase == 'Installation' and a.status != 'Paid']
-        elec_workers    = [a for a in proj.assignments if a.work_phase == 'Electrical' and a.status != 'Paid']
-
-        if new_struct in ('InProgress','Completed') and not struct_workers:
-            flash('Assign at least one Structure worker before updating structure work status.', 'danger')
-            return redirect(url_for('onsite_progress', pid=pid))
-        if new_install in ('InProgress','Completed') and not install_workers:
-            flash('Assign at least one Installation worker before updating panel installation status.', 'danger')
-            return redirect(url_for('onsite_progress', pid=pid))
-        if new_elec in ('InProgress','Completed') and not elec_workers:
-            flash('Assign at least one Electrical worker before updating electrical work status.', 'danger')
-            return redirect(url_for('onsite_progress', pid=pid))
 
         old_struct  = progress.structure_work_status
         old_install = progress.installation_status or 'NotStarted'
@@ -2683,29 +2662,12 @@ def close_job_card(card_id):
     card.actual_days  = Decimal(request.form['actual_days'])
     card.final_amount = Decimal(request.form['final_amount'])
     card.description  = _clean(request.form.get('description', ''), 300) or None
-    card.status       = 'PendingApproval'
+    card.status       = 'Approved'
     card.closed_at    = datetime.utcnow()
     card.closed_by    = current_user.id
-    log_action(card.project_id,
-        f'Job card closed: {card.worker.name} — {card.work_phase} ({card.actual_days} days)',
-        new_val=str(card.final_amount))
-    db.session.commit()
-    flash(f'Job card submitted for approval — ₹{card.final_amount:,.0f} for {card.worker.name}.', 'success')
-    return redirect(url_for('workers'))
-
-
-@app.route('/job_card/<int:card_id>/approve', methods=['POST'])
-@login_required
-@roles_required('admin', 'onsite')
-def approve_job_card(card_id):
-    card = JobCard.query.get_or_404(card_id)
-    if card.status != 'PendingApproval':
-        flash('Card is not pending approval.', 'danger')
-        return redirect(url_for('workers'))
-    card.status      = 'Approved'
     card.approved_at = datetime.utcnow()
     card.approved_by = current_user.id
-
+ 
     last = WorkerLedger.query.filter_by(worker_id=card.worker_id).order_by(WorkerLedger.id.desc()).first()
     prev = float(last.balance_after) if last else 0.0
     db.session.add(WorkerLedger(
@@ -2715,11 +2677,40 @@ def approve_job_card(card_id):
         balance_after=prev + float(card.final_amount), recorded_by=current_user.id,
         notes=f'{card.work_phase} — {card.project.project_code}',
     ))
-    log_action(card.project_id, f'Job card approved: {card.worker.name} — {card.work_phase}',
-               new_val=str(card.final_amount))
+    log_action(card.project_id,
+        f'Job card closed: {card.worker.name} — {card.work_phase} ({card.actual_days} days)',
+        new_val=str(card.final_amount))
     db.session.commit()
-    flash(f'Job card approved. ₹{card.final_amount:,.0f} added to {card.worker.name}\'s balance.', 'success')
+    flash(f'Job card closed — ₹{card.final_amount:,.0f} added to {card.worker.name}\'s balance.', 'success')
     return redirect(url_for('workers'))
+
+
+# @app.route('/job_card/<int:card_id>/approve', methods=['POST'])
+# @login_required
+# @roles_required('admin', 'onsite')
+# def approve_job_card(card_id):
+#     card = JobCard.query.get_or_404(card_id)
+#     if card.status != 'PendingApproval':
+#         flash('Card is not pending approval.', 'danger')
+#         return redirect(url_for('workers'))
+#     card.status      = 'Approved'
+#     card.approved_at = datetime.utcnow()
+#     card.approved_by = current_user.id
+
+#     last = WorkerLedger.query.filter_by(worker_id=card.worker_id).order_by(WorkerLedger.id.desc()).first()
+#     prev = float(last.balance_after) if last else 0.0
+#     db.session.add(WorkerLedger(
+#         worker_id=card.worker_id, entry_date=date.today(),
+#         entry_type='Earning', direction='Credit', amount=card.final_amount,
+#         reference_type='JobCard', reference_id=card.id,
+#         balance_after=prev + float(card.final_amount), recorded_by=current_user.id,
+#         notes=f'{card.work_phase} — {card.project.project_code}',
+#     ))
+#     log_action(card.project_id, f'Job card approved: {card.worker.name} — {card.work_phase}',
+#                new_val=str(card.final_amount))
+#     db.session.commit()
+#     flash(f'Job card approved. ₹{card.final_amount:,.0f} added to {card.worker.name}\'s balance.', 'success')
+#     return redirect(url_for('workers'))
 
 
 @app.route('/job_card/<int:card_id>/void', methods=['POST'])
@@ -2849,10 +2840,6 @@ def recover_advance(advance_id):
 def dispatch_material(pid, mid):
     proj     = Project.query.get_or_404(pid)
     material = Material.query.get_or_404(mid)
-    progress = proj.onsite_progress
-    if not progress or progress.structure_work_status != 'Completed':
-        flash('Materials cannot be dispatched until structure work is marked Completed.', 'danger')
-        return redirect(url_for('project_detail', pid=pid))
     material.dispatch_status = 'Dispatched'
     material.dispatch_date   = date.today()
     log_action(pid, f'Material dispatched: {material.item_name}', new_val='Dispatched')
@@ -2885,10 +2872,6 @@ def update_material(pid, mid):
 @roles_required('admin', 'onsite')
 def bulk_update_materials(pid):
     proj     = Project.query.get_or_404(pid)
-    progress = proj.onsite_progress
-    if not progress or progress.structure_work_status != 'Completed':
-        flash('Materials cannot be updated until structure work is Completed.', 'danger')
-        return redirect(url_for('onsite_progress', pid=pid))
     dispatch_status = request.form.get('dispatch_status')
     dispatch_date   = request.form.get('dispatch_date')
     for m in proj.materials:
@@ -2908,13 +2891,6 @@ def bulk_update_materials(pid):
 @roles_required('admin', 'onsite')
 def add_material(pid):
     proj     = Project.query.get_or_404(pid)
-    progress = proj.onsite_progress
-    if not progress or progress.structure_work_status != 'Completed':
-        flash('Materials cannot be added until structure work is marked Completed.', 'danger')
-        return redirect(url_for('onsite_progress', pid=pid))
-    if len(proj.materials) > 0 and all(m.dispatch_status == 'Delivered' for m in proj.materials):
-        flash('All materials are already delivered. No new materials can be added.', 'danger')
-        return redirect(url_for('onsite_progress', pid=pid))
     material = Material(project_id=pid,
         item_name=_clean(request.form['item_name'], 100),
         quantity=_safe_float(request.form.get('quantity') or 0),
