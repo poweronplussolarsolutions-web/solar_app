@@ -793,6 +793,7 @@ function syncStatus(stageSelect) {
   </div>
   {% endif %}
 </div>
+
 {# ── ONSITE PROGRESS SUMMARY ── #}
 {% if proj.onsite_progress %}
 {% set op = proj.onsite_progress %}
@@ -804,55 +805,57 @@ function syncStatus(stageSelect) {
     {% endif %}
   </div>
   <div class="table-wrap">
-
   <table style="font-size:13px;width:100%">
     <thead>
       <tr>
         <th style="text-align:left;color:var(--muted);font-weight:600;padding-bottom:8px;font-size:11px">Phase</th>
         <th style="text-align:left;color:var(--muted);font-weight:600;padding-bottom:8px;font-size:11px">Status</th>
-        <th style="text-align:left;color:var(--muted);font-weight:600;padding-bottom:8px;font-size:11px">Start</th>
-        <th style="text-align:left;color:var(--muted);font-weight:600;padding-bottom:8px;font-size:11px">End</th>
+        <th style="text-align:left;color:var(--muted);font-weight:600;padding-bottom:8px;font-size:11px">Date</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td style="padding:5px 0">① Structure</td>
-        <td><span class="badge badge-{{ op.structure_work_status }}">{{ op.structure_work_status }}</span></td>
-        <td style="color:var(--muted)">{{ op.structure_start_date | date_fmt }}</td>
-        <td style="color:var(--muted)">{{ op.structure_end_date | date_fmt }}</td>
-      </tr>
-      <tr>
-        <td style="padding:5px 0">② Materials</td>
+        <td style="padding:5px 0">① Materials order</td>
         <td>
-          {% set total     = proj.materials | list %}
-          {% set delivered = proj.materials | selectattr('dispatch_status','eq','Delivered') | list %}
-          {% if total | length == 0 %}
-            <span class="badge badge-Created">None added</span>
-          {% elif delivered | length == total | length %}
-            <span class="badge badge-Completed">All delivered</span>
+          {% if op.materials_ordered %}
+            <span class="badge badge-Completed">Ordered</span>
           {% else %}
-            <span class="badge badge-InProgress">{{ delivered | length }}/{{ total | length }} delivered</span>
+            <span class="badge badge-Created">Pending</span>
           {% endif %}
         </td>
         <td style="color:var(--muted);font-size:12px">
-    {% set first_dispatch = proj.materials | selectattr('dispatch_date') | sort(attribute='dispatch_date') | first %}
-    {{ first_dispatch.dispatch_date | date_fmt if first_dispatch else '—' }}
-  </td>
-        <td style="color:var(--hint);font-size:12px">—</td>
+          {{ op.materials_ordered_date | date_fmt if op.materials_ordered_date else '—' }}
+        </td>
       </tr>
       <tr>
-        <td style="padding:5px 0">③ Installation</td>
+        <td style="padding:5px 0">② Materials delivery</td>
+        <td>
+          {% if op.materials_delivered %}
+            <span class="badge badge-Completed">Delivered</span>
+          {% else %}
+            <span class="badge badge-Created">Awaiting</span>
+          {% endif %}
+        </td>
+        <td style="color:var(--muted);font-size:12px">
+          {{ op.materials_delivered_date | date_fmt if op.materials_delivered_date else '—' }}
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0">③ Structure</td>
+        <td><span class="badge badge-{{ op.structure_work_status }}">{{ op.structure_work_status }}</span></td>
+        <td style="color:var(--muted);font-size:12px">
+          {{ op.structure_start_date | date_fmt if op.structure_start_date else '—' }}
+          {% if op.structure_end_date %} → {{ op.structure_end_date | date_fmt }}{% endif %}
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:5px 0">④ Installation</td>
         <td><span class="badge badge-{{ op.installation_status }}">{{ op.installation_status }}</span></td>
-        <td style="color:var(--muted)">{{ op.installation_start_date | date_fmt }}</td>
-        <td style="color:var(--muted)">{{ op.installation_end_date | date_fmt }}</td>
+        <td style="color:var(--muted);font-size:12px">
+          {{ op.installation_start_date | date_fmt if op.installation_start_date else '—' }}
+          {% if op.installation_end_date %} → {{ op.installation_end_date | date_fmt }}{% endif %}
+        </td>
       </tr>
-      <tr>
-        <td style="padding:5px 0">④ Electrical</td>
-        <td><span class="badge badge-{{ op.electrical_status }}">{{ op.electrical_status }}</span></td>
-        <td style="color:var(--muted)">{{ op.electrical_start_date | date_fmt }}</td>
-        <td style="color:var(--muted)">{{ op.electrical_end_date | date_fmt }}</td>
-      </tr>
-      
     </tbody>
   </table>
   </div>
