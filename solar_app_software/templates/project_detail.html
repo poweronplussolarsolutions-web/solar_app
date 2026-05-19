@@ -1046,10 +1046,12 @@ function syncStatus(stageSelect) {
  
         {% if current_user.role in ['admin','onsite'] %}
         <td>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn-sm edit-btn" data-aid="{{ a.id }}">Edit</button>
         </td>
         <td>
           {% if a.status != 'Paid' %}
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn-sm btn-danger unassign-btn"
                   data-aid="{{ a.id }}"
                   data-name="{{ a.worker.name }}"
