@@ -150,7 +150,7 @@
     <input type="hidden" name="structure_start_date"    value="{{ progress.structure_start_date or '' }}"/>
     <input type="hidden" name="structure_end_date"      value="{{ progress.structure_end_date or ''' }}"/>
     <input type="hidden" name="structure_notes"         value="{{ progress.structure_notes or '' }}"/>
-    <input type="hidden" name="installation_status"     value="{{ progress.installation_status or 'NotStarted' }}"/>
+    <input type="hidden" name="installation_status" value="{{ progress.installation_status|default('NotStarted') }}">
     <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
     <input type="hidden" name="installation_end_date"   value="{{ progress.installation_end_date or '' }}"/>
     <input type="hidden" name="installation_notes"      value="{{ progress.installation_notes or '' }}"/>
@@ -184,7 +184,7 @@
     <input type="hidden" name="structure_start_date"    value="{{ progress.structure_start_date or '' }}"/>
     <input type="hidden" name="structure_end_date"      value="{{ progress.structure_end_date or '' }}"/>
     <input type="hidden" name="structure_notes"         value="{{ progress.structure_notes or '' }}"/>
-    <input type="hidden" name="installation_status"     value="{{ progress.installation_status or 'NotStarted' }}"/>
+    <input type="hidden" name="installation_status" value="{{ progress.installation_status|default('NotStarted') }}">
     <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
     <input type="hidden" name="installation_end_date"   value="{{ progress.installation_end_date or '' }}"/>
     <input type="hidden" name="installation_notes"      value="{{ progress.installation_notes or '' }}"/>
@@ -252,7 +252,7 @@
       <input type="hidden" name="materials_ordered_date"   value="{{ progress.materials_ordered_date or '' }}"/>
       <input type="hidden" name="materials_delivered"       value="{{ 'on' if progress.materials_delivered else '' }}"/>
       <input type="hidden" name="materials_delivered_date"  value="{{ progress.materials_delivered_date or '' }}"/>
-      <input type="hidden" name="installation_status" value="{{ progress.installation_status or 'NotStarted' }}"/>
+      <input type="hidden" name="installation_status" value="{{ progress.installation_status|default('NotStarted') }}">
       <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
       <input type="hidden" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
       <input type="hidden" name="installation_notes" value="{{ progress.installation_notes or '' }}"/>
@@ -297,7 +297,7 @@
     <input type="hidden" name="materials_ordered_date"   value="{{ progress.materials_ordered_date or '' }}"/>
     <input type="hidden" name="materials_delivered"       value="{{ 'on' if progress.materials_delivered else '' }}"/>
     <input type="hidden" name="materials_delivered_date"  value="{{ progress.materials_delivered_date or '' }}"/>
-    <input type="hidden" name="installation_status" value="{{ progress.installation_status or 'NotStarted' }}"/>
+    <input type="hidden" name="installation_status" value="{{ progress.installation_status|default('NotStarted') }}">
     <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
     <input type="hidden" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
     <input type="hidden" name="installation_notes" value="{{ progress.installation_notes or '' }}"/>
