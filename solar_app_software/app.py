@@ -2631,7 +2631,7 @@ def onsite_progress(pid):
         db.session.commit()
         flash('Onsite progress updated.', 'success')
 
-    return render_template('onsite_progress.html', proj=proj, progress=progress)
+    return render_template('onsite_progress.html', proj=proj, progress=progress,today=date.today())
 
 
 @app.route('/projects/<int:pid>/onsite_log', methods=['POST'])
