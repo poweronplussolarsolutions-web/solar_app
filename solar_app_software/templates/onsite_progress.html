@@ -126,41 +126,26 @@
 {# ═══════════════════════════════════════════ #}
 <div class="card">
   <div class="section-label">① Materials</div>
-  <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
+
+  {# Row 1: Order placed — its own form #}
+  <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}"
+        style="display:grid;grid-template-columns:auto 1fr auto;gap:10px 14px;align-items:center;font-size:13px;margin-bottom:12px">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <span style="font-weight:500;white-space:nowrap">Order placed</span>
+    <input type="date" name="materials_ordered_date"
+           value="{{ progress.materials_ordered_date or '' }}"
+           style="font-size:12px"/>
+    <button type="submit" class="btn btn-primary btn-sm"
+            style="white-space:nowrap">
+      {% if progress.materials_ordered %}✓ Update{% else %}Mark placed{% endif %}
+    </button>
 
-    <div style="display:grid;grid-template-columns:auto 1fr;gap:10px 16px;align-items:center;font-size:13px">
-
-      {# Row 1: Order placed #}
-      <label style="display:flex;align-items:center;gap:8px;font-weight:500;white-space:nowrap">
-        <input type="checkbox" name="materials_ordered"
-               {% if progress.materials_ordered %}checked{% endif %}
-               style="width:15px;height:15px">
-        Order placed
-      </label>
-      <div>
-        <input type="date" name="materials_ordered_date"
-               value="{{ progress.materials_ordered_date or '' }}"
-               style="font-size:12px"
-               placeholder="Date"/>
-      </div>
-
-      {# Row 2: Delivered #}
-      <label style="display:flex;align-items:center;gap:8px;font-weight:500;white-space:nowrap">
-        <input type="checkbox" name="materials_delivered"
-               {% if progress.materials_delivered %}checked{% endif %}
-               style="width:15px;height:15px">
-        Delivered to site
-      </label>
-      <div>
-        <input type="date" name="materials_delivered_date"
-               value="{{ progress.materials_delivered_date or '' }}"
-               style="font-size:12px"/>
-      </div>
-
-    </div>
-
-    {# Pass through all other fields unchanged #}
+    {# Pass materials_ordered as on always when saving from this form #}
+    <input type="hidden" name="materials_ordered" value="on"/>
+    {# Preserve delivered state #}
+    <input type="hidden" name="materials_delivered"       value="{{ 'on' if progress.materials_delivered else '' }}"/>
+    <input type="hidden" name="materials_delivered_date"  value="{{ progress.materials_delivered_date or '' }}"/>
+    {# Pass through all other fields #}
     <input type="hidden" name="structure_work_status"   value="{{ progress.structure_work_status or 'NotStarted' }}"/>
     <input type="hidden" name="structure_start_date"    value="{{ progress.structure_start_date or '' }}"/>
     <input type="hidden" name="structure_end_date"      value="{{ progress.structure_end_date or '' }}"/>
@@ -173,10 +158,40 @@
     <input type="hidden" name="electrical_start_date"   value="{{ progress.electrical_start_date or '' }}"/>
     <input type="hidden" name="electrical_end_date"     value="{{ progress.electrical_end_date or '' }}"/>
     <input type="hidden" name="electrical_notes"        value="{{ progress.electrical_notes or '' }}"/>
+  </form>
 
-    <div style="margin-top:14px">
-      <button type="submit" class="btn btn-primary btn-sm">Save</button>
-    </div>
+  <div style="border-top:0.5px solid var(--border);margin-bottom:12px"></div>
+
+  {# Row 2: Delivered to site — its own form #}
+  <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}"
+        style="display:grid;grid-template-columns:auto 1fr auto;gap:10px 14px;align-items:center;font-size:13px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <span style="font-weight:500;white-space:nowrap">Delivered to site</span>
+    <input type="date" name="materials_delivered_date"
+           value="{{ progress.materials_delivered_date or '' }}"
+           style="font-size:12px"/>
+    <button type="submit" class="btn btn-primary btn-sm"
+            style="white-space:nowrap">
+      {% if progress.materials_delivered %}✓ Update{% else %}Mark delivered{% endif %}
+    </button>
+
+    <input type="hidden" name="materials_delivered" value="on"/>
+    {# Preserve ordered state #}
+    <input type="hidden" name="materials_ordered"       value="{{ 'on' if progress.materials_ordered else '' }}"/>
+    <input type="hidden" name="materials_ordered_date"  value="{{ progress.materials_ordered_date or '' }}"/>
+    {# Pass through all other fields #}
+    <input type="hidden" name="structure_work_status"   value="{{ progress.structure_work_status or 'NotStarted' }}"/>
+    <input type="hidden" name="structure_start_date"    value="{{ progress.structure_start_date or '' }}"/>
+    <input type="hidden" name="structure_end_date"      value="{{ progress.structure_end_date or '' }}"/>
+    <input type="hidden" name="structure_notes"         value="{{ progress.structure_notes or '' }}"/>
+    <input type="hidden" name="installation_status"     value="{{ progress.installation_status or 'NotStarted' }}"/>
+    <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
+    <input type="hidden" name="installation_end_date"   value="{{ progress.installation_end_date or '' }}"/>
+    <input type="hidden" name="installation_notes"      value="{{ progress.installation_notes or '' }}"/>
+    <input type="hidden" name="electrical_status"       value="{{ progress.electrical_status or 'NotStarted' }}"/>
+    <input type="hidden" name="electrical_start_date"   value="{{ progress.electrical_start_date or '' }}"/>
+    <input type="hidden" name="electrical_end_date"     value="{{ progress.electrical_end_date or '' }}"/>
+    <input type="hidden" name="electrical_notes"        value="{{ progress.electrical_notes or '' }}"/>
   </form>
 </div>
 
@@ -233,6 +248,10 @@
         </div>
       </div>
       {# Pass through other fields unchanged #}
+      <input type="hidden" name="materials_ordered"        value="{{ 'on' if progress.materials_ordered else '' }}"/>
+      <input type="hidden" name="materials_ordered_date"   value="{{ progress.materials_ordered_date or '' }}"/>
+      <input type="hidden" name="materials_delivered"       value="{{ 'on' if progress.materials_delivered else '' }}"/>
+      <input type="hidden" name="materials_delivered_date"  value="{{ progress.materials_delivered_date or '' }}"/>
       <input type="hidden" name="installation_status" value="{{ progress.installation_status or 'NotStarted' }}"/>
       <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
       <input type="hidden" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
@@ -274,6 +293,10 @@
         <textarea name="structure_notes" rows="2" placeholder="Optional notes">{{ progress.structure_notes or '' }}</textarea>
       </div>
     </div>
+    <input type="hidden" name="materials_ordered"        value="{{ 'on' if progress.materials_ordered else '' }}"/>
+    <input type="hidden" name="materials_ordered_date"   value="{{ progress.materials_ordered_date or '' }}"/>
+    <input type="hidden" name="materials_delivered"       value="{{ 'on' if progress.materials_delivered else '' }}"/>
+    <input type="hidden" name="materials_delivered_date"  value="{{ progress.materials_delivered_date or '' }}"/>
     <input type="hidden" name="installation_status" value="{{ progress.installation_status or 'NotStarted' }}"/>
     <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
     <input type="hidden" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
@@ -362,6 +385,10 @@
           <textarea name="electrical_notes" rows="2">{{ progress.electrical_notes or '' }}</textarea>
         </div>
       </div>
+      <input type="hidden" name="materials_ordered"        value="{{ 'on' if progress.materials_ordered else '' }}"/>
+      <input type="hidden" name="materials_ordered_date"   value="{{ progress.materials_ordered_date or '' }}"/>
+      <input type="hidden" name="materials_delivered"       value="{{ 'on' if progress.materials_delivered else '' }}"/>
+      <input type="hidden" name="materials_delivered_date"  value="{{ progress.materials_delivered_date or '' }}"/>
       <input type="hidden" name="structure_work_status" value="{{ progress.structure_work_status or 'NotStarted' }}"/>
       <input type="hidden" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
       <input type="hidden" name="structure_end_date" value="{{ progress.structure_end_date or '' }}"/>
@@ -418,6 +445,10 @@
         <textarea name="electrical_notes" rows="2" placeholder="Optional">{{ progress.electrical_notes or '' }}</textarea>
       </div> -->
     </div>
+    <input type="hidden" name="materials_ordered"        value="{{ 'on' if progress.materials_ordered else '' }}"/>
+    <input type="hidden" name="materials_ordered_date"   value="{{ progress.materials_ordered_date or '' }}"/>
+    <input type="hidden" name="materials_delivered"       value="{{ 'on' if progress.materials_delivered else '' }}"/>
+    <input type="hidden" name="materials_delivered_date"  value="{{ progress.materials_delivered_date or '' }}"/>
     <input type="hidden" name="structure_work_status" value="{{ progress.structure_work_status or 'NotStarted' }}"/>
     <input type="hidden" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
     <input type="hidden" name="structure_end_date" value="{{ progress.structure_end_date or '' }}"/>

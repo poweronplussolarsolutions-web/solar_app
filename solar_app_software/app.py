@@ -2611,10 +2611,10 @@ def onsite_progress(pid):
         progress.electrical_status = new_elec if new_elec and new_elec != 'None' else (progress.electrical_status or 'NotStarted')
         progress.electrical_notes  = _clean(request.form.get('electrical_notes', ''), 500)
 
-        progress.updated_by = current_user.id
-        progress.materials_ordered        = 'materials_ordered' in request.form
+        progress.updated_by = current_user.id 
+        progress.materials_ordered        = request.form.get('materials_ordered') == 'on'
         progress.materials_ordered_date   = date.fromisoformat(request.form['materials_ordered_date']) if request.form.get('materials_ordered_date') else None
-        progress.materials_delivered      = 'materials_delivered' in request.form
+        progress.materials_delivered      = request.form.get('materials_delivered') == 'on'
         progress.materials_delivered_date = date.fromisoformat(request.form['materials_delivered_date']) if request.form.get('materials_delivered_date') else None
 
         for field, col in [
