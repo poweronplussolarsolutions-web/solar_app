@@ -69,32 +69,33 @@
 {# ── STEP TRACK ── #}
 <div class="step-track">
   <div class="step-block {% if progress.materials_delivered %}done{% elif progress.materials_ordered %}active{% endif %}">
-  <div class="step-label">① Order</div>
-  <div class="step-status">
-    {% if progress.materials_ordered %}
-      <span class="dot dot-done"></span> Placed
-      {% if progress.materials_ordered_date %}
-        <span style="font-size:10px;color:var(--muted)">{{ progress.materials_ordered_date | date_fmt }}</span>
+    <div class="step-label">① Order</div>
+    <div class="step-status">
+      {% if progress.materials_ordered %}
+        <span class="dot dot-done"></span> Placed
+        {% if progress.materials_ordered_date %}
+          <span style="font-size:10px;color:var(--muted)">{{ progress.materials_ordered_date | date_fmt }}</span>
+        {% endif %}
+      {% else %}
+        <span class="dot dot-none"></span> Pending
       {% endif %}
-    {% else %}
-      <span class="dot dot-none"></span> Pending
-    {% endif %}
+    </div>
   </div>
-</div>
 
-<div class="step-block {% if progress.materials_delivered %}done{% elif progress.materials_ordered %}active{% endif %}">
-  <div class="step-label">② Delivery</div>
-  <div class="step-status">
-    {% if progress.materials_delivered %}
-      <span class="dot dot-done"></span> Delivered
-      {% if progress.materials_delivered_date %}
-        <span style="font-size:10px;color:var(--muted)">{{ progress.materials_delivered_date | date_fmt }}</span>
+  <div class="step-block {% if progress.materials_delivered %}done{% elif progress.materials_ordered %}active{% endif %}">
+    <div class="step-label">② Delivery</div>
+    <div class="step-status">
+      {% if progress.materials_delivered %}
+        <span class="dot dot-done"></span> Delivered
+        {% if progress.materials_delivered_date %}
+          <span style="font-size:10px;color:var(--muted)">{{ progress.materials_delivered_date | date_fmt }}</span>
+        {% endif %}
+      {% else %}
+        <span class="dot dot-none"></span> Awaiting
       {% endif %}
-    {% else %}
-      <span class="dot dot-none"></span> Awaiting
-    {% endif %}
+    </div>
   </div>
-</div>
+
   <div class="step-block {% if struct_done %}done{% elif all_delivered %}active{% endif %}">
     <div class="step-label">③ Structure</div>
     <div class="step-status">
@@ -107,6 +108,7 @@
       {% endif %}
     </div>
   </div>
+
   <div class="step-block {% if install_done %}done{% elif struct_done %}active{% endif %}">
     <div class="step-label">④ Installation</div>
     <div class="step-status">
@@ -135,29 +137,24 @@
     <input type="date" name="materials_ordered_date"
            value="{{ progress.materials_ordered_date or today.isoformat() }}"
            style="font-size:12px"/>
-    <button type="submit" class="btn btn-primary btn-sm"
-            style="white-space:nowrap">
+    <button type="submit" class="btn btn-primary btn-sm" style="white-space:nowrap">
       {% if progress.materials_ordered %}✓ Update{% else %}Mark placed{% endif %}
     </button>
-
-    {# Pass materials_ordered as on always when saving from this form #}
     <input type="hidden" name="materials_ordered" value="on"/>
-    {# Preserve delivered state #}
-    <input type="hidden" name="materials_delivered"       value="{{ 'on' if progress.materials_delivered else '' }}"/>
-    <input type="hidden" name="materials_delivered_date"  value="{{ progress.materials_delivered_date or today.isoformat() }}"/>
-    {# Pass through all other fields #}
-    <input type="hidden" name="structure_work_status"   value="{{ progress.structure_work_status or 'NotStarted' }}"/>
-    <input type="hidden" name="structure_start_date"    value="{{ progress.structure_start_date or '' }}"/>
-    <input type="hidden" name="structure_end_date"      value="{{ progress.structure_end_date or ''' }}"/>
-    <input type="hidden" name="structure_notes"         value="{{ progress.structure_notes or '' }}"/>
-    <input type="hidden" name="installation_status" value="{{ progress.installation_status|default('NotStarted') }}">
+    <input type="hidden" name="materials_delivered" value="{{ 'on' if progress.materials_delivered else '' }}"/>
+    <input type="hidden" name="materials_delivered_date" value="{{ progress.materials_delivered_date or today.isoformat() }}"/>
+    <input type="hidden" name="structure_work_status" value="{{ progress.structure_work_status or 'NotStarted' }}"/>
+    <input type="hidden" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
+    <input type="hidden" name="structure_end_date" value="{{ progress.structure_end_date or '' }}"/>
+    <input type="hidden" name="structure_notes" value="{{ progress.structure_notes or '' }}"/>
+    <input type="hidden" name="installation_status" value="{{ progress.installation_status or 'NotStarted' }}"/>
     <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
-    <input type="hidden" name="installation_end_date"   value="{{ progress.installation_end_date or '' }}"/>
-    <input type="hidden" name="installation_notes"      value="{{ progress.installation_notes or '' }}"/>
-    <input type="hidden" name="electrical_status"       value="{{ progress.electrical_status or 'NotStarted' }}"/>
-    <input type="hidden" name="electrical_start_date"   value="{{ progress.electrical_start_date or '' }}"/>
-    <input type="hidden" name="electrical_end_date"     value="{{ progress.electrical_end_date or '' }}"/>
-    <input type="hidden" name="electrical_notes"        value="{{ progress.electrical_notes or '' }}"/>
+    <input type="hidden" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
+    <input type="hidden" name="installation_notes" value="{{ progress.installation_notes or '' }}"/>
+    <input type="hidden" name="electrical_status" value="{{ progress.electrical_status or 'NotStarted' }}"/>
+    <input type="hidden" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
+    <input type="hidden" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
+    <input type="hidden" name="electrical_notes" value="{{ progress.electrical_notes or '' }}"/>
   </form>
 
   <div style="border-top:0.5px solid var(--border);margin-bottom:12px"></div>
@@ -170,28 +167,24 @@
     <input type="date" name="materials_delivered_date"
            value="{{ progress.materials_delivered_date or today.isoformat() }}"
            style="font-size:12px"/>
-    <button type="submit" class="btn btn-primary btn-sm"
-            style="white-space:nowrap">
+    <button type="submit" class="btn btn-primary btn-sm" style="white-space:nowrap">
       {% if progress.materials_delivered %}✓ Update{% else %}Mark delivered{% endif %}
     </button>
-
     <input type="hidden" name="materials_delivered" value="on"/>
-    {# Preserve ordered state #}
-    <input type="hidden" name="materials_ordered"       value="{{ 'on' if progress.materials_ordered else '' }}"/>
-    <input type="hidden" name="materials_ordered_date"  value="{{ progress.materials_ordered_date or '' }}"/>
-    {# Pass through all other fields #}
-    <input type="hidden" name="structure_work_status"   value="{{ progress.structure_work_status or 'NotStarted' }}"/>
-    <input type="hidden" name="structure_start_date"    value="{{ progress.structure_start_date or '' }}"/>
-    <input type="hidden" name="structure_end_date"      value="{{ progress.structure_end_date or '' }}"/>
-    <input type="hidden" name="structure_notes"         value="{{ progress.structure_notes or '' }}"/>
-    <input type="hidden" name="installation_status" value="{{ progress.installation_status|default('NotStarted') }}">
+    <input type="hidden" name="materials_ordered" value="{{ 'on' if progress.materials_ordered else '' }}"/>
+    <input type="hidden" name="materials_ordered_date" value="{{ progress.materials_ordered_date or '' }}"/>
+    <input type="hidden" name="structure_work_status" value="{{ progress.structure_work_status or 'NotStarted' }}"/>
+    <input type="hidden" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
+    <input type="hidden" name="structure_end_date" value="{{ progress.structure_end_date or '' }}"/>
+    <input type="hidden" name="structure_notes" value="{{ progress.structure_notes or '' }}"/>
+    <input type="hidden" name="installation_status" value="{{ progress.installation_status or 'NotStarted' }}"/>
     <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
-    <input type="hidden" name="installation_end_date"   value="{{ progress.installation_end_date or '' }}"/>
-    <input type="hidden" name="installation_notes"      value="{{ progress.installation_notes or '' }}"/>
-    <input type="hidden" name="electrical_status"       value="{{ progress.electrical_status or 'NotStarted' }}"/>
-    <input type="hidden" name="electrical_start_date"   value="{{ progress.electrical_start_date or '' }}"/>
-    <input type="hidden" name="electrical_end_date"     value="{{ progress.electrical_end_date or '' }}"/>
-    <input type="hidden" name="electrical_notes"        value="{{ progress.electrical_notes or '' }}"/>
+    <input type="hidden" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
+    <input type="hidden" name="installation_notes" value="{{ progress.installation_notes or '' }}"/>
+    <input type="hidden" name="electrical_status" value="{{ progress.electrical_status or 'NotStarted' }}"/>
+    <input type="hidden" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
+    <input type="hidden" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
+    <input type="hidden" name="electrical_notes" value="{{ progress.electrical_notes or '' }}"/>
   </form>
 </div>
 
@@ -207,7 +200,7 @@
   </div>
 
   {% if struct_done %}
-  {# Read-only #}
+  {# Read-only view #}
   <div id="struct-view">
     <table style="font-size:13px;width:100%">
       <tr><td style="color:var(--muted);width:120px;padding:5px 0">Status</td>
@@ -247,12 +240,11 @@
           <textarea name="structure_notes" rows="2">{{ progress.structure_notes or '' }}</textarea>
         </div>
       </div>
-      {# Pass through other fields unchanged #}
-      <input type="hidden" name="materials_ordered"        value="{{ 'on' if progress.materials_ordered else '' }}"/>
-      <input type="hidden" name="materials_ordered_date"   value="{{ progress.materials_ordered_date or '' }}"/>
-      <input type="hidden" name="materials_delivered"       value="{{ 'on' if progress.materials_delivered else '' }}"/>
-      <input type="hidden" name="materials_delivered_date"  value="{{ progress.materials_delivered_date or '' }}"/>
-      <input type="hidden" name="installation_status" value="{{ progress.installation_status|default('NotStarted') }}">
+      <input type="hidden" name="materials_ordered" value="{{ 'on' if progress.materials_ordered else '' }}"/>
+      <input type="hidden" name="materials_ordered_date" value="{{ progress.materials_ordered_date or '' }}"/>
+      <input type="hidden" name="materials_delivered" value="{{ 'on' if progress.materials_delivered else '' }}"/>
+      <input type="hidden" name="materials_delivered_date" value="{{ progress.materials_delivered_date or '' }}"/>
+      <input type="hidden" name="installation_status" value="{{ progress.installation_status or 'NotStarted' }}"/>
       <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
       <input type="hidden" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
       <input type="hidden" name="installation_notes" value="{{ progress.installation_notes or '' }}"/>
@@ -293,11 +285,11 @@
         <textarea name="structure_notes" rows="2" placeholder="Optional notes">{{ progress.structure_notes or '' }}</textarea>
       </div>
     </div>
-    <input type="hidden" name="materials_ordered"        value="{{ 'on' if progress.materials_ordered else '' }}"/>
-    <input type="hidden" name="materials_ordered_date"   value="{{ progress.materials_ordered_date or '' }}"/>
-    <input type="hidden" name="materials_delivered"       value="{{ 'on' if progress.materials_delivered else '' }}"/>
-    <input type="hidden" name="materials_delivered_date"  value="{{ progress.materials_delivered_date or '' }}"/>
-    <input type="hidden" name="installation_status" value="{{ progress.installation_status|default('NotStarted') }}">
+    <input type="hidden" name="materials_ordered" value="{{ 'on' if progress.materials_ordered else '' }}"/>
+    <input type="hidden" name="materials_ordered_date" value="{{ progress.materials_ordered_date or '' }}"/>
+    <input type="hidden" name="materials_delivered" value="{{ 'on' if progress.materials_delivered else '' }}"/>
+    <input type="hidden" name="materials_delivered_date" value="{{ progress.materials_delivered_date or '' }}"/>
+    <input type="hidden" name="installation_status" value="{{ progress.installation_status or 'NotStarted' }}"/>
     <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
     <input type="hidden" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
     <input type="hidden" name="installation_notes" value="{{ progress.installation_notes or '' }}"/>
@@ -385,10 +377,10 @@
           <textarea name="electrical_notes" rows="2">{{ progress.electrical_notes or '' }}</textarea>
         </div>
       </div>
-      <input type="hidden" name="materials_ordered"        value="{{ 'on' if progress.materials_ordered else '' }}"/>
-      <input type="hidden" name="materials_ordered_date"   value="{{ progress.materials_ordered_date or '' }}"/>
-      <input type="hidden" name="materials_delivered"       value="{{ 'on' if progress.materials_delivered else '' }}"/>
-      <input type="hidden" name="materials_delivered_date"  value="{{ progress.materials_delivered_date or '' }}"/>
+      <input type="hidden" name="materials_ordered" value="{{ 'on' if progress.materials_ordered else '' }}"/>
+      <input type="hidden" name="materials_ordered_date" value="{{ progress.materials_ordered_date or '' }}"/>
+      <input type="hidden" name="materials_delivered" value="{{ 'on' if progress.materials_delivered else '' }}"/>
+      <input type="hidden" name="materials_delivered_date" value="{{ progress.materials_delivered_date or '' }}"/>
       <input type="hidden" name="structure_work_status" value="{{ progress.structure_work_status or 'NotStarted' }}"/>
       <input type="hidden" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
       <input type="hidden" name="structure_end_date" value="{{ progress.structure_end_date or '' }}"/>
@@ -420,39 +412,23 @@
         <label>End date</label>
         <input type="date" name="installation_end_date" value="{{ progress.installation_end_date or today.isoformat() }}"/>
       </div>
-      <!-- <div class="form-group">
-        <label>Electrical status</label>
-        <select name="electrical_status">
-          {% for s in ['NotStarted','InProgress','Completed'] %}
-          <option value="{{ s }}" {% if progress.electrical_status == s %}selected{% endif %}>{{ s }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Electrical start</label>
-        <input type="date" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
-      </div>
-      <div class="form-group">
-        <label>Electrical end</label>
-        <input type="date" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
-      </div> -->
       <div class="form-group full">
         <label>Notes</label>
         <textarea name="installation_notes" rows="2" placeholder="Optional">{{ progress.installation_notes or '' }}</textarea>
       </div>
-      <!-- <div class="form-group full">
-        <label>Electrical notes</label>
-        <textarea name="electrical_notes" rows="2" placeholder="Optional">{{ progress.electrical_notes or '' }}</textarea>
-      </div> -->
     </div>
-    <input type="hidden" name="materials_ordered"        value="{{ 'on' if progress.materials_ordered else '' }}"/>
-    <input type="hidden" name="materials_ordered_date"   value="{{ progress.materials_ordered_date or '' }}"/>
-    <input type="hidden" name="materials_delivered"       value="{{ 'on' if progress.materials_delivered else '' }}"/>
-    <input type="hidden" name="materials_delivered_date"  value="{{ progress.materials_delivered_date or '' }}"/>
+    <input type="hidden" name="materials_ordered" value="{{ 'on' if progress.materials_ordered else '' }}"/>
+    <input type="hidden" name="materials_ordered_date" value="{{ progress.materials_ordered_date or '' }}"/>
+    <input type="hidden" name="materials_delivered" value="{{ 'on' if progress.materials_delivered else '' }}"/>
+    <input type="hidden" name="materials_delivered_date" value="{{ progress.materials_delivered_date or '' }}"/>
     <input type="hidden" name="structure_work_status" value="{{ progress.structure_work_status or 'NotStarted' }}"/>
     <input type="hidden" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
     <input type="hidden" name="structure_end_date" value="{{ progress.structure_end_date or '' }}"/>
     <input type="hidden" name="structure_notes" value="{{ progress.structure_notes or '' }}"/>
+    <input type="hidden" name="electrical_status" value="{{ progress.electrical_status or 'NotStarted' }}"/>
+    <input type="hidden" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
+    <input type="hidden" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
+    <input type="hidden" name="electrical_notes" value="{{ progress.electrical_notes or '' }}"/>
     <div style="margin-top:12px">
       <button type="submit" class="btn btn-primary btn-sm">Save installation</button>
     </div>
@@ -509,7 +485,7 @@
 
 <script>
 function toggleMatEdit(mid) {
-  var row  = document.getElementById('matedit-' + mid);
+  var row = document.getElementById('matedit-' + mid);
   if (row) row.style.display = row.style.display === 'none' ? 'block' : 'none';
 }
 
