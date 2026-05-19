@@ -127,22 +127,117 @@
 {# ① MATERIALS                                 #}
 {# ═══════════════════════════════════════════ #}
 <div class="card">
-  <div class="section-label">① Materials</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--border)">
+    <div class="section-label" style="margin:0;padding:0;border:none">① Materials</div>
+    {% if progress.materials_ordered or progress.materials_delivered %}
+    <button class="btn btn-sm" id="mat-edit-btn">Edit</button>
+    {% endif %}
+  </div>
 
-  {# Row 1: Order placed — its own form #}
+  {# ── Read-only view (shown when either flag is set) ── #}
+  {% if progress.materials_ordered or progress.materials_delivered %}
+  <div id="mat-view">
+    <table style="font-size:13px;width:100%">
+      <tr>
+        <td style="color:var(--muted);width:160px;padding:5px 0">Order placed</td>
+        <td>
+          {% if progress.materials_ordered %}
+            <span class="badge badge-Completed">Yes</span>
+            <span style="font-size:12px;color:var(--muted);margin-left:6px">{{ progress.materials_ordered_date | date_fmt }}</span>
+          {% else %}
+            <span class="badge badge-Created">No</span>
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <td style="color:var(--muted);padding:5px 0">Delivered to site</td>
+        <td>
+          {% if progress.materials_delivered %}
+            <span class="badge badge-Completed">Yes</span>
+            <span style="font-size:12px;color:var(--muted);margin-left:6px">{{ progress.materials_delivered_date | date_fmt }}</span>
+          {% else %}
+            <span class="badge badge-Created">No</span>
+          {% endif %}
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  {# ── Edit form (hidden by default) ── #}
+  <div id="mat-form" style="display:none;margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
+
+    {# Order placed form #}
+    <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}"
+          style="display:grid;grid-template-columns:auto 1fr auto;gap:10px 14px;align-items:center;font-size:13px;margin-bottom:12px">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <span style="font-weight:500;white-space:nowrap">Order placed</span>
+      <input type="date" name="materials_ordered_date"
+             value="{{ progress.materials_ordered_date or today.isoformat() }}"
+             style="font-size:12px"/>
+      <button type="submit" class="btn btn-primary btn-sm" style="white-space:nowrap">✓ Update</button>
+      <input type="hidden" name="materials_ordered" value="on"/>
+      <input type="hidden" name="materials_delivered" value="{{ 'on' if progress.materials_delivered else '' }}"/>
+      <input type="hidden" name="materials_delivered_date" value="{{ progress.materials_delivered_date or today.isoformat() }}"/>
+      <input type="hidden" name="structure_work_status" value="{{ progress.structure_work_status or 'NotStarted' }}"/>
+      <input type="hidden" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
+      <input type="hidden" name="structure_end_date" value="{{ progress.structure_end_date or '' }}"/>
+      <input type="hidden" name="structure_notes" value="{{ progress.structure_notes or '' }}"/>
+      <input type="hidden" name="installation_status" value="{{ progress.installation_status or 'NotStarted' }}"/>
+      <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
+      <input type="hidden" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
+      <input type="hidden" name="installation_notes" value="{{ progress.installation_notes or '' }}"/>
+      <input type="hidden" name="electrical_status" value="{{ progress.electrical_status or 'NotStarted' }}"/>
+      <input type="hidden" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
+      <input type="hidden" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
+      <input type="hidden" name="electrical_notes" value="{{ progress.electrical_notes or '' }}"/>
+    </form>
+
+    <div style="border-top:0.5px solid var(--border);margin-bottom:12px"></div>
+
+    {# Delivered form #}
+    <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}"
+          style="display:grid;grid-template-columns:auto 1fr auto;gap:10px 14px;align-items:center;font-size:13px;margin-bottom:12px">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <span style="font-weight:500;white-space:nowrap">Delivered to site</span>
+      <input type="date" name="materials_delivered_date"
+             value="{{ progress.materials_delivered_date or today.isoformat() }}"
+             style="font-size:12px"/>
+      <button type="submit" class="btn btn-primary btn-sm" style="white-space:nowrap">✓ Update</button>
+      <input type="hidden" name="materials_delivered" value="on"/>
+      <input type="hidden" name="materials_ordered" value="{{ 'on' if progress.materials_ordered else '' }}"/>
+      <input type="hidden" name="materials_ordered_date" value="{{ progress.materials_ordered_date or '' }}"/>
+      <input type="hidden" name="structure_work_status" value="{{ progress.structure_work_status or 'NotStarted' }}"/>
+      <input type="hidden" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
+      <input type="hidden" name="structure_end_date" value="{{ progress.structure_end_date or '' }}"/>
+      <input type="hidden" name="structure_notes" value="{{ progress.structure_notes or '' }}"/>
+      <input type="hidden" name="installation_status" value="{{ progress.installation_status or 'NotStarted' }}"/>
+      <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
+      <input type="hidden" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
+      <input type="hidden" name="installation_notes" value="{{ progress.installation_notes or '' }}"/>
+      <input type="hidden" name="electrical_status" value="{{ progress.electrical_status or 'NotStarted' }}"/>
+      <input type="hidden" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
+      <input type="hidden" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
+      <input type="hidden" name="electrical_notes" value="{{ progress.electrical_notes or '' }}"/>
+    </form>
+
+    <button type="button" class="btn btn-sm" id="mat-cancel-btn">Cancel</button>
+  </div>
+
+  {% else %}
+  {# ── First-time entry forms (shown when nothing saved yet) ── #}
+
+  {# Order placed form #}
   <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}"
         style="display:grid;grid-template-columns:auto 1fr auto;gap:10px 14px;align-items:center;font-size:13px;margin-bottom:12px">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <span style="font-weight:500;white-space:nowrap">Order placed</span>
     <input type="date" name="materials_ordered_date"
-           value="{{ progress.materials_ordered_date or today.isoformat() }}"
+           value="{{ today.isoformat() }}"
            style="font-size:12px"/>
-    <button type="submit" class="btn btn-primary btn-sm" style="white-space:nowrap">
-      {% if progress.materials_ordered %}✓ Update{% else %}Mark placed{% endif %}
-    </button>
+    <button type="submit" class="btn btn-primary btn-sm" style="white-space:nowrap">Mark placed</button>
     <input type="hidden" name="materials_ordered" value="on"/>
-    <input type="hidden" name="materials_delivered" value="{{ 'on' if progress.materials_delivered else '' }}"/>
-    <input type="hidden" name="materials_delivered_date" value="{{ progress.materials_delivered_date or today.isoformat() }}"/>
+    <input type="hidden" name="materials_delivered" value=""/>
+    <input type="hidden" name="materials_delivered_date" value="{{ today.isoformat() }}"/>
     <input type="hidden" name="structure_work_status" value="{{ progress.structure_work_status or 'NotStarted' }}"/>
     <input type="hidden" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
     <input type="hidden" name="structure_end_date" value="{{ progress.structure_end_date or '' }}"/>
@@ -159,17 +254,15 @@
 
   <div style="border-top:0.5px solid var(--border);margin-bottom:12px"></div>
 
-  {# Row 2: Delivered to site — its own form #}
+  {# Delivered form #}
   <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}"
         style="display:grid;grid-template-columns:auto 1fr auto;gap:10px 14px;align-items:center;font-size:13px">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <span style="font-weight:500;white-space:nowrap">Delivered to site</span>
     <input type="date" name="materials_delivered_date"
-           value="{{ progress.materials_delivered_date or today.isoformat() }}"
+           value="{{ today.isoformat() }}"
            style="font-size:12px"/>
-    <button type="submit" class="btn btn-primary btn-sm" style="white-space:nowrap">
-      {% if progress.materials_delivered %}✓ Update{% else %}Mark delivered{% endif %}
-    </button>
+    <button type="submit" class="btn btn-primary btn-sm" style="white-space:nowrap">Mark delivered</button>
     <input type="hidden" name="materials_delivered" value="on"/>
     <input type="hidden" name="materials_ordered" value="{{ 'on' if progress.materials_ordered else '' }}"/>
     <input type="hidden" name="materials_ordered_date" value="{{ progress.materials_ordered_date or '' }}"/>
@@ -186,6 +279,7 @@
     <input type="hidden" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
     <input type="hidden" name="electrical_notes" value="{{ progress.electrical_notes or '' }}"/>
   </form>
+  {% endif %}
 </div>
 
 {# ═══════════════════════════════════════════ #}
@@ -524,6 +618,24 @@ if (installCancelBtn) {
     installForm.style.display = 'none';
     installView.style.display = 'block';
     installEditBtn.style.display = 'inline-block';
+  });
+}
+var matEditBtn   = document.getElementById('mat-edit-btn');
+var matCancelBtn = document.getElementById('mat-cancel-btn');
+var matView      = document.getElementById('mat-view');
+var matForm      = document.getElementById('mat-form');
+if (matEditBtn) {
+  matEditBtn.addEventListener('click', function() {
+    matView.style.display = 'none';
+    matForm.style.display = 'block';
+    matEditBtn.style.display = 'none';
+  });
+}
+if (matCancelBtn) {
+  matCancelBtn.addEventListener('click', function() {
+    matForm.style.display = 'none';
+    matView.style.display = 'block';
+    matEditBtn.style.display = 'inline-block';
   });
 }
 </script>
