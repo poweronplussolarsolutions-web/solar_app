@@ -133,7 +133,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <span style="font-weight:500;white-space:nowrap">Order placed</span>
     <input type="date" name="materials_ordered_date"
-           value="{{ progress.materials_ordered_date or '' }}"
+           value="{{ progress.materials_ordered_date or today.isoformat() }}"
            style="font-size:12px"/>
     <button type="submit" class="btn btn-primary btn-sm"
             style="white-space:nowrap">
@@ -144,11 +144,11 @@
     <input type="hidden" name="materials_ordered" value="on"/>
     {# Preserve delivered state #}
     <input type="hidden" name="materials_delivered"       value="{{ 'on' if progress.materials_delivered else '' }}"/>
-    <input type="hidden" name="materials_delivered_date"  value="{{ progress.materials_delivered_date or '' }}"/>
+    <input type="hidden" name="materials_delivered_date"  value="{{ progress.materials_delivered_date or today.isoformat() }}"/>
     {# Pass through all other fields #}
     <input type="hidden" name="structure_work_status"   value="{{ progress.structure_work_status or 'NotStarted' }}"/>
     <input type="hidden" name="structure_start_date"    value="{{ progress.structure_start_date or '' }}"/>
-    <input type="hidden" name="structure_end_date"      value="{{ progress.structure_end_date or '' }}"/>
+    <input type="hidden" name="structure_end_date"      value="{{ progress.structure_end_date or ''' }}"/>
     <input type="hidden" name="structure_notes"         value="{{ progress.structure_notes or '' }}"/>
     <input type="hidden" name="installation_status"     value="{{ progress.installation_status or 'NotStarted' }}"/>
     <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
@@ -168,7 +168,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <span style="font-weight:500;white-space:nowrap">Delivered to site</span>
     <input type="date" name="materials_delivered_date"
-           value="{{ progress.materials_delivered_date or '' }}"
+           value="{{ progress.materials_delivered_date or today.isoformat() }}"
            style="font-size:12px"/>
     <button type="submit" class="btn btn-primary btn-sm"
             style="white-space:nowrap">
@@ -236,11 +236,11 @@
         </div>
         <div class="form-group">
           <label>Start date</label>
-          <input type="date" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
+          <input type="date" name="structure_start_date" value="{{ progress.structure_start_date or today.isoformat() }}"/>
         </div>
         <div class="form-group">
           <label>End date</label>
-          <input type="date" name="structure_end_date" value="{{ progress.structure_end_date or '' }}"/>
+          <input type="date" name="structure_end_date" value="{{ progress.structure_end_date or today.isoformat() }}"/>
         </div>
         <div class="form-group full">
           <label>Notes</label>
@@ -282,11 +282,11 @@
       </div>
       <div class="form-group">
         <label>Start date</label>
-        <input type="date" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
+        <input type="date" name="structure_start_date" value="{{ progress.structure_start_date or today.isoformat() }}"/>
       </div>
       <div class="form-group">
         <label>End date</label>
-        <input type="date" name="structure_end_date" value="{{ progress.structure_end_date or '' }}"/>
+        <input type="date" name="structure_end_date" value="{{ progress.structure_end_date or today.isoformat() }}"/>
       </div>
       <div class="form-group full">
         <label>Notes</label>
@@ -354,11 +354,11 @@
         </div>
         <div class="form-group">
           <label>Start date</label>
-          <input type="date" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
+          <input type="date" name="installation_start_date" value="{{ progress.installation_start_date or today.isoformat() }}"/>
         </div>
         <div class="form-group">
           <label>End date</label>
-          <input type="date" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
+          <input type="date" name="installation_end_date" value="{{ progress.installation_end_date or today.isoformat() }}"/>
         </div>
         <div class="form-group">
           <label>Electrical status</label>
@@ -370,11 +370,11 @@
         </div>
         <div class="form-group">
           <label>Electrical start</label>
-          <input type="date" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
+          <input type="date" name="electrical_start_date" value="{{ progress.electrical_start_date or today.isoformat() }}"/>
         </div>
         <div class="form-group">
           <label>Electrical end</label>
-          <input type="date" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
+          <input type="date" name="electrical_end_date" value="{{ progress.electrical_end_date or today.isoformat() }}"/>
         </div>
         <div class="form-group full">
           <label>Notes</label>
@@ -414,11 +414,11 @@
       </div>
       <div class="form-group">
         <label>Start date</label>
-        <input type="date" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
+        <input type="date" name="installation_start_date" value="{{ progress.installation_start_date or today.isoformat() }}"/>
       </div>
       <div class="form-group">
         <label>End date</label>
-        <input type="date" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
+        <input type="date" name="installation_end_date" value="{{ progress.installation_end_date or today.isoformat() }}"/>
       </div>
       <!-- <div class="form-group">
         <label>Electrical status</label>
