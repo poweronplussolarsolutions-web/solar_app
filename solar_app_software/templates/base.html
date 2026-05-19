@@ -454,6 +454,11 @@
       <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
         <span class="dot"></span> Dashboard
       </a>
+      {% if current_user.role in ['admin','onsite'] %}
+      <a class="nav-link {% if request.endpoint == 'onsite_dashboard' %}active{% endif %}" href="{{ url_for('onsite_dashboard') }}">
+        <span class="dot"></span> Work status
+      </a>
+      {% endif %}
       <a class="nav-link {% if request.endpoint in ['projects','project_detail'] %}active{% endif %}" href="{{ url_for('projects') }}">
         <span class="dot"></span> Projects
       </a>
@@ -483,6 +488,7 @@
       <a class="nav-link {% if request.endpoint == 'workers' %}active{% endif %}" href="{{ url_for('workers') }}">
         <span class="dot"></span> Workers
       </a>
+      
       {% endif %}
 
       {% if current_user.role in ['admin','appinstall','documents'] %}
