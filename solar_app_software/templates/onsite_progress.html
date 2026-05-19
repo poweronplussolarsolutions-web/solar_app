@@ -69,7 +69,7 @@
 {# ── STEP TRACK ── #}
 <div class="step-track">
   <div class="step-block {% if given_to_malabar == total_mats and total_mats > 0 %}done{% elif given_to_malabar > 0 %}active{% endif %}">
-    <div class="step-label">① Malabar</div>
+    <div class="step-label">① Materials</div>
     <div class="step-status">
       {% if given_to_malabar == total_mats and total_mats > 0 %}
         <span class="dot dot-done"></span> All sent
@@ -81,7 +81,7 @@
     </div>
   </div>
   <div class="step-block {% if all_delivered %}done{% elif given_to_malabar > 0 %}active{% endif %}">
-    <div class="step-label">② Delivered</div>
+    <div class="step-label">② Delivery</div>
     <div class="step-status">
       {% set delivered_count = proj.materials | selectattr('dispatch_status','eq','Delivered') | list | length %}
       {% if all_delivered %}
@@ -460,7 +460,7 @@
         <label>End date</label>
         <input type="date" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
       </div>
-      <div class="form-group">
+      <!-- <div class="form-group">
         <label>Electrical status</label>
         <select name="electrical_status">
           {% for s in ['NotStarted','InProgress','Completed'] %}
@@ -475,15 +475,15 @@
       <div class="form-group">
         <label>Electrical end</label>
         <input type="date" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
-      </div>
+      </div> -->
       <div class="form-group full">
         <label>Notes</label>
         <textarea name="installation_notes" rows="2" placeholder="Optional">{{ progress.installation_notes or '' }}</textarea>
       </div>
-      <div class="form-group full">
+      <!-- <div class="form-group full">
         <label>Electrical notes</label>
         <textarea name="electrical_notes" rows="2" placeholder="Optional">{{ progress.electrical_notes or '' }}</textarea>
-      </div>
+      </div> -->
     </div>
     <input type="hidden" name="structure_work_status" value="{{ progress.structure_work_status or 'NotStarted' }}"/>
     <input type="hidden" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
@@ -527,8 +527,8 @@
         <label>Phase</label>
         <select name="work_phase">
           <option value="Structure">Structure</option>
-          <option value="Installation">Installation</option>
-          <option value="Electrical">Electrical</option>
+          <option value="Installation">Installation/Electrical</option>
+          <option value="Electrical">Full work</option>
         </select>
       </div>
       <div>
