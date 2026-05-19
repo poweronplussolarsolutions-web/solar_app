@@ -68,31 +68,33 @@
 
 {# ── STEP TRACK ── #}
 <div class="step-track">
-  <div class="step-block {% if given_to_malabar == total_mats and total_mats > 0 %}done{% elif given_to_malabar > 0 %}active{% endif %}">
-    <div class="step-label">① Materials</div>
-    <div class="step-status">
-      {% if given_to_malabar == total_mats and total_mats > 0 %}
-        <span class="dot dot-done"></span> All sent
-      {% elif given_to_malabar > 0 %}
-        <span class="dot dot-active"></span> {{ given_to_malabar }}/{{ total_mats }} sent
-      {% else %}
-        <span class="dot dot-none"></span> Pending
+  <div class="step-block {% if progress.materials_delivered %}done{% elif progress.materials_ordered %}active{% endif %}">
+  <div class="step-label">① Order</div>
+  <div class="step-status">
+    {% if progress.materials_ordered %}
+      <span class="dot dot-done"></span> Placed
+      {% if progress.materials_ordered_date %}
+        <span style="font-size:10px;color:var(--muted)">{{ progress.materials_ordered_date | date_fmt }}</span>
       {% endif %}
-    </div>
+    {% else %}
+      <span class="dot dot-none"></span> Pending
+    {% endif %}
   </div>
-  <div class="step-block {% if all_delivered %}done{% elif given_to_malabar > 0 %}active{% endif %}">
-    <div class="step-label">② Delivery</div>
-    <div class="step-status">
-      {% set delivered_count = proj.materials | selectattr('dispatch_status','eq','Delivered') | list | length %}
-      {% if all_delivered %}
-        <span class="dot dot-done"></span> All delivered
-      {% elif delivered_count > 0 %}
-        <span class="dot dot-active"></span> {{ delivered_count }}/{{ total_mats }} done
-      {% else %}
-        <span class="dot dot-none"></span> Awaiting
+</div>
+
+<div class="step-block {% if progress.materials_delivered %}done{% elif progress.materials_ordered %}active{% endif %}">
+  <div class="step-label">② Delivery</div>
+  <div class="step-status">
+    {% if progress.materials_delivered %}
+      <span class="dot dot-done"></span> Delivered
+      {% if progress.materials_delivered_date %}
+        <span style="font-size:10px;color:var(--muted)">{{ progress.materials_delivered_date | date_fmt }}</span>
       {% endif %}
-    </div>
+    {% else %}
+      <span class="dot dot-none"></span> Awaiting
+    {% endif %}
   </div>
+</div>
   <div class="step-block {% if struct_done %}done{% elif all_delivered %}active{% endif %}">
     <div class="step-label">③ Structure</div>
     <div class="step-status">
@@ -120,131 +122,62 @@
 </div>
 
 {# ═══════════════════════════════════════════ #}
-{# ① MATERIALS — MALABAR DISPATCH              #}
+{# ① MATERIALS                                 #}
 {# ═══════════════════════════════════════════ #}
 <div class="card">
-  <div class="section-label">① Materials — given to Malabar</div>
+  <div class="section-label">① Materials</div>
+  <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-  {% if proj.materials %}
-  <div style="margin-bottom:14px">
-    {% for m in proj.materials %}
-    <div class="material-row" id="matrow-{{ m.id }}">
-      {# Item name + qty #}
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:10px 16px;align-items:center;font-size:13px">
+
+      {# Row 1: Order placed #}
+      <label style="display:flex;align-items:center;gap:8px;font-weight:500;white-space:nowrap">
+        <input type="checkbox" name="materials_ordered"
+               {% if progress.materials_ordered %}checked{% endif %}
+               style="width:15px;height:15px">
+        Order placed
+      </label>
       <div>
-        <div style="font-weight:500">{{ m.item_name }}</div>
-        {% if m.quantity %}<div style="font-size:11px;color:var(--muted)">Qty: {{ m.quantity }}</div>{% endif %}
+        <input type="date" name="materials_ordered_date"
+               value="{{ progress.materials_ordered_date or '' }}"
+               style="font-size:12px"
+               placeholder="Date"/>
       </div>
 
-      {# Status pill #}
+      {# Row 2: Delivered #}
+      <label style="display:flex;align-items:center;gap:8px;font-weight:500;white-space:nowrap">
+        <input type="checkbox" name="materials_delivered"
+               {% if progress.materials_delivered %}checked{% endif %}
+               style="width:15px;height:15px">
+        Delivered to site
+      </label>
       <div>
-        {% if m.dispatch_status == 'Pending' %}
-          <span class="tag-pill pill-pending">Pending</span>
-        {% elif m.dispatch_status == 'Dispatched' %}
-          <span class="tag-pill pill-malabar">Given to Malabar</span>
-        {% elif m.dispatch_status == 'Delivered' %}
-          <span class="tag-pill pill-delivered">✓ Delivered</span>
-        {% endif %}
+        <input type="date" name="materials_delivered_date"
+               value="{{ progress.materials_delivered_date or '' }}"
+               style="font-size:12px"/>
       </div>
 
-      {# Actions #}
-      {% if current_user.role in ['admin','onsite'] %}
-      <div style="display:flex;gap:6px">
-        {% if m.dispatch_status == 'Pending' %}
-        <form method="POST" action="{{ url_for('update_material', pid=proj.id, mid=m.id) }}" style="display:inline">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="item_name" value="{{ m.item_name }}">
-          <input type="hidden" name="quantity" value="{{ m.quantity or '' }}">
-          <input type="hidden" name="dispatch_status" value="Dispatched">
-          <input type="hidden" name="dispatch_date" value="{{ today.isoformat() }}">
-          <button type="submit" class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 10px">
-            Send to Malabar
-          </button>
-        </form>
-        {% elif m.dispatch_status == 'Dispatched' %}
-        <form method="POST" action="{{ url_for('update_material', pid=proj.id, mid=m.id) }}" style="display:inline">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="item_name" value="{{ m.item_name }}">
-          <input type="hidden" name="quantity" value="{{ m.quantity or '' }}">
-          <input type="hidden" name="dispatch_status" value="Delivered">
-          <input type="hidden" name="dispatch_date" value="{{ m.dispatch_date or '' }}">
-          <button type="submit" class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 10px;background:#16a34a;border-color:#16a34a">
-            Mark Delivered
-          </button>
-        </form>
-        {% else %}
-        <span style="font-size:11px;color:var(--hint)">{{ m.dispatch_date | date_fmt if m.dispatch_date else '—' }}</span>
-        {% endif %}
-
-        {# Edit toggle #}
-        <button class="btn btn-sm" style="font-size:11px;padding:3px 8px"
-                onclick="toggleMatEdit('{{ m.id }}')">Edit</button>
-      </div>
-      {% endif %}
     </div>
 
-    {# Inline edit form #}
-    {% if current_user.role in ['admin','onsite'] %}
-    <div id="matedit-{{ m.id }}" style="display:none;padding:10px 0 12px;border-bottom:0.5px solid var(--border)">
-      <form method="POST" action="{{ url_for('update_material', pid=proj.id, mid=m.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:flex-end">
-          <div>
-            <label style="font-size:11px">Item name</label>
-            <input type="text" name="item_name" value="{{ m.item_name }}" style="font-size:13px"/>
-          </div>
-          <div>
-            <label style="font-size:11px">Qty</label>
-            <input type="number" name="quantity" value="{{ m.quantity or '' }}" step="0.01" min="0" style="font-size:13px"/>
-          </div>
-          <div>
-            <label style="font-size:11px">Date</label>
-            <input type="date" name="dispatch_date" value="{{ m.dispatch_date or '' }}" style="font-size:13px"/>
-          </div>
-          <div>
-            <label style="font-size:11px">Status</label>
-            <select name="dispatch_status" style="font-size:13px">
-              {% for s in ['Pending','Dispatched','Delivered'] %}
-              <option value="{{ s }}" {% if m.dispatch_status == s %}selected{% endif %}>{{ s }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div style="display:flex;gap:4px">
-            <button type="submit" class="btn btn-primary btn-sm" style="font-size:11px">Save</button>
-            <button type="button" class="btn btn-sm" style="font-size:11px"
-                    onclick="toggleMatEdit('{{ m.id }}')">✕</button>
-          </div>
-        </div>
-      </form>
-    </div>
-    {% endif %}
-    {% endfor %}
-  </div>
-  {% else %}
-  <div style="color:var(--hint);font-size:13px;padding:4px 0 10px">No materials added yet.</div>
-  {% endif %}
+    {# Pass through all other fields unchanged #}
+    <input type="hidden" name="structure_work_status"   value="{{ progress.structure_work_status or 'NotStarted' }}"/>
+    <input type="hidden" name="structure_start_date"    value="{{ progress.structure_start_date or '' }}"/>
+    <input type="hidden" name="structure_end_date"      value="{{ progress.structure_end_date or '' }}"/>
+    <input type="hidden" name="structure_notes"         value="{{ progress.structure_notes or '' }}"/>
+    <input type="hidden" name="installation_status"     value="{{ progress.installation_status or 'NotStarted' }}"/>
+    <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
+    <input type="hidden" name="installation_end_date"   value="{{ progress.installation_end_date or '' }}"/>
+    <input type="hidden" name="installation_notes"      value="{{ progress.installation_notes or '' }}"/>
+    <input type="hidden" name="electrical_status"       value="{{ progress.electrical_status or 'NotStarted' }}"/>
+    <input type="hidden" name="electrical_start_date"   value="{{ progress.electrical_start_date or '' }}"/>
+    <input type="hidden" name="electrical_end_date"     value="{{ progress.electrical_end_date or '' }}"/>
+    <input type="hidden" name="electrical_notes"        value="{{ progress.electrical_notes or '' }}"/>
 
-  {# Add material form #}
-  {% if current_user.role in ['admin','onsite'] %}
-  <div style="border-top:0.5px solid var(--border);padding-top:12px;margin-top:4px">
-    <div style="font-size:12px;font-weight:500;margin-bottom:8px;color:var(--muted)">Add material</div>
-    <form method="POST" action="{{ url_for('add_material', pid=proj.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px;align-items:flex-end">
-        <div>
-          <label style="font-size:11px">Item name</label>
-          <input type="text" name="item_name" required placeholder="e.g. Solar panel 440W"/>
-        </div>
-        <div>
-          <label style="font-size:11px">Qty</label>
-          <input type="number" name="quantity" min="0" step="0.01" placeholder="0"/>
-        </div>
-        <div>
-          <button type="submit" class="btn btn-primary btn-sm">Add</button>
-        </div>
-      </div>
-    </form>
-  </div>
-  {% endif %}
+    <div style="margin-top:14px">
+      <button type="submit" class="btn btn-primary btn-sm">Save</button>
+    </div>
+  </form>
 </div>
 
 {# ═══════════════════════════════════════════ #}

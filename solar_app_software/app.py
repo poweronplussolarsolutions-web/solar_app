@@ -636,6 +636,10 @@ class OnsiteProgress(db.Model):
     __tablename__ = 'onsite_progress'
     id                     = db.Column(db.Integer, primary_key=True)
     project_id             = db.Column(db.Integer, db.ForeignKey('projects.id'), unique=True, nullable=False)
+    materials_ordered        = db.Column(db.Boolean, default=False)
+    materials_ordered_date   = db.Column(db.Date, nullable=True)
+    materials_delivered      = db.Column(db.Boolean, default=False)
+    materials_delivered_date = db.Column(db.Date, nullable=True)
     structure_work_status  = db.Column(db.Enum('NotStarted','InProgress','Completed'), default='NotStarted')
     structure_start_date   = db.Column(db.Date)
     structure_end_date     = db.Column(db.Date)
@@ -2608,6 +2612,10 @@ def onsite_progress(pid):
         progress.electrical_notes  = _clean(request.form.get('electrical_notes', ''), 500)
 
         progress.updated_by = current_user.id
+        progress.materials_ordered        = 'materials_ordered' in request.form
+        progress.materials_ordered_date   = date.fromisoformat(request.form['materials_ordered_date']) if request.form.get('materials_ordered_date') else None
+        progress.materials_delivered      = 'materials_delivered' in request.form
+        progress.materials_delivered_date = date.fromisoformat(request.form['materials_delivered_date']) if request.form.get('materials_delivered_date') else None
 
         for field, col in [
             ('structure_start_date','structure_start_date'), ('structure_end_date','structure_end_date'),
