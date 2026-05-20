@@ -204,11 +204,11 @@
     <span style="font-weight:500;font-size:13px">{{ p.project_code }}</span>
     <span style="font-size:13px;color:var(--muted)">{{ p.customer.name }}</span>
     <span style="font-size:11px;color:var(--hint);margin-left:auto">{{ p.stage }}</span>
-<span style="font-size:11px;
+<!-- <span style="font-size:11px;
   color:{% if p.days_in_stage > 14 %}var(--red-600){% elif p.days_in_stage > 7 %}var(--amber-600){% else %}var(--muted){% endif %}">
   · {{ p.days_in_stage }}d in stage
   {% if p.days_in_stage > 14 %}<span style="font-size:10px">⚠</span>{% endif %}
-</span>
+</span> -->
     <a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a>
   </div>
   {% endfor %}
