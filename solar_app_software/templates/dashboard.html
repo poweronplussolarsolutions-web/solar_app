@@ -374,7 +374,7 @@ document.addEventListener('click', function(e) {
         <th>Type</th>
         <th>Stage</th>
         <th>Status</th>
-        <th>Docs</th>
+        <!-- <th>Docs</th> -->
         <th></th>
       </tr>
     </thead>
@@ -390,7 +390,7 @@ document.addEventListener('click', function(e) {
     <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
     <td style="font-size:12px;color:var(--muted)">{{ p.stage }}</td>
     <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
-    <td>
+    <!-- <td>
       <div style="display:flex;align-items:center;gap:6px">
         <div class="progress-wrap" style="width:50px">
           <div class="progress-bar" style="width:{{ item.doc_pct }}%"></div>
@@ -399,7 +399,7 @@ document.addEventListener('click', function(e) {
           {{ item.done_docs }}/{{ item.total_docs }}
         </span>
       </div>
-    </td>
+    </td> -->
     <td>
       <a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">
         Open
