@@ -354,9 +354,6 @@
       {% if ns.pending_amt > 0 %}
         <span class="badge badge-Delayed" style="font-size:11px">₹{{ ns.pending_amt | int }} pending approval</span>
       {% endif %}
-      {% if current_user.role in ['admin','onsite'] %}
-      <a href="{{ url_for('edit_worker', worker_id=w.id) }}" class="btn btn-sm btn-warning" style="font-size:11px;padding:2px 8px">✏️ Edit</a>
-      {% endif %}
       {% if current_user.role == 'admin' %}
       <form method="POST" action="{{ url_for('delete_worker', worker_id=w.id) }}"
             onsubmit="return confirm('Deactivate {{ w.name }}?')" style="display:inline">
@@ -462,7 +459,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="close-card-grid">
               <div>
-                <label style="font-size:12px">Actual days</label>
+                <label style="font-size:12px">Work days</label>
                 <input type="number" name="actual_days" id="days-jc-{{ jc.id }}" min="0.5" max="99" step="0.5" required placeholder="e.g. 5"
                        oninput="calcJobAmt('{{ jc.id }}','{{ jc.rate_per_day | float }}','{{ jc.agreed_amount | float if jc.agreed_amount else 0 }}')"/>
               </div>
@@ -490,7 +487,7 @@
 
     {% if approved_cards %}
     <div style="margin-bottom:14px">
-      <div style="font-size:12px;font-weight:500;color:var(--muted);margin-bottom:8px">🟢 Approved — awaiting settlement ({{ approved_cards | length }})</div>
+      <div style="font-size:12px;font-weight:500;color:var(--muted);margin-bottom:8px">🟢Awaiting settlement ({{ approved_cards | length }})</div>
       {% set ns_ap = namespace(approved_total=0) %}
       {% for jc in approved_cards %}{% set ns_ap.approved_total = ns_ap.approved_total + jc.final_amount | float %}{% endfor %}
       <div style="overflow-x:auto">
