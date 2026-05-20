@@ -24,14 +24,17 @@
   border:0.5px solid var(--border);background:var(--bg);
   font-size:13px;color:var(--hint);margin-bottom:16px;
 }
-.step-track {
-  display:flex;gap:0;margin-bottom:24px;
-  border-radius:var(--radius);overflow:hidden;
+.step-track-wrap {
+  overflow-x:auto;-webkit-overflow-scrolling:touch;
+  margin-bottom:24px;border-radius:var(--radius);
   border:0.5px solid var(--border);
 }
+.step-track {
+  display:flex;gap:0;min-width:480px;
+}
 .step-block {
-  flex:1;padding:14px 16px;background:var(--surface);
-  border-right:0.5px solid var(--border);
+  flex:1;padding:12px 14px;background:var(--surface);
+  border-right:0.5px solid var(--border);min-width:110px;
 }
 .step-block:last-child { border-right:none; }
 .step-block.done   { background:color-mix(in srgb,#16a34a 8%,var(--surface)); }
@@ -67,6 +70,7 @@
 {% set install_done = progress.installation_status == 'Completed' %}
 
 {# ── STEP TRACK ── #}
+<div class="step-track-wrap">
 <div class="step-track">
   <div class="step-block {% if progress.materials_delivered %}done{% elif progress.materials_ordered %}active{% endif %}">
     <div class="step-label">① Order</div>
@@ -121,6 +125,7 @@
       {% endif %}
     </div>
   </div>
+</div>
 </div>
 
 {# ═══════════════════════════════════════════ #}
