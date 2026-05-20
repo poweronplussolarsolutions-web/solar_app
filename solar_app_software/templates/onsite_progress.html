@@ -478,30 +478,30 @@
           <label>End date</label>
           <input type="date" name="installation_end_date" value="{{ progress.installation_end_date or today.isoformat() }}"/>
         </div>
-        <div class="form-group">
+        <!-- <div class="form-group">
           <label>Electrical status</label>
           <select name="electrical_status">
             {% for s in ['NotStarted','InProgress','Completed'] %}
             <option value="{{ s }}" {% if progress.electrical_status == s %}selected{% endif %}>{{ s }}</option>
             {% endfor %}
           </select>
-        </div>
-        <div class="form-group">
+        </div> -->
+        <!-- <div class="form-group">
           <label>Electrical start</label>
           <input type="date" name="electrical_start_date" value="{{ progress.electrical_start_date or today.isoformat() }}"/>
         </div>
         <div class="form-group">
           <label>Electrical end</label>
           <input type="date" name="electrical_end_date" value="{{ progress.electrical_end_date or today.isoformat() }}"/>
-        </div>
+        </div> -->
         <div class="form-group full">
           <label>Notes</label>
           <textarea name="installation_notes" rows="2">{{ progress.installation_notes or '' }}</textarea>
         </div>
-        <div class="form-group full">
+        <!-- <div class="form-group full">
           <label>Electrical notes</label>
           <textarea name="electrical_notes" rows="2">{{ progress.electrical_notes or '' }}</textarea>
-        </div>
+        </div> -->
       </div>
       <input type="hidden" name="materials_ordered" value="{{ 'on' if progress.materials_ordered else '' }}"/>
       <input type="hidden" name="materials_ordered_date" value="{{ progress.materials_ordered_date or '' }}"/>
