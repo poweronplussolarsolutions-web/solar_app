@@ -61,7 +61,7 @@
   {% set install_done  = op and op.installation_status  == 'Completed' %}
   {% set mat_delivered = op and op.materials_delivered %}
   {% set mat_ordered   = op and op.materials_ordered %}
-
+  {% set struct_done = op and op.structure_work_status == 'Completed' %}
   {% if install_done %}
     {% set _ = ns.done.append(p) %}
   {% elif struct_done %}
@@ -178,7 +178,7 @@
             <div class="proj-card-code">{{ p.project_code }}</div>
             <span class="tag-pill pill-install">
               {% if op and op.installation_status == 'InProgress' %}In progress
-              {% if op and op.installation_status == 'Completed' %}Completed
+              {% elif op and op.installation_status == 'Completed' %}Completed
               {% else %}Not Started{% endif %}
             </span>
           </div>
