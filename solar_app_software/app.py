@@ -1449,7 +1449,7 @@ def onsite_board():
         user_id=current_user.id, notif_type='task', is_read=False).order_by(
         Notification.created_at.desc()).all()
     data = {'projects': projects, 'workers': workers, 'tasks': tasks}
-    response = make_response(render_template('dashboard.html', data=data))
+    response = make_response(render_template('onsite_board.html', data=data))
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     return response
