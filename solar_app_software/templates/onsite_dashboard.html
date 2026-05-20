@@ -145,7 +145,9 @@
           <div style="display:flex;justify-content:space-between;align-items:flex-start">
             <div class="proj-card-code">{{ p.project_code }}</div>
             <span class="tag-pill pill-struct">
-              {% if op and op.structure_work_status == 'InProgress' %}In progress{% else %}Not started{% endif %}
+              {% if op and op.structure_work_status == 'InProgress' %}In progress
+              {% elif op and op.structure_work_status == 'Completed' %}Completed
+              {% else %}Not started{% endif %}
             </span>
           </div>
           <div class="proj-card-name">{{ p.customer.name }}</div>
@@ -175,7 +177,9 @@
           <div style="display:flex;justify-content:space-between;align-items:flex-start">
             <div class="proj-card-code">{{ p.project_code }}</div>
             <span class="tag-pill pill-install">
-              {% if op and op.installation_status == 'InProgress' %}In progress{% else %}Ready{% endif %}
+              {% if op and op.installation_status == 'InProgress' %}In progress
+              {% if op and op.installation_status == 'Completed' %}Completed
+              {% else %}Not Started{% endif %}
             </span>
           </div>
           <div class="proj-card-name">{{ p.customer.name }}</div>
