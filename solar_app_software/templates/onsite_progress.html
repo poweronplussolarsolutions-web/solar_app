@@ -161,6 +161,38 @@
         </td>
       </tr>
     </table>
+
+    {# ── Quick mark-delivered button when ordered but not yet delivered ── #}
+    {% if progress.materials_ordered and not progress.materials_delivered %}
+    <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}"
+          style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border);
+                 display:flex;align-items:center;gap:10px">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="materials_delivered" value="on">
+      <input type="hidden" name="materials_ordered" value="on">
+      <input type="hidden" name="materials_ordered_date" value="{{ progress.materials_ordered_date or '' }}">
+      <input type="hidden" name="materials_delivered_date" value="{{ today.isoformat() }}">
+      <input type="hidden" name="structure_work_status" value="{{ progress.structure_work_status or 'NotStarted' }}">
+      <input type="hidden" name="structure_start_date" value="{{ progress.structure_start_date or '' }}">
+      <input type="hidden" name="structure_end_date" value="{{ progress.structure_end_date or '' }}">
+      <input type="hidden" name="structure_notes" value="{{ progress.structure_notes or '' }}">
+      <input type="hidden" name="installation_status" value="{{ progress.installation_status or 'NotStarted' }}">
+      <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}">
+      <input type="hidden" name="installation_end_date" value="{{ progress.installation_end_date or '' }}">
+      <input type="hidden" name="installation_notes" value="{{ progress.installation_notes or '' }}">
+      <input type="hidden" name="electrical_status" value="{{ progress.electrical_status or 'NotStarted' }}">
+      <input type="hidden" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}">
+      <input type="hidden" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}">
+      <input type="hidden" name="electrical_notes" value="{{ progress.electrical_notes or '' }}">
+      <label style="font-size:12px;color:var(--muted)">Delivery date</label>
+      <input type="date" name="materials_delivered_date_override"
+             id="quick-deliver-date"
+             value="{{ today.isoformat() }}"
+             style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border);
+                    border-radius:var(--radius);background:transparent;color:var(--fg)">
+      <button type="submit" class="btn btn-primary btn-sm">✓ Mark delivered</button>
+    </form>
+    {% endif %}
   </div>
 
   {# ── Edit form (hidden by default) ── #}
