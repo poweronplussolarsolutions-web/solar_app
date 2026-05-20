@@ -517,7 +517,22 @@ document.addEventListener('click', function(e) {
             Cash 
           </span>
         </td>
-        <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
+        <td>
+          {% if p.payments | length > 0 %}
+          <span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;
+                       background:#E1F5EE;color:#085041;border:0.5px solid #5DCAA5;
+                       display:inline-flex;align-items:center;gap:4px;">
+            ✓ Payment recorded
+          </span>
+          {% else %}
+          <span style="font-size:10px;font-weight:600;padding:4px 10px;border-radius:12px;
+                       background:#FFF4E5;color:#633806;border:1px solid #EF9F27;
+                       display:inline-flex;align-items:center;gap:4px;
+                       white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,0.08);">
+            ⚠ No payment yet
+          </span>
+          {% endif %}
+        </td>
         <td><a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a></td>
       </tr>
       {% endfor %}
