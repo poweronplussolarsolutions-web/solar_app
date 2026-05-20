@@ -476,46 +476,100 @@ document.addEventListener('click', function(e) {
     <div class="stat-value">{{ data.workers | length }}</div>
   </div>
 </div>
+
+{% set cash_projects = data.projects | selectattr('financing_type', 'eq', 'Cash') | list %}
+{% set loan_projects = data.projects | selectattr('financing_type', 'eq', 'Loan') | list %}
+
 <div class="card">
   <div class="card-title">Active site projects</div>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Project</th><th>Customer</th><th>kW</th><th>Stage</th>
+        <th>Work type</th><th>Payment status</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
 
-  <!-- desktop table (hidden on mobile) -->
-  <div class="table-wrap" style="display:block">
-    {% set projects = data.projects %}
-    {% include '_project_table.html' with context %}
-  </div>
+      {# ── CASH SECTION ── #}
+      {% if cash_projects %}
+      <tr>
+        <td colspan="7"
+            style="font-size:11px;font-weight:500;color:var(--muted);
+                   background:var(--surface);padding:6px 8px;
+                   border-top:0.5px solid var(--border);
+                   border-bottom:0.5px solid var(--border)">
+          Cash works
+        </td>
+      </tr>
+      {% for p in cash_projects %}
+      <tr>
+        <td>
+          <a href="{{ url_for('project_detail', pid=p.id) }}"
+             style="font-weight:500;color:var(--amber-600)">{{ p.project_code }}</a>
+        </td>
+        <td>{{ p.customer.name }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ p.system_kw }} kW</td>
+        <td style="font-size:12px;color:var(--muted)">{{ p.stage }}</td>
+        <td>
+          <span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;
+                       background:#EAF3DE;color:#3B6D11;border:0.5px solid #97C459">
+            Cash work
+          </span>
+        </td>
+        <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
+        <td><a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a></td>
+      </tr>
+      {% endfor %}
+      {% endif %}
 
-  <!-- mobile card list (hidden on desktop) -->
-  <div style="display:none" id="onsite-mobile-list">
-    {% for p in data.projects %}
-    <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:10px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <a href="{{ url_for('project_detail', pid=p.id) }}"
-           style="font-weight:500;color:var(--amber-600);font-size:14px">{{ p.project_code }}</a>
-        <span class="badge badge-{{ p.status }}">{{ p.status }}</span>
-      </div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px">
-        <span>{{ p.customer.name }}</span>
-        <span>·</span>
-        <span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span>
-        <span>·</span>
-        <span>{{ p.stage }}</span>
-        {% if p.system_kw %}
-        <span>·</span>
-        <span>{{ p.system_kw }} kW</span>
-        {% endif %}
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div style="display:flex;flex-wrap:wrap;gap:4px">
-          {% for w in p.workers %}
-          <span style="font-size:11px;background:var(--surface);border:0.5px solid var(--border);
-                       border-radius:20px;padding:2px 8px">{{ w.full_name }}</span>
-          {% endfor %}
-        </div>
-        <a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open →</a>
-      </div>
-    </div>
-    {% endfor %}
+      {# ── LOAN SECTION ── #}
+      {% if loan_projects %}
+      <tr>
+        <td colspan="7"
+            style="font-size:11px;font-weight:500;color:var(--muted);
+                   background:var(--surface);padding:6px 8px;
+                   border-top:0.5px solid var(--border);
+                   border-bottom:0.5px solid var(--border)">
+          Loan works
+        </td>
+      </tr>
+      {% for p in loan_projects %}
+      <tr>
+        <td>
+          <a href="{{ url_for('project_detail', pid=p.id) }}"
+             style="font-weight:500;color:var(--amber-600)">{{ p.project_code }}</a>
+        </td>
+        <td>{{ p.customer.name }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ p.system_kw }} kW</td>
+        <td style="font-size:12px;color:var(--muted)">{{ p.stage }}</td>
+        <td>
+          <span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;
+                       background:#E6F1FB;color:#0C447C;border:0.5px solid #85B7EB">
+            Loan work
+          </span>
+        </td>
+        <td>
+          {% if p.first_payment_received %}
+          <span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;
+                       background:#E1F5EE;color:#085041;border:0.5px solid #5DCAA5">
+            ✓ 1st payment received
+          </span>
+          {% else %}
+          <span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;
+                       background:#FAEEDA;color:#633806;border:0.5px solid #EF9F27">
+            ⚠ 1st payment pending
+          </span>
+          {% endif %}
+        </td>
+        <td><a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a></td>
+      </tr>
+      {% endfor %}
+      {% endif %}
+
+    </tbody>
+  </table>
   </div>
 </div>
 

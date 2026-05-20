@@ -367,6 +367,14 @@ class Project(db.Model):
         if 'Second' not in done:
             return 'Second'
         return None
+    @property
+    def first_payment_received(self):
+        if self.project_type != 'Loan':
+            return None  # not applicable
+        return any(
+        p.payment_source == 'Bank' and p.instalment == 'First'
+        for p in self.payments
+    )
 class ConnectionDetails(db.Model):
     __tablename__ = 'connection_details'
     id                       = db.Column(db.Integer, primary_key=True)
@@ -1401,6 +1409,7 @@ def dashboard():
                 joinedload(Project.onsite_progress),
                 joinedload(Project.materials),
                 joinedload(Project.customer),
+                joinedload(Project.payments),       
             )
             .filter(Project.status.in_(['InProgress','Delayed','Lead','Created']))
             .order_by(Project.updated_at.desc())
@@ -1430,6 +1439,7 @@ def onsite_board():
             joinedload(Project.onsite_progress),
             joinedload(Project.materials),
             joinedload(Project.customer),
+            joinedload(Project.payments),
         )
         .filter(Project.status.in_(['InProgress','Delayed','Lead','Created']))
         .order_by(Project.updated_at.desc())

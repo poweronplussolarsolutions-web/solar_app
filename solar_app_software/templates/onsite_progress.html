@@ -142,10 +142,10 @@
         <td style="color:var(--muted);width:160px;padding:5px 0">Order placed</td>
         <td>
           {% if progress.materials_ordered %}
-            <span class="badge badge-Completed">Yes</span>
+            <span class="badge badge-Completed">Done</span>
             <span style="font-size:12px;color:var(--muted);margin-left:6px">{{ progress.materials_ordered_date | date_fmt }}</span>
           {% else %}
-            <span class="badge badge-Created">No</span>
+            <span class="badge badge-Created">Pending</span>
           {% endif %}
         </td>
       </tr>
@@ -153,10 +153,10 @@
         <td style="color:var(--muted);padding:5px 0">Delivered to site</td>
         <td>
           {% if progress.materials_delivered %}
-            <span class="badge badge-Completed">Yes</span>
+            <span class="badge badge-Completed">Done</span>
             <span style="font-size:12px;color:var(--muted);margin-left:6px">{{ progress.materials_delivered_date | date_fmt }}</span>
           {% else %}
-            <span class="badge badge-Created">No</span>
+            <span class="badge badge-Created">Pending</span>
           {% endif %}
         </td>
       </tr>
