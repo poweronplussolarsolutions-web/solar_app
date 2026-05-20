@@ -6,7 +6,7 @@ Deps: pip install flask flask-sqlalchemy flask-login flask-migrate pymysql flask
 """
 import pymysql
 pymysql.install_as_MySQLdb()
-from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, session
+from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, session, make_response
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -1449,7 +1449,10 @@ def onsite_board():
         user_id=current_user.id, notif_type='task', is_read=False).order_by(
         Notification.created_at.desc()).all()
     data = {'projects': projects, 'workers': workers, 'tasks': tasks}
-    return render_template('onsite_dashboard.html', data=data)
+    response = make_response(render_template('dashboard.html', data=data))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    return response
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PROJECTS
