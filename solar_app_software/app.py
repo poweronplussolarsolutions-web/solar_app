@@ -1537,6 +1537,15 @@ def new_project():
                 f'You have been assigned to {proj.project_code}-{proj.customer.name} '
                 f'({proj.project_type}, {proj.inverter_capacity_kw} kW).', 'task',
             )
+        # ── Notify onsite team of new work ────────────────────────────────
+        if proj.project_type == 'Cash':
+            notify_onsite_team(proj.id,
+                f'New cash work: {proj.project_code} — {proj.customer.name} '
+                f'({proj.inverter_capacity_kw} kW). Assigned by {current_user.full_name}.', 'task')
+        elif proj.project_type == 'Loan':
+            notify_onsite_team(proj.id,
+                f'New loan work: {proj.project_code} — {proj.customer.name} '
+                f'({proj.inverter_capacity_kw} kW). Awaiting first bank payment before site work begins.', 'info')
         db.session.commit()
         flash(f'Project {proj.project_code} created successfully!', 'success')
         return redirect(url_for('project_detail', pid=proj.id))
@@ -2108,6 +2117,14 @@ def add_payment(pid):
     db.session.add(pay)
     proj.collected_amount = float(proj.collected_amount or 0) + amount
     log_action(pid, f"{'Bank' if instalment else 'Customer'} payment recorded: ₹{amount:,.0f}", new_val=str(amount))
+
+    # ── Notify onsite team when first bank instalment is received ─────────
+    if source == 'Bank' and instalment == 'First':
+        notify_onsite_team(pid,
+            f'Loan work {proj.project_code} — {proj.customer.name} '
+            f'({proj.inverter_capacity_kw} kW): First bank payment of ₹{amount:,.0f} received. '
+            f'Site work can now begin.', 'task')
+
     auto_advance_stage(proj)
     db.session.commit()
     flash(f'Payment of ₹{amount:,.0f} recorded.', 'success')
