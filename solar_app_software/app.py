@@ -1410,6 +1410,7 @@ def dashboard():
                 joinedload(Project.materials),
                 joinedload(Project.customer),
                 joinedload(Project.payments),       
+                joinedload(Project.coordinator),       
             )
             .filter(Project.status.in_(['InProgress','Delayed','Lead','Created']))
             .order_by(Project.updated_at.desc())
@@ -1440,6 +1441,7 @@ def onsite_board():
             joinedload(Project.materials),
             joinedload(Project.customer),
             joinedload(Project.payments),
+            joinedload(Project.coordinator),
         )
         .filter(Project.status.in_(['InProgress','Delayed','Lead','Created']))
         .order_by(Project.updated_at.desc())

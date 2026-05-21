@@ -106,8 +106,7 @@
     <a href="{{ url_for('onsite_progress', pid=p.id) }}" style="text-decoration:none;color:inherit;display:block">
       <div class="proj-card">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div class="proj-card-code">{{ p.project_code }}</div>
-          <div class="proj-card-code">{{ p.coordinator }}</div>
+          <div class="proj-card-code">{{ p.project_code }} {% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}</div>
           <span class="tag-pill pill-malabar">Not ordered</span>
         </div>
         <div class="proj-card-name">{{ p.customer.name }}</div>
@@ -119,7 +118,7 @@
     <a href="{{ url_for('onsite_progress', pid=p.id) }}" style="text-decoration:none;color:inherit;display:block">
       <div class="proj-card">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div class="proj-card-code">{{ p.project_code }}</div>
+          <div class="proj-card-code">{{ p.project_code }} {% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}</div>
           <span class="tag-pill pill-malabar">Order placed</span>
         </div>
         <div class="proj-card-name">{{ p.customer.name }}</div>
@@ -144,7 +143,7 @@
       <a href="{{ url_for('onsite_progress', pid=p.id) }}" style="text-decoration:none;color:inherit;display:block">
         <div class="proj-card">
           <div style="display:flex;justify-content:space-between;align-items:flex-start">
-            <div class="proj-card-code">{{ p.project_code }}</div>
+            <div class="proj-card-code">{{ p.project_code }} {% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}</div>
             <span class="tag-pill pill-struct">
               {% if op and op.structure_work_status == 'InProgress' %}In progress
               {% elif op and op.structure_work_status == 'Completed' %}Completed
@@ -176,7 +175,7 @@
       <a href="{{ url_for('onsite_progress', pid=p.id) }}" style="text-decoration:none;color:inherit;display:block">
         <div class="proj-card">
           <div style="display:flex;justify-content:space-between;align-items:flex-start">
-            <div class="proj-card-code">{{ p.project_code }}</div>
+            <div class="proj-card-code">{{ p.project_code }} {% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}</div>
             <span class="tag-pill pill-install">
               {% if op and op.installation_status == 'InProgress' %}In progress
               {% elif op and op.installation_status == 'Completed' %}Completed
@@ -208,7 +207,7 @@
       <a href="{{ url_for('onsite_progress', pid=p.id) }}" style="text-decoration:none;color:inherit;display:block">
         <div class="proj-card">
           <div style="display:flex;justify-content:space-between;align-items:flex-start">
-            <div class="proj-card-code">{{ p.project_code }}</div>
+            <div class="proj-card-code">{{ p.project_code }} {% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}</div>
             <span class="tag-pill pill-done">Complete</span>
           </div>
           <div class="proj-card-name">{{ p.customer.name }}</div>
