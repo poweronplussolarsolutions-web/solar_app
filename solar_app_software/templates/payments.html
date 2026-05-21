@@ -90,7 +90,7 @@
     </tbody>
   </table>
   </div>
-  {{ paginate('?page=' ~ page ~ '&pay_page=' ~ pay_page, pending_projs.page, pending_projs.pages, 'page') }}
+  {{paginate('?pay_page=' ~ pay_page, pending_projs.page, pending_projs.pages, 'page') }}
 </div>
 
 <div class="card">
@@ -123,7 +123,7 @@
     </tbody>
   </table>
   </div>
-  {{ paginate('?page=' ~ page ~ '&pay_page=' ~ pay_page, recent_payments.page, recent_payments.pages, 'pay_page') }}
+  {{ paginate('?page=' ~ page, recent_payments.page, recent_payments.pages, 'pay_page') }}
   {% else %}
   <div style="text-align:center;padding:24px;color:var(--hint)">No payments recorded yet.</div>
   {% endif %}

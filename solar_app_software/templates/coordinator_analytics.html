@@ -168,9 +168,9 @@
         </div>
         <div class="progress-wrap">
           <div class="progress-bar" style="width:{% if a.assigned > 0 %}{{ (a.completed / a.assigned * 100) | int }}{% else %}0{% endif %}%;
-            background:{% if a.assigned > 0 and a.completed == a.assigned %}var(--teal-100)
-            {% elif a.completed > 0 %}var(--amber-100)
-            {% else %}var(--red-100){% endif %}">
+            background:{% if a.assigned > 0 and a.completed == a.assigned %}var(--teal-600)
+            {% elif a.completed > 0 %}var(--amber-600)
+            {% else %}var(--amber-600){% endif %}">
           </div>
         </div>
       </div>
