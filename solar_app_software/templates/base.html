@@ -666,6 +666,33 @@ function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sidebar-overlay').classList.remove('open');
 }
+(function () {
+  const originalTitle = document.title;
+  let unread = 0;
+
+  function updateTabTitle(count) {
+    unread = count;
+    document.title = count > 0 ? `(${count}) ${originalTitle}` : originalTitle;
+  }
+
+  function fetchUnread() {
+    fetch('/api/notifications')
+      .then(r => r.json())
+      .then(data => {
+        const count = data.filter(n => !n.is_read).length;
+        updateTabTitle(count);
+      })
+      .catch(() => {}); // fail silently
+  }
+
+  // Poll every 60 seconds
+  fetchUnread();
+  setInterval(fetchUnread, 60000);
+
+  // Also update immediately when user marks notifications read
+  // Expose so your existing mark-read JS can call it
+  window.refreshNotifBadge = fetchUnread;
+})();
 // Show hamburger on mobile
 (function() {
   var hb = document.getElementById('mobile-hamburger');
