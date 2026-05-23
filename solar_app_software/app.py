@@ -740,7 +740,7 @@ class ProjectExpense(db.Model):
     __tablename__ = 'project_expenses'
     id           = db.Column(db.Integer, primary_key=True)
     project_id   = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
-    expense_type = db.Column(db.Enum('CD Payment', 'Net Meter'), nullable=False)
+    expense_type = db.Column(db.Enum('CD Payment', 'Meter'), nullable=False)
     amount       = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     paid_by      = db.Column(db.Enum('Customer', 'Company'), nullable=False, default='Customer')
     paid_date    = db.Column(db.Date, nullable=True)
@@ -1796,7 +1796,10 @@ def project_detail(pid):
 @roles_required('admin', 'documents')
 def update_expense(pid):
     proj         = Project.query.get_or_404(pid)
-    expense_type = request.form['expense_type']
+    expense_type = _clean(request.form.get('expense_type', ''), 50)
+    if expense_type not in ('CD Payment', 'Meter'):
+        flash('Invalid expense type.', 'danger')
+        return redirect(url_for('documents', pid=pid))
     amount       = _safe_float(request.form.get('amount'))
     paid_by      = request.form.get('paid_by', 'Customer')
     paid_date    = request.form.get('paid_date')

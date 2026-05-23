@@ -408,7 +408,7 @@ function syncStatus(stageSelect) {
   </div>
 
   {% set cd = proj.expenses | selectattr('expense_type','eq','CD Payment') | first | default(none) %}
-  {% set nm = proj.expenses | selectattr('expense_type','eq','Net Meter')  | first | default(none) %}
+  {% set nm = proj.expenses | selectattr('expense_type','eq','Meter')  | first | default(none) %}
 
   {% if cd %}
   <div style="background:{% if cd.paid_by == 'Company' %}var(--amber-50){% else %}var(--bg){% endif %};border-radius:var(--radius);padding:10px 14px">
