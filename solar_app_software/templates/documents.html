@@ -389,7 +389,7 @@
 </div>
 {# ── CD PAYMENT & NET METER ── #}
 <div class="card" style="margin-top:20px">
-  <div class="card-title">CD Payment & Net Meter</div>
+  <div class="card-title">CD Payment & Meter</div>
   <p style="font-size:12px;color:var(--muted);margin-bottom:16px">
     Record whether these were paid by the customer or by the company (to be recovered later).
   </p>
@@ -397,7 +397,7 @@
   {% set cd_expense  = proj.expenses | selectattr('expense_type','eq','CD Payment')  | first | default(none) %}
   {% set nm_expense  = proj.expenses | selectattr('expense_type','eq','Net Meter')   | first | default(none) %}
 
- {% for label, existing in [('CD Payment', cd_expense), ('Net Meter', nm_expense)] %}
+ {% for label, existing in [('CD Payment', cd_expense), (' Meter', nm_expense)] %}
 {% set form_id = 'expense-form-' ~ loop.index %}
 <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">

@@ -428,7 +428,7 @@ function syncStatus(stageSelect) {
   {% if nm %}
   <div style="background:{% if nm.paid_by == 'Company' %}var(--amber-50){% else %}var(--bg){% endif %};border-radius:var(--radius);padding:10px 14px">
     <div style="font-size:11px;color:var(--muted);margin-bottom:2px">
-      Net Meter
+      Meter
       <span class="tag" style="margin-left:4px;font-size:10px">{{ nm.paid_by }}</span>
     </div>
     <div style="font-size:16px;font-weight:500">{{ nm.amount | inr }}</div>

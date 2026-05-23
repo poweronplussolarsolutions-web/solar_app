@@ -83,11 +83,11 @@
 
       <div class="form-group">
         <label>Inverter capacity (kW) *</label>
-        <input name="inverter_capacity_kw" type="number" step="any" min="1" required placeholder="e.g. 5"/>
+        <input name="inverter_capacity_kw" type="number" step="any" min="0.01" required placeholder="e.g. 5"/>
       </div>
       <div class="form-group">
         <label>Panel capacity (kW) *</label>
-        <input name="panel_capacity_kw" type="number" step="any" min="1" required placeholder="e.g. 6"/>
+        <input name="panel_capacity_kw" type="number" step="any" min="0.01" required placeholder="e.g. 6"/>
       </div>
       <div class="form-group">
         <label>Project type *</label>
@@ -168,10 +168,7 @@
 function toggleLoanSubtype() {
   const type  = document.getElementById('project_type').value;
   const field = document.getElementById('loan-subtype-field');
-  field.style.display = (type === 'Loan') ? 'block' : 'none';
-  if (type !== 'Loan') {
-    document.getElementById('loan_subtype').value = '';
-  }
+  if (field) field.style.display = (type === 'Loan') ? 'block' : 'none';
 }
 toggleLoanSubtype();
 </script>

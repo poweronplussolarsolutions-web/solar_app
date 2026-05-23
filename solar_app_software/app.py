@@ -1704,28 +1704,29 @@ def edit_project(pid):
                 )
                 create_notification(u.id, pid, msg, 'task' if pending > 0 else 'info')
         # ── Connection details (inline save) ──────────────────────────────────
-        cd = proj.connection_details or ConnectionDetails(project_id=pid)
-        cd.connection_type = request.form.get('connection_type') or None
-        cd.category=request.form.get('category') or None
-        cd.consumer_number = _clean(request.form.get('consumer_number', ''), 50) or None
-        cd.kseb_section = _clean(request.form.get('kseb_section', ''), 100) or None
-        ownership_needed           = 'ownership_change_needed' in request.form
-        cd.ownership_change_needed = ownership_needed
-        cd.ownership_change_status = (
+        
+        if 'connection_type' in request.form:
+            cd = proj.connection_details or ConnectionDetails(project_id=pid)
+            cd.connection_type = request.form.get('connection_type') or None
+            cd.category = request.form.get('category') or None
+            cd.consumer_number = _clean(request.form.get('consumer_number', ''), 50) or None
+            cd.kseb_section = _clean(request.form.get('kseb_section', ''), 100) or None
+            ownership_needed           = 'ownership_change_needed' in request.form
+            cd.ownership_change_needed = ownership_needed
+            cd.ownership_change_status = (
             request.form.get('ownership_change_status', 'Pending')
             if ownership_needed else 'Not Required'
             )
-
-        load_needed              = 'load_clearance_needed' in request.form
-        cd.load_clearance_needed = load_needed
-        cd.load_clearance_status = (
-            request.form.get('load_clearance_status', 'Pending')
+            load_needed              = 'load_clearance_needed' in request.form
+            cd.load_clearance_needed = load_needed
+            cd.load_clearance_status = (
+                request.form.get('load_clearance_status', 'Pending')
             if load_needed else 'Not Required'
             )
-        cd.notes      = _clean(request.form.get('cd_notes', ''), 500)
-        cd.updated_by = current_user.id
-        if not cd.id:
-            db.session.add(cd)
+            cd.notes      = _clean(request.form.get('cd_notes', ''), 500)
+            cd.updated_by = current_user.id
+            if not cd.id:
+                db.session.add(cd)
         log_action(pid, 'Project edited: ' + (', '.join(changes) if changes else 'details updated'))
         db.session.commit()
         pending = new_amount - float(proj.collected_amount or 0)
