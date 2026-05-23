@@ -395,9 +395,9 @@
   </p>
 
   {% set cd_expense  = proj.expenses | selectattr('expense_type','eq','CD Payment')  | first | default(none) %}
-  {% set nm_expense  = proj.expenses | selectattr('expense_type','eq','Net Meter')   | first | default(none) %}
+  {% set nm_expense  = proj.expenses | selectattr('expense_type','eq','Meter')   | first | default(none) %}
 
- {% for label, existing in [('CD Payment', cd_expense), (' Meter', nm_expense)] %}
+ {% for label, existing in [('CD Payment', cd_expense), ('Meter', nm_expense)] %}
 {% set form_id = 'expense-form-' ~ loop.index %}
 <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
