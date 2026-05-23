@@ -101,22 +101,7 @@ The app will:
 
 ---
 
-## Default Login Credentials
 
-| Username   | Password   | Role               |
-|------------|------------|--------------------|
-| admin      | admin123   | Admin              |
-| anita      | coord123   | Coordinator        |
-| vinod      | coord123   | Coordinator        |
-| sreeja     | docs123    | Documents Team     |
-| priya      | docs123    | Documents Team     |
-| rajan      | pay123     | Payments Team      |
-| suresh     | site123    | On-site Management |
-| appteam    | app123     | App Installation   |
-
-**Change all passwords before deploying to production.**
-
----
 
 ## Role Permissions
 
