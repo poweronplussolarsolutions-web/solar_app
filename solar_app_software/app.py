@@ -770,15 +770,15 @@ class DocumentStage(db.Model):
         return [d.strip() for d in self.docs.split(',') if d.strip()]
 class PanelItem(db.Model):
     id         = db.Column(db.Integer, primary_key=True)
-    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
-    brand      = db.Column(db.String(20))   # utl / waaree / adani
-    panel_type = db.Column(db.String(20))   # topcon / bifacial
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    brand      = db.Column(db.String(20))   
+    panel_type = db.Column(db.String(20))   
     wattage    = db.Column(db.Integer)
     quantity   = db.Column(db.Integer)
 
 class ExtraMaterial(db.Model):
     id             = db.Column(db.Integer, primary_key=True)
-    project_id     = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    project_id     = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
     description    = db.Column(db.String(200))
     quantity_label = db.Column(db.String(50))
 
