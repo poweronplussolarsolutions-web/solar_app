@@ -452,7 +452,171 @@
   </form>
   {% endif %}
 </div>
+{# ═══════════════════════════════════════════ #}
+{# ② PANELS & MATERIALS                        #}
+{# ═══════════════════════════════════════════ #}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--border)">
+    <div class="section-label" style="margin:0;padding:0;border:none">② Panels &amp; Materials</div>
+    {% if proj.panel_items or proj.extra_materials %}
+    <button class="btn btn-sm" id="panels-edit-btn">Edit</button>
+    {% endif %}
+  </div>
 
+  {# ── READ-ONLY VIEW ── #}
+  <div id="panels-view">
+
+    {# Solar Panels #}
+    <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Solar panels</div>
+    {% if proj.panel_items %}
+    <div style="margin-bottom:14px">
+      {% for p in proj.panel_items %}
+      <div style="display:grid;grid-template-columns:20px 1fr 1fr auto auto auto;gap:10px;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px">
+        <span style="font-size:15px">☀️</span>
+        {# Brand badge #}
+        {% if p.brand == 'utl' %}
+          <span class="tag-pill" style="background:#ede9fe;color:#5b21b6;border:0.5px solid #c4b5fd">UTL</span>
+        {% elif p.brand == 'waaree' %}
+          <span class="tag-pill" style="background:#fee2e2;color:#991b1b;border:0.5px solid #fca5a5">Waaree</span>
+        {% else %}
+          <span class="tag-pill" style="background:#e0f2fe;color:#075985;border:0.5px solid #7dd3fc">Adani</span>
+        {% endif %}
+        {# Type badge #}
+        {% if p.panel_type == 'topcon' %}
+          <span class="tag-pill" style="background:#f0fdf4;color:#166534;border:0.5px solid #86efac">TopCon</span>
+        {% else %}
+          <span class="tag-pill" style="background:#fdf4ff;color:#6b21a8;border:0.5px solid #d8b4fe">Bifacial</span>
+        {% endif %}
+        <span style="font-size:12px;color:var(--muted);white-space:nowrap">{{ p.quantity }} pcs</span>
+        <span style="font-size:11px;color:var(--hint);white-space:nowrap">{{ p.wattage }}W</span>
+        {% if current_user.role in ['admin','onsite'] %}
+        <form method="POST" action="{{ url_for('delete_panel_item', pid=proj.id, item_id=p.id) }}" style="margin:0">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm" style="color:var(--danger);border-color:#fca5a5;padding:2px 7px">✕</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="font-size:12px;color:var(--hint);padding:4px 0 12px">No panels added yet.</div>
+    {% endif %}
+
+    <div style="border-top:0.5px solid var(--border);margin-bottom:10px"></div>
+
+    {# Additional Materials #}
+    <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Additional materials</div>
+    {% if proj.extra_materials %}
+    <div>
+      {% for m in proj.extra_materials %}
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px">
+        <span>{{ m.description }}</span>
+        <span style="font-size:12px;color:var(--muted);white-space:nowrap">{{ m.quantity_label }}</span>
+        {% if current_user.role in ['admin','onsite'] %}
+        <form method="POST" action="{{ url_for('delete_extra_material', pid=proj.id, item_id=m.id) }}" style="margin:0">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm" style="color:var(--danger);border-color:#fca5a5;padding:2px 7px">✕</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="font-size:12px;color:var(--hint);padding:4px 0">No additional materials.</div>
+    {% endif %}
+  </div>
+
+  {# ── ADD FORM (admin/onsite only) ── #}
+  {% if current_user.role in ['admin','onsite'] %}
+  <div id="panels-form" style="display:{% if not proj.panel_items and not proj.extra_materials %}block{% else %}none{% endif %};margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
+
+    {# Add panel #}
+    <div style="font-size:13px;font-weight:500;margin-bottom:10px">Add solar panels</div>
+    <form method="POST" action="{{ url_for('add_panel_item', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end;margin-bottom:4px">
+        <div>
+          <label>Brand</label>
+          <select name="brand" required>
+            <option value="">— Brand —</option>
+            <option value="utl">UTL</option>
+            <option value="waaree">Waaree</option>
+            <option value="adani">Adani</option>
+          </select>
+        </div>
+        <div>
+          <label>Type</label>
+          <select name="panel_type" required>
+            <option value="">— Type —</option>
+            <option value="topcon">TopCon</option>
+            <option value="bifacial">Bifacial</option>
+          </select>
+        </div>
+        <div>
+          <label>Wattage (W)</label>
+          <input type="number" name="wattage" placeholder="e.g. 540" min="1" max="1000"/>
+        </div>
+        <div>
+          <label>Qty (pcs)</label>
+          <input type="number" name="quantity" placeholder="e.g. 24" min="1" required/>
+        </div>
+        <div>
+          <button type="submit" class="btn btn-primary btn-sm" style="margin-bottom:1px">+ Add</button>
+        </div>
+      </div>
+    </form>
+
+    <div style="border-top:0.5px solid var(--border);margin:14px 0"></div>
+
+    {# Add extra material #}
+    <div style="font-size:13px;font-weight:500;margin-bottom:10px">Add additional material</div>
+    <form method="POST" action="{{ url_for('add_extra_material', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:flex-end">
+        <div>
+          <label>Description</label>
+          <input type="text" name="description" placeholder="e.g. MC4 Connectors, 6mm cable…" required/>
+        </div>
+        <div>
+          <label>Quantity / unit</label>
+          <input type="text" name="quantity_label" placeholder="e.g. 50 pcs, 100m"/>
+        </div>
+        <div>
+          <button type="submit" class="btn btn-primary btn-sm" style="margin-bottom:1px">+ Add</button>
+        </div>
+      </div>
+    </form>
+
+    {% if proj.panel_items or proj.extra_materials %}
+    <div style="margin-top:12px">
+      <button type="button" class="btn btn-sm" id="panels-cancel-btn">Done</button>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<script>
+/* panels card toggle */
+var panelsEditBtn   = document.getElementById('panels-edit-btn');
+var panelsCancelBtn = document.getElementById('panels-cancel-btn');
+var panelsView      = document.getElementById('panels-view');
+var panelsForm      = document.getElementById('panels-form');
+if (panelsEditBtn) {
+  panelsEditBtn.addEventListener('click', function() {
+    panelsView.style.display = 'none';
+    panelsForm.style.display = 'block';
+    panelsEditBtn.style.display = 'none';
+  });
+}
+if (panelsCancelBtn) {
+  panelsCancelBtn.addEventListener('click', function() {
+    panelsForm.style.display = 'none';
+    panelsView.style.display = 'block';
+    if (panelsEditBtn) panelsEditBtn.style.display = 'inline-block';
+  });
+}
+</script>
 {# ═══════════════════════════════════════════ #}
 {# ③ STRUCTURE WORK                            #}
 {# ═══════════════════════════════════════════ #}

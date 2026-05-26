@@ -293,6 +293,8 @@ class Project(db.Model):
     assignments      = db.relationship('WorkerAssignment', backref='project', lazy=True)
     loan_subtype     = db.Column(db.Enum('Assisted','Self'), nullable=True)
     roof_type=db.Column(db.Enum('F','C','S'),nullable=True)
+    panel_items      = db.relationship('PanelItem', backref='project', lazy=True, cascade='all,delete-orphan')
+    extra_materials  = db.relationship('ExtraMaterial', backref='project', lazy=True, cascade='all,delete-orphan')
 
     @property
     def contract_amount(self):
@@ -766,7 +768,19 @@ class DocumentStage(db.Model):
     @property
     def doc_list(self):
         return [d.strip() for d in self.docs.split(',') if d.strip()]
+class PanelItem(db.Model):
+    id         = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    brand      = db.Column(db.String(20))   # utl / waaree / adani
+    panel_type = db.Column(db.String(20))   # topcon / bifacial
+    wattage    = db.Column(db.Integer)
+    quantity   = db.Column(db.Integer)
 
+class ExtraMaterial(db.Model):
+    id             = db.Column(db.Integer, primary_key=True)
+    project_id     = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    description    = db.Column(db.String(200))
+    quantity_label = db.Column(db.String(50))
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
@@ -2881,7 +2895,44 @@ def recover_advance(advance_id):
     db.session.commit()
     flash(f'₹{recover:,.0f} marked as recovered from advance.', 'success')
     return redirect(url_for('workers'))
+@app.route('/project/<int:pid>/panel-item/add', methods=['POST'])
+@login_required
+def add_panel_item(pid):
+    proj = Project.query.get_or_404(pid)
+    item = PanelItem(
+        project_id=pid,
+        brand=request.form['brand'],
+        panel_type=request.form['panel_type'],
+        wattage=int(request.form.get('wattage') or 0),
+        quantity=int(request.form['quantity']),
+    )
+    db.session.add(item); db.session.commit()
+    return redirect(url_for('onsite_progress', pid=pid))
 
+@app.route('/project/<int:pid>/panel-item/<int:item_id>/delete', methods=['POST'])
+@login_required
+def delete_panel_item(pid, item_id):
+    item = PanelItem.query.get_or_404(item_id)
+    db.session.delete(item); db.session.commit()
+    return redirect(url_for('onsite_progress', pid=pid))
+
+@app.route('/project/<int:pid>/extra-material/add', methods=['POST'])
+@login_required
+def add_extra_material(pid):
+    mat = ExtraMaterial(
+        project_id=pid,
+        description=request.form['description'],
+        quantity_label=request.form.get('quantity_label',''),
+    )
+    db.session.add(mat); db.session.commit()
+    return redirect(url_for('onsite_progress', pid=pid))
+
+@app.route('/project/<int:pid>/extra-material/<int:item_id>/delete', methods=['POST'])
+@login_required
+def delete_extra_material(pid, item_id):
+    mat = ExtraMaterial.query.get_or_404(item_id)
+    db.session.delete(mat); db.session.commit()
+    return redirect(url_for('onsite_progress', pid=pid))
 
 @app.route('/projects/<int:pid>/materials/dispatch/<int:mid>', methods=['POST'])
 @login_required
