@@ -2628,9 +2628,9 @@ def delete_worker_payment(pay_id):
 def onsite_progress(pid):
     proj     = Project.query.get_or_404(pid)
     progress = proj.onsite_progress or OnsiteProgress(project_id=pid)
-
+    all_workers=Worker.query.order_by(Worker.name).all()
     if request.method == 'POST':
-        all_workers=Worker.query.order_by(Worker.name).all()
+        
         new_struct  = request.form.get('structure_work_status', progress.structure_work_status)
         new_install = request.form.get('installation_status', '')
         new_elec    = request.form.get('electrical_status', '')
