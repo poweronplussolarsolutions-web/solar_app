@@ -128,110 +128,110 @@
   </div>
 </div>
 </div>
-{# ── WORKER ASSIGNMENTS ── #}
+
+{# ══════════════════════════════════════════ #}
+{# WORKER ASSIGNMENTS                         #}
+{# ══════════════════════════════════════════ #}
 <div class="card" id="workers">
   <div class="card-title">Worker assignments</div>
- 
+
   {% if proj.assignments %}
   <div class="table-wrap">
     <input type="hidden" id="csrf-token-val" value="{{ csrf_token() }}">
-  <table>
-    <thead>
-      <tr>
-        <th>Worker</th>
-        <th>Skill</th>
-        <th>Phase</th>
-        <th>Status</th>
-        {% if current_user.role in ['admin','onsite'] %}<th></th><th></th>{% endif %}
-      </tr>
-    </thead>
-    <tbody>
-      {% for a in proj.assignments %}
-      <tr>
-        <td style="font-weight:500">{{ a.worker.name }}</td>
-        <td style="font-size:12px;color:var(--muted)">{{ a.worker.skill }}</td>
-        <td>
-          {% if a.work_phase == 'Electrical/Installation' %}
-            <span class="badge badge-InProgress">Electrical/Installation</span>
-          {% elif a.work_phase == 'Full Work' %}
-            <span class="badge badge-Completed">Full Work</span>
-          {% else %}
-            <span class="badge badge-Created">Structure</span>
+    <table>
+      <thead>
+        <tr>
+          <th>Worker</th>
+          <th>Skill</th>
+          <th>Phase</th>
+          <th>Status</th>
+          {% if current_user.role in ['admin','onsite'] %}<th></th><th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in proj.assignments %}
+        <tr>
+          <td style="font-weight:500">{{ a.worker.name }}</td>
+          <td style="font-size:12px;color:var(--muted)">{{ a.worker.skill }}</td>
+          <td>
+            {% if a.work_phase == 'Electrical/Installation' %}
+              <span class="badge badge-InProgress">Electrical/Installation</span>
+            {% elif a.work_phase == 'Full Work' %}
+              <span class="badge badge-Completed">Full Work</span>
+            {% else %}
+              <span class="badge badge-Created">Structure</span>
+            {% endif %}
+          </td>
+          <td><span class="badge badge-{{ a.status }}">{{ a.status }}</span></td>
+
+          {% if current_user.role in ['admin','onsite'] %}
+          <td>
+            <button class="btn btn-sm edit-btn" data-aid="{{ a.id }}">Edit</button>
+          </td>
+          <td>
+            {% if a.status != 'Paid' %}
+            <button class="btn btn-sm btn-danger unassign-btn"
+              data-aid="{{ a.id }}"
+              data-name="{{ a.worker.name }}"
+              data-phase="{{ a.work_phase }}"
+              data-url="{{ url_for('unassign_worker', pid=proj.id, aid=a.id) }}">
+              Unassign
+            </button>
+            {% endif %}
+          </td>
           {% endif %}
-        </td>
-        <td><span class="badge badge-{{ a.status }}">{{ a.status }}</span></td>
- 
+        </tr>
+
         {% if current_user.role in ['admin','onsite'] %}
-        <td>
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn btn-sm edit-btn" data-aid="{{ a.id }}">Edit</button>
-        </td>
-        <td>
-          {% if a.status != 'Paid' %}
-          <input type="hidden" id="csrf-token-val" value="{{ csrf_token() }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn btn-sm btn-danger unassign-btn"
-        data-aid="{{ a.id }}"
-        data-name="{{ a.worker.name }}"
-        data-phase="{{ a.work_phase }}"
-        data-url="{{ url_for('unassign_worker', pid=proj.id, aid=a.id) }}">
-  Unassign
-</button>
-          {% endif %}
-        </td>
+        <tr id="update-form-{{ a.id }}" style="display:none;background:var(--bg)">
+          <td colspan="6" style="padding:12px 14px">
+            <form method="POST" action="{{ url_for('update_assignment', pid=proj.id, aid=a.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:flex-end">
+                <div>
+                  <label>Worker</label>
+                  <select name="worker_id">
+                    {% for w in all_workers %}
+                    <option value="{{ w.id }}" {% if a.worker_id == w.id %}selected{% endif %}>
+                      {{ w.name }} — {{ w.skill }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label>Phase</label>
+                  <select name="work_phase">
+                    <option value="Structure"               {% if a.work_phase == 'Structure' %}selected{% endif %}>Structure</option>
+                    <option value="Electrical/Installation" {% if a.work_phase == 'Electrical/Installation' %}selected{% endif %}>Electrical/Installation</option>
+                    <option value="Full Work"               {% if a.work_phase == 'Full Work' %}selected{% endif %}>Full Work</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Status</label>
+                  <select name="status">
+                    {% for s in ['Assigned','Active','Completed'] %}
+                    <option {% if a.status == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div style="display:flex;gap:6px;align-items:flex-end">
+                  <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                  <button type="button" class="btn btn-sm edit-btn" data-aid="{{ a.id }}">Cancel</button>
+                </div>
+              </div>
+            </form>
+          </td>
+        </tr>
         {% endif %}
-      </tr>
- 
-      {% if current_user.role in ['admin','onsite'] %}
-      <tr id="update-form-{{ a.id }}" style="display:none;background:var(--bg)">
-        <td colspan="6" style="padding:12px 14px">
-          <form method="POST" action="{{ url_for('update_assignment', pid=proj.id, aid=a.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:flex-end">
-              <div>
-                <label>Worker</label>
-                <select name="worker_id">
-                  {% for w in all_workers %}
-                  <option value="{{ w.id }}" {% if a.worker_id == w.id %}selected{% endif %}>
-                    {{ w.name }} — {{ w.skill }}
-                  </option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div>
-                <label>Phase</label>
-                <select name="work_phase">
-                  <option value="Structure"               {% if a.work_phase == 'Structure' %}selected{% endif %}>Structure</option>
-                  <option value="Electrical/Installation" {% if a.work_phase == 'Electrical/Installation' %}selected{% endif %}>Electrical/Installation</option>
-                  <option value="Full Work"               {% if a.work_phase == 'Full Work' %}selected{% endif %}>Full Work</option>
-                </select>
-              </div>
-              <div>
-                <label>Status</label>
-                <select name="status">
-                  {% for s in ['Assigned','Active','Completed'] %}
-                  <option {% if a.status == s %}selected{% endif %}>{{ s }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div style="display:flex;gap:6px;align-items:flex-end">
-                <button type="submit" class="btn btn-primary btn-sm">Save</button>
-                <button type="button" class="btn btn-sm edit-btn" data-aid="{{ a.id }}">Cancel</button>
-              </div>
-            </div>
-          </form>
-        </td>
-      </tr>
-      {% endif %}
- 
-      {% endfor %}
-    </tbody>
-  </table>
+
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
   {% else %}
   <div style="color:var(--hint);font-size:13px;padding:4px 0">No workers assigned yet.</div>
   {% endif %}
- 
+
   {% if current_user.role in ['admin','onsite'] %}
   <div style="margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
     <div style="font-size:13px;font-weight:500;margin-bottom:10px">Assign worker</div>
@@ -262,9 +262,10 @@
   </div>
   {% endif %}
 </div>
-{# ═══════════════════════════════════════════ #}
-{# ① MATERIALS                                 #}
-{# ═══════════════════════════════════════════ #}
+
+{# ══════════════════════════════════════════ #}
+{# ① MATERIALS                                #}
+{# ══════════════════════════════════════════ #}
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--border)">
     <div class="section-label" style="margin:0;padding:0;border:none">① Materials</div>
@@ -273,7 +274,7 @@
     {% endif %}
   </div>
 
-  {# ── Read-only view (shown when either flag is set) ── #}
+  {# ── Read-only view ── #}
   {% if progress.materials_ordered or progress.materials_delivered %}
   <div id="mat-view">
     <table style="font-size:13px;width:100%">
@@ -301,7 +302,7 @@
       </tr>
     </table>
 
-    {# ── Quick mark-delivered button when ordered but not yet delivered ── #}
+    {# Quick mark-delivered button #}
     {% if progress.materials_ordered and not progress.materials_delivered %}
     <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}"
           style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border);
@@ -395,9 +396,8 @@
   </div>
 
   {% else %}
-  {# ── First-time entry forms (shown when nothing saved yet) ── #}
+  {# ── First-time entry forms ── #}
 
-  {# Order placed form #}
   <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}"
         style="display:grid;grid-template-columns:auto 1fr auto;gap:10px 14px;align-items:center;font-size:13px;margin-bottom:12px">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -425,7 +425,6 @@
 
   <div style="border-top:0.5px solid var(--border);margin-bottom:12px"></div>
 
-  {# Delivered form #}
   <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}"
         style="display:grid;grid-template-columns:auto 1fr auto;gap:10px 14px;align-items:center;font-size:13px">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -452,28 +451,26 @@
   </form>
   {% endif %}
 </div>
-{# ═══════════════════════════════════════════ #}
-{# ② PANELS & MATERIALS                        #}
-{# ═══════════════════════════════════════════ #}
+
+{# ══════════════════════════════════════════ #}
+{# ② PANELS & MATERIALS                       #}
+{# ══════════════════════════════════════════ #}
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--border)">
     <div class="section-label" style="margin:0;padding:0;border:none">② Panels &amp; Materials</div>
-    {% if proj.panel_items or proj.extra_materials %}
+    {% if (proj.panel_items or proj.extra_materials) and current_user.role in ['admin','onsite'] %}
     <button class="btn btn-sm" id="panels-edit-btn">Edit</button>
     {% endif %}
   </div>
 
   {# ── READ-ONLY VIEW ── #}
   <div id="panels-view">
-
-    {# Solar Panels #}
     <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Solar panels</div>
     {% if proj.panel_items %}
     <div style="margin-bottom:14px">
       {% for p in proj.panel_items %}
       <div style="display:grid;grid-template-columns:20px 1fr 1fr auto auto auto;gap:10px;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px">
-        <span style="font-size:15px"></span>
-        {# Brand badge #}
+        <span style="font-size:15px">☀️</span>
         {% if p.brand == 'utl' %}
           <span class="tag-pill" style="background:#ede9fe;color:#5b21b6;border:0.5px solid #c4b5fd">UTL</span>
         {% elif p.brand == 'waaree' %}
@@ -481,16 +478,16 @@
         {% else %}
           <span class="tag-pill" style="background:#e0f2fe;color:#075985;border:0.5px solid #7dd3fc">Adani</span>
         {% endif %}
-        {# Type badge #}
         {% if p.panel_type == 'topcon' %}
           <span class="tag-pill" style="background:#f0fdf4;color:#166534;border:0.5px solid #86efac">TopCon</span>
         {% else %}
           <span class="tag-pill" style="background:#fdf4ff;color:#6b21a8;border:0.5px solid #d8b4fe">Bifacial</span>
         {% endif %}
-        <span style="font-size:15px;color:var(--muted);white-space:nowrap">{{ p.quantity }} pcs</span>
-        <span style="font-size:15px;color:var(--hint);white-space:nowrap">{{ p.wattage }}W</span>
+        <span style="font-size:12px;color:var(--muted);white-space:nowrap">{{ p.quantity }} pcs</span>
+        <span style="font-size:11px;color:var(--hint);white-space:nowrap">{% if p.wattage %}{{ p.wattage }}W{% endif %}</span>
         {% if current_user.role in ['admin','onsite'] %}
-        <form method="POST" action="{{ url_for('delete_panel_item', pid=proj.id, item_id=p.id) }}" style="margin:0">
+        <form method="POST" action="{{ url_for('delete_panel_item', pid=proj.id, item_id=p.id) }}"
+              onsubmit="return confirm('Remove this panel?')" style="margin:0">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-sm" style="color:var(--danger);border-color:#fca5a5;padding:2px 7px">✕</button>
         </form>
@@ -504,7 +501,6 @@
 
     <div style="border-top:0.5px solid var(--border);margin-bottom:10px"></div>
 
-    {# Additional Materials #}
     <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Additional materials</div>
     {% if proj.extra_materials %}
     <div>
@@ -513,7 +509,8 @@
         <span>{{ m.description }}</span>
         <span style="font-size:12px;color:var(--muted);white-space:nowrap">{{ m.quantity_label }}</span>
         {% if current_user.role in ['admin','onsite'] %}
-        <form method="POST" action="{{ url_for('delete_extra_material', pid=proj.id, item_id=m.id) }}" style="margin:0">
+        <form method="POST" action="{{ url_for('delete_extra_material', pid=proj.id, item_id=m.id) }}"
+              onsubmit="return confirm('Remove this material?')" style="margin:0">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-sm" style="color:var(--danger);border-color:#fca5a5;padding:2px 7px">✕</button>
         </form>
@@ -526,12 +523,57 @@
     {% endif %}
   </div>
 
-  {# ── ADD FORM (admin/onsite only) ── #}
+  {# ── ADD / EDIT FORM (admin/onsite only) ── #}
   {% if current_user.role in ['admin','onsite'] %}
   <div id="panels-form" style="display:{% if not proj.panel_items and not proj.extra_materials %}block{% else %}none{% endif %};margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
 
-    {# Add panel #}
-    <div style="font-size:13px;font-weight:500;margin-bottom:10px">Add solar panels</div>
+    {# ── Edit existing panels ── #}
+    {% if proj.panel_items %}
+    <div style="font-size:13px;font-weight:500;margin-bottom:8px">Edit panels</div>
+    {% for p in proj.panel_items %}
+    <form method="POST" action="{{ url_for('update_panel_item', pid=proj.id, item_id=p.id) }}"
+          style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto auto;gap:8px;align-items:flex-end;margin-bottom:8px;padding-bottom:8px;border-bottom:0.5px solid var(--border)">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div>
+        <label>Brand</label>
+        <select name="brand">
+          <option value="utl"    {% if p.brand == 'utl' %}selected{% endif %}>UTL</option>
+          <option value="waaree" {% if p.brand == 'waaree' %}selected{% endif %}>Waaree</option>
+          <option value="adani"  {% if p.brand == 'adani' %}selected{% endif %}>Adani</option>
+        </select>
+      </div>
+      <div>
+        <label>Type</label>
+        <select name="panel_type">
+          <option value="topcon"   {% if p.panel_type == 'topcon' %}selected{% endif %}>TopCon</option>
+          <option value="bifacial" {% if p.panel_type == 'bifacial' %}selected{% endif %}>Bifacial</option>
+        </select>
+      </div>
+      <div>
+        <label>Wattage (W)</label>
+        <input type="number" name="wattage" value="{{ p.wattage or '' }}" placeholder="e.g. 525" min="1" max="1000"/>
+      </div>
+      <div>
+        <label>Qty (pcs)</label>
+        <input type="number" name="quantity" value="{{ p.quantity }}" min="1" required/>
+      </div>
+      <div>
+        <button type="submit" class="btn btn-primary btn-sm" style="margin-bottom:1px">Save</button>
+      </div>
+      <div>
+        <form method="POST" action="{{ url_for('delete_panel_item', pid=proj.id, item_id=p.id) }}"
+              onsubmit="return confirm('Remove this panel?')" style="margin:0">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm" style="color:var(--danger);border-color:#fca5a5;margin-bottom:1px">✕</button>
+        </form>
+      </div>
+    </form>
+    {% endfor %}
+    <div style="border-top:0.5px solid var(--border);margin:14px 0"></div>
+    {% endif %}
+
+    {# ── Add new panel ── #}
+    <div style="font-size:13px;font-weight:500;margin-bottom:10px">Add solar panel</div>
     <form method="POST" action="{{ url_for('add_panel_item', pid=proj.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end;margin-bottom:4px">
@@ -568,7 +610,37 @@
 
     <div style="border-top:0.5px solid var(--border);margin:14px 0"></div>
 
-    {# Add extra material #}
+    {# ── Edit existing extra materials ── #}
+    {% if proj.extra_materials %}
+    <div style="font-size:13px;font-weight:500;margin-bottom:8px">Edit materials</div>
+    {% for m in proj.extra_materials %}
+    <form method="POST" action="{{ url_for('update_extra_material', pid=proj.id, item_id=m.id) }}"
+          style="display:grid;grid-template-columns:2fr 1fr auto auto;gap:8px;align-items:flex-end;margin-bottom:8px;padding-bottom:8px;border-bottom:0.5px solid var(--border)">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div>
+        <label>Description</label>
+        <input type="text" name="description" value="{{ m.description }}" required/>
+      </div>
+      <div>
+        <label>Quantity / unit</label>
+        <input type="text" name="quantity_label" value="{{ m.quantity_label }}"/>
+      </div>
+      <div>
+        <button type="submit" class="btn btn-primary btn-sm" style="margin-bottom:1px">Save</button>
+      </div>
+      <div>
+        <form method="POST" action="{{ url_for('delete_extra_material', pid=proj.id, item_id=m.id) }}"
+              onsubmit="return confirm('Remove this material?')" style="margin:0">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm" style="color:var(--danger);border-color:#fca5a5;margin-bottom:1px">✕</button>
+        </form>
+      </div>
+    </form>
+    {% endfor %}
+    <div style="border-top:0.5px solid var(--border);margin:14px 0"></div>
+    {% endif %}
+
+    {# ── Add new extra material ── #}
     <div style="font-size:13px;font-weight:500;margin-bottom:10px">Add additional material</div>
     <form method="POST" action="{{ url_for('add_extra_material', pid=proj.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -587,39 +659,16 @@
       </div>
     </form>
 
-    {% if proj.panel_items or proj.extra_materials %}
-    <div style="margin-top:12px">
+    <div style="margin-top:14px">
       <button type="button" class="btn btn-sm" id="panels-cancel-btn">Done</button>
     </div>
-    {% endif %}
   </div>
   {% endif %}
 </div>
 
-<script>
-
-var panelsEditBtn   = document.getElementById('panels-edit-btn');
-var panelsCancelBtn = document.getElementById('panels-cancel-btn');
-var panelsView      = document.getElementById('panels-view');
-var panelsForm      = document.getElementById('panels-form');
-if (panelsEditBtn) {
-  panelsEditBtn.addEventListener('click', function() {
-    panelsView.style.display = 'none';
-    panelsForm.style.display = 'block';
-    panelsEditBtn.style.display = 'none';
-  });
-}
-if (panelsCancelBtn) {
-  panelsCancelBtn.addEventListener('click', function() {
-    panelsForm.style.display = 'none';
-    panelsView.style.display = 'block';
-    if (panelsEditBtn) panelsEditBtn.style.display = 'inline-block';
-  });
-}
-</script>
-{# ═══════════════════════════════════════════ #}
-{# ③ STRUCTURE WORK                            #}
-{# ═══════════════════════════════════════════ #}
+{# ══════════════════════════════════════════ #}
+{# ③ STRUCTURE WORK                           #}
+{# ══════════════════════════════════════════ #}
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--border)">
     <div class="section-label" style="margin:0;padding:0;border:none">③ Structure work</div>
@@ -629,7 +678,6 @@ if (panelsCancelBtn) {
   </div>
 
   {% if struct_done %}
-  {# Read-only view #}
   <div id="struct-view">
     <table style="font-size:13px;width:100%">
       <tr><td style="color:var(--muted);width:120px;padding:5px 0">Status</td>
@@ -689,7 +737,6 @@ if (panelsCancelBtn) {
   </div>
 
   {% else %}
-  {# Active form #}
   <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-grid">
@@ -733,9 +780,9 @@ if (panelsCancelBtn) {
   {% endif %}
 </div>
 
-{# ═══════════════════════════════════════════ #}
-{# ④ PANEL INSTALLATION                        #}
-{# ═══════════════════════════════════════════ #}
+{# ══════════════════════════════════════════ #}
+{# ④ PANEL INSTALLATION                       #}
+{# ══════════════════════════════════════════ #}
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--border)">
     <div class="section-label" style="margin:0;padding:0;border:none">④ Panel installation &amp; electrical</div>
@@ -781,30 +828,10 @@ if (panelsCancelBtn) {
           <label>End date</label>
           <input type="date" name="installation_end_date" value="{{ progress.installation_end_date or today.isoformat() }}"/>
         </div>
-        <!-- <div class="form-group">
-          <label>Electrical status</label>
-          <select name="electrical_status">
-            {% for s in ['NotStarted','InProgress','Completed'] %}
-            <option value="{{ s }}" {% if progress.electrical_status == s %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-          </select>
-        </div> -->
-        <!-- <div class="form-group">
-          <label>Electrical start</label>
-          <input type="date" name="electrical_start_date" value="{{ progress.electrical_start_date or today.isoformat() }}"/>
-        </div>
-        <div class="form-group">
-          <label>Electrical end</label>
-          <input type="date" name="electrical_end_date" value="{{ progress.electrical_end_date or today.isoformat() }}"/>
-        </div> -->
         <div class="form-group full">
           <label>Notes</label>
           <textarea name="installation_notes" rows="2">{{ progress.installation_notes or '' }}</textarea>
         </div>
-        <!-- <div class="form-group full">
-          <label>Electrical notes</label>
-          <textarea name="electrical_notes" rows="2">{{ progress.electrical_notes or '' }}</textarea>
-        </div> -->
       </div>
       <input type="hidden" name="materials_ordered" value="{{ 'on' if progress.materials_ordered else '' }}"/>
       <input type="hidden" name="materials_ordered_date" value="{{ progress.materials_ordered_date or '' }}"/>
@@ -814,6 +841,10 @@ if (panelsCancelBtn) {
       <input type="hidden" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
       <input type="hidden" name="structure_end_date" value="{{ progress.structure_end_date or '' }}"/>
       <input type="hidden" name="structure_notes" value="{{ progress.structure_notes or '' }}"/>
+      <input type="hidden" name="electrical_status" value="{{ progress.electrical_status or 'NotStarted' }}"/>
+      <input type="hidden" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
+      <input type="hidden" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
+      <input type="hidden" name="electrical_notes" value="{{ progress.electrical_notes or '' }}"/>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button type="submit" class="btn btn-primary btn-sm">Save</button>
         <button type="button" class="btn btn-sm" id="install-cancel-btn">Cancel</button>
@@ -865,9 +896,9 @@ if (panelsCancelBtn) {
   {% endif %}
 </div>
 
-{# ═══════════════════════════════════════════ #}
-{# DAILY LOG                                   #}
-{# ═══════════════════════════════════════════ #}
+{# ══════════════════════════════════════════ #}
+{# DAILY LOG                                  #}
+{# ══════════════════════════════════════════ #}
 <div class="card">
   <div class="section-label">Daily work log</div>
   {% if proj.onsite_logs %}
@@ -913,6 +944,7 @@ if (panelsCancelBtn) {
 </div>
 
 <script>
+// ── Worker assignment toggles ──
 document.querySelectorAll('.edit-btn').forEach(function(btn) {
   btn.addEventListener('click', function() {
     var aid = this.getAttribute('data-aid');
@@ -940,11 +972,47 @@ document.querySelectorAll('.unassign-btn').forEach(function(btn) {
   });
 });
 
-function toggleMatEdit(mid) {
-  var row = document.getElementById('matedit-' + mid);
-  if (row) row.style.display = row.style.display === 'none' ? 'block' : 'none';
+// ── Materials (order/delivery) toggle ──
+var matEditBtn   = document.getElementById('mat-edit-btn');
+var matCancelBtn = document.getElementById('mat-cancel-btn');
+var matView      = document.getElementById('mat-view');
+var matForm      = document.getElementById('mat-form');
+if (matEditBtn) {
+  matEditBtn.addEventListener('click', function() {
+    matView.style.display = 'none';
+    matForm.style.display = 'block';
+    matEditBtn.style.display = 'none';
+  });
+}
+if (matCancelBtn) {
+  matCancelBtn.addEventListener('click', function() {
+    matForm.style.display = 'none';
+    matView.style.display = 'block';
+    matEditBtn.style.display = 'inline-block';
+  });
 }
 
+// ── Panels & Materials toggle ──
+var panelsEditBtn   = document.getElementById('panels-edit-btn');
+var panelsCancelBtn = document.getElementById('panels-cancel-btn');
+var panelsView      = document.getElementById('panels-view');
+var panelsForm      = document.getElementById('panels-form');
+if (panelsEditBtn) {
+  panelsEditBtn.addEventListener('click', function() {
+    panelsView.style.display = 'none';
+    panelsForm.style.display = 'block';
+    panelsEditBtn.style.display = 'none';
+  });
+}
+if (panelsCancelBtn) {
+  panelsCancelBtn.addEventListener('click', function() {
+    panelsForm.style.display = 'none';
+    panelsView.style.display = 'block';
+    if (panelsEditBtn) panelsEditBtn.style.display = 'inline-block';
+  });
+}
+
+// ── Structure toggle ──
 var structEditBtn   = document.getElementById('struct-edit-btn');
 var structCancelBtn = document.getElementById('struct-cancel-btn');
 var structView      = document.getElementById('struct-view');
@@ -964,6 +1032,7 @@ if (structCancelBtn) {
   });
 }
 
+// ── Installation toggle ──
 var installEditBtn   = document.getElementById('install-edit-btn');
 var installCancelBtn = document.getElementById('install-cancel-btn');
 var installView      = document.getElementById('install-view');
@@ -980,25 +1049,6 @@ if (installCancelBtn) {
     installForm.style.display = 'none';
     installView.style.display = 'block';
     installEditBtn.style.display = 'inline-block';
-  });
-}
-
-var matEditBtn   = document.getElementById('mat-edit-btn');
-var matCancelBtn = document.getElementById('mat-cancel-btn');
-var matView      = document.getElementById('mat-view');
-var matForm      = document.getElementById('mat-form');
-if (matEditBtn) {
-  matEditBtn.addEventListener('click', function() {
-    matView.style.display = 'none';
-    matForm.style.display = 'block';
-    matEditBtn.style.display = 'none';
-  });
-}
-if (matCancelBtn) {
-  matCancelBtn.addEventListener('click', function() {
-    matForm.style.display = 'none';
-    matView.style.display = 'block';
-    matEditBtn.style.display = 'inline-block';
   });
 }
 </script>

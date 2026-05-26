@@ -2369,7 +2369,25 @@ def batch_documents(pid):
     db.session.commit()
     flash(f'{len(doc_types)} documents marked {status}.', 'success')
     return redirect(url_for('documents', pid=pid))
+@app.route('/project/<int:pid>/panel-item/<int:item_id>/update', methods=['POST'])
+@login_required
+def update_panel_item(pid, item_id):
+    item = PanelItem.query.get_or_404(item_id)
+    item.brand      = request.form['brand']
+    item.panel_type = request.form['panel_type']
+    item.wattage    = int(request.form.get('wattage') or 0)
+    item.quantity   = int(request.form['quantity'])
+    db.session.commit()
+    return redirect(url_for('onsite_progress', pid=pid))
 
+@app.route('/project/<int:pid>/extra-material/<int:item_id>/update', methods=['POST'])
+@login_required
+def update_extra_material(pid, item_id):
+    mat = ExtraMaterial.query.get_or_404(item_id)
+    mat.description    = request.form['description']
+    mat.quantity_label = request.form.get('quantity_label', '')
+    db.session.commit()
+    return redirect(url_for('onsite_progress', pid=pid))
 
 # ─────────────────────────────────────────────────────────────────────────────
 # KSEB
