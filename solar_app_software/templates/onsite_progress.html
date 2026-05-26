@@ -483,8 +483,8 @@
         {% else %}
           <span class="tag-pill" style="background:#fdf4ff;color:#6b21a8;border:0.5px solid #d8b4fe">Bifacial</span>
         {% endif %}
-        <span style="font-size:12px;color:var(--muted);white-space:nowrap">{{ p.quantity }} pcs</span>
-        <span style="font-size:11px;color:var(--hint);white-space:nowrap">{% if p.wattage %}{{ p.wattage }}W{% endif %}</span>
+        <span style="font-size:15px;color:var(--muted);white-space:nowrap">{{ p.quantity }} pcs</span>
+        <span style="font-size:15px;color:var(--hint);white-space:nowrap">{% if p.wattage %}{{ p.wattage }}W{% endif %}</span>
         {% if current_user.role in ['admin','onsite'] %}
         <form method="POST" action="{{ url_for('delete_panel_item', pid=proj.id, item_id=p.id) }}"
               onsubmit="return confirm('Remove this panel?')" style="margin:0">
