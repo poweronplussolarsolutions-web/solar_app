@@ -7,6 +7,7 @@
   </span>
 {% endblock %}
 {% block topbar_actions %}
+  <a href="{{ url_for('project_details', pid=proj.id) }}" class="btn btn-sm">Project details</a>
   <a href="{{ url_for('onsite_board', pid=proj.id) }}" class="btn btn-sm">← Back</a>
 {% endblock %}
 
