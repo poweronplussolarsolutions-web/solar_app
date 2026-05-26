@@ -133,6 +133,7 @@
  
   {% if proj.assignments %}
   <div class="table-wrap">
+    <input type="hidden" id="csrf-token-val" value="{{ csrf_token() }}">
   <table>
     <thead>
       <tr>
@@ -169,11 +170,12 @@
           <input type="hidden" id="csrf-token-val" value="{{ csrf_token() }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn-sm btn-danger unassign-btn"
-                  data-aid="{{ a.id }}"
-                  data-name="{{ a.worker.name }}"
-                  data-phase="{{ a.work_phase }}">
-            Unassign
-          </button>
+        data-aid="{{ a.id }}"
+        data-name="{{ a.worker.name }}"
+        data-phase="{{ a.work_phase }}"
+        data-url="{{ url_for('unassign_worker', pid=proj.id, aid=a.id) }}">
+  Unassign
+</button>
           {% endif %}
         </td>
         {% endif %}
@@ -746,6 +748,33 @@
 </div>
 
 <script>
+document.querySelectorAll('.edit-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var aid = this.getAttribute('data-aid');
+    var row = document.getElementById('update-form-' + aid);
+    if (row) row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'table-row' : 'none';
+  });
+});
+
+document.querySelectorAll('.unassign-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var name  = this.getAttribute('data-name');
+    var phase = this.getAttribute('data-phase');
+    var url   = this.getAttribute('data-url');
+    if (!confirm('Unassign ' + name + ' from ' + phase + ' phase?')) return;
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = url;
+    var csrf = document.createElement('input');
+    csrf.type  = 'hidden';
+    csrf.name  = 'csrf_token';
+    csrf.value = document.getElementById('csrf-token-val').value;
+    form.appendChild(csrf);
+    document.body.appendChild(form);
+    form.submit();
+  });
+});
+
 function toggleMatEdit(mid) {
   var row = document.getElementById('matedit-' + mid);
   if (row) row.style.display = row.style.display === 'none' ? 'block' : 'none';
@@ -788,6 +817,7 @@ if (installCancelBtn) {
     installEditBtn.style.display = 'inline-block';
   });
 }
+
 var matEditBtn   = document.getElementById('mat-edit-btn');
 var matCancelBtn = document.getElementById('mat-cancel-btn');
 var matView      = document.getElementById('mat-view');
@@ -806,23 +836,5 @@ if (matCancelBtn) {
     matEditBtn.style.display = 'inline-block';
   });
 }
-document.querySelectorAll('.unassign-btn').forEach(function(btn) {
-  btn.addEventListener('click', function() {
-    var aid   = this.getAttribute('data-aid');
-    var name  = this.getAttribute('data-name');
-    var phase = this.getAttribute('data-phase');
-    if (!confirm('Unassign ' + name + ' from ' + phase + ' phase?')) return;
-    var form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '/projects/{{ proj.id }}/unassign_worker/' + aid;  // ← hardcoded path
-    var csrf = document.createElement('input');
-    csrf.type  = 'hidden';
-    csrf.name  = 'csrf_token';
-    csrf.value = document.getElementById('csrf-token-val').value;
-    form.appendChild(csrf);
-    document.body.appendChild(form);
-    form.submit();
-  });
-});
 </script>
 {% endblock %}

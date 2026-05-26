@@ -2576,7 +2576,7 @@ def unassign_worker(pid, aid):
     db.session.delete(wa)
     db.session.commit()
     flash(f'{worker_name} unassigned from {phase} phase.', 'success')
-    return redirect(url_for('project_detail', pid=pid))
+    return redirect(url_for('onsite_borad', pid=pid))
 
 
 @app.route('/projects/<int:pid>/update_assignment/<int:aid>', methods=['POST'])
