@@ -2630,6 +2630,7 @@ def onsite_progress(pid):
     progress = proj.onsite_progress or OnsiteProgress(project_id=pid)
 
     if request.method == 'POST':
+        all_workers=Worker.query.order_by(Worker.name).all()
         new_struct  = request.form.get('structure_work_status', progress.structure_work_status)
         new_install = request.form.get('installation_status', '')
         new_elec    = request.form.get('electrical_status', '')
@@ -2679,7 +2680,7 @@ def onsite_progress(pid):
         db.session.commit()
         flash('Onsite progress updated.', 'success')
 
-    return render_template('onsite_progress.html', proj=proj, progress=progress,today=date.today())
+    return render_template('onsite_progress.html', proj=proj, progress=progress,all_workers=all_workers,today=date.today())
 
 
 @app.route('/projects/<int:pid>/onsite_log', methods=['POST'])

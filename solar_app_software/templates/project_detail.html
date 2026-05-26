@@ -471,7 +471,7 @@ function syncStatus(stageSelect) {
   <div style="display:flex;gap:8px;flex-wrap:wrap">
     <a href="#payments" class="btn btn-sm">Payments</a>
     <a href="#documents" class="btn btn-sm">Documents</a>
-    <a href="#workers" class="btn btn-sm">Workers</a>
+    
     
     <a href="{{ url_for('subsidy', pid=proj.id) }}" class="btn btn-sm">Subsidy</a>
     {% if current_user.role in ['admin'] or

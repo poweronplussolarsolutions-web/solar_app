@@ -166,6 +166,7 @@
         </td>
         <td>
           {% if a.status != 'Paid' %}
+          <input type="hidden" id="csrf-token-val" value="{{ csrf_token() }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn-sm btn-danger unassign-btn"
                   data-aid="{{ a.id }}"
@@ -805,5 +806,23 @@ if (matCancelBtn) {
     matEditBtn.style.display = 'inline-block';
   });
 }
+document.querySelectorAll('.unassign-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var aid   = this.getAttribute('data-aid');
+    var name  = this.getAttribute('data-name');
+    var phase = this.getAttribute('data-phase');
+    if (!confirm('Unassign ' + name + ' from ' + phase + ' phase?')) return;
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/projects/{{ proj.id }}/unassign_worker/' + aid;  // ← hardcoded path
+    var csrf = document.createElement('input');
+    csrf.type  = 'hidden';
+    csrf.name  = 'csrf_token';
+    csrf.value = document.getElementById('csrf-token-val').value;
+    form.appendChild(csrf);
+    document.body.appendChild(form);
+    form.submit();
+  });
+});
 </script>
 {% endblock %}
