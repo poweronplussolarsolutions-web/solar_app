@@ -472,7 +472,7 @@
     <div style="margin-bottom:14px">
       {% for p in proj.panel_items %}
       <div style="display:grid;grid-template-columns:20px 1fr 1fr auto auto auto;gap:10px;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px">
-        <span style="font-size:15px">☀️</span>
+        <!-- <span style="font-size:15px">☀️</span> -->
         {# Brand badge #}
         {% if p.brand == 'utl' %}
           <span class="tag-pill" style="background:#ede9fe;color:#5b21b6;border:0.5px solid #c4b5fd">UTL</span>
@@ -487,8 +487,8 @@
         {% else %}
           <span class="tag-pill" style="background:#fdf4ff;color:#6b21a8;border:0.5px solid #d8b4fe">Bifacial</span>
         {% endif %}
-        <span style="font-size:12px;color:var(--muted);white-space:nowrap">{{ p.quantity }} pcs</span>
-        <span style="font-size:11px;color:var(--hint);white-space:nowrap">{{ p.wattage }}W</span>
+        <span style="font-size:15px;color:var(--muted);white-space:nowrap">{{ p.quantity }} pcs</span>
+        <span style="font-size:15px;color:var(--hint);white-space:nowrap">{{ p.wattage }}W</span>
         {% if current_user.role in ['admin','onsite'] %}
         <form method="POST" action="{{ url_for('delete_panel_item', pid=proj.id, item_id=p.id) }}" style="margin:0">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -554,11 +554,11 @@
         </div>
         <div>
           <label>Wattage (W)</label>
-          <input type="number" name="wattage" placeholder="e.g. 540" min="1" max="1000"/>
+          <input type="number" name="wattage" placeholder="e.g. 525" min="1" max="1000"/>
         </div>
         <div>
           <label>Qty (pcs)</label>
-          <input type="number" name="quantity" placeholder="e.g. 24" min="1" required/>
+          <input type="number" name="quantity" placeholder="e.g. 6" min="1" required/>
         </div>
         <div>
           <button type="submit" class="btn btn-primary btn-sm" style="margin-bottom:1px">+ Add</button>
@@ -597,7 +597,7 @@
 </div>
 
 <script>
-/* panels card toggle */
+
 var panelsEditBtn   = document.getElementById('panels-edit-btn');
 var panelsCancelBtn = document.getElementById('panels-cancel-btn');
 var panelsView      = document.getElementById('panels-view');
