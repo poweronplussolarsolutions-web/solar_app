@@ -2553,10 +2553,10 @@ def assign_worker(pid):
     db.session.add(JobCard(project_id=pid, worker_id=worker_id,
         work_phase=phase, rate_per_day=assigned_worker.rate_per_day, status='Open'))
 
-    log_action(pid, f'Worker assigned: ID {worker_id}', new_val='Assigned')
+    log_action(pid, f'Worker assigned: ID {assigned_worker.name} ({phase})', new_val='Assigned')
     db.session.commit()
     flash('Worker assigned.', 'success')
-    return redirect(url_for('project_detail', pid=pid))
+    return redirect(url_for('onsite_progress', pid=pid))
 
 
 @app.route('/projects/<int:pid>/unassign_worker/<int:aid>', methods=['POST'])
