@@ -127,7 +127,137 @@
   </div>
 </div>
 </div>
-
+{# ── WORKER ASSIGNMENTS ── #}
+<div class="card" id="workers">
+  <div class="card-title">Worker assignments</div>
+ 
+  {% if proj.assignments %}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Worker</th>
+        <th>Skill</th>
+        <th>Phase</th>
+        <th>Status</th>
+        {% if current_user.role in ['admin','onsite'] %}<th></th><th></th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in proj.assignments %}
+      <tr>
+        <td style="font-weight:500">{{ a.worker.name }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ a.worker.skill }}</td>
+        <td>
+          {% if a.work_phase == 'Electrical/Installation' %}
+            <span class="badge badge-InProgress">Electrical/Installation</span>
+          {% elif a.work_phase == 'Full Work' %}
+            <span class="badge badge-Completed">Full Work</span>
+          {% else %}
+            <span class="badge badge-Created">Structure</span>
+          {% endif %}
+        </td>
+        <td><span class="badge badge-{{ a.status }}">{{ a.status }}</span></td>
+ 
+        {% if current_user.role in ['admin','onsite'] %}
+        <td>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm edit-btn" data-aid="{{ a.id }}">Edit</button>
+        </td>
+        <td>
+          {% if a.status != 'Paid' %}
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-danger unassign-btn"
+                  data-aid="{{ a.id }}"
+                  data-name="{{ a.worker.name }}"
+                  data-phase="{{ a.work_phase }}">
+            Unassign
+          </button>
+          {% endif %}
+        </td>
+        {% endif %}
+      </tr>
+ 
+      {% if current_user.role in ['admin','onsite'] %}
+      <tr id="update-form-{{ a.id }}" style="display:none;background:var(--bg)">
+        <td colspan="6" style="padding:12px 14px">
+          <form method="POST" action="{{ url_for('update_assignment', pid=proj.id, aid=a.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:flex-end">
+              <div>
+                <label>Worker</label>
+                <select name="worker_id">
+                  {% for w in all_workers %}
+                  <option value="{{ w.id }}" {% if a.worker_id == w.id %}selected{% endif %}>
+                    {{ w.name }} — {{ w.skill }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label>Phase</label>
+                <select name="work_phase">
+                  <option value="Structure"               {% if a.work_phase == 'Structure' %}selected{% endif %}>Structure</option>
+                  <option value="Electrical/Installation" {% if a.work_phase == 'Electrical/Installation' %}selected{% endif %}>Electrical/Installation</option>
+                  <option value="Full Work"               {% if a.work_phase == 'Full Work' %}selected{% endif %}>Full Work</option>
+                </select>
+              </div>
+              <div>
+                <label>Status</label>
+                <select name="status">
+                  {% for s in ['Assigned','Active','Completed'] %}
+                  <option {% if a.status == s %}selected{% endif %}>{{ s }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div style="display:flex;gap:6px;align-items:flex-end">
+                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                <button type="button" class="btn btn-sm edit-btn" data-aid="{{ a.id }}">Cancel</button>
+              </div>
+            </div>
+          </form>
+        </td>
+      </tr>
+      {% endif %}
+ 
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="color:var(--hint);font-size:13px;padding:4px 0">No workers assigned yet.</div>
+  {% endif %}
+ 
+  {% if current_user.role in ['admin','onsite'] %}
+  <div style="margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
+    <div style="font-size:13px;font-weight:500;margin-bottom:10px">Assign worker</div>
+    <form method="POST" action="{{ url_for('assign_worker', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:flex-end">
+        <div>
+          <label>Worker</label>
+          <select name="worker_id">
+            {% for w in all_workers %}
+            <option value="{{ w.id }}">{{ w.name }} — {{ w.skill }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Phase</label>
+          <select name="work_phase">
+            <option value="Structure">Structure</option>
+            <option value="Electrical/Installation">Electrical/Installation</option>
+            <option value="Full Work">Full Work</option>
+          </select>
+        </div>
+        <div>
+          <button type="submit" class="btn btn-primary btn-sm" style="margin-bottom:1px">Assign</button>
+        </div>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+</div>
 {# ═══════════════════════════════════════════ #}
 {# ① MATERIALS                                 #}
 {# ═══════════════════════════════════════════ #}

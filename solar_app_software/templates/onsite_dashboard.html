@@ -74,7 +74,21 @@
     {% set _ = ns.not_ordered.append(p) %}
   {% endif %}
 {% endfor %}
-
+{# ── Search bar ── #}
+<div style="display:flex;align-items:center;gap:8px;background:var(--surface);
+            border:0.5px solid var(--border);border-radius:var(--radius);
+            padding:10px 14px;margin-bottom:14px;">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2" style="color:var(--hint);flex-shrink:0">
+    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+  </svg>
+  <input id="onsiteSearch" type="text" placeholder="Search customer, project code, coordinator…"
+         style="border:none;outline:none;flex:1;font-size:13px;background:transparent;color:inherit">
+  <button id="onsiteSearchClear" onclick="onsiteClear()"
+          style="display:none;font-size:11px;color:var(--hint);cursor:pointer;
+                 padding:2px 8px;border:0.5px solid var(--border);
+                 border-radius:20px;background:var(--bg)">Clear</button>
+</div>
 {# ── Summary strip ── #}
 <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
   {% for label, count, color in [
@@ -241,5 +255,45 @@
   {% endfor %}
 </div>
 {% endif %} -->
+<script>
+(function () {
+  const input = document.getElementById('onsiteSearch');
+  const clearBtn = document.getElementById('onsiteSearchClear');
 
+  function filter(q) {
+    q = q.toLowerCase().trim();
+    clearBtn.style.display = q ? 'inline-block' : 'none';
+
+    document.querySelectorAll('.proj-card').forEach(card => {
+      const text = card.textContent.toLowerCase();
+      const visible = !q || text.includes(q);
+      card.parentElement.style.display = visible ? 'block' : 'none';
+    });
+
+    // Update per-column counters and show "No matches" if empty
+    document.querySelectorAll('.stage-header').forEach(header => {
+      const col = header.closest('.card');
+      const visible = [...col.querySelectorAll('a')].filter(a => a.style.display !== 'none');
+      const countEl = header.querySelector('.count');
+      if (countEl) countEl.textContent = visible.length;
+
+      let empty = col.querySelector('.empty-col');
+      if (visible.length === 0) {
+        if (!empty) {
+          empty = document.createElement('div');
+          empty.className = 'empty-col';
+          col.appendChild(empty);
+        }
+        empty.textContent = q ? 'No matches' : 'No projects';
+        empty.style.display = '';
+      } else if (empty) {
+        empty.style.display = 'none';
+      }
+    });
+  }
+
+  input.addEventListener('input', e => filter(e.target.value));
+  window.onsiteClear = function () { input.value = ''; filter(''); };
+})();
+</script>
 {% endblock %}
