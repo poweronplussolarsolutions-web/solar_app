@@ -1649,45 +1649,45 @@ def edit_project(pid):
             if new_status and new_status != proj.status:
                 changes.append(f'Status: {proj.status} → {new_status}')
                 proj.status = new_status
-
-            new_coord_id = request.form.get('coordinator_id') or None
-            if new_coord_id:
-                new_coord_id = int(new_coord_id)
-                if proj.coordinator_id != new_coord_id:
-                    old_coord = proj.coordinator
-                    new_coord = User.query.get(new_coord_id)
-                    if old_coord:
-                        create_notification(old_coord.id, pid,
+            if 'coordinator_id' in request.form:
+                new_coord_id = request.form.get('coordinator_id') or None
+                if new_coord_id:
+                    new_coord_id = int(new_coord_id)
+                    if proj.coordinator_id != new_coord_id:
+                        old_coord = proj.coordinator
+                        new_coord = User.query.get(new_coord_id)
+                        if old_coord:
+                            create_notification(old_coord.id, pid,
                             f'You have been unassigned as coordinator from {proj.project_code} — {proj.customer.name}.', 'info')
-                    if new_coord:
-                        create_notification(new_coord_id, pid,
+                        if new_coord:
+                            create_notification(new_coord_id, pid,
                             f'You have been assigned as coordinator for {proj.project_code} — {proj.customer.name}.', 'task')
-                    changes.append(
-                        f'Coordinator: {old_coord.full_name if old_coord else "None"} → '
-                        f'{new_coord.full_name if new_coord else "None"}'
-                    )
-                    proj.coordinator_id = new_coord_id
-            else:
-                proj.coordinator_id = None
+                            changes.append(
+                            f'Coordinator: {old_coord.full_name if old_coord else "None"} → '
+                            f'{new_coord.full_name if new_coord else "None"}'
+                        )
+                        proj.coordinator_id = new_coord_id
+                else:
+                    proj.coordinator_id = None
 
         if new_amount > float(proj.collected_amount or 0):
             if proj.status == 'Completed' and proj.stage == 'Payment':
                 proj.status = 'InProgress'
-
-        new_staff_id = request.form.get('doc_staff_id') or None
-        if new_staff_id:
-            new_staff_id = int(new_staff_id)
-            old_staff    = proj.doc_staff
-            if old_staff and old_staff.id != new_staff_id:
-                create_notification(old_staff.id, pid,
+        if 'doc_staff_id' in request.form:
+            new_staff_id = request.form.get('doc_staff_id') or None
+            if new_staff_id:
+                new_staff_id = int(new_staff_id)
+                old_staff    = proj.doc_staff
+                if old_staff and old_staff.id != new_staff_id:
+                    create_notification(old_staff.id, pid,
                     f'You have been unassigned from {proj.project_code} — {proj.customer.name}.', 'info')
-            if proj.doc_staff_id != new_staff_id:
-                create_notification(new_staff_id, pid,
+                if proj.doc_staff_id != new_staff_id:
+                    create_notification(new_staff_id, pid,
                     f'You have been assigned to {proj.project_code} — {proj.customer.name} '
                     f'({proj.project_type}, {proj.inverter_capacity_kw} kW).', 'task')
-            proj.doc_staff_id = new_staff_id
-        else:
-            proj.doc_staff_id = None
+                proj.doc_staff_id = new_staff_id
+            else:
+                proj.doc_staff_id = None
 
         if old_type != new_type:
             changes.append(f'Type: {old_type} → {new_type}')
