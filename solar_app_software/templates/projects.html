@@ -2,7 +2,7 @@
 {% block title %}Projects — Solar App{% endblock %}
 {% block page_title %}Projects{% endblock %}
 {% block topbar_actions %}
-  {% if current_user.role in ['admin', 'coordinator'] %}
+  {% if current_user.role in ['admin', 'coordinator','documents'] %}
   <a href="{{ url_for('new_project') }}" class="btn btn-primary">+ New Project</a>
   {% endif %}
 {% endblock %}
