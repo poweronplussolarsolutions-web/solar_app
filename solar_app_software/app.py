@@ -999,10 +999,10 @@ def next_project_code():
             numeric.append(int(code))
         except (ValueError, TypeError):
             pass
-    if not numeric:
-        return None
+    
+    base = max(max(numeric), 1780) if numeric else 1780  # ← floor at 1780
     existing = set(numeric)
-    candidate = max(numeric) + 1
+    candidate = base + 1
     while candidate in existing:
         candidate += 1
     return str(candidate)
@@ -1505,7 +1505,7 @@ def new_project():
     if request.method == 'POST':
         code = _clean(request.form.get('project_code', ''), 20)
         if not code:
-            auto = next_project_code() or '1'
+            auto = next_project_code() or '1781'
             # Ensure auto-generated code is truly free
             while Project.query.filter_by(project_code=auto).first():
                 auto = str(int(auto) + 1)
