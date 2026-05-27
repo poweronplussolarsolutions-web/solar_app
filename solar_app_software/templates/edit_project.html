@@ -175,7 +175,7 @@
         <label>Roof type</label>
         <select name="roof_type">
           <option value="">— Select —</option>
-          {% for rt in ['RCC','Sheet','Tile','Ground Mount','Other'] %}
+          {% for rt in ['F','C','S'] %}
           <option value="{{ rt }}" {% if proj.roof_type == rt %}selected{% endif %}>{{ rt }}</option>
           {% endfor %}
         </select>
