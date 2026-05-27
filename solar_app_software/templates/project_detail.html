@@ -495,8 +495,8 @@ function syncStatus(stageSelect) {
 
   {# Single flag used throughout this card #}
   {% set payment_complete = (
-      proj.total_amount and proj.total_amount > 0
-      and proj.effective_collected >= proj.total_amount
+      proj.total_receivable and proj.total_receivable > 0
+      and proj.pending_amount <= 0
   ) %}
 
   {% if payment_complete %}
@@ -569,7 +569,7 @@ function syncStatus(stageSelect) {
           <div class="form-group">
             <label>Amount (₹)</label>
             <input type="number" name="amount" step="0.01" min="1"
-                   max="{{ (proj.total_amount | float - proj.effective_collected) | round(2) }}"
+                   max="{{ proj.pending_amount | round(2) }}"
                    required placeholder="0"/>
           </div>
           <div class="form-group">
@@ -639,7 +639,7 @@ function syncStatus(stageSelect) {
           <div class="form-group">
             <label>Amount (₹)</label>
             <input type="number" name="amount" step="0.01" min="1"
-                   max="{{ (proj.total_amount | float - proj.effective_collected) | round(2) }}"
+                   max="{{ proj.pending_amount | round(2) }}"
                    required placeholder="0"/>
           </div>
           <div class="form-group">
@@ -701,7 +701,7 @@ function syncStatus(stageSelect) {
           <div class="form-group">
             <label>Amount (₹)</label>
             <input type="number" name="amount" step="0.01" min="1"
-                   max="{{ (proj.total_amount | float - proj.effective_collected) | round(2) }}"
+                   max="{{ proj.pending_amount | round(2) }}"
                    required placeholder="0"/>
           </div>
           <div class="form-group">
