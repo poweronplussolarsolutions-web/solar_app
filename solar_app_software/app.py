@@ -1494,9 +1494,10 @@ def projects():
 
 @app.route('/projects/new', methods=['GET', 'POST'])
 @login_required
-@roles_required('coordinator','admin')
+@roles_required('coordinator','admin','documents')
 @limiter.limit('30 per minute')
 def new_project():
+    coordinators=User.query.filter_by(role='coordinator').order_by(User.full_name).all()
     customers       = Customer.query.order_by(Customer.name).all()
     doc_staff       = User.query.filter_by(role='documents', is_active=True).all()
     suggested_code  = next_project_code()
@@ -1542,7 +1543,7 @@ def new_project():
             project_subtype      = request.form.get('project_subtype') or None,
             # loan_subtype         = request.form.get('loan_subtype') or None,
             total_amount         = _safe_float(request.form.get('total_amount', 0)),
-            coordinator_id       = current_user.id,
+            coordinator_id       = request.form.get('coordinator_id') or None,
             doc_staff_id         = request.form.get('doc_staff_id') or None,
             notes                = _clean(request.form.get('notes', ''), 2000),
             roof_type=request.form.get('roof_type') or None,
@@ -1569,7 +1570,7 @@ def new_project():
         flash(f'Project {proj.project_code} created successfully!', 'success')
         return redirect(url_for('project_detail', pid=proj.id))
 
-    return render_template('new_project.html', customers=customers,
+    return render_template('new_project.html',coordinators=coordinators, customers=customers,
                            doc_staff=doc_staff, suggested_code=suggested_code)
 
 
