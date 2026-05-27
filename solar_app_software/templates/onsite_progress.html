@@ -8,7 +8,7 @@
 {% endblock %}
 {% block topbar_actions %}
   <a href="{{ url_for('project_detail', pid=proj.id) }}" class="btn btn-sm">Project details</a>
-  <a href="{{ url_for('onsite_board', pid=proj.id) }}" class="btn btn-sm">← Back</a>
+  <a href="{{ url_for('onsite_board') }}" class="btn btn-sm">← Back</a>
 {% endblock %}
 
 {% block content %}
@@ -18,12 +18,6 @@
   text-transform:uppercase;color:var(--muted);
   margin-bottom:12px;padding-bottom:8px;
   border-bottom:0.5px solid var(--border);
-}
-.lock-banner {
-  display:flex;align-items:center;gap:10px;
-  padding:10px 14px;border-radius:var(--radius);
-  border:0.5px solid var(--border);background:var(--bg);
-  font-size:13px;color:var(--hint);margin-bottom:16px;
 }
 .step-track-wrap {
   overflow-x:auto;-webkit-overflow-scrolling:touch;
@@ -46,29 +40,19 @@
 .dot-done   { background:#16a34a; }
 .dot-active { background:#f59e0b; }
 .dot-none   { background:var(--border); }
-
-.material-row {
-  display:grid;grid-template-columns:1fr auto auto;
-  gap:10px;align-items:center;
-  padding:9px 0;border-bottom:0.5px solid var(--border);font-size:13px;
-}
-.material-row:last-child { border-bottom:none; }
 .tag-pill {
   display:inline-flex;align-items:center;gap:4px;
   font-size:11px;font-weight:500;padding:2px 8px;
   border-radius:20px;white-space:nowrap;
 }
-.pill-pending  { background:var(--bg);color:var(--muted);border:0.5px solid var(--border); }
-.pill-malabar  { background:#fef3c7;color:#92400e;border:0.5px solid #fcd34d; }
-.pill-delivered{ background:#d1fae5;color:#065f46;border:0.5px solid #6ee7b7; }
 </style>
 
 {# ── Compute overall state ── #}
-{% set total_mats = proj.materials | length %}
-{% set given_to_malabar = proj.materials | selectattr('dispatch_status','in',['Dispatched','Delivered']) | list | length %}
-{% set all_delivered = total_mats > 0 and proj.materials | selectattr('dispatch_status','ne','Delivered') | list | length == 0 %}
-{% set struct_done = progress.structure_work_status == 'Completed' %}
-{% set install_done = progress.installation_status == 'Completed' %}
+{% set struct_done    = progress.structure_work_status == 'Completed' %}
+{% set install_done   = progress.installation_status == 'Completed' %}
+{% set work_complete  = progress.electrical_status == 'Completed' %}
+{% set total_mats     = proj.materials | length %}
+{% set all_delivered  = total_mats > 0 and proj.materials | selectattr('dispatch_status','ne','Delivered') | list | length == 0 %}
 
 {# ── STEP TRACK ── #}
 <div class="step-track-wrap">
@@ -129,11 +113,30 @@
 </div>
 </div>
 
+{# ── Work complete banner ── #}
+{% if work_complete %}
+<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;
+     border-radius:var(--radius);border:0.5px solid #6ee7b7;
+     background:#f0fdf4;font-size:13px;color:#065f46;margin-bottom:16px">
+  <span style="font-size:16px">✓</span>
+  <div>
+    <div style="font-weight:600">Onsite work completed</div>
+    <div style="font-size:12px;margin-top:2px;opacity:0.8">
+      All phases done. Worker assignments below remain editable.
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {# ══════════════════════════════════════════ #}
-{# WORKER ASSIGNMENTS                         #}
+{# WORKER ASSIGNMENTS — always unlocked       #}
 {# ══════════════════════════════════════════ #}
 <div class="card" id="workers">
-  <div class="card-title">Worker assignments</div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+    <div class="card-title" style="margin:0">Worker assignments</div>
+    <span style="font-size:11px;background:var(--surface);border:0.5px solid var(--border);
+                 border-radius:20px;padding:2px 8px;color:var(--muted)">Optional</span>
+  </div>
 
   {% if proj.assignments %}
   <div class="table-wrap">
@@ -264,17 +267,24 @@
 </div>
 
 {# ══════════════════════════════════════════ #}
-{# ① MATERIALS                                #}
+{# ① MATERIALS — locked when work_complete    #}
 {# ══════════════════════════════════════════ #}
+{% if work_complete %}
+<div class="card" style="opacity:0.55;pointer-events:none;user-select:none">
+{% else %}
 <div class="card">
+{% endif %}
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--border)">
     <div class="section-label" style="margin:0;padding:0;border:none">① Materials</div>
-    {% if progress.materials_ordered or progress.materials_delivered %}
-    <button class="btn btn-sm" id="mat-edit-btn">Edit</button>
+    {% if not work_complete %}
+      {% if progress.materials_ordered or progress.materials_delivered %}
+      <button class="btn btn-sm" id="mat-edit-btn">Edit</button>
+      {% endif %}
+    {% else %}
+      <span style="font-size:11px;color:var(--hint)">🔒 Locked</span>
     {% endif %}
   </div>
 
-  {# ── Read-only view ── #}
   {% if progress.materials_ordered or progress.materials_delivered %}
   <div id="mat-view">
     <table style="font-size:13px;width:100%">
@@ -302,8 +312,7 @@
       </tr>
     </table>
 
-    {# Quick mark-delivered button #}
-    {% if progress.materials_ordered and not progress.materials_delivered %}
+    {% if not work_complete and progress.materials_ordered and not progress.materials_delivered %}
     <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}"
           style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border);
                  display:flex;align-items:center;gap:10px">
@@ -335,10 +344,8 @@
     {% endif %}
   </div>
 
-  {# ── Edit form (hidden by default) ── #}
+  {% if not work_complete %}
   <div id="mat-form" style="display:none;margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
-
-    {# Order placed form #}
     <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}"
           style="display:grid;grid-template-columns:auto 1fr auto;gap:10px 14px;align-items:center;font-size:13px;margin-bottom:12px">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -366,7 +373,6 @@
 
     <div style="border-top:0.5px solid var(--border);margin-bottom:12px"></div>
 
-    {# Delivered form #}
     <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}"
           style="display:grid;grid-template-columns:auto 1fr auto;gap:10px 14px;align-items:center;font-size:13px;margin-bottom:12px">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -394,10 +400,11 @@
 
     <button type="button" class="btn btn-sm" id="mat-cancel-btn">Cancel</button>
   </div>
+  {% endif %}
 
   {% else %}
-  {# ── First-time entry forms ── #}
-
+  {# ── First-time entry forms (only when not locked) ── #}
+  {% if not work_complete %}
   <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}"
         style="display:grid;grid-template-columns:auto 1fr auto;gap:10px 14px;align-items:center;font-size:13px;margin-bottom:12px">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -449,21 +456,29 @@
     <input type="hidden" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
     <input type="hidden" name="electrical_notes" value="{{ progress.electrical_notes or '' }}"/>
   </form>
+  {% else %}
+  <div style="font-size:13px;color:var(--hint);padding:4px 0">No materials recorded.</div>
+  {% endif %}
   {% endif %}
 </div>
 
 {# ══════════════════════════════════════════ #}
-{# ② PANELS & MATERIALS                       #}
+{# ② PANELS & MATERIALS — locked when done    #}
 {# ══════════════════════════════════════════ #}
+{% if work_complete %}
+<div class="card" style="opacity:0.55;pointer-events:none;user-select:none">
+{% else %}
 <div class="card">
+{% endif %}
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--border)">
     <div class="section-label" style="margin:0;padding:0;border:none">② Panels &amp; Materials</div>
-    {% if (proj.panel_items or proj.extra_materials) and current_user.role in ['admin','onsite'] %}
+    {% if not work_complete and (proj.panel_items or proj.extra_materials) and current_user.role in ['admin','onsite'] %}
     <button class="btn btn-sm" id="panels-edit-btn">Edit</button>
+    {% elif work_complete %}
+    <span style="font-size:11px;color:var(--hint)">🔒 Locked</span>
     {% endif %}
   </div>
 
-  {# ── READ-ONLY VIEW ── #}
   <div id="panels-view">
     <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Solar panels</div>
     {% if proj.panel_items %}
@@ -485,7 +500,7 @@
         {% endif %}
         <span style="font-size:15px;color:var(--muted);white-space:nowrap">{{ p.quantity }} pcs</span>
         <span style="font-size:15px;color:var(--hint);white-space:nowrap">{% if p.wattage %}{{ p.wattage }}W{% endif %}</span>
-        {% if current_user.role in ['admin','onsite'] %}
+        {% if not work_complete and current_user.role in ['admin','onsite'] %}
         <form method="POST" action="{{ url_for('delete_panel_item', pid=proj.id, item_id=p.id) }}"
               onsubmit="return confirm('Remove this panel?')" style="margin:0">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -508,7 +523,7 @@
       <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px">
         <span>{{ m.description }}</span>
         <span style="font-size:12px;color:var(--muted);white-space:nowrap">{{ m.quantity_label }}</span>
-        {% if current_user.role in ['admin','onsite'] %}
+        {% if not work_complete and current_user.role in ['admin','onsite'] %}
         <form method="POST" action="{{ url_for('delete_extra_material', pid=proj.id, item_id=m.id) }}"
               onsubmit="return confirm('Remove this material?')" style="margin:0">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -523,11 +538,9 @@
     {% endif %}
   </div>
 
-  {# ── ADD / EDIT FORM (admin/onsite only) ── #}
-  {% if current_user.role in ['admin','onsite'] %}
+  {% if not work_complete and current_user.role in ['admin','onsite'] %}
   <div id="panels-form" style="display:{% if not proj.panel_items and not proj.extra_materials %}block{% else %}none{% endif %};margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
 
-    {# ── Edit existing panels ── #}
     {% if proj.panel_items %}
     <div style="font-size:13px;font-weight:500;margin-bottom:8px">Edit panels</div>
     {% for p in proj.panel_items %}
@@ -572,7 +585,6 @@
     <div style="border-top:0.5px solid var(--border);margin:14px 0"></div>
     {% endif %}
 
-    {# ── Add new panel ── #}
     <div style="font-size:13px;font-weight:500;margin-bottom:10px">Add solar panel</div>
     <form method="POST" action="{{ url_for('add_panel_item', pid=proj.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -610,7 +622,6 @@
 
     <div style="border-top:0.5px solid var(--border);margin:14px 0"></div>
 
-    {# ── Edit existing extra materials ── #}
     {% if proj.extra_materials %}
     <div style="font-size:13px;font-weight:500;margin-bottom:8px">Edit materials</div>
     {% for m in proj.extra_materials %}
@@ -640,7 +651,6 @@
     <div style="border-top:0.5px solid var(--border);margin:14px 0"></div>
     {% endif %}
 
-    {# ── Add new extra material ── #}
     <div style="font-size:13px;font-weight:500;margin-bottom:10px">Add additional material</div>
     <form method="POST" action="{{ url_for('add_extra_material', pid=proj.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -667,13 +677,19 @@
 </div>
 
 {# ══════════════════════════════════════════ #}
-{# ③ STRUCTURE WORK                           #}
+{# ③ STRUCTURE WORK — locked when done        #}
 {# ══════════════════════════════════════════ #}
+{% if work_complete %}
+<div class="card" style="opacity:0.55;pointer-events:none;user-select:none">
+{% else %}
 <div class="card">
+{% endif %}
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--border)">
     <div class="section-label" style="margin:0;padding:0;border:none">③ Structure work</div>
-    {% if struct_done %}
+    {% if struct_done and not work_complete %}
     <button class="btn btn-sm" id="struct-edit-btn">Edit</button>
+    {% elif work_complete %}
+    <span style="font-size:11px;color:var(--hint)">🔒 Locked</span>
     {% endif %}
   </div>
 
@@ -692,6 +708,8 @@
       {% endif %}
     </table>
   </div>
+
+  {% if not work_complete %}
   <div id="struct-form" style="display:none">
     <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -735,8 +753,10 @@
       </div>
     </form>
   </div>
+  {% endif %}
 
   {% else %}
+  {% if not work_complete %}
   <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-grid">
@@ -777,17 +797,26 @@
       <button type="submit" class="btn btn-primary btn-sm">Save structure</button>
     </div>
   </form>
+  {% else %}
+  <div style="font-size:13px;color:var(--hint);padding:4px 0">Not started.</div>
+  {% endif %}
   {% endif %}
 </div>
 
 {# ══════════════════════════════════════════ #}
-{# ④ PANEL INSTALLATION                       #}
+{# ④ PANEL INSTALLATION — locked when done    #}
 {# ══════════════════════════════════════════ #}
+{% if work_complete %}
+<div class="card" style="opacity:0.55;pointer-events:none;user-select:none">
+{% else %}
 <div class="card">
+{% endif %}
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--border)">
     <div class="section-label" style="margin:0;padding:0;border:none">④ Panel installation &amp; electrical</div>
-    {% if install_done %}
+    {% if install_done and not work_complete %}
     <button class="btn btn-sm" id="install-edit-btn">Edit</button>
+    {% elif work_complete %}
+    <span style="font-size:11px;color:var(--hint)">🔒 Locked</span>
     {% endif %}
   </div>
 
@@ -800,14 +829,14 @@
           <td>{{ progress.installation_start_date | date_fmt }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">End</td>
           <td>{{ progress.installation_end_date | date_fmt }}</td></tr>
-      <!-- <tr><td style="color:var(--muted);padding:5px 0">Electrical</td>
-          <td><span class="badge badge-{{ progress.electrical_status }}">{{ progress.electrical_status }}</span></td></tr> -->
       {% if progress.installation_notes %}
       <tr><td style="color:var(--muted);padding:5px 0;vertical-align:top">Notes</td>
           <td style="font-size:12px">{{ progress.installation_notes }}</td></tr>
       {% endif %}
     </table>
   </div>
+
+  {% if not work_complete %}
   <div id="install-form" style="display:none">
     <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -851,8 +880,10 @@
       </div>
     </form>
   </div>
+  {% endif %}
 
   {% else %}
+  {% if not work_complete %}
   <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-grid">
@@ -893,11 +924,14 @@
       <button type="submit" class="btn btn-primary btn-sm">Save installation</button>
     </div>
   </form>
+  {% else %}
+  <div style="font-size:13px;color:var(--hint);padding:4px 0">Not started.</div>
+  {% endif %}
   {% endif %}
 </div>
 
 {# ══════════════════════════════════════════ #}
-{# DAILY LOG                                  #}
+{# DAILY LOG — always accessible              #}
 {# ══════════════════════════════════════════ #}
 <div class="card">
   <div class="section-label">Daily work log</div>
@@ -928,7 +962,7 @@
         <select name="work_phase">
           <option value="Structure">Structure</option>
           <option value="Installation">Installation/Electrical</option>
-          <option value="Electrical">Full work</option>
+          <option value="Full Work">Full work</option>
         </select>
       </div>
       <div>
@@ -944,7 +978,6 @@
 </div>
 
 <script>
-// ── Worker assignment toggles ──
 document.querySelectorAll('.edit-btn').forEach(function(btn) {
   btn.addEventListener('click', function() {
     var aid = this.getAttribute('data-aid');
@@ -972,7 +1005,6 @@ document.querySelectorAll('.unassign-btn').forEach(function(btn) {
   });
 });
 
-// ── Materials (order/delivery) toggle ──
 var matEditBtn   = document.getElementById('mat-edit-btn');
 var matCancelBtn = document.getElementById('mat-cancel-btn');
 var matView      = document.getElementById('mat-view');
@@ -992,7 +1024,6 @@ if (matCancelBtn) {
   });
 }
 
-// ── Panels & Materials toggle ──
 var panelsEditBtn   = document.getElementById('panels-edit-btn');
 var panelsCancelBtn = document.getElementById('panels-cancel-btn');
 var panelsView      = document.getElementById('panels-view');
@@ -1012,7 +1043,6 @@ if (panelsCancelBtn) {
   });
 }
 
-// ── Structure toggle ──
 var structEditBtn   = document.getElementById('struct-edit-btn');
 var structCancelBtn = document.getElementById('struct-cancel-btn');
 var structView      = document.getElementById('struct-view');
@@ -1032,7 +1062,6 @@ if (structCancelBtn) {
   });
 }
 
-// ── Installation toggle ──
 var installEditBtn   = document.getElementById('install-edit-btn');
 var installCancelBtn = document.getElementById('install-cancel-btn');
 var installView      = document.getElementById('install-view');
