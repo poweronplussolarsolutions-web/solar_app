@@ -2116,7 +2116,7 @@ def add_payment(pid):
         if float(proj.collected_amount or 0) >= float(proj.total_amount):
             flash('This project is fully paid. No further payments can be recorded.', 'danger')
             return redirect(url_for('project_detail', pid=pid))
-        remaining = float(proj.total_amount) - float(proj.collected_amount or 0)
+        remaining = proj.pending_amount
         if amount > remaining + 0.01:
             flash(f'Payment of ₹{amount:,.0f} exceeds the remaining balance of ₹{remaining:,.0f}.', 'danger')
             return redirect(url_for('project_detail', pid=pid))
