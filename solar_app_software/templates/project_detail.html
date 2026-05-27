@@ -795,13 +795,21 @@ function syncStatus(stageSelect) {
 </div>
 
 {# ── ONSITE PROGRESS SUMMARY ── #}
+{% set op = proj.onsite_progress %}
+{% set onsite_complete = op and op.materials_ordered and op.materials_delivered
+    and op.structure_work_status == 'Completed'
+    and op.installation_status == 'Completed' %}
 {% if proj.onsite_progress %}
 {% set op = proj.onsite_progress %}
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div class="card-title" style="margin:0">Onsite progress</div>
     {% if current_user.role in ['admin','onsite'] %}
+    {% if not onsite_complete %}
     <a href="{{ url_for('onsite_progress', pid=proj.id) }}" class="btn btn-sm">Update →</a>
+  {% else %}
+    <span style="font-size:12px;color:var(--green-600)">✓ All complete</span>
+  {% endif %}
     {% endif %}
   </div>
   <div class="table-wrap">
