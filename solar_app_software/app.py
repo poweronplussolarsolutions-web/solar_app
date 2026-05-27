@@ -912,9 +912,9 @@ def auto_advance_stage(proj):
             proj.status = 'InProgress'
     elif proj.stage == 'Payment':
         fully_paid = (
-            proj.total_amount and float(proj.total_amount) > 0
-            and float(proj.collected_amount or 0) >= float(proj.total_amount)
-        )
+        proj.total_receivable > 0
+        and proj.pending_amount <= 0
+    )
         app_done = proj.app_install and proj.app_install.status == 'Completed'
         if fully_paid and app_done:
             if proj.project_subtype == 'DCR':
@@ -930,7 +930,7 @@ def auto_advance_stage(proj):
         create_service_schedule(proj)
 
     if proj.stage != old_stage or proj.status != old_status:
-        proj.stage_changed_at = datetime.utcnow()
+        proj.staged_changed_at = datetime.utcnow()
         log_action(proj.id, f'Auto-advanced: {old_stage} → {proj.stage}',
                    old_val=old_status, new_val=proj.status)
         _notify_stage_transition(proj, old_stage, proj.stage)
@@ -961,7 +961,8 @@ def _notify_stage_transition(proj, from_stage, to_stage):
         for u in User.query.filter_by(role='payments', is_active=True).all():
             create_notification(u.id, proj.id,
                 f'{code}: KSEB connection completed. Entered Payment stage. '
-                f'Collect remaining balance of ₹{float(proj.total_amount or 0) - float(proj.collected_amount or 0):,.0f}.',
+                
+                f'Collect remaining balance of ₹{proj.pending_amount:,.0f}.',
                 'task')
         if proj.doc_staff_id:
             create_notification(proj.doc_staff_id, proj.id,
@@ -3274,8 +3275,6 @@ def update_installation(pid):
     install.installed_by   = current_user.id
     install.notes          = _clean(request.form.get('notes', ''), 500)
     if install.status == 'Completed':
-        proj.status = 'Completed'
-        proj.stage  = 'App Installation'
         log_action(pid, 'App installation completed', new_val='Completed')
         
     if not install.id:
