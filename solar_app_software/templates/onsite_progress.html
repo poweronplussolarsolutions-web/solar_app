@@ -800,8 +800,8 @@
           <td>{{ progress.installation_start_date | date_fmt }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">End</td>
           <td>{{ progress.installation_end_date | date_fmt }}</td></tr>
-      <tr><td style="color:var(--muted);padding:5px 0">Electrical</td>
-          <td><span class="badge badge-{{ progress.electrical_status }}">{{ progress.electrical_status }}</span></td></tr>
+      <!-- <tr><td style="color:var(--muted);padding:5px 0">Electrical</td>
+          <td><span class="badge badge-{{ progress.electrical_status }}">{{ progress.electrical_status }}</span></td></tr> -->
       {% if progress.installation_notes %}
       <tr><td style="color:var(--muted);padding:5px 0;vertical-align:top">Notes</td>
           <td style="font-size:12px">{{ progress.installation_notes }}</td></tr>
