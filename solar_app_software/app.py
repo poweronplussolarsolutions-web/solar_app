@@ -263,6 +263,7 @@ class Customer(db.Model):
     taluk      = db.Column(db.String(120))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     projects   = db.relationship('Project', backref='customer', lazy=True)
+    sub_co=db.Column(db.String(120), nullable=True)
 
 
 class Project(db.Model):
@@ -1530,6 +1531,7 @@ def new_project():
         village    = _clean(request.form.get('village', ''), 120) or None,
         district   = _clean(request.form.get('district', ''), 80) or None,
         taluk      = _clean(request.form.get('taluk', ''), 120) or None,
+        sub_co=request.form.get('sub_co','').strip() or None,
         )
             db.session.add(cust)
             db.session.flush()
@@ -1642,6 +1644,7 @@ def edit_project(pid):
             proj.customer.village    = _clean(request.form.get('customer_village', ''), 120) or None
             proj.customer.district   = _clean(request.form.get('customer_district', ''), 80) or None
             proj.customer.taluk      = _clean(request.form.get('customer_taluk', ''), 120) or None
+            proj.customer.sub_co = request.form.get('customer_sub_co', '').strip() or None
 
             new_stage  = request.form.get('stage')
             new_status = request.form.get('status')

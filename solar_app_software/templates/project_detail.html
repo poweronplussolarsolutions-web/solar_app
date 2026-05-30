@@ -142,6 +142,7 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Roof</td><td>{{ proj.roof_type }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Stage</td><td>{{ proj.stage }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Coordinator</td><td>{{ proj.coordinator.full_name if proj.coordinator else '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Sub C/O</td><td style="font-size:12px">{{ proj.customer.sub_co or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Docs staff</td><td>{{ proj.doc_staff.full_name if proj.doc_staff else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Notes</td><td>{{ proj.notes if proj.notes else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Created</td><td>{{ proj.created_at | date_fmt }}</td></tr>

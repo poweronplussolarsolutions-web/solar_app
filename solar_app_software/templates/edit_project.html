@@ -99,6 +99,12 @@
       </div>
 
     </div>
+    <div class="form-group">
+  <label>Sub C/O <span style="color:var(--muted);font-weight:400;font-size:11px">(optional)</span></label>
+  <input name="customer_sub_co" type="text"
+         value="{{ proj.customer.sub_co or '' }}"
+         placeholder="e.g. Sub C/O "/>
+</div>
 
   {% else %}
   <!-- Coordinator / others: read-only customer display, separate form below -->
