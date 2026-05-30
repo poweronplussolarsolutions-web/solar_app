@@ -1013,12 +1013,14 @@ function syncStatus(stageSelect) {
         </div>
 
       </div>
-      <div style="display:flex;gap:8px;margin-top:4px">
-        <button type="submit" class="btn btn-primary btn-sm">Save details</button>
+      <div style="display:flex;gap:8px;margin-top:4px;align-items:center">
+        <button type="submit" class="btn btn-primary btn-sm"
+                onclick="return validatePanelForm(this.closest('form'))">Save details</button>
         {% if pd %}
         <button type="button" class="btn btn-sm"
                 onclick="togglePanel('panelDetailsForm')">Cancel</button>
         {% endif %}
+        <span id="panel-form-error" style="display:none;font-size:12px;color:var(--red-600,#dc2626);margin-left:4px"></span>
       </div>
     </form>
   </div>
@@ -1096,5 +1098,34 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 </script>
+<script>
+function validatePanelForm(form) {
+  var errEl = form.querySelector('#panel-form-error');
+  errEl.style.display = 'none';
+  errEl.textContent = '';
 
+  var numPanelsInput = form.querySelector('[name="num_panels"]');
+  var serialsInput   = form.querySelector('[name="panel_serial_numbers"]');
+
+  var numPanels = parseInt(numPanelsInput.value.trim(), 10);
+  var serialsRaw = serialsInput.value;
+  var serials = serialsRaw.split('\n').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
+
+  // Only validate if both fields have values
+  if (!isNaN(numPanels) && numPanels > 0 && serials.length > 0) {
+    if (serials.length !== numPanels) {
+      errEl.textContent = 'Mismatch: ' + numPanels + ' panels specified but ' + serials.length + ' serial number(s) entered.';
+      errEl.style.display = 'inline';
+      numPanelsInput.style.borderColor = 'var(--red-600,#dc2626)';
+      serialsInput.style.borderColor   = 'var(--red-600,#dc2626)';
+      return false;
+    }
+  }
+
+  // Reset borders if valid
+  numPanelsInput.style.borderColor = '';
+  serialsInput.style.borderColor   = '';
+  return true;
+}
+</script>
 {% endblock %}
