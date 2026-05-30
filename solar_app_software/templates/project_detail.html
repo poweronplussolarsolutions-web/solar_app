@@ -1084,8 +1084,6 @@ function syncStatus(stageSelect) {
     {% endif %}
   </div>
 
-  {# ── Completed banner (non-admin, non-coordinator editable roles) ── #}
-  {% elif sub and sub_status == 'Received' and current_user.role not in ['admin'] %}
 {% endif %}
 
 {# ── ONSITE PROGRESS SUMMARY ── #}
