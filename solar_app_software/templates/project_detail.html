@@ -1057,32 +1057,7 @@ function syncStatus(stageSelect) {
   </details>
   {% endif %}
 </div>
-{# ── View-only for coordinators and other roles ── #}
-  {% if current_user.role not in ['admin', 'documents', 'payments'] %}
-  <div style="background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius);padding:14px">
-    {% if sub_status == 'Received' %}
-    <div style="display:flex;align-items:center;gap:10px">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green-600)" stroke-width="2" stroke-linecap="round">
-        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
-      </svg>
-      <div>
-        <div style="font-size:13px;font-weight:500;color:var(--green-700)">Subsidy completed</div>
-        <div style="font-size:12px;color:var(--green-600);margin-top:2px">
-          ₹78,000 received —
-          Customer: {{ sub.customer_share | inr }},
-          Company: {{ sub.company_share | inr }}
-        </div>
-      </div>
-    </div>
-    {% elif sub_status == 'NotStarted' %}
-    <div style="font-size:13px;color:var(--hint)">Subsidy process not yet started.</div>
-    {% else %}
-    <div style="font-size:13px;color:var(--muted)">
-      Current status: <strong>{{ sub_status }}</strong>
-      {% if sub and sub.notes %}<div style="font-size:12px;margin-top:4px;color:var(--hint)">{{ sub.notes }}</div>{% endif %}
-    </div>
-    {% endif %}
-  </div>
+
 
 {% endif %}
 
