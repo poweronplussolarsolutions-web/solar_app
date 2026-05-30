@@ -911,20 +911,22 @@ def auto_advance_stage(proj):
             proj.stage  = 'Payment'
             proj.status = 'InProgress'
     elif proj.stage == 'Payment':
-        fully_paid = (
-        proj.total_receivable > 0
-        and proj.pending_amount <= 0
-    )
+        fully_paid = proj.total_receivable > 0 and proj.pending_amount <= 0
         app_done = proj.app_install and proj.app_install.status == 'Completed'
         if fully_paid and app_done:
             if proj.project_subtype == 'DCR':
+             sub = proj.subsidy
+            
+            if sub and sub.status in ('Redeemed', 'Received'):
+                proj.status = 'Completed'
+            else:
                 proj.stage  = 'Subsidy'
                 proj.status = 'InProgress'
-            else:
-                proj.status = 'Completed'
+        else:
+            proj.status = 'Completed'
     elif proj.stage == 'Subsidy':
         sub = proj.subsidy
-        if sub and sub.status == 'Redeemed':
+        if sub and sub.status in ('Redeemed','Received'):
             proj.status = 'Completed'
     if proj.status in ('Completed', 'Closed'):
         create_service_schedule(proj)
