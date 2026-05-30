@@ -451,14 +451,53 @@ function syncStatus(stageSelect) {
 {% if current_user.role in ['admin', 'payments'] %}
   {% for expense in proj.expenses %}
     {% if expense.paid_by == 'Company' and not expense.recovered %}
-    <form method="POST" 
-          action="{{ url_for('mark_expense_recovered', pid=proj.id, eid=expense.id) }}"
-          style="display:inline;margin-right:8px">
+    <div style="margin-top:10px;border:1px solid var(--amber-200,#fde68a);border-radius:var(--radius);background:var(--amber-50,#fffbeb);overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--amber-700,#b45309)">{{ expense.expense_type }} — Pending Recovery</div>
+          <div style="font-size:11px;color:var(--amber-600,#d97706);margin-top:2px">{{ expense.amount | inr }} paid by company</div>
+        </div>
+        <button type="button" class="btn btn-sm btn-warning"
+                onclick="togglePanel('recoverPanel_{{ expense.id }}')">
+          Mark Recovered
+        </button>
+      </div>
+      <div id="recoverPanel_{{ expense.id }}" style="display:none;border-top:1px solid var(--amber-200,#fde68a);padding:14px;background:#fff">
+        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:12px">Recovery details — {{ expense.expense_type }}</div>
+        <form method="POST"
+              action="{{ url_for('mark_expense_recovered', pid=proj.id, eid=expense.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="btn btn-sm">
-        Mark {{ expense.expense_type }} recovered
-      </button>
-    </form>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Recovery date</label>
+              <input type="date" name="recovery_date" required/>
+            </div>
+            <div class="form-group">
+              <label>Payment method</label>
+              <select name="recovery_method">
+                <option value="Cash">Cash</option>
+                <option value="Bank">Bank Transfer</option>
+                <option value="Cheque">Cheque</option>
+                <option value="Online">Online</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Reference / UTR no. <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+              <input type="text" name="recovery_reference" placeholder="Ref / UTR number"/>
+            </div>
+            <div class="form-group full">
+              <label>Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+              <input type="text" name="recovery_notes" placeholder="Any additional info…"/>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button type="submit" class="btn btn-primary btn-sm">✓ Confirm Recovery</button>
+            <button type="button" class="btn btn-sm"
+                    onclick="togglePanel('recoverPanel_{{ expense.id }}')">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
     {% endif %}
   {% endfor %}
 {% endif %}
