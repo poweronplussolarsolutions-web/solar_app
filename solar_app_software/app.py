@@ -749,6 +749,8 @@ class ProjectExpense(db.Model):
     paid_date    = db.Column(db.Date, nullable=True)
     recovered    = db.Column(db.Boolean, default=False)
     recovered_date = db.Column(db.Date, nullable=True)
+    recovery_method=db.Column(db.String(100),nullable=True)
+    recovery_reference=db.Column(db.String(100),nullable=True)
     notes        = db.Column(db.Text, nullable=True)
     created_at   = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at   = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -422,7 +422,19 @@ function syncStatus(stageSelect) {
     {% if cd.paid_by == 'Company' and not cd.recovered %}
     <div style="font-size:10px;color:var(--amber-600);margin-top:2px">Pending recovery</div>
     {% elif cd.paid_by == 'Company' and cd.recovered %}
-    <div style="font-size:10px;color:var(--green-600);margin-top:2px">Recovered</div>
+    <div style="font-size:10px;color:var(--green-600);margin-top:2px">✓ Recovered</div>
+    {% if cd.recovery_date %}
+    <div style="font-size:10px;color:var(--muted);margin-top:1px">{{ cd.recovery_date | date_fmt }}</div>
+    {% endif %}
+    {% if cd.recovery_method %}
+    <div style="font-size:10px;color:var(--muted)">via {{ cd.recovery_method }}</div>
+    {% endif %}
+    {% if cd.recovery_reference %}
+    <div style="font-size:10px;color:var(--hint);font-family:monospace">Ref: {{ cd.recovery_reference }}</div>
+    {% endif %}
+    {% if cd.recovery_notes %}
+    <div style="font-size:10px;color:var(--hint);margin-top:1px">{{ cd.recovery_notes }}</div>
+    {% endif %}
     {% endif %}
   </div>
   {% endif %}
@@ -437,7 +449,19 @@ function syncStatus(stageSelect) {
     {% if nm.paid_by == 'Company' and not nm.recovered %}
     <div style="font-size:10px;color:var(--amber-600);margin-top:2px">Pending recovery</div>
     {% elif nm.paid_by == 'Company' and nm.recovered %}
-    <div style="font-size:10px;color:var(--green-600);margin-top:2px">Recovered</div>
+    <div style="font-size:10px;color:var(--green-600);margin-top:2px">✓ Recovered</div>
+    {% if nm.recovery_date %}
+    <div style="font-size:10px;color:var(--muted);margin-top:1px">{{ nm.recovery_date | date_fmt }}</div>
+    {% endif %}
+    {% if nm.recovery_method %}
+    <div style="font-size:10px;color:var(--muted)">via {{ nm.recovery_method }}</div>
+    {% endif %}
+    {% if nm.recovery_reference %}
+    <div style="font-size:10px;color:var(--hint);font-family:monospace">Ref: {{ nm.recovery_reference }}</div>
+    {% endif %}
+    {% if nm.recovery_notes %}
+    <div style="font-size:10px;color:var(--hint);margin-top:1px">{{ nm.recovery_notes }}</div>
+    {% endif %}
     {% endif %}
   </div>
   {% endif %}
