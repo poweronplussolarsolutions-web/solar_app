@@ -132,7 +132,7 @@
   </div>
 </div>
         <div class="proj-card-name">{{ p.customer.name }}</div>
-        <div class="proj-card-meta">{{ p.inverter_capacity_kw }} kW</div>
+        <div class="proj-card-meta">{{ p.inverter_capacity_kw }} kW inverter - {{p.panel_capacity_kw}} kW panel</div>
       </div>
     </a>
     {% endfor %}
@@ -144,7 +144,7 @@
           <span class="tag-pill pill-malabar">Order placed</span>
         </div>
         <div class="proj-card-name">{{ p.customer.name }}</div>
-        <div class="proj-card-meta">{{ p.inverter_capacity_kw }} kW · Awaiting delivery</div>
+        <div class="proj-card-meta">{{ p.inverter_capacity_kw }} kW inverter · {{ p.panel_capacity_kw }} kW panel · Awaiting delivery</div>
       </div>
     </a>
     {% endfor %}
@@ -174,7 +174,7 @@
           </div>
           <div class="proj-card-name">{{ p.customer.name }}</div>
           <div class="proj-card-meta">
-            {{ p.inverter_capacity_kw }} kW · Materials ready
+            {{ p.inverter_capacity_kw }} kW inverter · {{ p.panel_capacity_kw }} kW panel · Materials ready
             {% if op and op.structure_start_date %} · Started {{ op.structure_start_date | date_fmt }}{% endif %}
           </div>
         </div>
@@ -206,7 +206,7 @@
           </div>
           <div class="proj-card-name">{{ p.customer.name }}</div>
           <div class="proj-card-meta">
-            {{ p.inverter_capacity_kw }} kW
+            {{ p.inverter_capacity_kw }} kW inverter · {{ p.panel_capacity_kw }} kW panel
             {% if op and op.installation_start_date %} · Started {{ op.installation_start_date | date_fmt }}{% endif %}
           </div>
         </div>
@@ -234,7 +234,7 @@
           </div>
           <div class="proj-card-name">{{ p.customer.name }}</div>
           <div class="proj-card-meta">
-            {{ p.inverter_capacity_kw }} kW
+            {{ p.inverter_capacity_kw }} kW inverter · {{ p.panel_capacity_kw }} kW panel
             {% if op and op.installation_end_date %} · {{ op.installation_end_date | date_fmt }}{% endif %}
           </div>
         </div>
