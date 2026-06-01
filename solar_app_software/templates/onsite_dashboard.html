@@ -74,6 +74,11 @@
     {% set _ = ns.not_ordered.append(p) %}
   {% endif %}
 {% endfor %}
+{% set ns.not_ordered  = ns.not_ordered  | sort(attribute='days_open', reverse=True) %}
+{% set ns.ordered      = ns.ordered      | sort(attribute='days_open', reverse=True) %}
+{% set ns.structure    = ns.structure    | sort(attribute='days_open', reverse=True) %}
+{% set ns.installation = ns.installation | sort(attribute='days_open', reverse=True) %}
+{% set ns.done         = ns.done         | sort(attribute='days_open', reverse=True) %}
 {# ── Search bar ── #}
 <div style="display:flex;align-items:center;gap:8px;background:var(--surface);
             border:0.5px solid var(--border);border-radius:var(--radius);

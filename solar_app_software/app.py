@@ -929,7 +929,7 @@ def auto_advance_stage(proj):
             proj.status = 'Completed'
     elif proj.stage == 'Subsidy':
         sub = proj.subsidy
-        if sub and sub.status in ('Redeemed','Received'):
+        if sub and sub.status in 'Received':
             proj.status = 'Completed'
     if proj.status in ('Completed', 'Closed'):
         create_service_schedule(proj)
@@ -976,14 +976,10 @@ def _notify_stage_transition(proj, from_stage, to_stage):
     elif to_stage == 'Subsidy':
         for u in User.query.filter_by(role='payments', is_active=True).all():
             create_notification(u.id, proj.id,
-                f'{code}: Payment collected. Please initiate subsidy redemption process.', 'task')
+            f'{code}: Payment collected. Please redeem and receive the subsidy.', 'task')
         if proj.coordinator_id:
             create_notification(proj.coordinator_id, proj.id,
-                f'{code}: Payment complete. Subsidy redemption now in progress.', 'info')
-        if proj.doc_staff_id:
-            create_notification(proj.doc_staff_id, proj.id,
-                f'{code}: Payment collected. Please update Subsidy Request and Subsidy Redeem documents.',
-                'task')
+            f'{code}: Payment complete. Subsidy process now in progress.', 'info')
 
 
 def create_notification(user_id, project_id, message, notif_type='info'):
@@ -3077,25 +3073,10 @@ def subsidy(pid):
         sub.customer_share = customer_share
         sub.company_share  = company_share
 
-        if sub.status == 'Processing' and proj.coordinator_id:
-            create_notification(proj.coordinator_id, pid,
-                f'{proj.project_code} — {proj.customer.name}: Subsidy processing started by docs team.', 'info')
-            log_action(pid, 'Subsidy updated: Processing', new_val=sub.status)
-        elif sub.status == 'Commissioned':
-            for u in User.query.filter_by(role='payments', is_active=True).all():
-                create_notification(u.id, pid,
-                    f'{proj.project_code} — {proj.customer.name}: Project commissioned. Please redeem the subsidy.', 'task')
+        if sub.status == 'Redeemed':
             if proj.coordinator_id:
                 create_notification(proj.coordinator_id, pid,
-                    f'{proj.project_code} — {proj.customer.name}: Project commissioned. Subsidy redemption pending.', 'info')
-            log_action(pid, 'Subsidy update: Project commissioned', new_val=sub.status)
-        elif sub.status == 'Redeemed':
-            if proj.doc_staff_id:
-                create_notification(proj.doc_staff_id, pid,
-                    f'{proj.project_code} — {proj.customer.name}: Subsidy redeemed. Please update Subsidy Redeem document.', 'task')
-            if proj.coordinator_id:
-                create_notification(proj.coordinator_id, pid,
-                    f'{proj.project_code} — {proj.customer.name}: Subsidy redeemed.', 'info')
+                    f'{proj.project_code} — {proj.customer.name}: Subsidy redeemed. Awaiting receipt.', 'info')
             log_action(pid, 'Subsidy updated: Redeemed', new_val=sub.status)
         elif sub.status == 'Received':
             if proj.coordinator_id:

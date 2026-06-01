@@ -26,7 +26,7 @@
     <div style="font-size:12px;margin-top:2px;opacity:0.8">
       {% if proj.status == 'Cancelled' %}
         This project has been cancelled. All actions are locked.
-        Conatact admin to reinstate it.
+        Contact admin to reinstate it.
         {% if current_user.role == 'admin' %}
           You can reinstate it below.
         {% endif %}
@@ -46,7 +46,7 @@
   {% endif %}
 </div>
 
-{# Uncancel panel — outside the banner so it renders below it cleanly #}
+{# Uncancel panel #}
 {% if proj.status == 'Cancelled' and current_user.role == 'admin' %}
 <div id="uncancelPanel" style="display:none;margin:-10px 0 16px 0;
      border:1px solid #6ee7b7;border-radius:var(--radius);
@@ -58,7 +58,7 @@
     This will restore <strong>{{ proj.project_code }} — {{ proj.customer.name }}</strong>
     to its previous stage (<strong>{{ proj.stage }}</strong>) and notify the team.
   </p>
-  <form method="POST" action="{{ url_for('uncancel_project', pid=proj.id) }}" >
+  <form method="POST" action="{{ url_for('uncancel_project', pid=proj.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group" style="margin-bottom:10px">
       <label style="font-size:12px">Reason for reinstatement <span style="color:var(--muted)">(optional)</span></label>
@@ -73,7 +73,7 @@
 </div>
 {% endif %}
 
-{# JS lock — same as before #}
+{# JS lock #}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('form').forEach(function (form) {
@@ -110,6 +110,7 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 {% endif %}
+
 {# ── INFO HEADER ── #}
 <div class="two-col">
   <div class="card">
@@ -126,15 +127,14 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Village</td><td style="font-size:12px">{{ proj.customer.village or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Taluk</td><td style="font-size:12px">{{ proj.customer.taluk or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">District</td><td style="font-size:12px">{{ proj.customer.district or '—' }}</td></tr>
-      <tr><td style="color:var(--muted);padding:5px 0">System size</td><td>{{ proj.inverter_capacity_kw }} kW , {{ proj.panel_capacity_kw }} kW (panel) </td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">System size</td><td>{{ proj.inverter_capacity_kw }} kW , {{ proj.panel_capacity_kw }} kW (panel)</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Type</td><td><span class="badge badge-{{ proj.project_type }}">{{ proj.project_type }}</span></td></tr>
-      <tr><td style="color:var(--muted);padding:5px 0">Sub Type</td><td style="font-size:12px">{{ proj.project_subtype }}</span></td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Sub Type</td><td style="font-size:12px">{{ proj.project_subtype }}</td></tr>
       {% set cd = proj.connection_details %}
       <tr><td style="color:var(--muted);padding:5px 0">Connection type</td><td>{{ cd.connection_type if cd and cd.connection_type else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Category</td><td>{{ cd.category if cd and cd.category else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Consumer no.</td><td>{{ cd.consumer_number if cd and cd.consumer_number else '—' }}</td></tr>
-      <tr><td style="color:var(--muted);padding:5px 0">KSEB section</td><td>{{ proj.connection_details.kseb_section if proj.connection_details else '—'  }}</td></tr>
-      
+      <tr><td style="color:var(--muted);padding:5px 0">KSEB section</td><td>{{ proj.connection_details.kseb_section if proj.connection_details else '—' }}</td></tr>
       {% if proj.project_type == 'Loan' %}
       {% set ld = proj.loan_detail %}
       <tr><td style="color:var(--muted);padding:5px 0">Bank</td><td>{{ ld.bank_name if ld and ld.bank_name else '—' }}</td></tr>
@@ -148,385 +148,371 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Notes</td><td>{{ proj.notes if proj.notes else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Created</td><td>{{ proj.created_at | date_fmt }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Days open</td><td style="font-size:12px;color:var(--hint)">
-  {% if proj.status in ('Closed', 'Completed', 'Cancelled') %}
-    <span title="Project closed — counter stopped">{{ proj.days_open }}d ✓</span>
-  {% else %}
-    {{ proj.days_open }}d
-  {% endif %}
-</td></tr>
+        {% if proj.status in ('Closed', 'Completed', 'Cancelled') %}
+          <span title="Project closed — counter stopped">{{ proj.days_open }}d ✓</span>
+        {% else %}
+          {{ proj.days_open }}d
+        {% endif %}
+      </td></tr>
       <tr>
-  <td style="color:var(--muted);padding:5px 0">Days in stage</td>
-  <td>
-    <span style="color:{% if proj.days_in_stage > 14 %}var(--red-600){% elif proj.days_in_stage > 7 %}var(--amber-600){% else %}var(--muted){% endif %}">
-      <span style="font-size:12px;color:var(--hint)">
-  {% if proj.status in ('Closed', 'Completed', 'Cancelled') %}
-    <span title="Project closed — counter stopped">{{ proj.days_in_stage }}d ✓</span>
-  {% else %}
-    {{ proj.days_in_stage }}d
-  {% endif %}
-      </span>
-      {% if proj.days_in_stage > 30 %} ⚠ Overdue{% endif %}
-    </span>
-  </td>
-</tr>
+        <td style="color:var(--muted);padding:5px 0">Days in stage</td>
+        <td>
+          <span style="color:{% if proj.days_in_stage > 14 %}var(--red-600){% elif proj.days_in_stage > 7 %}var(--amber-600){% else %}var(--muted){% endif %}">
+            <span style="font-size:12px;color:var(--hint)">
+              {% if proj.status in ('Closed', 'Completed', 'Cancelled') %}
+                <span title="Project closed — counter stopped">{{ proj.days_in_stage }}d ✓</span>
+              {% else %}
+                {{ proj.days_in_stage }}d
+              {% endif %}
+            </span>
+            {% if proj.days_in_stage > 30 %} ⚠ Overdue{% endif %}
+          </span>
+        </td>
+      </tr>
     </table>
     </div>
   </div>
 
   <div>
     {% if current_user.role in ['admin', 'coordinator','documents'] and proj.status not in ['Cancelled', 'Closed'] %}
-<button class="btn btn-danger btn-sm" onclick="togglePanel('cancelPanel')" style="margin:5px">
-  ✕ Cancel Project
-</button>
-{% endif %}
-{% if current_user.role in ['admin', 'coordinator', 'documents'] and proj.status not in ['Cancelled', 'Closed'] %}
-  {% if proj.status == 'OnHold' %}
-    <form method="POST" action="{{ url_for('hold_project', pid=proj.id) }}" class="d-inline" >
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="btn btn-success btn-sm" type="submit" style="margin:5px">▶ Resume Project</button>
-    </form>
-  {% else %}
-    <button class="btn btn-warning btn-sm" onclick="togglePanel('holdPanel')" style="margin:5px">
-      ⏸ Put On Hold
+    <button class="btn btn-danger btn-sm" onclick="togglePanel('cancelPanel')" style="margin:5px">
+      ✕ Cancel Project
     </button>
-  {% endif %}
-  {% if current_user.role in ['admin', 'coordinator', 'documents','onsite'] and proj.status not in ['Cancelled', 'Closed'] %}
-  {% set can_edit = current_user.role == 'admin'
-      or (current_user.role == 'coordinator' and proj.coordinator_id == current_user.id)
-      or (current_user.role == 'onsite')
-      or (current_user.role == 'documents' and proj.doc_staff_id == current_user.id) %}
-  {% if can_edit %}
-  <a href="{{ url_for('edit_project', pid=proj.id) }}" class="btn btn-sm">
-    ✏ Edit details
-  </a>
-  {% endif %}
-{% endif %}
-{% endif %}
-
-{# Cancel panel #}
-<div id="cancelPanel" style="display:none;margin:10px 0 4px 0;border:1px solid #fca5a5;border-radius:var(--radius);background:#fff1f1;padding:16px">
-  <div style="font-size:13px;font-weight:600;color:#b91c1c;margin-bottom:8px">✕ Cancel Project</div>
-  <p style="font-size:13px;color:#7f1d1d;margin-bottom:10px">
-    Are you sure you want to cancel <strong>{{ proj.project_code }} — {{ proj.customer.name }}</strong>?
-    This cannot be undone.
-  </p>
-  <form method="POST" action="{{ url_for('cancel_project', pid=proj.id) }}" >
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="form-group" style="margin-bottom:10px">
-      <label style="font-size:12px">Reason for cancellation</label>
-      <textarea name="reason" rows="2" placeholder="Enter reason…"
-        style="width:100%;margin-top:4px;font-size:13px"></textarea>
-    </div>
-    <div style="display:flex;gap:8px">
-      <button type="submit" class="btn btn-danger btn-sm">Confirm Cancel</button>
-      <button type="button" class="btn btn-sm" onclick="togglePanel('cancelPanel')">Dismiss</button>
-    </div>
-  </form>
-</div>
-
-{# Hold panel #}
-<div id="holdPanel" style="display:none;margin:10px 0 4px 0;border:1px solid #fcd34d;border-radius:var(--radius);background:#fffbeb;padding:16px">
-  <div style="font-size:13px;font-weight:600;color:#92400e;margin-bottom:8px">⏸ Put Project On Hold</div>
-  <p style="font-size:13px;color:#78350f;margin-bottom:10px">
-    This will pause all activity on <strong>{{ proj.project_code }} — {{ proj.customer.name }}</strong>.
-  </p>
-  <form method="POST" action="{{ url_for('hold_project', pid=proj.id) }}" >
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="form-group" style="margin-bottom:10px">
-      <label style="font-size:12px">Reason <span style="color:var(--muted)">(optional)</span></label>
-      <textarea name="reason" rows="2" placeholder="e.g. Waiting for customer documents…"
-        style="width:100%;margin-top:4px;font-size:13px"></textarea>
-    </div>
-    <div style="display:flex;gap:8px">
-      <button type="submit" class="btn btn-warning btn-sm">Confirm Hold</button>
-      <button type="button" class="btn btn-sm" onclick="togglePanel('holdPanel')">Dismiss</button>
-    </div>
-  </form>
-</div>
-
-<script>
-function togglePanel(id) {
-  var el = document.getElementById(id);
-  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
-}
-</script>
-    {# project_detail.html — replace the Update status card #}
-<div class="card">
-  <div class="card-title">Stage &amp; status</div>
-  <div style="display:flex;align-items:center;gap:12px">
-    <span style="font-size:15px;font-weight:500">{{ proj.stage }}</span>
-    <span class="badge badge-{{ proj.status }}">{{ proj.status }}</span>
-  </div>
-  <div style="font-size:12px;color:var(--muted);margin-top:6px">
-    Stage advances automatically as work is completed.
-  </div>
-  {% if current_user.role == 'admin' %}
-  <details style="margin-top:10px">
-    <summary style="font-size:12px;color:var(--hint);cursor:pointer">Admin override</summary>
-    <form method="POST" action="{{ url_for('update_status', pid=proj.id) }}" 
-          style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+    {% endif %}
+    {% if current_user.role in ['admin', 'coordinator', 'documents'] and proj.status not in ['Cancelled', 'Closed'] %}
+      {% if proj.status == 'OnHold' %}
+        <form method="POST" action="{{ url_for('hold_project', pid=proj.id) }}" class="d-inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <select name="stage">
-        {% for s in ['Lead','Site Visit','Documentation','Onsite Work','Connection','Subsidy','Payment'] %}
-        <option value="{{ s }}" {% if proj.stage == s %}selected{% endif %}>{{ s }}</option>
-        {% endfor %}
-      </select>
-      <select name="status">
-        {% for s in ['Created','InProgress','Delayed','Completed','Closed'] %}
-        <option value="{{ s }}" {% if proj.status == s %}selected{% endif %}>{{ s }}</option>
-        {% endfor %}
-      </select>
-      <button type="submit" class="btn btn-sm">Override</button>
-    </form>
-  </details>
-  {% endif %}
-</div>
-{# ── SITE VISITS (optional) ── #}
-{% if current_user.role in ['admin', 'coordinator'] and proj.status not in ['Cancelled'] %}
-<div class="card">
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-    <div class="card-title" style="margin:0">Site visit</div>
-    <span style="font-size:11px;background:var(--surface);border:0.5px solid var(--border);
-                 border-radius:20px;padding:2px 8px;color:var(--muted)">Optional</span>
-  </div>
+          <button class="btn btn-success btn-sm" type="submit" style="margin:5px">▶ Resume Project</button>
+        </form>
+      {% else %}
+        <button class="btn btn-warning btn-sm" onclick="togglePanel('holdPanel')" style="margin:5px">
+          ⏸ Put On Hold
+        </button>
+      {% endif %}
+      {% if current_user.role in ['admin', 'coordinator', 'documents','onsite'] and proj.status not in ['Cancelled', 'Closed'] %}
+      {% set can_edit = current_user.role == 'admin'
+          or (current_user.role == 'coordinator' and proj.coordinator_id == current_user.id)
+          or (current_user.role == 'onsite')
+          or (current_user.role == 'documents' and proj.doc_staff_id == current_user.id) %}
+      {% if can_edit %}
+      <a href="{{ url_for('edit_project', pid=proj.id) }}" class="btn btn-sm">
+        ✏ Edit details
+      </a>
+      {% endif %}
+      {% endif %}
+    {% endif %}
 
-  {% if proj.site_visits %}
-  <div class="table-wrap">
-  <table style="margin-bottom:14px">
-    <thead><tr><th>Scheduled</th><th>Visited</th><th>Status</th><th>Observations</th><th></th></tr></thead>
-    <tbody>
-      {% for v in proj.site_visits | sort(attribute='scheduled_date') %}
-      <tr>
-        <td>{{ v.scheduled_date | date_fmt }}</td>
-        <td>{{ v.visited_date | date_fmt }}</td>
-        <td><span class="badge badge-{{ v.status }}">{{ v.status }}</span></td>
-        <td style="font-size:12px;color:var(--muted)">{{ v.observations or '—' }}</td>
-        <td>
-          {% if v.status == 'Scheduled' %}
-          <button id="mark-btn-{{ v.id }}" class="btn btn-sm btn-primary"
-                  onclick="document.getElementById('complete-visit-{{ v.id }}').style.display='block';this.style.display='none'">
-            Mark complete
-          </button>
-          <div id="complete-visit-{{ v.id }}" style="display:none;margin-top:8px">
-            <form method="POST"
-                  action="{{ url_for('complete_site_visit', pid=proj.id, vid=v.id) }}">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-                <div class="form-group" style="margin:0">
-                  <label style="font-size:12px">Visit date</label>
-                  <input type="date" name="visited_date" required
-                         value="{{ today.isoformat() if today is defined else '' }}"/>
-                </div>
-                <div class="form-group" style="margin:0;flex:1">
-                  <label style="font-size:12px">Observations</label>
-                  <input type="text" name="observations" placeholder="Optional notes"/>
-                </div>
-                <button type="submit" class="btn btn-primary btn-sm">Save</button>
-                <button type="button" class="btn btn-sm"
-                        onclick="document.getElementById('complete-visit-{{ v.id }}').style.display='none';
-                                 document.getElementById('mark-btn-{{ v.id }}').style.display='inline-block'">
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  {% else %}
-  <div style="color:var(--hint);font-size:13px;padding:4px 0 10px">
-    No site visit scheduled — this is optional and won't affect the project flow.
-  </div>
-  {% endif %}
-
-  {% if not proj.site_visits %}
-  <form method="POST" action="{{ url_for('add_site_visit', pid=proj.id) }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div style="display:flex;gap:8px;align-items:flex-end">
-      <div class="form-group" style="margin:0">
-        <label style="font-size:12px">Schedule date</label>
-        <input type="date" name="scheduled_date" required/>
-      </div>
-      <button type="submit" class="btn btn-sm">Schedule site visit</button>
+    {# Cancel panel #}
+    <div id="cancelPanel" style="display:none;margin:10px 0 4px 0;border:1px solid #fca5a5;border-radius:var(--radius);background:#fff1f1;padding:16px">
+      <div style="font-size:13px;font-weight:600;color:#b91c1c;margin-bottom:8px">✕ Cancel Project</div>
+      <p style="font-size:13px;color:#7f1d1d;margin-bottom:10px">
+        Are you sure you want to cancel <strong>{{ proj.project_code }} — {{ proj.customer.name }}</strong>?
+        This cannot be undone.
+      </p>
+      <form method="POST" action="{{ url_for('cancel_project', pid=proj.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group" style="margin-bottom:10px">
+          <label style="font-size:12px">Reason for cancellation</label>
+          <textarea name="reason" rows="2" placeholder="Enter reason…"
+            style="width:100%;margin-top:4px;font-size:13px"></textarea>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button type="submit" class="btn btn-danger btn-sm">Confirm Cancel</button>
+          <button type="button" class="btn btn-sm" onclick="togglePanel('cancelPanel')">Dismiss</button>
+        </div>
+      </form>
     </div>
-  </form>
-  {% else %}
-  <div style="font-size:12px;color:var(--hint);margin-top:4px">
-    Only one visit is allowed per project.
-  </div>
-  {% endif %}
-</div>
-{% endif %}
-    <script>
-const stageStatusMap = {
-  'Lead':          'Created',
-  'Site Visit':    'Created',
-  'Documentation': 'InProgress',
-  'Onsite Work':   'InProgress',
-  'Connection':    'InProgress',
-  'Subsidy':       'InProgress',
-  'Payment':       'InProgress',
-};
-function syncStatus(stageSelect) {
-  const auto = stageStatusMap[stageSelect.value];
-  if (auto) document.getElementById('statusSelect').value = auto;
-}
-</script>
 
+    {# Hold panel #}
+    <div id="holdPanel" style="display:none;margin:10px 0 4px 0;border:1px solid #fcd34d;border-radius:var(--radius);background:#fffbeb;padding:16px">
+      <div style="font-size:13px;font-weight:600;color:#92400e;margin-bottom:8px">⏸ Put Project On Hold</div>
+      <p style="font-size:13px;color:#78350f;margin-bottom:10px">
+        This will pause all activity on <strong>{{ proj.project_code }} — {{ proj.customer.name }}</strong>.
+      </p>
+      <form method="POST" action="{{ url_for('hold_project', pid=proj.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group" style="margin-bottom:10px">
+          <label style="font-size:12px">Reason <span style="color:var(--muted)">(optional)</span></label>
+          <textarea name="reason" rows="2" placeholder="e.g. Waiting for customer documents…"
+            style="width:100%;margin-top:4px;font-size:13px"></textarea>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button type="submit" class="btn btn-warning btn-sm">Confirm Hold</button>
+          <button type="button" class="btn btn-sm" onclick="togglePanel('holdPanel')">Dismiss</button>
+        </div>
+      </form>
+    </div>
+
+    <script>
+    function togglePanel(id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+    </script>
+
+    {# Stage & status card #}
+    <div class="card">
+      <div class="card-title">Stage &amp; status</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:15px;font-weight:500">{{ proj.stage }}</span>
+        <span class="badge badge-{{ proj.status }}">{{ proj.status }}</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px">
+        Stage advances automatically as work is completed.
+      </div>
+      {% if current_user.role == 'admin' %}
+      <details style="margin-top:10px">
+        <summary style="font-size:12px;color:var(--hint);cursor:pointer">Admin override</summary>
+        <form method="POST" action="{{ url_for('update_status', pid=proj.id) }}"
+              style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="stage">
+            {% for s in ['Lead','Site Visit','Documentation','Onsite Work','Connection','Subsidy','Payment'] %}
+            <option value="{{ s }}" {% if proj.stage == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+          <select name="status">
+            {% for s in ['Created','InProgress','Delayed','Completed','Closed'] %}
+            <option value="{{ s }}" {% if proj.status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-sm">Override</button>
+        </form>
+      </details>
+      {% endif %}
+    </div>
+
+    {# ── SITE VISITS ── #}
+    {% if current_user.role in ['admin', 'coordinator'] and proj.status not in ['Cancelled'] %}
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <div class="card-title" style="margin:0">Site visit</div>
+        <span style="font-size:11px;background:var(--surface);border:0.5px solid var(--border);
+                     border-radius:20px;padding:2px 8px;color:var(--muted)">Optional</span>
+      </div>
+
+      {% if proj.site_visits %}
+      <div class="table-wrap">
+      <table style="margin-bottom:14px">
+        <thead><tr><th>Scheduled</th><th>Visited</th><th>Status</th><th>Observations</th><th></th></tr></thead>
+        <tbody>
+          {% for v in proj.site_visits | sort(attribute='scheduled_date') %}
+          <tr>
+            <td>{{ v.scheduled_date | date_fmt }}</td>
+            <td>{{ v.visited_date | date_fmt }}</td>
+            <td><span class="badge badge-{{ v.status }}">{{ v.status }}</span></td>
+            <td style="font-size:12px;color:var(--muted)">{{ v.observations or '—' }}</td>
+            <td>
+              {% if v.status == 'Scheduled' %}
+              <button id="mark-btn-{{ v.id }}" class="btn btn-sm btn-primary"
+                      onclick="document.getElementById('complete-visit-{{ v.id }}').style.display='block';this.style.display='none'">
+                Mark complete
+              </button>
+              <div id="complete-visit-{{ v.id }}" style="display:none;margin-top:8px">
+                <form method="POST"
+                      action="{{ url_for('complete_site_visit', pid=proj.id, vid=v.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+                    <div class="form-group" style="margin:0">
+                      <label style="font-size:12px">Visit date</label>
+                      <input type="date" name="visited_date" required
+                             value="{{ today.isoformat() if today is defined else '' }}"/>
+                    </div>
+                    <div class="form-group" style="margin:0;flex:1">
+                      <label style="font-size:12px">Observations</label>
+                      <input type="text" name="observations" placeholder="Optional notes"/>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                    <button type="button" class="btn btn-sm"
+                            onclick="document.getElementById('complete-visit-{{ v.id }}').style.display='none';
+                                     document.getElementById('mark-btn-{{ v.id }}').style.display='inline-block'">
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <div style="color:var(--hint);font-size:13px;padding:4px 0 10px">
+        No site visit scheduled — this is optional and won't affect the project flow.
+      </div>
+      {% endif %}
+
+      {% if not proj.site_visits %}
+      <form method="POST" action="{{ url_for('add_site_visit', pid=proj.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <div class="form-group" style="margin:0">
+            <label style="font-size:12px">Schedule date</label>
+            <input type="date" name="scheduled_date" required/>
+          </div>
+          <button type="submit" class="btn btn-sm">Schedule site visit</button>
+        </div>
+      </form>
+      {% else %}
+      <div style="font-size:12px;color:var(--hint);margin-top:4px">
+        Only one visit is allowed per project.
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <script>
+    const stageStatusMap = {
+      'Lead':          'Created',
+      'Site Visit':    'Created',
+      'Documentation': 'InProgress',
+      'Onsite Work':   'InProgress',
+      'Connection':    'InProgress',
+      'Subsidy':       'InProgress',
+      'Payment':       'InProgress',
+    };
+    function syncStatus(stageSelect) {
+      const auto = stageStatusMap[stageSelect.value];
+      if (auto) document.getElementById('statusSelect').value = auto;
+    }
+    </script>
+
+    {# Payment summary card #}
     <div class="card" style="margin-top:0">
       <div class="card-title">Payment summary</div>
       <div style="font-size:22px;font-weight:500;margin-bottom:4px">{{ proj.effective_collected | inr }}</div>
-      
       <div style="font-size:12px;color:var(--muted)">of {{ proj.total_receivable | inr }}</div>
       <div class="progress-wrap" style="margin:10px 0">
         <div class="progress-bar" style="width:{{ proj.payment_pct }}%"></div>
       </div>
       <div style="font-size:12px;color:var(--hint)">
-  {{ proj.payment_pct }}% collected · {{ proj.pending_amount | inr }} pending
-</div>
-{% if proj.subsidy and proj.subsidy.received_amount and proj.subsidy.received_amount > 0 %}
-<div style="margin-top:6px;font-size:12px;color:var(--teal-600)">
-  Subsidy received: {{ proj.subsidy.company_share | inr }}
-  · Net pending: {{ proj.pending_amount | inr }}
-</div>
-{% endif %}
-      {# ── Remaining balance hint ── #}
-  {% if proj.pending_amount > 0 %}
-  <div style="margin-top:8px;margin-bottom:10px;font-size:12px;font-weight:500;color:var(--amber-600,#d97706);
-              background:var(--amber-50,#fffbeb);border:1px solid var(--amber-200,#fde68a);
-              border-radius:var(--radius);padding:6px 10px">
-    Max next payment: {{ proj.pending_amount | inr }}
-  </div>
-  {% endif %}
-  {# Payment breakdown #}
-<div class="payment-grid">
-  <div style="background:var(--bg);border-radius:var(--radius);padding:10px 14px">
-    <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Contract amount</div>
-    <div style="font-size:16px;font-weight:500">{{ proj.total_amount | inr }}</div>
-  </div>
-
-  {% set cd = proj.expenses | selectattr('expense_type','eq','CD Payment') | first | default(none) %}
-  {% set nm = proj.expenses | selectattr('expense_type','eq','Meter')  | first | default(none) %}
-
-  {% if cd %}
-  <div style="background:{% if cd.paid_by == 'Company' %}var(--amber-50){% else %}var(--bg){% endif %};border-radius:var(--radius);padding:10px 14px">
-    <div style="font-size:11px;color:var(--muted);margin-bottom:2px">
-      CD Payment
-      <span class="tag" style="margin-left:4px;font-size:10px">{{ cd.paid_by }}</span>
-    </div>
-    <div style="font-size:16px;font-weight:500">{{ cd.amount | inr }}</div>
-    {% if cd.paid_by == 'Company' and not cd.recovered %}
-    <div style="font-size:10px;color:var(--amber-600);margin-top:2px">Pending recovery</div>
-    {% elif cd.paid_by == 'Company' and cd.recovered %}
-    <div style="font-size:10px;color:var(--green-600);margin-top:2px">✓ Recovered</div>
-    {% if cd.recovery_date %}
-    <div style="font-size:10px;color:var(--muted);margin-top:1px">{{ cd.recovery_date | date_fmt }}</div>
-    {% endif %}
-    {% if cd.recovery_method %}
-    <div style="font-size:10px;color:var(--muted)">via {{ cd.recovery_method }}</div>
-    {% endif %}
-    {% if cd.recovery_reference %}
-    <div style="font-size:10px;color:var(--hint);font-family:monospace">Ref: {{ cd.recovery_reference }}</div>
-    {% endif %}
-    {% if cd.recovery_notes %}
-    <div style="font-size:10px;color:var(--hint);margin-top:1px">{{ cd.recovery_notes }}</div>
-    {% endif %}
-    {% endif %}
-  </div>
-  {% endif %}
-
-  {% if nm %}
-  <div style="background:{% if nm.paid_by == 'Company' %}var(--amber-50){% else %}var(--bg){% endif %};border-radius:var(--radius);padding:10px 14px">
-    <div style="font-size:11px;color:var(--muted);margin-bottom:2px">
-      Meter
-      <span class="tag" style="margin-left:4px;font-size:10px">{{ nm.paid_by }}</span>
-    </div>
-    <div style="font-size:16px;font-weight:500">{{ nm.amount | inr }}</div>
-    {% if nm.paid_by == 'Company' and not nm.recovered %}
-    <div style="font-size:10px;color:var(--amber-600);margin-top:2px">Pending recovery</div>
-    {% elif nm.paid_by == 'Company' and nm.recovered %}
-    <div style="font-size:10px;color:var(--green-600);margin-top:2px">✓ Recovered</div>
-    {% if nm.recovery_date %}
-    <div style="font-size:10px;color:var(--muted);margin-top:1px">{{ nm.recovery_date | date_fmt }}</div>
-    {% endif %}
-    {% if nm.recovery_method %}
-    <div style="font-size:10px;color:var(--muted)">via {{ nm.recovery_method }}</div>
-    {% endif %}
-    {% if nm.recovery_reference %}
-    <div style="font-size:10px;color:var(--hint);font-family:monospace">Ref: {{ nm.recovery_reference }}</div>
-    {% endif %}
-    {% if nm.recovery_notes %}
-    <div style="font-size:10px;color:var(--hint);margin-top:1px">{{ nm.recovery_notes }}</div>
-    {% endif %}
-    {% endif %}
-  </div>
-  {% endif %}
-
-  <div style="background:var(--teal-50);border-radius:var(--radius);padding:10px 14px">
-    <div style="font-size:11px;color:var(--teal-800);margin-bottom:2px">Total receivable</div>
-    <div style="font-size:16px;font-weight:600;color:var(--teal-800)">{{ proj.total_receivable | inr }}</div>
-    <div style="font-size:10px;color:var(--muted);margin-top:2px">contract + company expenses</div>
-  </div>
-</div>
-
-{# Recovery actions for payments team #}
-{% if current_user.role in ['admin', 'payments'] %}
-  {% for expense in proj.expenses %}
-    {% if expense.paid_by == 'Company' and not expense.recovered %}
-    <div style="margin-top:10px;border:1px solid var(--amber-200,#fde68a);border-radius:var(--radius);background:var(--amber-50,#fffbeb);overflow:hidden">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px">
-        <div>
-          <div style="font-size:12px;font-weight:600;color:var(--amber-700,#b45309)">{{ expense.expense_type }} — Pending Recovery</div>
-          <div style="font-size:11px;color:var(--amber-600,#d97706);margin-top:2px">{{ expense.amount | inr }} paid by company</div>
+        {{ proj.payment_pct }}% collected · {{ proj.pending_amount | inr }} pending
+      </div>
+      {% if proj.subsidy and proj.subsidy.received_amount and proj.subsidy.received_amount > 0 %}
+      <div style="margin-top:6px;font-size:12px;color:var(--teal-600)">
+        Subsidy received: {{ proj.subsidy.company_share | inr }}
+        · Net pending: {{ proj.pending_amount | inr }}
+      </div>
+      {% endif %}
+      {% if proj.pending_amount > 0 %}
+      <div style="margin-top:8px;margin-bottom:10px;font-size:12px;font-weight:500;color:var(--amber-600,#d97706);
+                  background:var(--amber-50,#fffbeb);border:1px solid var(--amber-200,#fde68a);
+                  border-radius:var(--radius);padding:6px 10px">
+        Max next payment: {{ proj.pending_amount | inr }}
+      </div>
+      {% endif %}
+      {# Payment breakdown #}
+      <div class="payment-grid">
+        <div style="background:var(--bg);border-radius:var(--radius);padding:10px 14px">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Contract amount</div>
+          <div style="font-size:16px;font-weight:500">{{ proj.total_amount | inr }}</div>
         </div>
-        <button type="button" class="btn btn-sm btn-warning"
-                onclick="togglePanel('recoverPanel_{{ expense.id }}')">
-          Mark Recovered
-        </button>
+
+        {% set cd = proj.expenses | selectattr('expense_type','eq','CD Payment') | first | default(none) %}
+        {% set nm = proj.expenses | selectattr('expense_type','eq','Meter')  | first | default(none) %}
+
+        {% if cd %}
+        <div style="background:{% if cd.paid_by == 'Company' %}var(--amber-50){% else %}var(--bg){% endif %};border-radius:var(--radius);padding:10px 14px">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:2px">
+            CD Payment
+            <span class="tag" style="margin-left:4px;font-size:10px">{{ cd.paid_by }}</span>
+          </div>
+          <div style="font-size:16px;font-weight:500">{{ cd.amount | inr }}</div>
+          {% if cd.paid_by == 'Company' and not cd.recovered %}
+          <div style="font-size:10px;color:var(--amber-600);margin-top:2px">Pending recovery</div>
+          {% elif cd.paid_by == 'Company' and cd.recovered %}
+          <div style="font-size:10px;color:var(--green-600);margin-top:2px">✓ Recovered</div>
+          {% if cd.recovery_date %}<div style="font-size:10px;color:var(--muted);margin-top:1px">{{ cd.recovery_date | date_fmt }}</div>{% endif %}
+          {% if cd.recovery_method %}<div style="font-size:10px;color:var(--muted)">via {{ cd.recovery_method }}</div>{% endif %}
+          {% if cd.recovery_reference %}<div style="font-size:10px;color:var(--hint);font-family:monospace">Ref: {{ cd.recovery_reference }}</div>{% endif %}
+          {% if cd.recovery_notes %}<div style="font-size:10px;color:var(--hint);margin-top:1px">{{ cd.recovery_notes }}</div>{% endif %}
+          {% endif %}
+        </div>
+        {% endif %}
+
+        {% if nm %}
+        <div style="background:{% if nm.paid_by == 'Company' %}var(--amber-50){% else %}var(--bg){% endif %};border-radius:var(--radius);padding:10px 14px">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:2px">
+            Meter
+            <span class="tag" style="margin-left:4px;font-size:10px">{{ nm.paid_by }}</span>
+          </div>
+          <div style="font-size:16px;font-weight:500">{{ nm.amount | inr }}</div>
+          {% if nm.paid_by == 'Company' and not nm.recovered %}
+          <div style="font-size:10px;color:var(--amber-600);margin-top:2px">Pending recovery</div>
+          {% elif nm.paid_by == 'Company' and nm.recovered %}
+          <div style="font-size:10px;color:var(--green-600);margin-top:2px">✓ Recovered</div>
+          {% if nm.recovery_date %}<div style="font-size:10px;color:var(--muted);margin-top:1px">{{ nm.recovery_date | date_fmt }}</div>{% endif %}
+          {% if nm.recovery_method %}<div style="font-size:10px;color:var(--muted)">via {{ nm.recovery_method }}</div>{% endif %}
+          {% if nm.recovery_reference %}<div style="font-size:10px;color:var(--hint);font-family:monospace">Ref: {{ nm.recovery_reference }}</div>{% endif %}
+          {% if nm.recovery_notes %}<div style="font-size:10px;color:var(--hint);margin-top:1px">{{ nm.recovery_notes }}</div>{% endif %}
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <div style="background:var(--teal-50);border-radius:var(--radius);padding:10px 14px">
+          <div style="font-size:11px;color:var(--teal-800);margin-bottom:2px">Total receivable</div>
+          <div style="font-size:16px;font-weight:600;color:var(--teal-800)">{{ proj.total_receivable | inr }}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">contract + company expenses</div>
+        </div>
       </div>
-      <div id="recoverPanel_{{ expense.id }}" style="display:none;border-top:1px solid var(--amber-200,#fde68a);padding:14px;background:#fff">
-        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:12px">Recovery details — {{ expense.expense_type }}</div>
-        <form method="POST"
-              action="{{ url_for('mark_expense_recovered', pid=proj.id, eid=expense.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Recovery date</label>
-              <input type="date" name="recovery_date" required/>
+
+      {# Recovery actions for payments team #}
+      {% if current_user.role in ['admin', 'payments'] %}
+        {% for expense in proj.expenses %}
+          {% if expense.paid_by == 'Company' and not expense.recovered %}
+          <div style="margin-top:10px;border:1px solid var(--amber-200,#fde68a);border-radius:var(--radius);background:var(--amber-50,#fffbeb);overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px">
+              <div>
+                <div style="font-size:12px;font-weight:600;color:var(--amber-700,#b45309)">{{ expense.expense_type }} — Pending Recovery</div>
+                <div style="font-size:11px;color:var(--amber-600,#d97706);margin-top:2px">{{ expense.amount | inr }} paid by company</div>
+              </div>
+              <button type="button" class="btn btn-sm btn-warning"
+                      onclick="togglePanel('recoverPanel_{{ expense.id }}')">
+                Mark Recovered
+              </button>
             </div>
-            <div class="form-group">
-              <label>Payment method</label>
-              <select name="recovery_method">
-                <option value="Cash">Cash</option>
-                <option value="Bank">Bank Transfer</option>
-                <option value="Cheque">Cheque</option>
-                <option value="Online">Online</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Reference / UTR no. <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-              <input type="text" name="recovery_reference" placeholder="Ref / UTR number"/>
-            </div>
-            <div class="form-group full">
-              <label>Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-              <input type="text" name="recovery_notes" placeholder="Any additional info…"/>
+            <div id="recoverPanel_{{ expense.id }}" style="display:none;border-top:1px solid var(--amber-200,#fde68a);padding:14px;background:#fff">
+              <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:12px">Recovery details — {{ expense.expense_type }}</div>
+              <form method="POST"
+                    action="{{ url_for('mark_expense_recovered', pid=proj.id, eid=expense.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label>Recovery date</label>
+                    <input type="date" name="recovery_date" required/>
+                  </div>
+                  <div class="form-group">
+                    <label>Payment method</label>
+                    <select name="recovery_method">
+                      <option value="Cash">Cash</option>
+                      <option value="Bank">Bank Transfer</option>
+                      <option value="Cheque">Cheque</option>
+                      <option value="Online">Online</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Reference / UTR no. <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+                    <input type="text" name="recovery_reference" placeholder="Ref / UTR number"/>
+                  </div>
+                  <div class="form-group full">
+                    <label>Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+                    <input type="text" name="recovery_notes" placeholder="Any additional info…"/>
+                  </div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:4px">
+                  <button type="submit" class="btn btn-primary btn-sm">✓ Confirm Recovery</button>
+                  <button type="button" class="btn btn-sm"
+                          onclick="togglePanel('recoverPanel_{{ expense.id }}')">Cancel</button>
+                </div>
+              </form>
             </div>
           </div>
-          <div style="display:flex;gap:8px;margin-top:4px">
-            <button type="submit" class="btn btn-primary btn-sm">✓ Confirm Recovery</button>
-            <button type="button" class="btn btn-sm"
-                    onclick="togglePanel('recoverPanel_{{ expense.id }}')">Cancel</button>
-          </div>
-        </form>
-      </div>
-    </div>
-    {% endif %}
-  {% endfor %}
-{% endif %}
+          {% endif %}
+        {% endfor %}
+      {% endif %}
     </div>
   </div>
 </div>
@@ -537,17 +523,17 @@ function syncStatus(stageSelect) {
     <a href="#payments" class="btn btn-sm">Payments</a>
     <a href="#documents" class="btn btn-sm">Documents</a>
     {% if proj.project_subtype == 'DCR' %}
-<a href="#subsidy" class="btn btn-sm">Subsidy</a>
-{% endif %}
+    <a href="#subsidy" class="btn btn-sm">Subsidy</a>
+    {% endif %}
     {% if current_user.role in ['admin'] or
          (current_user.role == 'documents' and proj.doc_staff_id == current_user.id) %}
     <a href="{{ url_for('documents', pid=proj.id) }}" class="btn btn-sm">Doc Timeline</a>
     {% endif %}
     {% if current_user.role in ['admin', 'onsite'] %}
-<a href="{{ url_for('onsite_progress', pid=proj.id) }}" class="btn btn-outline-warning btn-sm">
-  Onsite Progress
-</a>
-{% endif %}
+    <a href="{{ url_for('onsite_progress', pid=proj.id) }}" class="btn btn-outline-warning btn-sm">
+      Onsite Progress
+    </a>
+    {% endif %}
   </div>
 </div>
 
@@ -558,7 +544,6 @@ function syncStatus(stageSelect) {
     <span class="badge badge-{{ proj.project_type }}">{{ proj.project_type }} project</span>
   </div>
 
-  {# Single flag used throughout this card #}
   {% set payment_complete = (
       proj.total_receivable and proj.total_receivable > 0
       and proj.pending_amount <= 0
@@ -585,8 +570,6 @@ function syncStatus(stageSelect) {
   {% if proj.project_type == 'Loan' %}
     {# ────────────────── LOAN PROJECT ────────────────── #}
     {% set instalments = proj.bank_instalments %}
-
-    {# Bank instalment cards #}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
       <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px">
         <div style="font-size:11px;color:var(--muted);margin-bottom:6px">First bank payment</div>
@@ -601,7 +584,6 @@ function syncStatus(stageSelect) {
           <span class="badge badge-Pending" style="margin-top:6px;display:inline-block">Awaiting</span>
         {% endif %}
       </div>
-
       <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px">
         <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Second bank payment</div>
         {% if 'Second' in instalments %}
@@ -620,13 +602,12 @@ function syncStatus(stageSelect) {
       </div>
     </div>
 
-    {# Record next bank instalment — hidden when fully paid #}
     {% if not payment_complete and current_user.role in ['admin','payments'] and proj.next_bank_instalment %}
     <div style="border-top:0.5px solid var(--border);padding-top:16px;margin-bottom:16px">
       <div style="font-size:13px;font-weight:500;margin-bottom:10px">
         Record <span style="color:var(--amber-600)">{{ proj.next_bank_instalment }} bank payment</span>
       </div>
-      <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}" >
+      <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="payment_source" value="Bank"/>
         <input type="hidden" name="instalment" value="{{ proj.next_bank_instalment }}"/>
@@ -661,7 +642,6 @@ function syncStatus(stageSelect) {
     </div>
     {% endif %}
 
-    {# Customer payments history for loan #}
     {% set customer_pays = proj.payments | selectattr('payment_source','eq','Customer') | list %}
     {% if customer_pays %}
     <div style="border-top:0.5px solid var(--border);padding-top:16px;margin-bottom:4px">
@@ -690,14 +670,13 @@ function syncStatus(stageSelect) {
     </div>
     {% endif %}
 
-    {# Record customer payment for loan — hidden when fully paid #}
     {% if not payment_complete and current_user.role in ['admin','payments'] %}
     <div style="border-top:0.5px solid var(--border);padding-top:16px">
       <div style="font-size:13px;font-weight:500;margin-bottom:10px">
         Record customer payment
         <span style="font-weight:400;color:var(--muted);font-size:12px">(down-payment / remaining balance)</span>
       </div>
-      <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}" >
+      <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="payment_source" value="Customer"/>
         <div class="form-grid">
@@ -750,16 +729,14 @@ function syncStatus(stageSelect) {
       </tbody>
     </table>
     </div>
-
     {% else %}
     <div style="color:var(--hint);font-size:13px;padding:8px 0">No payments recorded yet.</div>
     {% endif %}
 
-    {# Record customer payment — hidden when fully paid #}
     {% if not payment_complete and current_user.role in ['admin','payments'] %}
     <div style="margin-top:16px;border-top:0.5px solid var(--border);padding-top:16px">
       <div style="font-size:13px;font-weight:500;margin-bottom:10px">Record customer payment</div>
-      <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}" >
+      <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="payment_source" value="Customer"/>
         <div class="form-grid">
@@ -849,7 +826,6 @@ function syncStatus(stageSelect) {
     <span class="btn btn-sm" style="opacity:0.5;cursor:not-allowed" title="All documents completed — locked">
       🔒 Documents complete
     </span>
-    
     {% else %}
     <a href="{{ url_for('documents', pid=proj.id) }}" class="btn btn-sm btn-primary">
       Manage documents
@@ -858,11 +834,11 @@ function syncStatus(stageSelect) {
   </div>
   {% endif %}
 </div>
+
 {# ── SUBSIDY (DCR projects only) ── #}
 {% if proj.project_subtype == 'DCR' %}
 {% set sub = proj.subsidy %}
 {% set sub_status = sub.status if sub else 'NotStarted' %}
-{% set step_index = {'NotStarted':0,'Processing':1,'Commissioned':2,'Redeemed':3,'Received':4}[sub_status] %}
 <div class="card" id="subsidy">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
     <div class="card-title" style="margin:0">
@@ -872,14 +848,29 @@ function syncStatus(stageSelect) {
     <div style="font-size:13px;font-weight:500">
       {% if sub_status == 'Received' %}<span style="color:var(--green-600)">✓ Received</span>
       {% elif sub_status == 'Redeemed' %}<span style="color:var(--amber-600)">Redeemed</span>
-      {% elif sub_status == 'Commissioned' %}<span style="color:var(--amber-600)">Commissioned</span>
-      {% elif sub_status == 'Processing' %}<span style="color:var(--amber-600)">Processing</span>
       {% else %}<span style="color:var(--hint)">Not started</span>
       {% endif %}
     </div>
   </div>
 
-  {# Amount + distribution summary #}
+  {# ── Step indicator: Redeemed → Received ── #}
+  <div style="display:flex;gap:0;margin-bottom:20px">
+    {% for step_label, step_val in [('Redeemed','Redeemed'),('Received','Received')] %}
+    {% set is_done = (sub_status == 'Received') or (step_val == 'Redeemed' and sub_status in ['Redeemed','Received']) %}
+    {% set is_active = sub_status == step_val %}
+    <div style="flex:1;padding:10px 14px;border:0.5px solid var(--border);
+                {% if loop.first %}border-radius:var(--radius) 0 0 var(--radius);{% else %}border-left:none;border-radius:0 var(--radius) var(--radius) 0;{% endif %}
+                background:{% if is_done %}var(--green-50,#f0fdf4){% elif is_active %}var(--amber-50,#fffbeb){% else %}var(--surface){% endif %}">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Step {{ loop.index }}</div>
+      <div style="font-size:13px;font-weight:600;
+                  color:{% if is_done %}var(--green-700){% elif is_active %}var(--amber-700){% else %}var(--hint){% endif %}">
+        {% if is_done %}✓ {% endif %}{{ step_label }}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# ── Subsidy amount + distribution summary ── #}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px">
     <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px">
       <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Subsidy amount</div>
@@ -902,229 +893,122 @@ function syncStatus(stageSelect) {
     {% endif %}
   </div>
 
-  {# Workflow steps #}
-  <div style="margin-bottom:18px">
-    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);margin-bottom:10px">Subsidy workflow</div>
-    {% for step, label, team in [
-        ('Processing',   '1. Subsidy processing started', 'Docs team'),
-        ('Commissioned', '2. Project commissioned (KSEB)', 'Docs team'),
-        ('Redeemed',     '3. Subsidy redeemed',            'Payments team'),
-        ('Received',     '4. Subsidy amount received',     'Payments team'),
-    ] %}
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border)">
-      {% if step_index >= loop.index %}
-      <div style="width:20px;height:20px;border-radius:50%;background:var(--green-600);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+  {# ── Role-based form/view ── #}
+
+  {# Read-only for coordinator and other non-privileged roles #}
+  {% if current_user.role not in ['admin', 'documents', 'payments'] %}
+  <div style="background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius);padding:14px;font-size:13px;color:var(--muted)">
+    {% if sub_status == 'Received' %}
+      <div style="display:flex;align-items:center;gap:10px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green-600)" stroke-width="2" stroke-linecap="round">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--green-700)">Subsidy completed</div>
+          <div style="font-size:12px;color:var(--green-600);margin-top:2px">
+            ₹78,000 received — Customer: {{ sub.customer_share | inr }}, Company: {{ sub.company_share | inr }}
+          </div>
+        </div>
       </div>
-      {% elif step_index == loop.index - 1 %}
-      <div style="width:20px;height:20px;border-radius:50%;border:2px solid var(--amber-400,#fbbf24);background:var(--amber-50,#fffbeb);flex-shrink:0"></div>
-      {% else %}
-      <div style="width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border);flex-shrink:0"></div>
-      {% endif %}
-      <div style="flex:1">
-        <span style="font-size:13px">{{ label }}</span>
-        <span style="font-size:11px;color:var(--muted);margin-left:6px">— {{ team }}</span>
-      </div>
-    </div>
-    {% endfor %}
+    {% elif sub_status == 'Redeemed' %}
+      Redeemed — awaiting receipt confirmation from payments team.
+    {% else %}
+      Subsidy process not yet started.
+    {% endif %}
   </div>
 
-  {# ── View-only for coordinators and other roles ── #}
-  {% if current_user.role not in ['admin', 'documents', 'payments'] %}
-  <div style="background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius);padding:14px">
-    {% if sub_status == 'Received' %}
-    <div style="display:flex;align-items:center;gap:10px">
+  {# Editable form for admin, documents, payments #}
+  {% else %}
+
+    {# Completed banner — show for non-admin editable roles when Received #}
+    {% if sub_status == 'Received' and current_user.role != 'admin' %}
+    <div style="display:flex;align-items:center;gap:10px;background:var(--green-50,#f0fdf4);
+                border:1px solid var(--green-200,#bbf7d0);border-radius:var(--radius);padding:12px 16px">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green-600)" stroke-width="2" stroke-linecap="round">
         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
       </svg>
       <div>
-        <div style="font-size:13px;font-weight:500;color:var(--green-700)">Subsidy completed</div>
+        <div style="font-size:13px;font-weight:600;color:var(--green-700)">Subsidy completed</div>
         <div style="font-size:12px;color:var(--green-600);margin-top:2px">
-          ₹78,000 received —
-          Customer: {{ sub.customer_share | inr }},
-          Company: {{ sub.company_share | inr }}
+          ₹78,000 received — Customer: {{ sub.customer_share | inr }}, Company: {{ sub.company_share | inr }}
         </div>
       </div>
     </div>
-    {% elif sub_status == 'NotStarted' %}
-    <div style="font-size:13px;color:var(--hint)">Subsidy process not yet started.</div>
+
+    {# Editable form for admin/documents/payments when not yet Received #}
     {% else %}
-    <div style="font-size:13px;color:var(--muted)">
-      Current status: <strong>{{ sub_status }}</strong>
-      {% if sub and sub.notes %}<div style="font-size:12px;margin-top:4px;color:var(--hint)">{{ sub.notes }}</div>{% endif %}
-    </div>
-    {% endif %}
-  </div>
-
-  {# ── Completed banner (non-admin, non-coordinator editable roles) ── #}
-  {% elif sub and sub_status == 'Received' and current_user.role not in ['admin'] %}
-  <div style="display:flex;align-items:center;gap:10px;background:var(--green-50,#f0fdf4);
-              border:1px solid var(--green-200,#bbf7d0);border-radius:var(--radius);padding:12px 16px">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green-600)" stroke-width="2" stroke-linecap="round">
-      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
-    </svg>
-    <div>
-      <div style="font-size:13px;font-weight:600;color:var(--green-700)">Subsidy completed</div>
-      <div style="font-size:12px;color:var(--green-600);margin-top:2px">
-        Subsidy of {{ sub.company_share | inr }} received and recorded.
-      </div>
-    </div>
-  </div>
-
-  {# ── Docs team: steps 1 & 2 ── #}
-  {% elif current_user.role in ['admin', 'documents'] and sub_status in ['NotStarted', 'Processing'] %}
-  <div style="font-size:13px;font-weight:500;margin-bottom:12px">Docs team — update subsidy progress</div>
-  <form method="POST" action="{{ url_for('subsidy', pid=proj.id) }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Status</label>
-        <select name="status">
-          {% for s, lbl in [('NotStarted','Not started'),('Processing','Processing (step 1)'),('Commissioned','Commissioned (step 2)')] %}
-          <option value="{{ s }}" {% if sub_status == s %}selected{% endif %}>{{ lbl }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Start date</label>
-        <input type="date" name="request_date" value="{{ sub.request_date if sub and sub.request_date else '' }}"/>
-      </div>
-      <div class="form-group">
-        <label>Expected subsidy (₹)</label>
-        <input type="number" name="expected_amount" step="1" value="{{ (sub.expected_amount or 78000) if sub else 78000 }}"/>
-      </div>
-      <div class="form-group full">
-        <label>Notes</label>
-        <textarea name="notes" rows="2">{{ sub.notes if sub else '' }}</textarea>
-      </div>
-    </div>
-    <button type="submit" class="btn btn-primary btn-sm">Save</button>
-  </form>
-
-  {# ── Docs commissioned — waiting for payments ── #}
-  {% elif current_user.role == 'documents' and sub_status == 'Commissioned' %}
-  <div style="background:var(--amber-50,#fffbeb);border:1px solid var(--amber-200,#fde68a);
-              border-radius:var(--radius);padding:12px 16px;font-size:13px;color:var(--amber-700)">
-    ✓ Project commissioned. Waiting for payments team to redeem and receive the subsidy.
-  </div>
-
-  {# ── Payments team: steps 3 & 4 ── #}
-  {% elif current_user.role in ['admin', 'payments'] and sub_status in ['Commissioned', 'Redeemed'] %}
-  <div style="font-size:13px;font-weight:500;margin-bottom:12px">Payments team — redeem &amp; receive subsidy</div>
-  <form method="POST" action="{{ url_for('subsidy', pid=proj.id) }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Status</label>
-        <select name="status" id="pd_subsidyStatus" onchange="pdToggleSplit()">
-          {% for s, lbl in [('Commissioned','Commissioned (awaiting)'),('Redeemed','Redeemed (step 3)'),('Received','Received (step 4)')] %}
-          <option value="{{ s }}" {% if sub_status == s %}selected{% endif %}>{{ lbl }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Received amount (₹)</label>
-        <input type="number" name="expected_amount" id="pd_receivedAmt" step="1"
-               value="{{ (sub.expected_amount or 78000) if sub else 78000 }}"
-               oninput="pdUpdateRemaining()"/>
-      </div>
-    </div>
-    <div id="pd_splitFields" style="display:none;margin-top:4px">
-      <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;
-                  text-transform:uppercase;letter-spacing:0.04em">Subsidy distribution</div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>Customer share (₹)</label>
-          <input type="number" name="customer_share" id="pd_customerShare" step="1"
-                 value="{{ sub.customer_share | int if sub and sub.customer_share else 0 }}"
-                 oninput="pdUpdateRemaining()" placeholder="0"/>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px">Amount credited to customer</div>
-        </div>
-        <div class="form-group">
-          <label>Company share (₹)</label>
-          <input type="number" name="company_share" id="pd_companyShare" step="1"
-                 value="{{ sub.company_share | int if sub and sub.company_share else 0 }}"
-                 oninput="pdUpdateRemaining()" placeholder="0"/>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px">Amount retained by company</div>
-        </div>
-      </div>
-      <div id="pd_splitSummary" style="font-size:12px;padding:8px 12px;border-radius:var(--radius);
-                                       background:var(--bg);border:1px solid var(--border);margin-bottom:12px">
-        Allocated: ₹0 of ₹0 — Remaining: ₹0
-      </div>
-    </div>
-    <div class="form-group">
-      <label>Notes</label>
-      <textarea name="notes" rows="2">{{ sub.notes if sub else '' }}</textarea>
-    </div>
-    <input type="hidden" name="request_date" value="{{ sub.request_date if sub and sub.request_date else '' }}"/>
-    <button type="submit" class="btn btn-primary btn-sm">Save</button>
-  </form>
-  <script>
-  function pdToggleSplit() {
-    var s = document.getElementById('pd_subsidyStatus').value;
-    document.getElementById('pd_splitFields').style.display = (s === 'Received') ? 'block' : 'none';
-    if (s === 'Received') pdUpdateRemaining();
-  }
-  function pdUpdateRemaining() {
-    var total    = parseFloat(document.getElementById('pd_receivedAmt').value) || 0;
-    var customer = parseFloat(document.getElementById('pd_customerShare').value) || 0;
-    var company  = parseFloat(document.getElementById('pd_companyShare').value) || 0;
-    var alloc = customer + company;
-    var rem   = total - alloc;
-    var color = Math.abs(rem) < 1 ? 'var(--green-600)' : 'var(--red-600,#dc2626)';
-    document.getElementById('pd_splitSummary').innerHTML =
-      'Allocated: ₹' + alloc.toLocaleString('en-IN') +
-      ' of ₹' + total.toLocaleString('en-IN') +
-      ' — <span style="color:' + color + ';font-weight:500">Remaining: ₹' +
-      rem.toLocaleString('en-IN') + '</span>';
-  }
-  document.addEventListener('DOMContentLoaded', function() { pdToggleSplit(); });
-  </script>
-
-  {# ── Payments waiting for docs ── #}
-  {% elif current_user.role == 'payments' and sub_status in ['NotStarted', 'Processing'] %}
-  <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);
-              padding:12px 16px;font-size:13px;color:var(--muted)">
-    ⏳ Waiting for docs team to complete processing and commission the project (steps 1–2).
-  </div>
-
-  {# ── Admin override ── #}
-  {% elif current_user.role == 'admin' %}
-  <details style="margin-top:4px">
-    <summary style="font-size:12px;color:var(--hint);cursor:pointer">Admin override</summary>
-    <form method="POST" action="{{ url_for('subsidy', pid=proj.id) }}" style="margin-top:10px">
+    <form method="POST" action="{{ url_for('subsidy', pid=proj.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="expected_amount" value="78000">
+      <input type="hidden" name="request_date" value="{{ sub.request_date if sub and sub.request_date else '' }}">
       <div class="form-grid">
         <div class="form-group">
           <label>Status</label>
-          <select name="status">
-            {% for s in ['NotStarted','Processing','Commissioned','Redeemed','Received'] %}
-            <option value="{{ s }}" {% if sub_status == s %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
+          <select name="status" id="sub_status_sel" onchange="toggleSubSplit()">
+            <option value="NotStarted" {% if sub_status == 'NotStarted' %}selected{% endif %}>Not started</option>
+            <option value="Redeemed"   {% if sub_status == 'Redeemed'   %}selected{% endif %}>Redeemed</option>
+            <option value="Received"   {% if sub_status == 'Received'   %}selected{% endif %}>Received</option>
           </select>
         </div>
         <div class="form-group">
-          <label>Start date</label>
-          <input type="date" name="request_date" value="{{ sub.request_date if sub and sub.request_date else '' }}"/>
-        </div>
-        <div class="form-group">
-          <label>Amount (₹)</label>
-          <input type="number" name="expected_amount" step="1" value="{{ (sub.expected_amount or 78000) if sub else 78000 }}"/>
-        </div>
-        <div class="form-group full">
-          <label>Notes</label>
-          <textarea name="notes" rows="2">{{ sub.notes if sub else '' }}</textarea>
+          <label>Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="text" name="notes" value="{{ sub.notes if sub else '' }}" placeholder="Any remarks…">
         </div>
       </div>
-      <button type="submit" class="btn btn-sm">Override</button>
+
+      {# Share split — only shown when Received #}
+      <div id="sub_split" style="display:none;margin-top:4px">
+        <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;
+                    letter-spacing:0.04em;margin-bottom:10px">Subsidy distribution (₹78,000)</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Customer share (₹)</label>
+            <input type="number" name="customer_share" id="sub_cust"
+                   value="{{ sub.customer_share | int if sub and sub.customer_share else 0 }}"
+                   step="1" placeholder="0" oninput="updateSubRemaining()">
+            <div style="font-size:11px;color:var(--muted);margin-top:4px">Amount credited to customer</div>
+          </div>
+          <div class="form-group">
+            <label>Company share (₹)</label>
+            <input type="number" name="company_share" id="sub_comp"
+                   value="{{ sub.company_share | int if sub and sub.company_share else 0 }}"
+                   step="1" placeholder="0" oninput="updateSubRemaining()">
+            <div style="font-size:11px;color:var(--muted);margin-top:4px">Amount retained by company</div>
+          </div>
+        </div>
+        <div id="sub_split_summary" style="font-size:12px;padding:8px 12px;border-radius:var(--radius);
+                                           background:var(--bg);border:1px solid var(--border);margin-bottom:12px">
+          Allocated: ₹0 of ₹78,000 — Remaining: ₹78,000
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-sm">Save</button>
     </form>
-  </details>
-  {% endif %}
+    <script>
+    function toggleSubSplit() {
+      var s = document.getElementById('sub_status_sel').value;
+      document.getElementById('sub_split').style.display = (s === 'Received') ? 'block' : 'none';
+      if (s === 'Received') updateSubRemaining();
+    }
+    function updateSubRemaining() {
+      var total = 78000;
+      var cust  = parseFloat(document.getElementById('sub_cust').value) || 0;
+      var comp  = parseFloat(document.getElementById('sub_comp').value) || 0;
+      var alloc = cust + comp;
+      var rem   = total - alloc;
+      var color = Math.abs(rem) < 1 ? 'var(--green-600)' : 'var(--red-600,#dc2626)';
+      document.getElementById('sub_split_summary').innerHTML =
+        'Allocated: ₹' + alloc.toLocaleString('en-IN') +
+        ' of ₹78,000 — <span style="color:' + color + ';font-weight:500">Remaining: ₹' +
+        rem.toLocaleString('en-IN') + '</span>';
+    }
+    document.addEventListener('DOMContentLoaded', function() { toggleSubSplit(); });
+    </script>
+    {% endif %}
+
+  {% endif %}{# end role check #}
 </div>
-
-
-{% endif %}
+{% endif %}{# end DCR check #}
 
 {# ── ONSITE PROGRESS SUMMARY ── #}
 {% set op = proj.onsite_progress %}
@@ -1137,11 +1021,11 @@ function syncStatus(stageSelect) {
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div class="card-title" style="margin:0">Onsite progress</div>
     {% if current_user.role in ['admin','onsite'] %}
-    {% if not onsite_complete %}
-    <a href="{{ url_for('onsite_progress', pid=proj.id) }}" class="btn btn-sm">Update →</a>
-  {% else %}
-    <span style="font-size:12px;color:var(--green-600)">✓ All complete</span>
-  {% endif %}
+      {% if not onsite_complete %}
+      <a href="{{ url_for('onsite_progress', pid=proj.id) }}" class="btn btn-sm">Update →</a>
+      {% else %}
+      <span style="font-size:12px;color:var(--green-600)">✓ All complete</span>
+      {% endif %}
     {% endif %}
   </div>
   <div class="table-wrap">
@@ -1214,7 +1098,6 @@ function syncStatus(stageSelect) {
     {% endif %}
   </div>
 
-  {# ── View mode ── #}
   {% if pd %}
   <div class="table-wrap">
     <table style="font-size:13px">
@@ -1227,9 +1110,9 @@ function syncStatus(stageSelect) {
         <td>{{ pd.num_panels or '—' }}</td>
       </tr>
       <tr>
-  <td style="color:var(--muted);padding:5px 0">Inverter brand</td>
-  <td style="font-weight:500">{{ pd.inverter_brand or '—' }}</td>
-</tr>
+        <td style="color:var(--muted);padding:5px 0">Inverter brand</td>
+        <td style="font-weight:500">{{ pd.inverter_brand or '—' }}</td>
+      </tr>
       <tr>
         <td style="color:var(--muted);padding:5px 0">Inverter serial no.</td>
         <td style="font-family:monospace;font-size:12px">{{ pd.inverter_serial_number or '—' }}</td>
@@ -1279,71 +1162,61 @@ function syncStatus(stageSelect) {
   </div>
   {% endif %}
 
-  {# ── Edit / Add form ── #}
   {% if current_user.role in ['admin','documents','onsite'] %}
   <div id="panelDetailsForm" style="display:{% if not pd %}block{% else %}none{% endif %};
        margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
     <form method="POST" action="{{ url_for('update_panel_details', pid=proj.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-grid">
-
         <div class="form-group">
           <label>Panel brand</label>
           <input type="text" name="panel_brand"
                  value="{{ pd.panel_brand or '' if pd else '' }}"
                  placeholder="e.g. UTL, Waaree, Adani"/>
         </div>
-
         <div class="form-group">
           <label>Number of panels</label>
           <input type="number" name="num_panels" min="1" max="500"
                  value="{{ pd.num_panels or '' if pd else '' }}"
                  placeholder="e.g. 8"/>
         </div>
-       <div class="form-group">
-  <label>Inverter brand</label>
-  <input type="text" name="inverter_brand"
-         value="{{ pd.inverter_brand or '' if pd else '' }}"
-         placeholder="e.g. UTL, Waaree, Deye"/>
-</div>
+        <div class="form-group">
+          <label>Inverter brand</label>
+          <input type="text" name="inverter_brand"
+                 value="{{ pd.inverter_brand or '' if pd else '' }}"
+                 placeholder="e.g. UTL, Waaree, Deye"/>
+        </div>
         <div class="form-group">
           <label>Inverter serial number</label>
           <input type="text" name="inverter_serial_number"
                  value="{{ pd.inverter_serial_number or '' if pd else '' }}"
                  placeholder="INV-XXXX"/>
         </div>
-
         <div class="form-group">
           <label>Net meter serial number</label>
           <input type="text" name="net_meter_serial_number"
                  value="{{ pd.net_meter_serial_number or '' if pd else '' }}"
                  placeholder="NM-XXXX"/>
         </div>
-
         <div class="form-group">
           <label>Energy meter serial number</label>
           <input type="text" name="energy_meter_serial_number"
                  value="{{ pd.energy_meter_serial_number or '' if pd else '' }}"
                  placeholder="EM-XXXX"/>
         </div>
-
         <div class="form-group full">
           <label>
             Panel serial numbers
-            <span style="color:var(--muted);font-weight:400;font-size:11px">
-              — one per line
-            </span>
+            <span style="color:var(--muted);font-weight:400;font-size:11px">— one per line</span>
           </label>
           <textarea name="panel_serial_numbers" rows="4"
                     placeholder="SN-001&#10;SN-002&#10;SN-003">{{ pd.panel_serial_numbers or '' if pd else '' }}</textarea>
         </div>
-
         <div class="form-group full">
           <label>Notes <span style="color:var(--muted);font-weight:400;font-size:11px">(optional)</span></label>
           <textarea name="notes" rows="2"
                     placeholder="Any additional info…">{{ pd.notes or '' if pd else '' }}</textarea>
         </div>
-
       </div>
       <div style="display:flex;gap:8px;margin-top:4px;align-items:center">
         <button type="submit" class="btn btn-primary btn-sm"
@@ -1358,7 +1231,6 @@ function syncStatus(stageSelect) {
   </div>
   {% endif %}
 </div>
-
 
 {# ── ACTIVITY LOG ── #}
 <div class="card">
@@ -1394,17 +1266,6 @@ function syncStatus(stageSelect) {
   {% endif %}
 </div>
 
-<!-- <script>
-document.addEventListener('DOMContentLoaded', function() {
-  document.querySelectorAll('.edit-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var aid = this.getAttribute('data-aid');
-      var row = document.getElementById('update-form-' + aid);
-      if (row) row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'table-row' : 'none';
-    });
-  });
-});
-</script> -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.edit-btn').forEach(function(btn) {
@@ -1443,7 +1304,6 @@ function validatePanelForm(form) {
   var serialsRaw = serialsInput.value;
   var serials = serialsRaw.split('\n').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
 
-  // Only validate if both fields have values
   if (!isNaN(numPanels) && numPanels > 0 && serials.length > 0) {
     if (serials.length !== numPanels) {
       errEl.textContent = 'Mismatch: ' + numPanels + ' panels specified but ' + serials.length + ' serial number(s) entered.';
@@ -1454,7 +1314,6 @@ function validatePanelForm(form) {
     }
   }
 
-  // Reset borders if valid
   numPanelsInput.style.borderColor = '';
   serialsInput.style.borderColor   = '';
   return true;
