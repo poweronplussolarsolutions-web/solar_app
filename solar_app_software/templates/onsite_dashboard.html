@@ -36,7 +36,7 @@
 .pill-install  { background:#f3e8ff;color:#6b21a8;border:0.5px solid #d8b4fe; }
 .pill-done     { background:#d1fae5;color:#065f46;border:0.5px solid #6ee7b7; }
 .empty-col { padding:14px;font-size:13px;color:var(--hint);text-align:center; }
-
+.pill-new { background:#fce7f3;color:#9d174d;border:0.5px solid #f9a8d4; }
 @media (max-width:640px) {
   .board-grid { grid-template-columns:1fr !important; }
 }
@@ -120,9 +120,12 @@
     <a href="{{ url_for('onsite_progress', pid=p.id) }}" style="text-decoration:none;color:inherit;display:block">
       <div class="proj-card">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div class="proj-card-code">{{ p.project_code }} {% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}</div>
-          <span class="tag-pill pill-malabar">Not ordered</span>
-        </div>
+  <div class="proj-card-code">{{ p.project_code }} {% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}</div>
+  <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">
+    {% if p.days_open <= 5 %}<span class="tag-pill pill-new">New</span>{% endif %}
+    <span class="tag-pill pill-malabar">Not ordered</span>
+  </div>
+</div>
         <div class="proj-card-name">{{ p.customer.name }}</div>
         <div class="proj-card-meta">{{ p.inverter_capacity_kw }} kW</div>
       </div>
