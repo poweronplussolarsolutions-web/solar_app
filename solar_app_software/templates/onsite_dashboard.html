@@ -127,7 +127,7 @@
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
   <div class="proj-card-code">{{ p.project_code }} {% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}</div>
   <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">
-    {% if p.days_open <= 5 %}<span class="tag-pill pill-new">New</span>{% endif %}
+    {% if p.days_open <= 7 %}<span class="tag-pill pill-new">New</span>{% endif %}
     <span class="tag-pill pill-malabar">Not ordered</span>
   </div>
 </div>
