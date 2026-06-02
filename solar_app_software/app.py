@@ -1282,7 +1282,7 @@ def reorder_document_stages():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    cutoff = datetime.utcnow() - timedelta(days=90)
+    cutoff = datetime.utcnow() - timedelta(days=180)
     update_rows  = Project.query.filter(
         Project.status == 'InProgress',
         Project.created_at <= cutoff,
@@ -4178,7 +4178,7 @@ def download_docstaff_report():
 
 @app.cli.command('mark_delayed')
 def mark_delayed():
-    cutoff = datetime.utcnow() - timedelta(days=90)
+    cutoff = datetime.utcnow() - timedelta(days=180)
     stale  = Project.query.filter(Project.status == 'InProgress', Project.created_at <= cutoff).all()
     for proj in stale:
         proj.status = 'Delayed'
