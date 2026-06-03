@@ -490,8 +490,8 @@ document.addEventListener('click', function(e) {
   </div>
 </div>
 
-{% set cash_projects = data.projects | selectattr('project_type', 'eq', 'Cash') | rejectattr('status', 'in', ['Completed', 'Closed', 'Cancelled']) | list | sort(attribute='days_open') %}
-{% set loan_projects = data.projects | selectattr('project_type', 'eq', 'Loan') | rejectattr('status', 'in', ['Completed', 'Closed', 'Cancelled']) | list | sort(attribute='days_open') %}
+{% set cash_projects = data.projects | selectattr('project_type', 'eq', 'Cash') | rejectattr('status', 'eq', 'Completed') | rejectattr('status', 'eq', 'Closed') | rejectattr('status', 'eq', 'Cancelled') | rejectattr('stage', 'eq', 'Connection') | rejectattr('stage', 'eq', 'Subsidy') | rejectattr('stage', 'eq', 'Payment') | list | sort(attribute='days_open') %}
+{% set loan_projects = data.projects | selectattr('project_type', 'eq', 'Loan') | rejectattr('status', 'eq', 'Completed') | rejectattr('status', 'eq', 'Closed') | rejectattr('status', 'eq', 'Cancelled') | rejectattr('stage', 'eq', 'Connection') | rejectattr('stage', 'eq', 'Subsidy') | rejectattr('stage', 'eq', 'Payment') | list | sort(attribute='days_open') %}
 
 {# ── search bar + counts ── #}
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">

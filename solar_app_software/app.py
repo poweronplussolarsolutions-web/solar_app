@@ -878,11 +878,10 @@ def refresh_service_statuses():
         db.session.commit()
 
 def auto_advance_stage(proj):
-
     if proj.status in ('Cancelled', 'OnHold', 'Completed', 'Closed'):
         return
 
-    db.session.expire(proj, ['documents','site_visits', 'onsite_progress',
+    db.session.expire(proj, ['documents', 'site_visits', 'onsite_progress',
                               'app_install', 'subsidy', 'assignments'])
 
     old_stage  = proj.stage
@@ -895,43 +894,51 @@ def auto_advance_stage(proj):
             for n in names
         )
 
-    if proj.stage == 'Lead':
+    if proj.stage in ('Lead', 'Site Visit'):
         proj.stage  = 'Documentation'
         proj.status = 'InProgress'
-    elif proj.stage == 'Site Visit':
-        proj.stage  = 'Documentation'
-        proj.status = 'InProgress'
+
     elif proj.stage == 'Documentation':
         if doc_done('Feasibility Receipt'):
             proj.stage  = 'Onsite Work'
             proj.status = 'InProgress'
+
     elif proj.stage == 'Onsite Work':
         op = proj.onsite_progress
         if op and op.electrical_status == 'Completed':
             proj.stage  = 'Connection'
             proj.status = 'InProgress'
+
     elif proj.stage == 'Connection':
         if doc_done('KSEB Connection'):
             proj.stage  = 'Payment'
             proj.status = 'InProgress'
+
     elif proj.stage == 'Payment':
         fully_paid = proj.total_receivable > 0 and proj.pending_amount <= 0
-        app_done = proj.app_install and proj.app_install.status == 'Completed'
-        if fully_paid and app_done:
+        if fully_paid:
             if proj.project_subtype == 'DCR':
-             sub = proj.subsidy
-            
-            if sub and sub.status in ('Redeemed', 'Received'):
-                proj.status = 'Completed'
-            else:
                 proj.stage  = 'Subsidy'
                 proj.status = 'InProgress'
-        else:
-            proj.status = 'Completed'
+            else:
+                proj.stage  = 'Subsidy'  # non-DCR still goes here for warranty/app
+                proj.status = 'InProgress'
+
     elif proj.stage == 'Subsidy':
-        sub = proj.subsidy
-        if sub and sub.status in 'Received':
+        fully_paid    = proj.total_receivable > 0 and proj.pending_amount <= 0
+        warranty_done = doc_done('Warranty Card')
+        app_done      = proj.app_install and proj.app_install.status == 'Completed'
+
+        if proj.project_subtype == 'DCR':
+            sub = proj.subsidy
+            subsidy_done = sub and sub.status == 'Received'
+        else:
+            subsidy_done = True  # non-DCR skips subsidy requirement
+
+        if fully_paid and warranty_done and app_done and subsidy_done:
+            proj.stage  = 'Subsidy'   # stage stays Subsidy
             proj.status = 'Completed'
+
     if proj.status in ('Completed', 'Closed'):
         create_service_schedule(proj)
 
@@ -948,11 +955,15 @@ def _notify_stage_transition(proj, from_stage, to_stage):
     if to_stage == 'Documentation':
         if proj.doc_staff_id:
             create_notification(proj.doc_staff_id, proj.id,
-                f'{code}: Site visit completed. Documentation work can now begin.', 'task')
+                f'{code}: Documentation stage started.', 'task')
+
     elif to_stage == 'Onsite Work':
         if proj.coordinator_id:
             create_notification(proj.coordinator_id, proj.id,
                 f'{code} moved to Onsite Work stage.', 'info')
+        notify_onsite_team(proj.id,
+            f'{code}: Feasibility done. Onsite work can begin.', 'task')
+
     elif to_stage == 'Connection':
         if proj.coordinator_id:
             create_notification(proj.coordinator_id, proj.id,
@@ -960,28 +971,41 @@ def _notify_stage_transition(proj, from_stage, to_stage):
         if proj.doc_staff_id:
             create_notification(proj.doc_staff_id, proj.id,
                 f'{code}: Electrical work done. Please update KSEB Connection document.', 'task')
+
     elif to_stage == 'Payment':
         if proj.coordinator_id:
             create_notification(proj.coordinator_id, proj.id,
                 f'{code}: KSEB connection done. Ready for final payment collection.', 'info')
         for u in User.query.filter_by(role='payments', is_active=True).all():
             create_notification(u.id, proj.id,
-                f'{code}: KSEB connection completed. Entered Payment stage. '
-                
-                f'Collect remaining balance of ₹{proj.pending_amount:,.0f}.',
-                'task')
+                f'{code}: Entered Payment stage. '
+                f'Collect remaining balance of ₹{proj.pending_amount:,.0f}.', 'task')
         if proj.doc_staff_id:
             create_notification(proj.doc_staff_id, proj.id,
-                f'{code}: Project in final payment stage. Please ensure Payment Completion, '
-                f'Warranty Card and App Installation documents are updated.', 'task')
+                f'{code}: Project in payment stage. Please ensure Warranty Card '
+                f'and App Installation documents are updated.', 'task')
+
     elif to_stage == 'Subsidy':
-        for u in User.query.filter_by(role='payments', is_active=True).all():
-            create_notification(u.id, proj.id,
-            f'{code}: Payment collected. Please redeem and receive the subsidy.', 'task')
+        if proj.project_subtype == 'DCR':
+            for u in User.query.filter_by(role='payments', is_active=True).all():
+                create_notification(u.id, proj.id,
+                    f'{code}: Payment collected. Please redeem and receive the subsidy.', 'task')
         if proj.coordinator_id:
             create_notification(proj.coordinator_id, proj.id,
-            f'{code}: Payment complete. Subsidy process now in progress.', 'info')
+                f'{code}: Payment complete. Pending: warranty card, app install'
+                + (', subsidy.' if proj.project_subtype == 'DCR' else '.'), 'info')
 
+    # Project completed
+    if proj.status == 'Completed' and from_stage != proj.stage:
+        pass  # handled below
+
+    if proj.status == 'Completed':
+        if proj.coordinator_id:
+            create_notification(proj.coordinator_id, proj.id,
+                f'{code}: Project completed. All requirements met.', 'info')
+        if proj.doc_staff_id:
+            create_notification(proj.doc_staff_id, proj.id,
+                f'{code}: Project marked completed.', 'info')
 
 def create_notification(user_id, project_id, message, notif_type='info'):
     db.session.add(Notification(
