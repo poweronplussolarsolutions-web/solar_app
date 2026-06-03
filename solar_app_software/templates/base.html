@@ -519,6 +519,7 @@
         <span class="dot"></span>C/O Monthly Reports</a>
       <a class="nav-link {% if request.endpoint in 'docstaff_reports' %}active{% endif %}" href="{{ url_for('docstaff_reports') }}">
         <span class="dot"></span>Staff Monthly Reports</a>
+      <a href="{{ url_for('job_card_page', pid=proj.id) }}" class="btn btn-sm">Job Card</a>
       <a class="nav-link {% if request.endpoint in 'admin_change_password' %}active{% endif %}" href="{{ url_for('admin_change_password') }}">
         <span class="dot"></span>Change Password</a>  
 

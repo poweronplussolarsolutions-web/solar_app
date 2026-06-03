@@ -4158,6 +4158,26 @@ def download_docstaff_report():
         download_name=f'DocsReport_{staff.username}_{month_name}_{year}.xlsx',
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+from job_card_excel import build_job_card
+
+@app.route('/projects/<int:pid>/job_card')
+@login_required
+def job_card_page(pid):
+    proj = Project.query.get_or_404(pid)
+    return render_template('job_card.html', proj=proj, now=datetime.utcnow())
+
+@app.route('/projects/<int:pid>/job_card/download')
+@login_required
+def download_job_card(pid):
+    import tempfile
+    proj = Project.query.get_or_404(pid)
+    path = build_job_card(
+        project=proj,
+        output_path=os.path.join(tempfile.gettempdir(), f'JobCard_{proj.project_code}.xlsx')
+    )
+    return send_file(path, as_attachment=True,
+        download_name=f'JobCard_{proj.project_code}.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DB INIT & SEED

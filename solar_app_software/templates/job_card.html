@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+{% block title %}Job Card — {{ proj.project_code }}{% endblock %}
+{% block page_title %}Job Card — {{ proj.project_code }}{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('project_detail', pid=proj.id) }}" class="btn btn-sm">← Project</a>
+{% endblock %}
+
+{% block content %}
+{% set c   = proj.customer %}
+{% set cd  = proj.connection_details %}
+{% set ld  = proj.loan_detail %}
+{% set pd  = proj.panel_details %}
+{% set kseb = proj.kseb_task %}
+{% set sub = proj.subsidy %}
+{% set op  = proj.onsite_progress %}
+{% set doc_map = {} %}
+{% for d in proj.documents %}{% if doc_map.update({d.doc_type: d}) %}{% endif %}{% endfor %}
+
+<style>
+/* ── Download card ── */
+.jc-download-card {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px 32px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+}
+.jc-icon {
+  flex-shrink: 0;
+  width: 56px; height: 56px;
+  background: #e8f5e9;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+}
+.jc-info h2 { font-size: 17px; font-weight: 600; margin: 0 0 4px; }
+.jc-info p  { font-size: 13px; color: var(--muted); margin: 0 0 16px; }
+
+/* ── Preview table ── */
+.jc-preview {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.jc-preview-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-bottom: 0.5px solid var(--border);
+}
+.jc-preview-header h3 { font-size: 13px; font-weight: 600; margin: 0; }
+.jc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  font-size: 12px;
+}
+.jc-section {
+  border-right: 0.5px solid var(--border);
+  padding: 0;
+}
+.jc-section:nth-child(even) { border-right: none; }
+.jc-section-title {
+  background: #f5f5f5;
+  border-bottom: 0.5px solid var(--border);
+  border-top: 0.5px solid var(--border);
+  padding: 7px 14px;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.jc-row {
+  display: flex;
+  border-bottom: 0.5px solid var(--border);
+  min-height: 28px;
+}
+.jc-row:last-child { border-bottom: none; }
+.jc-label {
+  width: 120px; flex-shrink: 0;
+  padding: 5px 10px 5px 14px;
+  color: var(--muted);
+  font-size: 11px;
+  display: flex; align-items: center;
+  border-right: 0.5px solid var(--border);
+}
+.jc-val {
+  padding: 5px 10px;
+  flex: 1;
+  display: flex; align-items: center;
+  font-size: 12px;
+  font-weight: 500;
+  word-break: break-word;
+}
+.jc-full {
+  grid-column: 1 / -1;
+  border-right: none;
+}
+/* status badge inline */
+.jc-badge {
+  font-size: 10px; padding: 1px 7px; border-radius: 20px;
+  font-weight: 500; white-space: nowrap;
+}
+.jc-badge-green  { background: #d4edda; color: #155724; }
+.jc-badge-amber  { background: #fff3cd; color: #856404; }
+.jc-badge-blue   { background: #d1ecf1; color: #0c5460; }
+.jc-badge-gray   { background: #e2e3e5; color: #383d41; }
+
+/* header strip */
+.jc-header-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #000;
+  color: #fff;
+  padding: 10px 20px;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+.jc-serial { font-size: 12px; text-align: right; }
+.jc-serial span { display: block; }
+
+@media (max-width: 640px) {
+  .jc-download-card { flex-direction: column; gap: 16px; padding: 20px; }
+  .jc-grid { grid-template-columns: 1fr; }
+  .jc-section { border-right: none; }
+}
+</style>
+
+{# ── Download CTA ── #}
+<div class="jc-download-card">
+  <div class="jc-icon">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+         stroke="#2e7d32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="12" y1="11" x2="12" y2="17"/>
+      <polyline points="9 14 12 17 15 14"/>
+    </svg>
+  </div>
+  <div class="jc-info">
+    <h2>Job Card — {{ proj.project_code }}</h2>
+    <p>
+      Download the printable job card for
+      <strong>{{ c.name }}</strong> ·
+      {{ proj.inverter_capacity_kw }} kW ·
+      {{ proj.project_type }}{% if proj.project_subtype %} / {{ proj.project_subtype }}{% endif %}
+    </p>
+    <a href="{{ url_for('download_job_card', pid=proj.id) }}"
+       class="btn btn-primary"
+       style="display:inline-flex;align-items:center;gap:8px;font-size:13px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Download Excel (.xlsx)
+    </a>
+  </div>
+</div>
+
+{# ── Preview ── #}
+<div class="jc-preview">
+  <div class="jc-preview-header">
+    <h3>Preview</h3>
+    <span style="font-size:12px;color:var(--muted)">Matches the printed job card format</span>
+  </div>
+
+  {# Black header strip #}
+  <div class="jc-header-strip">
+    <span>POWER ON +</span>
+    <div class="jc-serial">
+      <span style="font-size:10px;font-weight:400;opacity:0.75">Serial No.</span>
+      <span style="font-size:15px">{{ proj.project_code }}</span>
+      <span style="font-size:10px;font-weight:400;opacity:0.75">{{ now.strftime('%d-%m-%Y') if now is defined else '' }}</span>
+    </div>
+  </div>
+
+  <div class="jc-grid">
+
+    {# ── LEFT: Customer / Project info ── #}
+    <div class="jc-section">
+      <div class="jc-section-title">Customer &amp; Project</div>
+      {% for lbl, val in [
+        ('Name',         c.name),
+        ('House Name',   c.house_name or '—'),
+        ('Place',        c.place or '—'),
+        ('Post',         c.post or '—'),
+        ('Pin',          c.pincode or '—'),
+        ('Village',      c.village or '—'),
+        ('Taluk',        c.taluk or '—'),
+        ('District',     c.district or '—'),
+        ('Phone',        c.phone or '—'),
+        ('Email',        c.email or '—'),
+        ('Sub C/O',      c.sub_co or '—'),
+      ] %}
+      <div class="jc-row">
+        <div class="jc-label">{{ lbl }}</div>
+        <div class="jc-val">{{ val }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {# ── RIGHT: System / Connection info ── #}
+    <div class="jc-section">
+      <div class="jc-section-title">System &amp; Connection</div>
+      {% for lbl, val in [
+        ('KW (Inverter)',   proj.inverter_capacity_kw ~ ' kW'),
+        ('KW (Panel)',      proj.panel_capacity_kw ~ ' kW'),
+        ('Type',            proj.project_type ~ (' / ' ~ proj.project_subtype if proj.project_subtype else '')),
+        ('Roof',            proj.roof_type or '—'),
+        ('Phase',           (cd.connection_type if cd and cd.connection_type else '—')),
+        ('Section',         (cd.kseb_section if cd and cd.kseb_section else '—')),
+        ('Consumer No.',    (cd.consumer_number if cd and cd.consumer_number else '—')),
+        ('Category',        (cd.category if cd and cd.category else '—')),
+        ('Ownership',       ('Required' if cd and cd.ownership_change_needed else 'Not Required')),
+        ('Load Clearance',  ('Required' if cd and cd.load_clearance_needed else 'Not Required')),
+        ('Loan Bank',       (ld.bank_name if ld and ld.bank_name else '—')),
+      ] %}
+      <div class="jc-row">
+        <div class="jc-label">{{ lbl }}</div>
+        <div class="jc-val">{{ val }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {# ── LEFT: Document status ── #}
+    <div class="jc-section">
+      <div class="jc-section-title">Document Status</div>
+      {% set doc_checks = [
+        ('Feasibility Receipt', 'Feasibility'),
+        ('KSEB Connection',     'KSEB Connection'),
+        ('MNRE',                'MNRE'),
+        ('Subsidy Request',     'Subsidy Request'),
+        ('Warranty Card',       'Warranty Card'),
+        ('App Installation',    'App Installation'),
+        ('Payment Completion',  'Payment Completion'),
+      ] %}
+      {% for doc_key, label in doc_checks %}
+      {% set doc = doc_map.get(doc_key) %}
+      <div class="jc-row">
+        <div class="jc-label">{{ label }}</div>
+        <div class="jc-val">
+          {% if doc and doc.status in ['Received','Completed','Sent'] %}
+            <span class="jc-badge jc-badge-green">{{ doc.status }}</span>
+          {% elif doc %}
+            <span class="jc-badge jc-badge-amber">Pending</span>
+          {% else %}
+            <span class="jc-badge jc-badge-gray">—</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {# ── RIGHT: KSEB / Onsite ── #}
+    <div class="jc-section">
+      <div class="jc-section-title">KSEB &amp; Onsite</div>
+      {% set kseb_rows = [
+        ('Stamp Paper',   (kseb.stamp_paper if kseb else '—')),
+        ('B-Class Lic.',  (kseb.b_class_licence if kseb else '—')),
+        ('File Sent',     ('✓' if kseb and kseb.file_sent else '—')),
+        ('Inspection',    ('✓' if kseb and kseb.inspection_done else '—')),
+        ('CD Payment',    ('✓' if kseb and kseb.cd_payment_done else '—')),
+        ('Connection',    ('✓' if kseb and kseb.connection_done else '—')),
+        ('Structure',     (op.structure_work_status if op else '—')),
+        ('Installation',  (op.installation_status if op else '—')),
+        ('Electrical',    (op.electrical_status if op else '—')),
+        ('Subsidy',       (sub.status if sub else '—')),
+      ] %}
+      {% for lbl, val in kseb_rows %}
+      <div class="jc-row">
+        <div class="jc-label">{{ lbl }}</div>
+        <div class="jc-val">{{ val }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {# ── FULL WIDTH: Panel / Meter ── #}
+    <div class="jc-section jc-full">
+      <div class="jc-section-title">System Details</div>
+      {% if pd %}
+      <div style="display:grid;grid-template-columns:1fr 1fr;font-size:12px">
+        {% for lbl, val in [
+          ('Panel Brand',        pd.panel_brand or '—'),
+          ('Inverter Brand',     pd.inverter_brand or '—'),
+          ('No. of Panels',      (pd.num_panels | string) if pd.num_panels else '—'),
+          ('Inverter Serial',    pd.inverter_serial_number or '—'),
+          ('Net Meter Serial',   pd.net_meter_serial_number or '—'),
+          ('Energy Meter Serial',pd.energy_meter_serial_number or '—'),
+        ] %}
+        <div class="jc-row" style="border-right: 0.5px solid var(--border)">
+          <div class="jc-label">{{ lbl }}</div>
+          <div class="jc-val" style="font-family:monospace;font-size:11px">{{ val }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% if pd.panel_serial_numbers %}
+      <div class="jc-row" style="flex-direction:column;padding:8px 14px;gap:6px">
+        <div style="font-size:11px;color:var(--muted);font-weight:500">Panel Serial Numbers</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          {% for sn in pd.panel_serial_numbers.splitlines() %}
+          {% if sn.strip() %}
+          <span style="font-family:monospace;font-size:10px;background:var(--bg);
+                       border:0.5px solid var(--border);border-radius:4px;
+                       padding:2px 6px">{{ sn.strip() }}</span>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% else %}
+      <div class="jc-row">
+        <div class="jc-val" style="padding-left:14px;color:var(--hint)">
+          No panel/meter details recorded yet.
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    {# ── FULL WIDTH: Payment summary ── #}
+    <div class="jc-section jc-full">
+      <div class="jc-section-title">Payment Details</div>
+      {% set cd_exp = proj.expenses | selectattr('expense_type','eq','CD Payment') | first | default(none) %}
+      {% set nm_exp = proj.expenses | selectattr('expense_type','eq','Meter')       | first | default(none) %}
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;font-size:12px">
+        {% for lbl, val, highlight in [
+          ('Contract (Lead)', proj.total_amount | inr,     false),
+          ('CD Payment',      (cd_exp.amount | inr if cd_exp else '—'), false),
+          ('Net Meter (NM)',   (nm_exp.amount | inr if nm_exp else '—'), false),
+          ('Total Receivable', proj.total_receivable | inr, true),
+        ] %}
+        <div class="jc-row"
+             style="flex-direction:column;padding:10px 14px;
+                    {% if highlight %}background:var(--teal-50,#f0fdfa);{% endif %}
+                    border-right:0.5px solid var(--border)">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:2px">{{ lbl }}</div>
+          <div style="font-size:15px;font-weight:{% if highlight %}700{% else %}500{% endif %};
+                      color:{% if highlight %}var(--teal-800,#134e4a){% else %}var(--text){% endif %}">
+            {{ val }}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="jc-row" style="justify-content:flex-end;padding:12px 20px;gap:12px">
+        <div style="font-size:12px;color:var(--muted)">Collected:</div>
+        <div style="font-size:14px;font-weight:600;color:var(--green-700,#15803d)">
+          {{ proj.effective_collected | inr }}
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-left:12px">Pending:</div>
+        <div style="font-size:14px;font-weight:600;
+                    color:{% if proj.pending_amount > 0 %}var(--amber-600,#d97706){% else %}var(--green-600){% endif %}">
+          {{ proj.pending_amount | inr }}
+        </div>
+      </div>
+    </div>
+
+  </div>{# end jc-grid #}
+
+  {# Signature row #}
+  <div style="display:flex;justify-content:flex-end;
+              border-top:0.5px solid var(--border);padding:14px 24px;
+              font-size:12px;color:var(--muted)">
+    Customer Signature: _______________________
+  </div>
+</div>
+
+{# Download button (bottom) #}
+<div style="margin-top:20px;display:flex;justify-content:flex-end">
+  <a href="{{ url_for('download_job_card', pid=proj.id) }}"
+     class="btn btn-primary"
+     style="display:inline-flex;align-items:center;gap:8px">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/>
+      <line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+    Download Job Card (.xlsx)
+  </a>
+</div>
+{% endblock %}
