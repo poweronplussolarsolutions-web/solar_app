@@ -490,8 +490,8 @@ document.addEventListener('click', function(e) {
   </div>
 </div>
 
-{% set cash_projects = data.projects | selectattr('project_type', 'eq', 'Cash') | list | sort(attribute='days_open', reverse=True) %}
-{% set loan_projects = data.projects | selectattr('project_type', 'eq', 'Loan') | list | sort(attribute='days_open', reverse=True) %}
+{% set cash_projects = data.projects | selectattr('project_type', 'eq', 'Cash') | list | sort(attribute='days_open') %}
+{% set loan_projects = data.projects | selectattr('project_type', 'eq', 'Loan') | list | sort(attribute='days_open') %}
 
 {# ── search bar + counts ── #}
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
