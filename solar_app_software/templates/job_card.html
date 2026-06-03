@@ -1,65 +1,117 @@
 {% extends "base.html" %}
-{% block title %}Job Card — {{ proj.project_code }}{% endblock %}
-{% block page_title %}Job Card — {{ proj.project_code }}{% endblock %}
+{% block title %}Job Card{% endblock %}
+{% block page_title %}Job Card{% endblock %}
 {% block topbar_actions %}
-  <a href="{{ url_for('project_detail', pid=proj.id) }}" class="btn btn-sm">← Project</a>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-sm">← Dashboard</a>
 {% endblock %}
 
 {% block content %}
-{% set c   = proj.customer %}
-{% set cd  = proj.connection_details %}
-{% set ld  = proj.loan_detail %}
-{% set pd  = proj.panel_details %}
-{% set kseb = proj.kseb_task %}
-{% set sub = proj.subsidy %}
-{% set op  = proj.onsite_progress %}
-{% set doc_map = {} %}
-{% for d in proj.documents %}{% if doc_map.update({d.doc_type: d}) %}{% endif %}{% endfor %}
-
 <style>
-/* ── Download card ── */
-.jc-download-card {
-  background: var(--surface);
-  border: 0.5px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 28px 32px;
-  margin-bottom: 24px;
+.jc-search-wrap {
+  max-width: 560px;
+  margin: 0 auto 28px;
+}
+.jc-search-box {
   display: flex;
-  align-items: flex-start;
-  gap: 28px;
+  gap: 10px;
+  align-items: center;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 10px 14px;
+  transition: border-color .15s;
 }
-.jc-icon {
-  flex-shrink: 0;
-  width: 56px; height: 56px;
-  background: #e8f5e9;
-  border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
+.jc-search-box:focus-within {
+  border-color: var(--blue-400, #60a5fa);
+  box-shadow: 0 0 0 3px var(--blue-50, #eff6ff);
 }
-.jc-info h2 { font-size: 17px; font-weight: 600; margin: 0 0 4px; }
-.jc-info p  { font-size: 13px; color: var(--muted); margin: 0 0 16px; }
+.jc-search-box input {
+  border: none;
+  background: transparent;
+  flex: 1;
+  font-size: 14px;
+  outline: none;
+  color: var(--text);
+  padding: 0;
+}
+.jc-search-box input::placeholder { color: var(--hint); }
+.jc-search-btn {
+  background: var(--blue-600, #2563eb);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 6px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.jc-search-btn:hover { background: var(--blue-700, #1d4ed8); }
 
-/* ── Preview table ── */
+/* Suggestion dropdown */
+.jc-suggestions {
+  position: absolute;
+  z-index: 200;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
+  display: none;
+}
+.jc-suggestion-item {
+  padding: 9px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  border-bottom: 0.5px solid var(--border);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.jc-suggestion-item:last-child { border-bottom: none; }
+.jc-suggestion-item:hover { background: var(--bg); }
+.jc-sug-code {
+  font-weight: 600;
+  font-family: monospace;
+  font-size: 12px;
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.jc-sug-name { flex: 1; color: var(--text); }
+.jc-sug-status { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+/* Card */
 .jc-preview {
   background: var(--surface);
   border: 0.5px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
-.jc-preview-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 20px; border-bottom: 0.5px solid var(--border);
+.jc-header-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #000;
+  color: #fff;
+  padding: 10px 20px;
+  font-weight: 700;
+  font-size: 14px;
 }
-.jc-preview-header h3 { font-size: 13px; font-weight: 600; margin: 0; }
+.jc-serial { font-size: 12px; text-align: right; }
+.jc-serial span { display: block; }
 .jc-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0;
   font-size: 12px;
 }
-.jc-section {
-  border-right: 0.5px solid var(--border);
-  padding: 0;
-}
+.jc-section { border-right: 0.5px solid var(--border); }
 .jc-section:nth-child(even) { border-right: none; }
 .jc-section-title {
   background: #f5f5f5;
@@ -79,7 +131,7 @@
 }
 .jc-row:last-child { border-bottom: none; }
 .jc-label {
-  width: 120px; flex-shrink: 0;
+  width: 130px; flex-shrink: 0;
   padding: 5px 10px 5px 14px;
   color: var(--muted);
   font-size: 11px;
@@ -94,109 +146,129 @@
   font-weight: 500;
   word-break: break-word;
 }
-.jc-full {
-  grid-column: 1 / -1;
-  border-right: none;
-}
-/* status badge inline */
+.jc-full { grid-column: 1 / -1; border-right: none; }
 .jc-badge {
   font-size: 10px; padding: 1px 7px; border-radius: 20px;
   font-weight: 500; white-space: nowrap;
 }
-.jc-badge-green  { background: #d4edda; color: #155724; }
-.jc-badge-amber  { background: #fff3cd; color: #856404; }
-.jc-badge-blue   { background: #d1ecf1; color: #0c5460; }
-.jc-badge-gray   { background: #e2e3e5; color: #383d41; }
+.jc-badge-green { background: #d4edda; color: #155724; }
+.jc-badge-amber { background: #fff3cd; color: #856404; }
+.jc-badge-gray  { background: #e2e3e5; color: #383d41; }
+.jc-badge-blue  { background: #d1ecf1; color: #0c5460; }
 
-/* header strip */
-.jc-header-strip {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #000;
-  color: #fff;
-  padding: 10px 20px;
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: 0.02em;
+.jc-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--hint);
 }
-.jc-serial { font-size: 12px; text-align: right; }
-.jc-serial span { display: block; }
+.jc-empty svg { opacity: 0.3; margin-bottom: 14px; }
+.jc-empty h3  { font-size: 15px; color: var(--muted); font-weight: 500; margin: 0 0 6px; }
+.jc-empty p   { font-size: 13px; margin: 0; }
+
+.jc-download-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 0.5px solid var(--border);
+  background: var(--bg);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.jc-download-bar h3 { font-size: 13px; font-weight: 600; margin: 0; }
+.jc-download-bar p  { font-size: 12px; color: var(--muted); margin: 0; }
 
 @media (max-width: 640px) {
-  .jc-download-card { flex-direction: column; gap: 16px; padding: 20px; }
   .jc-grid { grid-template-columns: 1fr; }
   .jc-section { border-right: none; }
+  .jc-full { grid-column: 1; }
 }
 </style>
 
-{# ── Download CTA ── #}
-<div class="jc-download-card">
-  <div class="jc-icon">
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
-         stroke="#2e7d32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-      <polyline points="14 2 14 8 20 8"/>
-      <line x1="12" y1="11" x2="12" y2="17"/>
-      <polyline points="9 14 12 17 15 14"/>
-    </svg>
+{# ── Search box ── #}
+<div class="jc-search-wrap">
+  <div style="position: relative">
+    <div class="jc-search-box">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+           stroke="var(--muted)" stroke-width="2" stroke-linecap="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" id="jc-search-input"
+             placeholder="Search by project code or customer name…"
+             autocomplete="off"
+             data-query="{{ query | e }}"
+             oninput="handleSearch(this.value)"
+             onkeydown="handleKey(event)"/>
+      <button class="jc-search-btn" onclick="submitSearch()">Search</button>
+    </div>
+    <div class="jc-suggestions" id="jc-suggestions"></div>
   </div>
-  <div class="jc-info">
-    <h2>Job Card — {{ proj.project_code }}</h2>
-    <p>
-      Download the printable job card for
-      <strong>{{ c.name }}</strong> ·
-      {{ proj.inverter_capacity_kw }} kW ·
-      {{ proj.project_type }}{% if proj.project_subtype %} / {{ proj.project_subtype }}{% endif %}
-    </p>
+  {% if query %}
+  <div style="margin-top:8px;font-size:12px;color:var(--muted)">
+    Showing result for <strong>"{{ query }}"</strong>
+    <a href="{{ url_for('job_card_page') }}" style="margin-left:8px;color:var(--hint)">✕ Clear</a>
+  </div>
+  {% endif %}
+</div>
+
+{% if proj %}
+{# ── Job Card Preview ── #}
+{% set c   = proj.customer %}
+{% set cd  = proj.connection_details %}
+{% set ld  = proj.loan_detail %}
+{% set pd  = proj.panel_details %}
+{% set kseb = proj.kseb_task %}
+{% set sub  = proj.subsidy %}
+{% set op   = proj.onsite_progress %}
+{% set doc_map = {} %}
+{% for d in proj.documents %}{% if doc_map.update({d.doc_type: d}) %}{% endif %}{% endfor %}
+
+<div class="jc-preview">
+  {# Download bar #}
+  <div class="jc-download-bar">
+    <div>
+      <h3>{{ proj.project_code }} — {{ c.name }}</h3>
+      <p>{{ proj.inverter_capacity_kw }} kW · {{ proj.project_type }}{% if proj.project_subtype %} / {{ proj.project_subtype }}{% endif %} · {{ proj.stage }}</p>
+    </div>
     <a href="{{ url_for('download_job_card', pid=proj.id) }}"
-       class="btn btn-primary"
-       style="display:inline-flex;align-items:center;gap:8px;font-size:13px">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+       class="btn btn-primary btn-sm"
+       style="display:inline-flex;align-items:center;gap:6px">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
         <polyline points="7 10 12 15 17 10"/>
         <line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
-      Download Excel (.xlsx)
+      Download .xlsx
     </a>
   </div>
-</div>
 
-{# ── Preview ── #}
-<div class="jc-preview">
-  <div class="jc-preview-header">
-    <h3>Preview</h3>
-    <span style="font-size:12px;color:var(--muted)">Matches the printed job card format</span>
-  </div>
-
-  {# Black header strip #}
+  {# Black header #}
   <div class="jc-header-strip">
     <span>POWER ON +</span>
     <div class="jc-serial">
-      <span style="font-size:10px;font-weight:400;opacity:0.75">Serial No.</span>
+      <span style="font-size:10px;font-weight:400;opacity:0.7">JOB CARD DETAILS</span>
       <span style="font-size:15px">{{ proj.project_code }}</span>
-      <span style="font-size:10px;font-weight:400;opacity:0.75">{{ now.strftime('%d-%m-%Y') if now is defined else '' }}</span>
+      <span style="font-size:10px;font-weight:400;opacity:0.7">{{ now }}</span>
     </div>
   </div>
 
   <div class="jc-grid">
 
-    {# ── LEFT: Customer / Project info ── #}
+    {# LEFT: Customer #}
     <div class="jc-section">
-      <div class="jc-section-title">Customer &amp; Project</div>
+      <div class="jc-section-title">Customer</div>
       {% for lbl, val in [
-        ('Name',         c.name),
-        ('House Name',   c.house_name or '—'),
-        ('Place',        c.place or '—'),
-        ('Post',         c.post or '—'),
-        ('Pin',          c.pincode or '—'),
-        ('Village',      c.village or '—'),
-        ('Taluk',        c.taluk or '—'),
-        ('District',     c.district or '—'),
-        ('Phone',        c.phone or '—'),
-        ('Email',        c.email or '—'),
-        ('Sub C/O',      c.sub_co or '—'),
+        ('Name',       c.name),
+        ('House Name', c.house_name or '—'),
+        ('Place',      c.place or '—'),
+        ('Post',       c.post or '—'),
+        ('Pin',        c.pincode or '—'),
+        ('Village',    c.village or '—'),
+        ('Taluk',      c.taluk or '—'),
+        ('District',   c.district or '—'),
+        ('Phone',      c.phone or '—'),
+        ('Sub C/O',    c.sub_co or '—'),
       ] %}
       <div class="jc-row">
         <div class="jc-label">{{ lbl }}</div>
@@ -205,21 +277,21 @@
       {% endfor %}
     </div>
 
-    {# ── RIGHT: System / Connection info ── #}
+    {# RIGHT: System #}
     <div class="jc-section">
       <div class="jc-section-title">System &amp; Connection</div>
       {% for lbl, val in [
-        ('KW (Inverter)',   proj.inverter_capacity_kw ~ ' kW'),
-        ('KW (Panel)',      proj.panel_capacity_kw ~ ' kW'),
-        ('Type',            proj.project_type ~ (' / ' ~ proj.project_subtype if proj.project_subtype else '')),
-        ('Roof',            proj.roof_type or '—'),
-        ('Phase',           (cd.connection_type if cd and cd.connection_type else '—')),
-        ('Section',         (cd.kseb_section if cd and cd.kseb_section else '—')),
-        ('Consumer No.',    (cd.consumer_number if cd and cd.consumer_number else '—')),
-        ('Category',        (cd.category if cd and cd.category else '—')),
-        ('Ownership',       ('Required' if cd and cd.ownership_change_needed else 'Not Required')),
-        ('Load Clearance',  ('Required' if cd and cd.load_clearance_needed else 'Not Required')),
-        ('Loan Bank',       (ld.bank_name if ld and ld.bank_name else '—')),
+        ('KW (Inverter)', proj.inverter_capacity_kw ~ ' kW'),
+        ('KW (Panel)',    proj.panel_capacity_kw ~ ' kW'),
+        ('Type',          proj.project_type ~ (' / ' ~ proj.project_subtype if proj.project_subtype else '')),
+        ('Roof',          proj.roof_type or '—'),
+        ('Phase',         (cd.connection_type if cd and cd.connection_type else '—')),
+        ('Section',       (cd.kseb_section if cd and cd.kseb_section else '—')),
+        ('Consumer No.',  (cd.consumer_number if cd and cd.consumer_number else '—')),
+        ('Category',      (cd.category if cd and cd.category else '—')),
+        ('Ownership',     ('Required' if cd and cd.ownership_change_needed else 'Not Required')),
+        ('Load Clearance',('Required' if cd and cd.load_clearance_needed else 'Not Required')),
+        ('Loan Bank',     (ld.bank_name if ld and ld.bank_name else '—')),
       ] %}
       <div class="jc-row">
         <div class="jc-label">{{ lbl }}</div>
@@ -228,10 +300,10 @@
       {% endfor %}
     </div>
 
-    {# ── LEFT: Document status ── #}
+    {# LEFT: Documents #}
     <div class="jc-section">
       <div class="jc-section-title">Document Status</div>
-      {% set doc_checks = [
+      {% for doc_key, label in [
         ('Feasibility Receipt', 'Feasibility'),
         ('KSEB Connection',     'KSEB Connection'),
         ('MNRE',                'MNRE'),
@@ -240,7 +312,6 @@
         ('App Installation',    'App Installation'),
         ('Payment Completion',  'Payment Completion'),
       ] %}
-      {% for doc_key, label in doc_checks %}
       {% set doc = doc_map.get(doc_key) %}
       <div class="jc-row">
         <div class="jc-label">{{ label }}</div>
@@ -257,22 +328,21 @@
       {% endfor %}
     </div>
 
-    {# ── RIGHT: KSEB / Onsite ── #}
+    {# RIGHT: KSEB & Onsite #}
     <div class="jc-section">
       <div class="jc-section-title">KSEB &amp; Onsite</div>
-      {% set kseb_rows = [
+      {% for lbl, val in [
         ('Stamp Paper',   (kseb.stamp_paper if kseb else '—')),
         ('B-Class Lic.',  (kseb.b_class_licence if kseb else '—')),
-        ('File Sent',     ('✓' if kseb and kseb.file_sent else '—')),
-        ('Inspection',    ('✓' if kseb and kseb.inspection_done else '—')),
-        ('CD Payment',    ('✓' if kseb and kseb.cd_payment_done else '—')),
-        ('Connection',    ('✓' if kseb and kseb.connection_done else '—')),
+        ('File Sent',     ('✓ Done' if kseb and kseb.file_sent else '—')),
+        ('Inspection',    ('✓ Done' if kseb and kseb.inspection_done else '—')),
+        ('CD Payment',    ('✓ Done' if kseb and kseb.cd_payment_done else '—')),
+        ('Connection',    ('✓ Done' if kseb and kseb.connection_done else '—')),
         ('Structure',     (op.structure_work_status if op else '—')),
         ('Installation',  (op.installation_status if op else '—')),
         ('Electrical',    (op.electrical_status if op else '—')),
         ('Subsidy',       (sub.status if sub else '—')),
       ] %}
-      {% for lbl, val in kseb_rows %}
       <div class="jc-row">
         <div class="jc-label">{{ lbl }}</div>
         <div class="jc-val">{{ val }}</div>
@@ -280,20 +350,20 @@
       {% endfor %}
     </div>
 
-    {# ── FULL WIDTH: Panel / Meter ── #}
+    {# FULL: System details #}
     <div class="jc-section jc-full">
       <div class="jc-section-title">System Details</div>
       {% if pd %}
-      <div style="display:grid;grid-template-columns:1fr 1fr;font-size:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr">
         {% for lbl, val in [
-          ('Panel Brand',        pd.panel_brand or '—'),
-          ('Inverter Brand',     pd.inverter_brand or '—'),
-          ('No. of Panels',      (pd.num_panels | string) if pd.num_panels else '—'),
-          ('Inverter Serial',    pd.inverter_serial_number or '—'),
-          ('Net Meter Serial',   pd.net_meter_serial_number or '—'),
-          ('Energy Meter Serial',pd.energy_meter_serial_number or '—'),
+          ('Panel Brand',         pd.panel_brand or '—'),
+          ('Inverter Brand',      pd.inverter_brand or '—'),
+          ('No. of Panels',       (pd.num_panels|string) if pd.num_panels else '—'),
+          ('Inverter Serial',     pd.inverter_serial_number or '—'),
+          ('Net Meter Serial',    pd.net_meter_serial_number or '—'),
+          ('Energy Meter Serial', pd.energy_meter_serial_number or '—'),
         ] %}
-        <div class="jc-row" style="border-right: 0.5px solid var(--border)">
+        <div class="jc-row" style="border-right:0.5px solid var(--border)">
           <div class="jc-label">{{ lbl }}</div>
           <div class="jc-val" style="font-family:monospace;font-size:11px">{{ val }}</div>
         </div>
@@ -306,51 +376,42 @@
           {% for sn in pd.panel_serial_numbers.splitlines() %}
           {% if sn.strip() %}
           <span style="font-family:monospace;font-size:10px;background:var(--bg);
-                       border:0.5px solid var(--border);border-radius:4px;
-                       padding:2px 6px">{{ sn.strip() }}</span>
+                       border:0.5px solid var(--border);border-radius:4px;padding:2px 6px">{{ sn.strip() }}</span>
           {% endif %}
           {% endfor %}
         </div>
       </div>
       {% endif %}
       {% else %}
-      <div class="jc-row">
-        <div class="jc-val" style="padding-left:14px;color:var(--hint)">
-          No panel/meter details recorded yet.
-        </div>
-      </div>
+      <div class="jc-row"><div class="jc-val" style="padding-left:14px;color:var(--hint)">No panel details recorded yet.</div></div>
       {% endif %}
     </div>
 
-    {# ── FULL WIDTH: Payment summary ── #}
+    {# FULL: Payment #}
     <div class="jc-section jc-full">
       <div class="jc-section-title">Payment Details</div>
       {% set cd_exp = proj.expenses | selectattr('expense_type','eq','CD Payment') | first | default(none) %}
-      {% set nm_exp = proj.expenses | selectattr('expense_type','eq','Meter')       | first | default(none) %}
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;font-size:12px">
-        {% for lbl, val, highlight in [
-          ('Contract (Lead)', proj.total_amount | inr,     false),
-          ('CD Payment',      (cd_exp.amount | inr if cd_exp else '—'), false),
-          ('Net Meter (NM)',   (nm_exp.amount | inr if nm_exp else '—'), false),
-          ('Total Receivable', proj.total_receivable | inr, true),
+      {% set nm_exp = proj.expenses | selectattr('expense_type','eq','Meter')      | first | default(none) %}
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr">
+        {% for lbl, val, hl in [
+          ('Lead (Contract)',  proj.total_amount | inr,                                  false),
+          ('CD Payment',       (cd_exp.amount | inr if cd_exp else '—'),                 false),
+          ('Net Meter (NM)',   (nm_exp.amount | inr if nm_exp else '—'),                 false),
+          ('Total Receivable', proj.total_receivable | inr,                              true),
         ] %}
         <div class="jc-row"
              style="flex-direction:column;padding:10px 14px;
-                    {% if highlight %}background:var(--teal-50,#f0fdfa);{% endif %}
-                    border-right:0.5px solid var(--border)">
+             {% if hl %}background:var(--teal-50,#f0fdfa);{% endif %}
+             border-right:0.5px solid var(--border)">
           <div style="font-size:10px;color:var(--muted);margin-bottom:2px">{{ lbl }}</div>
-          <div style="font-size:15px;font-weight:{% if highlight %}700{% else %}500{% endif %};
-                      color:{% if highlight %}var(--teal-800,#134e4a){% else %}var(--text){% endif %}">
-            {{ val }}
-          </div>
+          <div style="font-size:15px;font-weight:{% if hl %}700{% else %}500{% endif %};
+                      color:{% if hl %}var(--teal-800,#134e4a){% else %}var(--text){% endif %}">{{ val }}</div>
         </div>
         {% endfor %}
       </div>
-      <div class="jc-row" style="justify-content:flex-end;padding:12px 20px;gap:12px">
+      <div class="jc-row" style="justify-content:flex-end;padding:10px 20px;gap:12px">
         <div style="font-size:12px;color:var(--muted)">Collected:</div>
-        <div style="font-size:14px;font-weight:600;color:var(--green-700,#15803d)">
-          {{ proj.effective_collected | inr }}
-        </div>
+        <div style="font-size:14px;font-weight:600;color:var(--green-700,#15803d)">{{ proj.effective_collected | inr }}</div>
         <div style="font-size:12px;color:var(--muted);margin-left:12px">Pending:</div>
         <div style="font-size:14px;font-weight:600;
                     color:{% if proj.pending_amount > 0 %}var(--amber-600,#d97706){% else %}var(--green-600){% endif %}">
@@ -359,28 +420,118 @@
       </div>
     </div>
 
-  </div>{# end jc-grid #}
+  </div>
 
-  {# Signature row #}
-  <div style="display:flex;justify-content:flex-end;
-              border-top:0.5px solid var(--border);padding:14px 24px;
-              font-size:12px;color:var(--muted)">
+  {# Signature #}
+  <div style="display:flex;justify-content:flex-end;border-top:0.5px solid var(--border);
+              padding:14px 24px;font-size:12px;color:var(--muted)">
     Customer Signature: _______________________
   </div>
 </div>
 
-{# Download button (bottom) #}
-<div style="margin-top:20px;display:flex;justify-content:flex-end">
-  <a href="{{ url_for('download_job_card', pid=proj.id) }}"
-     class="btn btn-primary"
-     style="display:inline-flex;align-items:center;gap:8px">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-      <polyline points="7 10 12 15 17 10"/>
-      <line x1="12" y1="15" x2="12" y2="3"/>
-    </svg>
-    Download Job Card (.xlsx)
-  </a>
+{% else %}
+{# ── Empty state ── #}
+<div class="jc-empty">
+  <svg width="56" height="56" viewBox="0 0 24 24" fill="none"
+       stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="9" y1="13" x2="15" y2="13"/>
+    <line x1="9" y1="17" x2="15" y2="17"/>
+  </svg>
+  <h3>Search for a project</h3>
+  <p>Enter a project code or customer name above to view and download the job card.</p>
 </div>
+{% endif %}
+
+<script>
+const searchInput = document.getElementById('jc-search-input');
+const sugBox      = document.getElementById('jc-suggestions');
+let debounceTimer = null;
+let selectedIdx   = -1;
+let suggestions   = [];
+
+searchInput.value = document.getElementById('jc-search-input').dataset.query || '';
+
+function handleSearch(q) {
+  clearTimeout(debounceTimer);
+  if (q.length < 2) { sugBox.style.display = 'none'; return; }
+  debounceTimer = setTimeout(() => fetchSuggestions(q), 220);
+}
+
+async function fetchSuggestions(q) {
+  try {
+    const res  = await fetch('/api/job_card_search?q=' + encodeURIComponent(q));
+    const data = await res.json();
+    suggestions = data;
+    renderSuggestions(data);
+  } catch(e) {}
+}
+
+function renderSuggestions(items) {
+  if (!items.length) { sugBox.style.display = 'none'; return; }
+  sugBox.innerHTML = items.map((item, i) => `
+    <div class="jc-suggestion-item" data-idx="${i}"
+         onmousedown="chooseSuggestion(${i})">
+      <span class="jc-sug-code">${item.code}</span>
+      <span class="jc-sug-name">${item.name}</span>
+      <span class="jc-sug-status">${item.stage}</span>
+    </div>
+  `).join('');
+  sugBox.style.display = 'block';
+  selectedIdx = -1;
+}
+
+function chooseSuggestion(idx) {
+  const item = suggestions[idx];
+  if (!item) return;
+  searchInput.value = item.code;
+  sugBox.style.display = 'none';
+  window.location.href = '/job_card?q=' + encodeURIComponent(item.code);
+}
+
+function submitSearch() {
+  const q = searchInput.value.trim();
+  if (!q) return;
+  sugBox.style.display = 'none';
+  window.location.href = '/job_card?q=' + encodeURIComponent(q);
+}
+
+function handleKey(e) {
+  const items = sugBox.querySelectorAll('.jc-suggestion-item');
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    selectedIdx = Math.min(selectedIdx + 1, items.length - 1);
+    highlightItem(items);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    selectedIdx = Math.max(selectedIdx - 1, -1);
+    highlightItem(items);
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (selectedIdx >= 0 && suggestions[selectedIdx]) {
+      chooseSuggestion(selectedIdx);
+    } else {
+      submitSearch();
+    }
+  } else if (e.key === 'Escape') {
+    sugBox.style.display = 'none';
+  }
+}
+
+function highlightItem(items) {
+  items.forEach((el, i) => {
+    el.style.background = i === selectedIdx ? 'var(--bg)' : '';
+  });
+  if (selectedIdx >= 0 && items[selectedIdx]) {
+    searchInput.value = suggestions[selectedIdx].code;
+  }
+}
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.jc-search-box') && !e.target.closest('.jc-suggestions')) {
+    sugBox.style.display = 'none';
+  }
+});
+</script>
 {% endblock %}

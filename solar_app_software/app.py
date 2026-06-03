@@ -4160,25 +4160,72 @@ def download_docstaff_report():
 
 from solar_app_software.job_card_excel import build_job_card
 
-@app.route('/projects/<int:pid>/job_card')
+@app.route('/job_card')
 @login_required
-def job_card_page(pid):
-    proj = Project.query.get_or_404(pid)
-    return render_template('job_card.html', proj=proj, now=datetime.utcnow())
-
+def job_card_page():
+    query = _clean(request.args.get('q', ''), 100)
+    proj  = None
+ 
+    if query:
+        # Try exact project code first, then fuzzy customer name
+        proj = Project.query.filter_by(project_code=query).first()
+        if not proj:
+            proj = (Project.query
+                    .join(Customer)
+                    .filter(Customer.name.ilike(f'%{query}%'))
+                    .order_by(Project.updated_at.desc())
+                    .first())
+ 
+    now = datetime.utcnow().strftime('%d-%m-%Y')
+    return render_template('job_card.html', proj=proj, query=query, now=now)
+ 
+ 
+@app.route('/api/job_card_search')
+@login_required
+@limiter.limit('60 per minute')
+def api_job_card_search():
+    q = _clean(request.args.get('q', ''), 80)
+    if len(q) < 2:
+        return jsonify([])
+ 
+    results = (Project.query
+               .join(Customer)
+               .filter(
+                   Customer.name.ilike(f'%{q}%') |
+                   Project.project_code.ilike(f'%{q}%')
+               )
+               .order_by(Project.updated_at.desc())
+               .limit(10)
+               .all())
+ 
+    return jsonify([{
+        'code':  p.project_code,
+        'name':  p.customer.name,
+        'stage': p.stage,
+        'status': p.status,
+        'kw':    float(p.inverter_capacity_kw),
+    } for p in results])
+ 
+ 
 @app.route('/projects/<int:pid>/job_card/download')
 @login_required
 def download_job_card(pid):
+    from job_card_excel import build_job_card
     import tempfile
     proj = Project.query.get_or_404(pid)
     path = build_job_card(
         project=proj,
-        output_path=os.path.join(tempfile.gettempdir(), f'JobCard_{proj.project_code}.xlsx')
+        output_path=os.path.join(
+            tempfile.gettempdir(),
+            f'JobCard_{proj.project_code}.xlsx'
+        )
     )
-    return send_file(path, as_attachment=True,
+    return send_file(
+        path,
+        as_attachment=True,
         download_name=f'JobCard_{proj.project_code}.xlsx',
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
 # ─────────────────────────────────────────────────────────────────────────────
 # DB INIT & SEED
 # ─────────────────────────────────────────────────────────────────────────────
