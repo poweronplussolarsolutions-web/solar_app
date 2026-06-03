@@ -141,6 +141,10 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Loan amount</td><td>{{ ld.loan_amount | inr if ld and ld.loan_amount else '—' }}</td></tr>
       {% endif %}
       <tr><td style="color:var(--muted);padding:5px 0">Roof</td><td>{{ proj.roof_type }}</td></tr>
+      <div class="detail-row">
+      <span class="label">Inverter type</span>
+      <span>{{ proj.inverter_type or '—' }}</span>
+      </div>
       <tr><td style="color:var(--muted);padding:5px 0">Stage</td><td>{{ proj.stage }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Coordinator</td><td>{{ proj.coordinator.full_name if proj.coordinator else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Sub C/O</td><td style="font-size:12px">{{ proj.customer.sub_co or '—' }}</td></tr>

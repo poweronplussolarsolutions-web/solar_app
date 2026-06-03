@@ -112,6 +112,15 @@
     {% endfor %}
   </select>
 </div>
+<div class="form-group">
+  <label>Inverter type</label>
+  <select name="inverter_type">
+    <option value="">— Select —</option>
+    {% for it in ['Standard','Hybrid','String'] %}
+    <option value="{{ it }}">{{ it }}</option>
+    {% endfor %}
+  </select>
+</div>
       <!-- <div class="form-group" id="loan-subtype-field" style="display:none">
         <label>Loan type</label>
         <select name="loan_subtype" id="loan_subtype">

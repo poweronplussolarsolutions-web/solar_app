@@ -294,6 +294,7 @@ class Project(db.Model):
     assignments      = db.relationship('WorkerAssignment', backref='project', lazy=True)
     loan_subtype     = db.Column(db.Enum('Assisted','Self'), nullable=True)
     roof_type=db.Column(db.Enum('Flat','Sheet','Slope'),nullable=True)
+    inverter_type = db.Column(db.Enum('Standard','Hybrid','String'), nullable=True)
     panel_items      = db.relationship('PanelItem', backref='project', lazy=True, cascade='all,delete-orphan')
     extra_materials  = db.relationship('ExtraMaterial', backref='project', lazy=True, cascade='all,delete-orphan')
 
@@ -1550,6 +1551,7 @@ def new_project():
             doc_staff_id         = request.form.get('doc_staff_id') or None,
             notes                = _clean(request.form.get('notes', ''), 2000),
             roof_type=request.form.get('roof_type') or None,
+            inverter_type = request.form.get('inverter_type') or None,
         )
         db.session.add(proj)
         db.session.flush()
@@ -1599,6 +1601,7 @@ def edit_project(pid):
     if request.method == 'POST':
         old_type     = proj.project_type
         old_subtype  = proj.project_subtype
+        old_inverter_type = proj.inverter_type
         old_loan_sub = proj.loan_subtype
         old_amount   = float(proj.total_amount or 0)
 
@@ -1615,6 +1618,7 @@ def edit_project(pid):
         proj.total_amount         = new_amount
         proj.notes                = _clean(request.form.get('notes', ''), 2000)
         proj.roof_type=request.form.get('roof_type') or None
+        proj.inverter_type = request.form.get('inverter_type') or None
         changes = []
 
         if current_user.role == 'admin':
@@ -1697,6 +1701,8 @@ def edit_project(pid):
             changes.append(f'Type: {old_type} → {new_type}')
         if old_subtype != new_subtype:
             changes.append(f'Subtype: {old_subtype or "None"} → {new_subtype or "None"}')
+        if old_inverter_type != proj.inverter_type:
+           changes.append(f'Inverter type: {old_inverter_type or "None"} → {proj.inverter_type or "None"}')
         # if old_loan_sub != new_loan_sub:
         #     changes.append(f'Loan type: {old_loan_sub or "None"} → {new_loan_sub or "None"}')
         if abs(old_amount - new_amount) > 0.01:

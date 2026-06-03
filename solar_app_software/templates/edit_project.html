@@ -186,6 +186,15 @@
           {% endfor %}
         </select>
       </div>
+      <div class="form-group">
+  <label>Inverter type</label>
+  <select name="inverter_type">
+    <option value="">— Select —</option>
+    {% for it in ['Standard','Hybrid','String'] %}
+    <option value="{{ it }}" {% if proj.inverter_type == it %}selected{% endif %}>{{ it }}</option>
+    {% endfor %}
+  </select>
+</div>
 
       <div class="form-group">
         <label>Total contract amount (₹)</label>
