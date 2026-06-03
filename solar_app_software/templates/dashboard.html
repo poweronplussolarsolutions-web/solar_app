@@ -490,132 +490,123 @@ document.addEventListener('click', function(e) {
   </div>
 </div>
 
-{% set cash_projects = data.projects | selectattr('project_type', 'eq', 'Cash') | list %}
-{% set loan_projects = data.projects | selectattr('project_type', 'eq', 'Loan') | list %}
+{% set cash_projects = data.projects | selectattr('project_type', 'eq', 'Cash') | list | sort(attribute='days_open', reverse=True) %}
+{% set loan_projects = data.projects | selectattr('project_type', 'eq', 'Loan') | list | sort(attribute='days_open', reverse=True) %}
 
-<div class="card">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-    <div class="card-title" style="margin:0">Active site projects</div>
-    <input id="search-onsite" type="search" placeholder="Search projects…"
-           style="font-size:13px;padding:5px 10px;border:0.5px solid var(--border);
-                  border-radius:var(--radius);background:transparent;color:var(--fg);width:220px"/>
+{# ── search bar + counts ── #}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+  <div style="display:flex;align-items:center;gap:12px">
+    <span style="font-size:14px;font-weight:500;color:var(--fg)">Active site projects</span>
+    <span style="font-size:12px;background:#EAF3DE;color:#3B6D11;border:0.5px solid #97C459;
+                 padding:2px 8px;border-radius:20px">Cash: {{ cash_projects|length }}</span>
+    <span style="font-size:12px;background:#E6F1FB;color:#0C447C;border:0.5px solid #85B7EB;
+                 padding:2px 8px;border-radius:20px">Loan: {{ loan_projects|length }}</span>
   </div>
-  <div class="table-wrap">
-  <table id="tbl-onsite">
-    <thead>
-      <tr>
-        <th>Project</th><th>Customer</th><th>kW</th>
-        <th>Work type</th><th>Payment status</th><th></th>
-      </tr>
-    </thead>
-    <tbody>
+  <input id="search-onsite" type="search" placeholder="Search both lists…"
+         style="font-size:13px;padding:5px 10px;border:0.5px solid var(--border);
+                border-radius:var(--radius);background:transparent;color:var(--fg);width:220px"
+         oninput="onsiteSearch(this.value)"/>
+</div>
 
-      {# ── CASH SECTION ── #}
-      {% if cash_projects %}
-      <tr>
-        <td colspan="7"
-            style="font-size:11px;font-weight:500;color:var(--muted);
-                   background:var(--surface);padding:6px 8px;
-                   border-top:0.5px solid var(--border);
-                   border-bottom:0.5px solid var(--border)">
-          Cash works
-        </td>
-      </tr>
-      {% for p in cash_projects %}
-      <tr>
-        <td>
-          <a href="{{ url_for('project_detail', pid=p.id) }}"
-             style="font-weight:500;color:var(--amber-600)">{{ p.project_code }}</a>
-        </td>
-        <td>{{ p.customer.name }}</td>
-        <td style="font-size:12px;color:var(--muted)">{{ p.inverter_capacity_kw }} kW</td>
-        <td>
-          <span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;
-                       background:#EAF3DE;color:#3B6D11;border:0.5px solid #97C459">
-            Cash 
-          </span>
-        </td>
-        <td>
-          {% if p.payments | length > 0 %}
-          <span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;
-                       background:#E1F5EE;color:#085041;border:0.5px solid #5DCAA5;
-                       display:inline-flex;align-items:center;gap:4px;">
-            ✓ Payment recorded
-          </span>
-          {% else %}
-          <span style="font-size:10px;font-weight:600;padding:4px 10px;border-radius:12px;
-                       background:#FFF4E5;color:#633806;border:1px solid #EF9F27;
-                       display:inline-flex;align-items:center;gap:4px;
-                       white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,0.08);">
-            ⚠ No payment yet
-          </span>
-          {% endif %}
-        </td>
-        <td><a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a></td>
-      </tr>
-      {% endfor %}
-      {% endif %}
+{# ── two-column layout ── #}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
 
-      {# ── LOAN SECTION ── #}
-      {% if loan_projects %}
-      <tr>
-        <td colspan="7"
-            style="font-size:11px;font-weight:500;color:var(--muted);
-                   background:var(--surface);padding:6px 8px;
-                   border-top:0.5px solid var(--border);
-                   border-bottom:0.5px solid var(--border)">
-          Loan works
-        </td>
-      </tr>
-      {% for p in loan_projects %}
-      <tr>
-        <td>
-          <a href="{{ url_for('project_detail', pid=p.id) }}"
-             style="font-weight:500;color:var(--amber-600)">{{ p.project_code }}</a>
-        </td>
-        <td>{{ p.customer.name }}</td>
-        <td style="font-size:12px;color:var(--muted)">{{ p.inverter_capacity_kw }} kW</td>
-        <td>
-          <span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;
-                       background:#E6F1FB;color:#0C447C;border:0.5px solid #85B7EB">
-            Loan 
-          </span>
-        </td>
-        <td>
-          {% if p.first_payment_received %}
-<span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;
-             background:#E1F5EE;color:#085041;border:0.5px solid #5DCAA5;
-             display:inline-flex;align-items:center;gap:4px;">
-  ✓ 1st payment received
-</span>
-{% else %}
-<span 
-  style="
-    font-size:10px;
-    font-weight:600;
-    padding:4px 10px;
-    border-radius:12px;
-    background:#FFF4E5;
-    color:#633806;
-    border:1px solid #EF9F27;
-    display:inline-flex;
-    align-items:center;
-    gap:4px;
-    white-space:nowrap;
-    box-shadow:0 1px 2px rgba(0,0,0,0.08);
-  ">
-  ⚠ Pending
-</span>
-{% endif %}
-        </td>
-        <td><a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a></td>
-      </tr>
-      {% endfor %}
-      {% endif %}
-
-    </tbody>
-  </table>
+  {# ── CASH column ── #}
+  <div class="card" style="margin:0;padding:0;overflow:hidden">
+    <div style="padding:10px 14px;background:#EAF3DE;border-bottom:0.5px solid #97C459;
+                display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:13px;font-weight:500;color:#3B6D11">Cash works</span>
+      <span style="font-size:12px;color:#3B6D11;font-weight:600">{{ cash_projects|length }}</span>
+    </div>
+    {% if cash_projects %}
+    <div class="table-wrap" style="margin:0">
+    <table id="tbl-cash" style="font-size:12px">
+      <thead>
+        <tr>
+          <th>Project</th><th>Customer</th><th>kW</th><th>Days</th><th>Payment</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in cash_projects %}
+        <tr class="onsite-row">
+          <td><a href="{{ url_for('project_detail', pid=p.id) }}"
+                 style="font-weight:500;color:var(--amber-600)">{{ p.project_code }}</a></td>
+          <td>{{ p.customer.name }}</td>
+          <td style="color:var(--muted)">{{ p.inverter_capacity_kw }}</td>
+          <td>
+            <span style="font-size:11px;font-weight:600;
+                         color:{% if p.days_open > 90 %}var(--red-600){% elif p.days_open > 45 %}var(--amber-600){% else %}var(--muted){% endif %}">
+              {{ p.days_open }}d
+            </span>
+          </td>
+          <td>
+            {% if p.payments | length > 0 %}
+            <span style="font-size:10px;padding:2px 6px;border-radius:20px;
+                         background:#E1F5EE;color:#085041;border:0.5px solid #5DCAA5">✓ Paid</span>
+            {% else %}
+            <span style="font-size:10px;padding:2px 6px;border-radius:20px;
+                         background:#FFF4E5;color:#633806;border:0.5px solid #EF9F27">⚠ None</span>
+            {% endif %}
+          </td>
+          <td><a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div style="padding:24px;text-align:center;color:var(--hint);font-size:13px">No cash projects.</div>
+    {% endif %}
   </div>
+
+  {# ── LOAN column ── #}
+  <div class="card" style="margin:0;padding:0;overflow:hidden">
+    <div style="padding:10px 14px;background:#E6F1FB;border-bottom:0.5px solid #85B7EB;
+                display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:13px;font-weight:500;color:#0C447C">Loan works</span>
+      <span style="font-size:12px;color:#0C447C;font-weight:600">{{ loan_projects|length }}</span>
+    </div>
+    {% if loan_projects %}
+    <div class="table-wrap" style="margin:0">
+    <table id="tbl-loan" style="font-size:12px">
+      <thead>
+        <tr>
+          <th>Project</th><th>Customer</th><th>kW</th><th>Days</th><th>Bank payment</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in loan_projects %}
+        <tr class="onsite-row">
+          <td><a href="{{ url_for('project_detail', pid=p.id) }}"
+                 style="font-weight:500;color:var(--amber-600)">{{ p.project_code }}</a></td>
+          <td>{{ p.customer.name }}</td>
+          <td style="color:var(--muted)">{{ p.inverter_capacity_kw }}</td>
+          <td>
+            <span style="font-size:11px;font-weight:600;
+                         color:{% if p.days_open > 90 %}var(--red-600){% elif p.days_open > 45 %}var(--amber-600){% else %}var(--muted){% endif %}">
+              {{ p.days_open }}d
+            </span>
+          </td>
+          <td>
+            {% if p.first_payment_received %}
+            <span style="font-size:10px;padding:2px 6px;border-radius:20px;
+                         background:#E1F5EE;color:#085041;border:0.5px solid #5DCAA5">✓ Received</span>
+            {% else %}
+            <span style="font-size:10px;padding:2px 6px;border-radius:20px;
+                         background:#FFF4E5;color:#633806;border:0.5px solid #EF9F27">⚠ Pending</span>
+            {% endif %}
+          </td>
+          <td><a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div style="padding:24px;text-align:center;color:var(--hint);font-size:13px">No loan projects.</div>
+    {% endif %}
+  </div>
+
 </div>
 
 {% elif current_user.role == 'appinstall' %}
@@ -748,11 +739,17 @@ function tableSearch(inputId, tableId) {
     });
   });
 }
+function onsiteSearch(val) {
+  const q = val.toLowerCase();
+  document.querySelectorAll('.onsite-row').forEach(function(row) {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
 tableSearch('search-admin',    'tbl-admin');
 tableSearch('search-coord',    'tbl-coord');
 tableSearch('search-docs',     'tbl-docs');
 tableSearch('search-payments', 'tbl-payments');
-tableSearch('search-onsite',   'tbl-onsite');
+// tableSearch('search-onsite',   'tbl-onsite');
 tableSearch('search-installs-pending',   'tbl-installs-pending');
 tableSearch('search-installs-scheduled', 'tbl-installs-scheduled');
 </script>
