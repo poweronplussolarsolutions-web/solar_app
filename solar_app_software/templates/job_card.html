@@ -230,17 +230,30 @@
       <h3>{{ proj.project_code }} — {{ c.name }}</h3>
       <p>{{ proj.inverter_capacity_kw }} kW · {{ proj.project_type }}{% if proj.project_subtype %} / {{ proj.project_subtype }}{% endif %} · {{ proj.stage }}</p>
     </div>
-    <a href="{{ url_for('download_job_card', pid=proj.id) }}"
-       class="btn btn-primary btn-sm"
-       style="display:inline-flex;align-items:center;gap:6px">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-           stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-        <polyline points="7 10 12 15 17 10"/>
-        <line x1="12" y1="15" x2="12" y2="3"/>
-      </svg>
-      Download .xlsx
-    </a>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button onclick="printJobCard()"
+              class="btn btn-sm"
+              style="display:inline-flex;align-items:center;gap:6px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <polyline points="6 9 6 2 18 2 18 9"/>
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+          <rect x="6" y="14" width="12" height="8"/>
+        </svg>
+        Print
+      </button>
+      <a href="{{ url_for('download_job_card', pid=proj.id) }}"
+         class="btn btn-primary btn-sm"
+         style="display:inline-flex;align-items:center;gap:6px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download .xlsx
+      </a>
+    </div>
   </div>
 
   {# Black header #}
@@ -313,15 +326,16 @@
         ('Payment Completion',  'Payment Completion'),
       ] %}
       {% set doc = doc_map.get(doc_key) %}
+      {% set is_done = doc and doc.status in ['Received','Completed','Sent'] %}
       <div class="jc-row">
         <div class="jc-label">{{ label }}</div>
-        <div class="jc-val">
-          {% if doc and doc.status in ['Received','Completed','Sent'] %}
-            <span class="jc-badge jc-badge-green">{{ doc.status }}</span>
-          {% elif doc %}
-            <span class="jc-badge jc-badge-amber">Pending</span>
+        <div class="jc-val" style="gap:6px">
+          {% if is_done %}
+            <span style="font-size:15px;color:#16a34a;line-height:1">✓</span>
+            <span style="font-size:11px;color:#16a34a;font-weight:600">{{ doc.status }}</span>
           {% else %}
-            <span class="jc-badge jc-badge-gray">—</span>
+            <span style="font-size:15px;color:#9ca3af;line-height:1">✗</span>
+            <span style="font-size:11px;color:#9ca3af">{{ 'Pending' if doc else 'Not recorded' }}</span>
           {% endif %}
         </div>
       </div>
@@ -340,7 +354,6 @@
         ('Connection',    ('✓ Done' if kseb and kseb.connection_done else '—')),
         ('Structure',     (op.structure_work_status if op else '—')),
         ('Installation',  (op.installation_status if op else '—')),
-        ('Electrical',    (op.electrical_status if op else '—')),
         ('Subsidy',       (sub.status if sub else '—')),
       ] %}
       <div class="jc-row">
@@ -533,5 +546,44 @@ document.addEventListener('click', function(e) {
     sugBox.style.display = 'none';
   }
 });
+
+function printJobCard() {
+  const card = document.querySelector('.jc-preview');
+  if (!card) return;
+  const w = window.open('', '_blank', 'width=800,height=900');
+  w.document.write(`<!DOCTYPE html><html><head>
+    <title>Job Card</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: Arial, sans-serif; font-size: 11px; color: #000; background: #fff; }
+      .jc-download-bar { display: none; }
+      .jc-header-strip { display: flex; justify-content: space-between; align-items: center;
+        background: #000; color: #fff; padding: 8px 14px; font-weight: 700; font-size: 13px; }
+      .jc-serial { font-size: 11px; text-align: right; }
+      .jc-serial span { display: block; }
+      .jc-grid { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #000; }
+      .jc-section { border-right: 0.5px solid #ccc; }
+      .jc-section:nth-child(even) { border-right: none; }
+      .jc-full { grid-column: 1 / -1; border-right: none; }
+      .jc-section-title { background: #f0f0f0; border-bottom: 0.5px solid #ccc;
+        border-top: 0.5px solid #ccc; padding: 4px 10px;
+        font-weight: 700; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; }
+      .jc-row { display: flex; border-bottom: 0.5px solid #e0e0e0; min-height: 22px; }
+      .jc-row:last-child { border-bottom: none; }
+      .jc-label { width: 110px; flex-shrink: 0; padding: 3px 8px 3px 10px;
+        color: #666; font-size: 9px; display: flex; align-items: center;
+        border-right: 0.5px solid #e0e0e0; }
+      .jc-val { padding: 3px 8px; flex: 1; display: flex; align-items: center;
+        font-size: 10px; font-weight: 500; gap: 5px; }
+      @media print {
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        @page { size: A4 portrait; margin: 10mm; }
+      }
+    </style>
+  </head><body>${card.innerHTML}</body></html>`);
+  w.document.close();
+  w.focus();
+  setTimeout(() => { w.print(); w.close(); }, 400);
+}
 </script>
 {% endblock %}
