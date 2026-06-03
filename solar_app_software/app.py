@@ -4158,7 +4158,7 @@ def download_docstaff_report():
         download_name=f'DocsReport_{staff.username}_{month_name}_{year}.xlsx',
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
-from job_card_excel import build_job_card
+from solar_app_software.job_card_excel import build_job_card
 
 @app.route('/projects/<int:pid>/job_card')
 @login_required
