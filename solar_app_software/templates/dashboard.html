@@ -99,9 +99,14 @@
 </div>
 
 <div class="card">
-  <div class="card-title">Recent projects</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div class="card-title" style="margin:0">Recent projects</div>
+    <input id="search-admin" type="search" placeholder="Search projects…"
+           style="font-size:13px;padding:5px 10px;border:0.5px solid var(--border);
+                  border-radius:var(--radius);background:transparent;color:var(--fg);width:220px"/>
+  </div>
   <div class="table-wrap">
-  <table>
+  <table id="tbl-admin">
     
     <thead>
       <tr>
@@ -361,12 +366,15 @@ document.addEventListener('click', function(e) {
 </div>
 
 <div class="card">
-  <div class="card-title">
-    My work queue
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div class="card-title" style="margin:0">My work queue</div>
+    <input id="search-docs" type="search" placeholder="Search projects…"
+           style="font-size:13px;padding:5px 10px;border:0.5px solid var(--border);
+                  border-radius:var(--radius);background:transparent;color:var(--fg);width:220px"/>
   </div>
   {% if data.projects %}
   <div class="table-wrap">
-  <table>
+  <table id="tbl-docs">
     <thead>
       <tr>
         <th>Project</th>
@@ -433,9 +441,14 @@ document.addEventListener('click', function(e) {
   </div>
 </div>
 <div class="card">
-  <div class="card-title">Payment status by project</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div class="card-title" style="margin:0">Payment status by project</div>
+    <input id="search-payments" type="search" placeholder="Search projects…"
+           style="font-size:13px;padding:5px 10px;border:0.5px solid var(--border);
+                  border-radius:var(--radius);background:transparent;color:var(--fg);width:220px"/>
+  </div>
   <div class="table-wrap">
-  <table>
+  <table id="tbl-payments">
     <thead><tr><th>Project</th><th>Customer</th><th>Type</th><th>Collected</th><th>Total</th><th>Pending</th><th>%</th></tr></thead>
     <tbody>
       {% for p in data.projects.items %}
@@ -481,9 +494,14 @@ document.addEventListener('click', function(e) {
 {% set loan_projects = data.projects | selectattr('project_type', 'eq', 'Loan') | list %}
 
 <div class="card">
-  <div class="card-title">Active site projects</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div class="card-title" style="margin:0">Active site projects</div>
+    <input id="search-onsite" type="search" placeholder="Search projects…"
+           style="font-size:13px;padding:5px 10px;border:0.5px solid var(--border);
+                  border-radius:var(--radius);background:transparent;color:var(--fg);width:220px"/>
+  </div>
   <div class="table-wrap">
-  <table>
+  <table id="tbl-onsite">
     <thead>
       <tr>
         <th>Project</th><th>Customer</th><th>kW</th>
@@ -718,5 +736,24 @@ document.addEventListener('click', function(e) {
 </div>
 {% endif %}
 {% endif %}
-
+<script>
+function tableSearch(inputId, tableId) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  input.addEventListener('input', function () {
+    const q = this.value.toLowerCase();
+    document.querySelectorAll('#' + tableId + ' tbody tr').forEach(function (row) {
+      if (row.cells.length < 2) return; // skip section-header rows
+      row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+}
+tableSearch('search-admin',    'tbl-admin');
+tableSearch('search-coord',    'tbl-coord');
+tableSearch('search-docs',     'tbl-docs');
+tableSearch('search-payments', 'tbl-payments');
+tableSearch('search-onsite',   'tbl-onsite');
+tableSearch('search-installs-pending',   'tbl-installs-pending');
+tableSearch('search-installs-scheduled', 'tbl-installs-scheduled');
+</script>
 {% endblock %}

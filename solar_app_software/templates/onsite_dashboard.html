@@ -146,7 +146,7 @@
         </div>
         <div class="proj-card-name">{{ p.customer.name }}</div>
         <div class="proj-card-meta">{{ p.inverter_capacity_kw }} kW inverter · {{ p.panel_capacity_kw }} kW panel · Awaiting delivery</div>
-        <div class="proj-card-meta">Roof_type - {{p.roof_type}}</div>
+        <div class="proj-card-meta">Roof_type - {{p.roof_type}} | Inverter_type - {{p.inverter_type}}</div>
       </div>
     </a>
     {% endfor %}
@@ -178,7 +178,7 @@
           <div class="proj-card-meta">
             {{ p.inverter_capacity_kw }} kW inverter · {{ p.panel_capacity_kw }} kW panel · Materials ready
             {% if op and op.structure_start_date %} · Started {{ op.structure_start_date | date_fmt }}{% endif %}
-            <div class="proj-card-meta">Roof_type - {{p.roof_type}}</div>
+            <div class="proj-card-meta">Roof_type - {{p.roof_type}} | Inverter_type - {{p.inverter_type}}</div>
           </div>
         </div>
       </a>
@@ -211,7 +211,7 @@
           <div class="proj-card-meta">
             {{ p.inverter_capacity_kw }} kW inverter · {{ p.panel_capacity_kw }} kW panel
             {% if op and op.installation_start_date %} · Started {{ op.installation_start_date | date_fmt }}{% endif %}
-            <div class="proj-card-meta">Roof_type - {{p.roof_type}}</div>
+            <div class="proj-card-meta">Roof_type - {{p.roof_type}} | Inverter_type - {{p.inverter_type}}</div>
           </div>
         </div>
       </a>
@@ -240,7 +240,7 @@
           <div class="proj-card-meta">
             {{ p.inverter_capacity_kw }} kW inverter · {{ p.panel_capacity_kw }} kW panel
             {% if op and op.installation_end_date %} · {{ op.installation_end_date | date_fmt }}{% endif %}
-            <div class="proj-card-meta">Roof_type - {{p.roof_type}}</div>
+            <div class="proj-card-meta">Roof_type - {{p.roof_type}} | Inverter_type - {{p.inverter_type}}</div>
           </div>
         </div>
       </a>
