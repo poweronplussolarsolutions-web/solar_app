@@ -4200,6 +4200,13 @@ def job_card_page():
                     .filter(Customer.name.ilike(f'%{query}%'))
                     .order_by(Project.updated_at.desc())
                     .first())
+        if proj:
+            print(">>> PROJECT:", proj.project_code)
+            print(">>> KSEB TASK:", proj.kseb_task)
+            print(">>> CD:", proj.connection_details)
+            print(">>> SUBSIDY:", proj.subsidy)
+        else:
+            print(">>> NO PROJECT FOUND for query:", query)
  
     now = datetime.utcnow().strftime('%d-%m-%Y')
     return render_template('job_card.html', proj=proj, query=query, now=now)
