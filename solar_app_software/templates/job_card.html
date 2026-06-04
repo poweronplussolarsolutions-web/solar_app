@@ -354,7 +354,6 @@
     ('File Sent',    'File Sent'),
     ('Inspection',   'Inspection'),
     ('CD Payment',   'CD Payment'),
-    ('Connection',   'KSEB Connection Done'),
   ] %}
   {% set doc = doc_map.get(doc_key) %}
   {% set is_done = doc and doc.status in ['Received','Completed','Sent'] %}
@@ -363,7 +362,7 @@
     <div class="jc-val">
       {% if is_done %}
         <span style="font-size:15px;color:#16a34a;line-height:1">✓</span>
-        <span style="font-size:11px;color:#16a34a;font-weight:600">{{ doc.status }}</span>
+        <span style="font-size:11px;color:#16a34a;font-weight:600"> Completed</span>
       {% else %}
         <span style="font-size:15px;color:#9ca3af;line-height:1">✗</span>
         <span style="font-size:11px;color:#9ca3af">{{ 'Pending' if doc else 'Not recorded' }}</span>
