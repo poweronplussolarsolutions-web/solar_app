@@ -4201,10 +4201,10 @@ def job_card_page():
                     .order_by(Project.updated_at.desc())
                     .first())
         if proj:
-            print(">>> PROJECT:", proj.project_code)
-            print(">>> KSEB TASK:", proj.kseb_task)
-            print(">>> CD:", proj.connection_details)
-            print(">>> SUBSIDY:", proj.subsidy)
+            print(">>> PROJECT:", proj.project_code,flush=True)
+            print(">>> KSEB TASK:", proj.kseb_task,flush=True)
+            print(">>> CD:", proj.connection_details,flush=True)
+            print(">>> SUBSIDY:", proj.subsidy,flush=True)
         else:
             print(">>> NO PROJECT FOUND for query:", query)
  
