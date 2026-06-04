@@ -349,7 +349,7 @@
     <div class="jc-section">
       <div class="jc-section-title">KSEB &amp; Onsite</div>
       {% for lbl, val in [
-        ('Stamp Paper',   (proj.connection_details.stamp_paper if proj.connection_details else '—')),
+        ('Stamp Paper',   ('✓'if proj.connection_details.stamp_paper and proj.connection_details else '—')),
         ('B-Class Lic.',  (kseb.b_class_licence if kseb else '—')),
         ('File Sent',     ('✓ Done' if kseb.file_sent else '—')),
         ('Inspection',    ('✓ Done' if kseb.inspection_done else '—')),
