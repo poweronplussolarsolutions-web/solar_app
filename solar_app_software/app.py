@@ -4167,10 +4167,33 @@ def job_card_page():
     proj  = None
  
     if query:
-        # Try exact project code first, then fuzzy customer name
-        proj = Project.query.filter_by(project_code=query).first()
+        from sqlalchemy.orm import joinedload
+        proj = (Project.query
+                .options(
+                    joinedload(Project.connection_details),
+                    joinedload(Project.loan_detail),
+                    joinedload(Project.panel_details),
+                    joinedload(Project.subsidy),
+                    joinedload(Project.onsite_progress),
+                    joinedload(Project.documents),
+                    joinedload(Project.expenses),
+                    joinedload(Project.coordinator),
+                    joinedload(Project.doc_staff),
+                )
+                .filter_by(project_code=query).first())
         if not proj:
             proj = (Project.query
+                    .options(
+                        joinedload(Project.connection_details),
+                        joinedload(Project.loan_detail),
+                        joinedload(Project.panel_details),
+                        joinedload(Project.subsidy),
+                        joinedload(Project.onsite_progress),
+                        joinedload(Project.documents),
+                        joinedload(Project.expenses),
+                        joinedload(Project.coordinator),
+                        joinedload(Project.doc_staff),
+                    )
                     .join(Customer)
                     .filter(Customer.name.ilike(f'%{query}%'))
                     .order_by(Project.updated_at.desc())
@@ -4210,7 +4233,7 @@ def api_job_card_search():
 @app.route('/projects/<int:pid>/job_card/download')
 @login_required
 def download_job_card(pid):
-    from job_card_excel import build_job_card
+    from solar_app_software.job_card_excel import build_job_card
     import tempfile
     proj = Project.query.get_or_404(pid)
     path = build_job_card(

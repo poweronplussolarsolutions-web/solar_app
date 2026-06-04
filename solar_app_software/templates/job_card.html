@@ -272,6 +272,9 @@
     <div class="jc-section">
       <div class="jc-section-title">Customer</div>
       {% for lbl, val in [
+        ('Handling',   proj.doc_staff.full_name if proj.doc_staff else '—'),
+        ('C/O',        proj.coordinator.full_name if proj.coordinator else '—'),
+        ('Sub C/O',    c.sub_co or '—'),
         ('Name',       c.name),
         ('House Name', c.house_name or '—'),
         ('Place',      c.place or '—'),
@@ -281,7 +284,7 @@
         ('Taluk',      c.taluk or '—'),
         ('District',   c.district or '—'),
         ('Phone',      c.phone or '—'),
-        ('Sub C/O',    c.sub_co or '—'),
+        
       ] %}
       <div class="jc-row">
         <div class="jc-label">{{ lbl }}</div>
@@ -438,7 +441,7 @@
   {# Signature #}
   <div style="display:flex;justify-content:flex-end;border-top:0.5px solid var(--border);
               padding:14px 24px;font-size:12px;color:var(--muted)">
-    Customer Signature: _______________________
+    Signature: _______________________
   </div>
 </div>
 
