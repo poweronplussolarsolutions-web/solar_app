@@ -143,7 +143,7 @@
 
       <div class="form-group">
   <label>Coordinator</label>
-  <select name="coordinator_id">
+  <select name="coordinator_id" id="coordinator_id_select" onchange="toggleOtherCoord()">
     <option value="">— Unassigned —</option>
     {% for u in coordinators %}
     <option value="{{ u.id }}"
@@ -151,12 +151,18 @@
       {{ u.full_name }}
     </option>
     {% endfor %}
+    <option value="__other__">Other (type name)…</option>
   </select>
   {% if current_user.role == 'coordinator' %}
   <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
     Defaults to you — change if needed
   </span>
   {% endif %}
+</div>
+<div class="form-group" id="other-coord-field" style="display:none">
+  <label>Coordinator name <span style="color:var(--muted);font-weight:400;font-size:11px">(not in list)</span></label>
+  <input name="coordinator_name_other" id="coordinator_name_other" type="text"
+         placeholder="Full name of coordinator"/>
 </div>
 <div class="form-group">
   <label>Sub C/O <span style="color:var(--muted);font-weight:400;font-size:11px">(optional)</span></label>
@@ -195,5 +201,16 @@ function toggleLoanSubtype() {
   if (field) field.style.display = (type === 'Loan') ? 'block' : 'none';
 }
 toggleLoanSubtype();
+</script>
+<script>
+function toggleOtherCoord() {
+  const sel   = document.getElementById('coordinator_id_select');
+  const field = document.getElementById('other-coord-field');
+  const input = document.getElementById('coordinator_name_other');
+  const show  = sel.value === '__other__';
+  field.style.display = show ? 'block' : 'none';
+  input.required = show;
+}
+toggleOtherCoord();
 </script>
 {% endblock %}
