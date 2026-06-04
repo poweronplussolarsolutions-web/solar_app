@@ -75,9 +75,16 @@
           <span style="font-size:12px;color:var(--red-600)">Unassigned</span>
           {% endif %}
         </td>
-        <td><div style="display:flex;align-items:center;gap:6px">
-          <span style="font-size:12px">{{ p.coordinator.full_name }}</span>
-        </div></td>
+        <td>
+          {% if p.coordinator %}
+            <span style="font-size:12px">{{ p.coordinator.full_name }}</span>
+          {% elif p.coordinator_name %}
+            <span style="font-size:12px">{{ p.coordinator_name }}</span>
+            <span style="font-size:10px;color:var(--hint)"> *</span>
+          {% else %}
+            <span style="font-size:12px;color:var(--hint)">—</span>
+          {% endif %}
+        </td>
         <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
         <td style="font-size:12px;color:var(--hint)">
   {% if p.status in ('Closed', 'Completed', 'Cancelled') %}

@@ -297,6 +297,7 @@ class Project(db.Model):
     inverter_type = db.Column(db.Enum('Standard','Hybrid','String'), nullable=True)
     panel_items      = db.relationship('PanelItem', backref='project', lazy=True, cascade='all,delete-orphan')
     extra_materials  = db.relationship('ExtraMaterial', backref='project', lazy=True, cascade='all,delete-orphan')
+    coordinator_name = db.Column(db.String(120), nullable=True)
 
     @property
     def contract_amount(self):
@@ -1565,15 +1566,13 @@ def new_project():
         coord_name_other = _clean(request.form.get('coordinator_name_other', ''), 120)
 
         if raw_coord_id == '__other__':
-            resolved_coord_id = None
-            extra_note = f'Coordinator (not in system): {coord_name_other}' if coord_name_other else ''
+            resolved_coord_id   = None
+            resolved_coord_name = coord_name_other or None
         else:
-            resolved_coord_id = int(raw_coord_id) if raw_coord_id else None
-            extra_note = ''
+            resolved_coord_id   = int(raw_coord_id) if raw_coord_id else None
+            resolved_coord_name = None
 
         notes_val = _clean(request.form.get('notes', ''), 2000)
-        if extra_note:
-            notes_val = (extra_note + '\n' + notes_val).strip()
 
         proj = Project(
     project_code         = code,
@@ -1590,6 +1589,7 @@ def new_project():
     notes                = notes_val,
     roof_type            = request.form.get('roof_type') or None,
     inverter_type        = request.form.get('inverter_type') or None,
+    coordinator_name     = resolved_coord_name,
         )
         db.session.add(proj)
         db.session.flush()
@@ -1700,27 +1700,16 @@ def edit_project(pid):
                 coord_name_other = _clean(request.form.get('coordinator_name_other', ''), 120)
 
                 if raw_coord_id == '__other__':
-                # Unlink any existing coordinator account and store the name in notes
                     if proj.coordinator_id:
                         old_coord = proj.coordinator
                         create_notification(old_coord.id, pid,
-                        f'You have been unassigned as coordinator from {proj.project_code} — {proj.customer.name}.', 'info')
+                            f'You have been unassigned as coordinator from {proj.project_code} — {proj.customer.name}.', 'info')
                         changes.append(f'Coordinator: {old_coord.full_name} → {coord_name_other} (not in system)')
                         proj.coordinator_id = None
-                # Prepend the free-text name into notes so it's never lost
-                other_note = f'Coordinator (not in system): {coord_name_other}'
-                current_notes = proj.notes or ''
-                # Avoid duplicating the line if it already starts with it
-                if not current_notes.startswith('Coordinator (not in system):'):
-                    proj.notes = (other_note + '\n' + current_notes).strip()
-                else:
-                    # Overwrite the existing other-coordinator line
-                    lines = current_notes.split('\n')
-                    lines[0] = other_note
-                    proj.notes = '\n'.join(lines).strip()
+                    proj.coordinator_name = coord_name_other or None
 
-            elif raw_coord_id:
-                new_coord_id = int(raw_coord_id)
+                elif raw_coord_id:
+                    new_coord_id = int(raw_coord_id)
                 if proj.coordinator_id != new_coord_id:
                     old_coord = proj.coordinator
                     new_coord = User.query.get(new_coord_id)
@@ -1735,8 +1724,10 @@ def edit_project(pid):
                             f'{new_coord.full_name if new_coord else "None"}'
                         )
                     proj.coordinator_id = new_coord_id
+                    proj.coordinator_name = None
             else:
                 proj.coordinator_id = None
+                proj.coordinator_name = None
 
         if new_amount > float(proj.collected_amount or 0):
             if proj.status == 'Completed' and proj.stage == 'Payment':
