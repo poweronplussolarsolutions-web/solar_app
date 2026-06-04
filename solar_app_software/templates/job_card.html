@@ -349,9 +349,9 @@
     <div class="jc-section">
       <div class="jc-section-title">KSEB &amp; Onsite</div>
       {% for lbl, val in [
-        ('Stamp Paper',   (kseb_tasks.stamp_paper if kseb else '—')),
+        ('Stamp Paper',   (kseb.stamp_paper if kseb else '—')),
         ('B-Class Lic.',  (kseb.b_class_licence if kseb else '—')),
-        ('File Sent',     ('✓ Done' if kseb.file_sent else '—')),
+        ('File Sent',     ('✓ Done' if kseb_tasks.file_sent else '—')),
         ('Inspection',    ('✓ Done' if kseb.inspection_done else '—')),
         ('CD Payment',    ('✓ Done' if kseb.cd_payment_done else '—')),
         ('Connection',    ('✓ Done' if kseb.connection_done else '—')),
