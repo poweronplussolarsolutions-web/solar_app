@@ -1560,22 +1560,36 @@ def new_project():
             db.session.flush()
             cust_id = cust.id
 
+        # Resolve coordinator
+        raw_coord_id    = request.form.get('coordinator_id') or ''
+        coord_name_other = _clean(request.form.get('coordinator_name_other', ''), 120)
+
+        if raw_coord_id == '__other__':
+            resolved_coord_id = None
+            extra_note = f'Coordinator (not in system): {coord_name_other}' if coord_name_other else ''
+        else:
+            resolved_coord_id = int(raw_coord_id) if raw_coord_id else None
+            extra_note = ''
+
+        notes_val = _clean(request.form.get('notes', ''), 2000)
+        if extra_note:
+            notes_val = (extra_note + '\n' + notes_val).strip()
+
         proj = Project(
-            project_code         = code,
-            customer_id          = cust_id,
-            inverter_capacity_kw = _safe_float(request.form.get('inverter_capacity_kw')),
-            panel_capacity_kw    = _safe_float(request.form.get('panel_capacity_kw')),
-            project_type         = request.form['project_type'],
-            status               = 'InProgress',
-            stage                = 'Documentation',
-            project_subtype      = request.form.get('project_subtype') or None,
-            # loan_subtype         = request.form.get('loan_subtype') or None,
-            total_amount         = _safe_float(request.form.get('total_amount', 0)),
-            coordinator_id       = request.form.get('coordinator_id') or None,
-            doc_staff_id         = request.form.get('doc_staff_id') or None,
-            notes                = _clean(request.form.get('notes', ''), 2000),
-            roof_type=request.form.get('roof_type') or None,
-            inverter_type = request.form.get('inverter_type') or None,
+    project_code         = code,
+    customer_id          = cust_id,
+    inverter_capacity_kw = _safe_float(request.form.get('inverter_capacity_kw')),
+    panel_capacity_kw    = _safe_float(request.form.get('panel_capacity_kw')),
+    project_type         = request.form['project_type'],
+    status               = 'InProgress',
+    stage                = 'Documentation',
+    project_subtype      = request.form.get('project_subtype') or None,
+    total_amount         = _safe_float(request.form.get('total_amount', 0)),
+    coordinator_id       = resolved_coord_id,
+    doc_staff_id         = request.form.get('doc_staff_id') or None,
+    notes                = notes_val,
+    roof_type            = request.form.get('roof_type') or None,
+    inverter_type        = request.form.get('inverter_type') or None,
         )
         db.session.add(proj)
         db.session.flush()
@@ -1682,25 +1696,47 @@ def edit_project(pid):
                 changes.append(f'Status: {proj.status} → {new_status}')
                 proj.status = new_status
             if 'coordinator_id' in request.form:
-                new_coord_id = request.form.get('coordinator_id') or None
-                if new_coord_id:
-                    new_coord_id = int(new_coord_id)
-                    if proj.coordinator_id != new_coord_id:
+                raw_coord_id     = request.form.get('coordinator_id') or None
+                coord_name_other = _clean(request.form.get('coordinator_name_other', ''), 120)
+
+                if raw_coord_id == '__other__':
+                # Unlink any existing coordinator account and store the name in notes
+                    if proj.coordinator_id:
                         old_coord = proj.coordinator
-                        new_coord = User.query.get(new_coord_id)
-                        if old_coord:
-                            create_notification(old_coord.id, pid,
-                            f'You have been unassigned as coordinator from {proj.project_code} — {proj.customer.name}.', 'info')
-                        if new_coord:
-                            create_notification(new_coord_id, pid,
-                            f'You have been assigned as coordinator for {proj.project_code} — {proj.customer.name}.', 'task')
-                            changes.append(
+                        create_notification(old_coord.id, pid,
+                        f'You have been unassigned as coordinator from {proj.project_code} — {proj.customer.name}.', 'info')
+                        changes.append(f'Coordinator: {old_coord.full_name} → {coord_name_other} (not in system)')
+                        proj.coordinator_id = None
+                # Prepend the free-text name into notes so it's never lost
+                other_note = f'Coordinator (not in system): {coord_name_other}'
+                current_notes = proj.notes or ''
+                # Avoid duplicating the line if it already starts with it
+                if not current_notes.startswith('Coordinator (not in system):'):
+                    proj.notes = (other_note + '\n' + current_notes).strip()
+                else:
+                    # Overwrite the existing other-coordinator line
+                    lines = current_notes.split('\n')
+                    lines[0] = other_note
+                    proj.notes = '\n'.join(lines).strip()
+
+            elif raw_coord_id:
+                new_coord_id = int(raw_coord_id)
+                if proj.coordinator_id != new_coord_id:
+                    old_coord = proj.coordinator
+                    new_coord = User.query.get(new_coord_id)
+                    if old_coord:
+                        create_notification(old_coord.id, pid,
+                        f'You have been unassigned as coordinator from {proj.project_code} — {proj.customer.name}.', 'info')
+                    if new_coord:
+                        create_notification(new_coord_id, pid,
+                        f'You have been assigned as coordinator for {proj.project_code} — {proj.customer.name}.', 'task')
+                        changes.append(
                             f'Coordinator: {old_coord.full_name if old_coord else "None"} → '
                             f'{new_coord.full_name if new_coord else "None"}'
                         )
-                        proj.coordinator_id = new_coord_id
-                else:
-                    proj.coordinator_id = None
+                    proj.coordinator_id = new_coord_id
+            else:
+                proj.coordinator_id = None
 
         if new_amount > float(proj.collected_amount or 0):
             if proj.status == 'Completed' and proj.stage == 'Payment':
