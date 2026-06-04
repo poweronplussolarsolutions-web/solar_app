@@ -4236,8 +4236,25 @@ def api_job_card_search():
 @login_required
 def download_job_card(pid):
     from solar_app_software.job_card_excel import build_job_card
+    from sqlalchemy.orm import joinedload
     import tempfile
-    proj = Project.query.get_or_404(pid)
+
+    proj = (Project.query
+            .options(
+                joinedload(Project.connection_details),
+                joinedload(Project.loan_detail),
+                joinedload(Project.panel_details),
+                joinedload(Project.subsidy),
+                joinedload(Project.onsite_progress),
+                joinedload(Project.documents),
+                joinedload(Project.expenses),
+                joinedload(Project.coordinator),
+                joinedload(Project.doc_staff),
+                joinedload(Project.kseb_task),
+            )
+            .filter_by(id=pid)
+            .first_or_404())
+
     path = build_job_card(
         project=proj,
         output_path=os.path.join(

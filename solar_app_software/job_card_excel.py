@@ -171,49 +171,26 @@ def build_job_card(project=None, output_path="/tmp/job_card.xlsx"):
     label(9, 3, "Date:", bold=True, size=8, align="right")
     merge("J3", "N3", today_str, size=8, align="center")
 
-    # ──────────────────────────────────────────────────────────────────────────
     # ROW 4 — Handling / KW, Panel
-    # ──────────────────────────────────────────────────────────────────────────
     rh(4, 14)
-    handling_coord = safe(c.sub_co if c else "")
-    merge("A4", "D4", f"Handling: {handling_coord}", size=8)
+    handling_name = safe(p.doc_staff.full_name if p and p.doc_staff else "")
+    merge("A4", "D4", f"Handling: {handling_name}", size=8)
     merge("E4", "H4", "", size=8)
     label(9, 4, "KW:", bold=True, size=8)
     merge("J4", "K4", safe(p.inverter_capacity_kw if p else ""), size=8)
     label(12, 4, "Panel:", bold=True, size=8)
     merge("M4", "N4", safe(p.panel_capacity_kw if p else ""), size=8)
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # ROW 5 — C/O / Suresh Vishal agency | Roof, Phase checkboxes
-    # ──────────────────────────────────────────────────────────────────────────
+    # ROW 5 — C/O / Roof, Phase checkboxes
     rh(5, 14)
+    coord_name = safe(p.coordinator.full_name if p and p.coordinator else "")
     merge("A5", "D5", "C/O:", size=8, bold=True)
-    merge("E5", "H5", "Suresh vishal agency", size=8)
-    label(9, 5, "Roof:", bold=True, size=8)
-    # Phase boxes F C S
-    label(10, 5, "F", bold=True, size=8, align="center",
-          bg=PatternFill("solid", fgColor="D9D9D9"))
-    label(11, 5, "C", bold=True, size=8, align="center",
-          bg=PatternFill("solid", fgColor="D9D9D9"))
-    label(12, 5, "S", bold=True, size=8, align="center",
-          bg=PatternFill("solid", fgColor="D9D9D9"))
-    # tick the right one
-    roof = safe(p.roof_type if p else "")
-    ticks = {"F": "", "C": "", "S": ""}
-    if "Flat" in roof:   ticks["F"] = "✓"
-    elif "Slope" in roof: ticks["C"] = "✓"
-    elif "Sheet" in roof: ticks["S"] = "✓"
-    ws.cell(5, 10).value = ticks["F"]
-    ws.cell(5, 11).value = ticks["C"]
-    ws.cell(5, 12).value = ticks["S"]
-    merge("M5", "N5", "", size=8)
+    merge("E5", "H5", coord_name, size=8)
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # ROW 6 — Sub / Phase
-    # ──────────────────────────────────────────────────────────────────────────
+    # ROW 6 — Sub C/O / Phase
     rh(6, 14)
-    merge("A6", "D6", "Sub:", size=8, bold=True)
-    merge("E6", "H6", "", size=8)
+    merge("A6", "D6", "Sub C/O:", size=8, bold=True)
+    merge("E6", "H6", safe(c.sub_co if c else ""), size=8)
     label(9, 6, "Phase:", bold=True, size=8)
     phase_val = ""
     if cd and cd.connection_type:
