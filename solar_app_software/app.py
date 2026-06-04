@@ -4193,7 +4193,7 @@ def job_card_page():
                         joinedload(Project.expenses),
                         joinedload(Project.coordinator),
                         joinedload(Project.doc_staff),
-                        joinedload(Project.kseb_task),
+                        joinedload(Project.kseb_tasks),
                     )
                     .join(Customer)
                     .filter(Customer.name.ilike(f'%{query}%'))
