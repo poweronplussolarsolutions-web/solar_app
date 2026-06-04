@@ -346,25 +346,43 @@
     </div>
 
     {# RIGHT: KSEB & Onsite #}
-    <div class="jc-section">
-      <div class="jc-section-title">KSEB &amp; Onsite</div>
-      {% for lbl, val in [
-        ('Stamp Paper',   (kseb.stamp_paper if kseb else '—')),
-        ('B-Class Lic.',  (kseb.b_class_licence if kseb else '—')),
-        ('File Sent',     ('✓ Done' if kseb and kseb.file_sent else '—')),
-        ('Inspection',    ('✓ Done' if kseb and kseb.inspection_done else '—')),
-        ('CD Payment',    ('✓ Done' if kseb and kseb.cd_payment_done else '—')),
-        ('Connection',    ('✓ Done' if kseb and kseb.connection_done else '—')),
-        ('Structure',     (op.structure_work_status if op else '—')),
-        ('Installation',  (op.installation_status if op else '—')),
-        ('Subsidy',       (sub.status if sub else '—')),
-      ] %}
-      <div class="jc-row">
-        <div class="jc-label">{{ lbl }}</div>
-        <div class="jc-val">{{ val }}</div>
-      </div>
-      {% endfor %}
+<div class="jc-section">
+  <div class="jc-section-title">KSEB &amp; Onsite</div>
+  {% for lbl, doc_key in [
+    ('Stamp Paper',  'KSEB Stamp Paper'),
+    ('B-Class Lic.', 'B-Class Licence'),
+    ('File Sent',    'File Sent'),
+    ('Inspection',   'Inspection'),
+    ('CD Payment',   'CD Payment'),
+    ('Connection',   'KSEB Connection Done'),
+  ] %}
+  {% set doc = doc_map.get(doc_key) %}
+  {% set is_done = doc and doc.status in ['Received','Completed','Sent'] %}
+  <div class="jc-row">
+    <div class="jc-label">{{ lbl }}</div>
+    <div class="jc-val">
+      {% if is_done %}
+        <span style="font-size:15px;color:#16a34a;line-height:1">✓</span>
+        <span style="font-size:11px;color:#16a34a;font-weight:600">{{ doc.status }}</span>
+      {% else %}
+        <span style="font-size:15px;color:#9ca3af;line-height:1">✗</span>
+        <span style="font-size:11px;color:#9ca3af">{{ 'Pending' if doc else 'Not recorded' }}</span>
+      {% endif %}
     </div>
+  </div>
+  {% endfor %}
+  {# Onsite & Subsidy remain the same #}
+  {% for lbl, val in [
+    ('Structure',    (op.structure_work_status if op else '—')),
+    ('Installation', (op.installation_status if op else '—')),
+    ('Subsidy',      (sub.status if sub else '—')),
+  ] %}
+  <div class="jc-row">
+    <div class="jc-label">{{ lbl }}</div>
+    <div class="jc-val">{{ val }}</div>
+  </div>
+  {% endfor %}
+</div>
 
     {# FULL: System details #}
     <div class="jc-section jc-full">

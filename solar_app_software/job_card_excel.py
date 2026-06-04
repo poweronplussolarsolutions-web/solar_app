@@ -266,25 +266,20 @@ def build_job_card(project=None, output_path="/tmp/job_card.xlsx"):
     feas_val = safe(feas.status if feas else "")
     merge("J12", "N12", feas_val, size=8)
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # ROW 13 — Place / Stamp Paper
-    # ──────────────────────────────────────────────────────────────────────────
-    rh(13, 14)
-    merge("A13", "D13", "Place:", size=8, bold=True)
-    merge("E13", "H13", safe(c.place if c else ""), size=8)
-    label(9, 13, "Stamp Paper:", bold=True, size=8)
-    stamp = safe(kseb.stamp_paper if kseb else "")
-    merge("J13", "N13", stamp, size=8)
+    # build doc_map from documents
+    doc_map = {}
+    if p:
+        doc_map = {d.doc_type: d for d in p.documents}
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # ROW 14 — Post / B-Class Licence
-    # ──────────────────────────────────────────────────────────────────────────
-    rh(14, 14)
-    merge("A14", "D14", "Post:", size=8, bold=True)
-    merge("E14", "H14", safe(c.post if c else ""), size=8)
-    label(9, 14, "B-Class License:", bold=True, size=8, wrap=True)
-    bc = safe(kseb.b_class_licence if kseb else "")
-    merge("J14", "N14", bc, size=8)
+    def doc_status(key):
+        d = doc_map.get(key)
+        return d.status if d else ""
+
+    # ROW 13 — Stamp Paper
+    merge(f"J13", f"N13", doc_status('KSEB Stamp Paper'), size=8)
+
+    # ROW 14 — B-Class Licence  
+    merge(f"J14", f"N14", doc_status('B-Class Licence'), size=8)
 
     # ──────────────────────────────────────────────────────────────────────────
     # ROW 15 — Pin / Photos
@@ -315,14 +310,8 @@ def build_job_card(project=None, output_path="/tmp/job_card.xlsx"):
     kseb_conn = doc_map.get("KSEB Connection")
     merge("J17", "N17", safe(kseb_conn.status if kseb_conn else ""), size=8)
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # ROW 18 — District / KSEB Completion
-    # ──────────────────────────────────────────────────────────────────────────
-    rh(18, 14)
-    merge("A18", "D18", "District:", size=8, bold=True)
-    merge("E18", "H18", safe(c.district if c else ""), size=8)
-    label(9, 18, "KSEB Completion:", bold=True, size=8, wrap=True)
-    kseb_done = "✓" if (kseb and kseb.connection_done) else ""
+    # ROW 18 — KSEB Completion — now reads 'KSEB Connection Done'
+    kseb_done = "✓" if doc_map.get('KSEB Connection Done') and doc_map['KSEB Connection Done'].status in ['Received','Completed'] else ""
     merge("J18", "N18", kseb_done, size=8)
 
     # ──────────────────────────────────────────────────────────────────────────
