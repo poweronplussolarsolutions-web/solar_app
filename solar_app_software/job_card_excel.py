@@ -186,6 +186,8 @@ def build_job_card(project=None, output_path="/tmp/job_card.xlsx"):
     coord_name = safe(p.coordinator.full_name if p and p.coordinator else "")
     merge("A5", "D5", "C/O:", size=8, bold=True)
     merge("E5", "H5", coord_name, size=8)
+    label(9, 5, "Inv. Type:", bold=True, size=8)
+    merge("J5", "N5", safe(p.inverter_type if p else ""), size=8)
 
     # ROW 6 — Sub C/O / Phase
     rh(6, 14)
@@ -457,9 +459,18 @@ def build_job_card(project=None, output_path="/tmp/job_card.xlsx"):
     # ──────────────────────────────────────────────────────────────────────────
     # ROW 41 — Customer Signature
     # ──────────────────────────────────────────────────────────────────────────
-    rh(41, 20)
-    merge("A41", "H41", "", size=8)
-    merge("I41", "N41", "Customer Signature",
+    rh(41, 16)
+    merge("A41", "N41", "Notes / Changes (Payments & Amendments)",
+          bold=True, size=8, bg=BG_LIGHT, align="left")
+
+    for _r in range(42, 46):
+        rh(_r, 18)
+        merge(f"A{_r}", f"N{_r}", "", size=8)
+
+    # ── ROW 46 — Signature
+    rh(46, 20)
+    merge("A46", "H46", "", size=8)
+    merge("I46", "N46", "Signature",
           size=8, bold=True, align="center")
 
     wb.save(output_path)

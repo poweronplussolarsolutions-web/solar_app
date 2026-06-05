@@ -301,6 +301,7 @@
         ('KW (Panel)',    proj.panel_capacity_kw ~ ' kW'),
         ('Type',          proj.project_type ~ (' / ' ~ proj.project_subtype if proj.project_subtype else '')),
         ('Roof',          proj.roof_type or '—'),
+        ('Inverter Type', proj.inverter_type or '—'),
         ('Phase',         (cd.connection_type if cd and cd.connection_type else '—')),
         ('Section',       (cd.kseb_section if cd and cd.kseb_section else '—')),
         ('Consumer No.',  (cd.consumer_number if cd and cd.consumer_number else '—')),
@@ -456,11 +457,25 @@
   </div>
 
   {# Signature #}
+  {# Notes / Changes #}
+  <div style="border-top:0.5px solid var(--border)">
+    <div class="jc-section-title">Notes / Changes (Payments &amp; Amendments)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr">
+      {% for _ in range(4) %}
+      <div class="jc-row" style="min-height:36px;border-right:0.5px solid var(--border)">
+        <div class="jc-val" style="color:var(--hint);font-size:10px;font-style:italic">
+          _______________________________________________
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# Signature #}
   <div style="display:flex;justify-content:flex-end;border-top:0.5px solid var(--border);
               padding:14px 24px;font-size:12px;color:var(--muted)">
     Signature: _______________________
   </div>
-</div>
 
 {% else %}
 {# ── Empty state ── #}
@@ -585,10 +600,12 @@ function printJobCard() {
       .jc-section { border-right: 0.5px solid #ccc; }
       .jc-section:nth-child(even) { border-right: none; }
       .jc-full { grid-column: 1 / -1; border-right: none; }
+      .jc-val { padding: 3px 8px; flex: 1; display: flex; align-items: center;
+      font-size: 10px; font-weight: 500; gap: 5px; }
       .jc-section-title { background: #f0f0f0; border-bottom: 0.5px solid #ccc;
         border-top: 0.5px solid #ccc; padding: 4px 10px;
         font-weight: 700; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; }
-      .jc-row { display: flex; border-bottom: 0.5px solid #e0e0e0; min-height: 22px; }
+      .jc-row { display: flex; border-bottom: 0.5px solid #e0e0e0; min-height: 28px; }
       .jc-row:last-child { border-bottom: none; }
       .jc-label { width: 110px; flex-shrink: 0; padding: 3px 8px 3px 10px;
         color: #666; font-size: 9px; display: flex; align-items: center;
