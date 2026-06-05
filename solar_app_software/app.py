@@ -1710,24 +1710,24 @@ def edit_project(pid):
 
                 elif raw_coord_id:
                     new_coord_id = int(raw_coord_id)
-                if proj.coordinator_id != new_coord_id:
-                    old_coord = proj.coordinator
-                    new_coord = User.query.get(new_coord_id)
-                    if old_coord:
-                        create_notification(old_coord.id, pid,
-                        f'You have been unassigned as coordinator from {proj.project_code} — {proj.customer.name}.', 'info')
-                    if new_coord:
-                        create_notification(new_coord_id, pid,
-                        f'You have been assigned as coordinator for {proj.project_code} — {proj.customer.name}.', 'task')
-                        changes.append(
+                    if proj.coordinator_id != new_coord_id:
+                        old_coord = proj.coordinator
+                        new_coord = User.query.get(new_coord_id)
+                        if old_coord:
+                            create_notification(old_coord.id, pid,
+                            f'You have been unassigned as coordinator from {proj.project_code} — {proj.customer.name}.', 'info')
+                        if new_coord:
+                            create_notification(new_coord_id, pid,
+                            f'You have been assigned as coordinator for {proj.project_code} — {proj.customer.name}.', 'task')
+                            changes.append(
                             f'Coordinator: {old_coord.full_name if old_coord else "None"} → '
                             f'{new_coord.full_name if new_coord else "None"}'
-                        )
-                    proj.coordinator_id = new_coord_id
+                            )
+                        proj.coordinator_id = new_coord_id
+                        proj.coordinator_name = None
+                else:
+                    proj.coordinator_id = None
                     proj.coordinator_name = None
-            else:
-                proj.coordinator_id = None
-                proj.coordinator_name = None
 
         if new_amount > float(proj.collected_amount or 0):
             if proj.status == 'Completed' and proj.stage == 'Payment':
