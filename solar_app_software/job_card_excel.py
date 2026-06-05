@@ -445,7 +445,7 @@ def build_job_card(project=None, output_path="/tmp/job_card.xlsx"):
                 nm_exp = exp
 
     pay_rows = [
-        ("Lead", safe(p.total_amount if p else "", fmt="inr")),
+        ("Work Amount", safe(p.total_amount if p else "", fmt="inr")),
         ("CD",   safe(cd_exp.amount if cd_exp else "", fmt="inr")),
         ("NM",   safe(nm_exp.amount if nm_exp else "", fmt="inr")),
         ("Total", safe(p.total_receivable if p else "", fmt="inr")),

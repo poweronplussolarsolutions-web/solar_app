@@ -424,36 +424,105 @@
     {# FULL: Payment #}
     <div class="jc-section jc-full">
       <div class="jc-section-title">Payment Details</div>
+
+      {# Contract / expense summary row #}
       {% set cd_exp = proj.expenses | selectattr('expense_type','eq','CD Payment') | first | default(none) %}
       {% set nm_exp = proj.expenses | selectattr('expense_type','eq','Meter')      | first | default(none) %}
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;border-bottom:0.5px solid var(--border)">
         {% for lbl, val, hl in [
-          ('Lead (Contract)',  proj.total_amount | inr,                                  false),
-          ('CD Payment',       (cd_exp.amount | inr if cd_exp else '—'),                 false),
-          ('Net Meter (NM)',   (nm_exp.amount | inr if nm_exp else '—'),                 false),
-          ('Total Receivable', proj.total_receivable | inr,                              true),
+          ('Work Amount',  proj.total_amount | inr,                          false),
+          ('CD Payment',       (cd_exp.amount | inr if cd_exp else '—'),         false),
+          ('Net Meter (NM)',   (nm_exp.amount | inr if nm_exp else '—'),         false),
+          ('Total Receivable', proj.total_receivable | inr,                      true),
         ] %}
-        <div class="jc-row"
-             style="flex-direction:column;padding:10px 14px;
-             {% if hl %}background:var(--teal-50,#f0fdfa);{% endif %}
-             border-right:0.5px solid var(--border)">
+        <div style="padding:8px 14px;{% if hl %}background:var(--teal-50,#f0fdfa);{% endif %}
+                    border-right:0.5px solid var(--border)">
           <div style="font-size:10px;color:var(--muted);margin-bottom:2px">{{ lbl }}</div>
-          <div style="font-size:15px;font-weight:{% if hl %}700{% else %}500{% endif %};
+          <div style="font-size:13px;font-weight:{% if hl %}700{% else %}500{% endif %};
                       color:{% if hl %}var(--teal-800,#134e4a){% else %}var(--text){% endif %}">{{ val }}</div>
         </div>
         {% endfor %}
       </div>
-      <div class="jc-row" style="justify-content:flex-end;padding:10px 20px;gap:12px">
-        <div style="font-size:12px;color:var(--muted)">Collected:</div>
-        <div style="font-size:14px;font-weight:600;color:var(--green-700,#15803d)">{{ proj.effective_collected | inr }}</div>
-        <div style="font-size:12px;color:var(--muted);margin-left:12px">Pending:</div>
-        <div style="font-size:14px;font-weight:600;
-                    color:{% if proj.pending_amount > 0 %}var(--amber-600,#d97706){% else %}var(--green-600){% endif %}">
-          {{ proj.pending_amount | inr }}
-        </div>
+      {# Individual payments table #}
+      {% if proj.payments %}
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead>
+            <tr style="background:var(--bg)">
+              <th style="padding:5px 10px 5px 14px;text-align:left;font-weight:600;
+                         color:var(--muted);font-size:10px;border-bottom:0.5px solid var(--border);
+                         white-space:nowrap">#</th>
+              <th style="padding:5px 10px;text-align:left;font-weight:600;
+                         color:var(--muted);font-size:10px;border-bottom:0.5px solid var(--border);
+                         white-space:nowrap">Date</th>
+              <th style="padding:5px 10px;text-align:left;font-weight:600;
+                         color:var(--muted);font-size:10px;border-bottom:0.5px solid var(--border);
+                         white-space:nowrap">Type</th>
+              <th style="padding:5px 10px;text-align:left;font-weight:600;
+                         color:var(--muted);font-size:10px;border-bottom:0.5px solid var(--border);
+                         white-space:nowrap">Source</th>
+              <th style="padding:5px 10px;text-align:left;font-weight:600;
+                         color:var(--muted);font-size:10px;border-bottom:0.5px solid var(--border);
+                         white-space:nowrap">Ref No.</th>
+                         <th style="padding:5px 14px 5px 10px;text-align:right;font-weight:600;
+                         color:var(--muted);font-size:10px;border-bottom:0.5px solid var(--border);
+                         white-space:nowrap">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for pay in proj.payments | sort(attribute='payment_date') %}
+            <tr style="{% if loop.index is odd %}background:var(--bg){% endif %}">
+              <td style="padding:5px 10px 5px 14px;color:var(--muted);font-size:10px">{{ loop.index }}</td>
+              <td style="padding:5px 10px;white-space:nowrap">{{ pay.payment_date | date_fmt }}</td>
+              <td style="padding:5px 10px;white-space:nowrap">
+                <span style="font-size:10px;padding:1px 6px;border-radius:10px;
+                  background:{% if pay.payment_type=='Cash' %}#d4edda{% elif pay.payment_type=='Online' %}#d1ecf1{% elif pay.payment_type=='Cheque' %}#fff3cd{% else %}#e2e3e5{% endif %};
+                  color:{% if pay.payment_type=='Cash' %}#155724{% elif pay.payment_type=='Online' %}#0c5460{% elif pay.payment_type=='Cheque' %}#856404{% else %}#383d41{% endif %}">
+                  {{ pay.payment_type }}
+                </span>
+              </td>
+              <td style="padding:5px 10px;color:var(--muted);font-size:11px">
+                {{ pay.payment_source }}{% if pay.instalment %} · {{ pay.instalment }}{% endif %}
+              </td>
+              <td style="padding:5px 10px;font-family:monospace;font-size:10px;color:var(--muted)">
+                {{ pay.reference_no or '—' }}
+              </td>
+              <td style="padding:5px 14px 5px 10px;text-align:right;font-weight:600;
+                         white-space:nowrap">{{ pay.amount | inr }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr style="background:var(--bg);border-top:1.5px solid var(--border)">
+              <td colspan="5"
+                  style="padding:7px 10px 7px 14px;font-weight:700;font-size:11px">
+                Total Collected ({{ proj.payments | length }} payment{{ 's' if proj.payments | length != 1 }})
+              </td>
+              <td style="padding:7px 14px 7px 10px;text-align:right;font-weight:700;
+                         font-size:13px;color:var(--green-700,#15803d);white-space:nowrap">
+                {{ proj.effective_collected | inr }}
+              </td>
+            </tr>
+            <tr style="background:{% if proj.pending_amount > 0 %}#fffbeb{% else %}#f0fdf4{% endif %}">
+              <td colspan="5"
+                  style="padding:7px 10px 7px 14px;font-weight:700;font-size:11px">
+                Pending Balance
+              </td>
+              <td style="padding:7px 14px 7px 10px;text-align:right;font-weight:700;
+                         font-size:13px;white-space:nowrap;
+                         color:{% if proj.pending_amount > 0 %}var(--amber-600,#d97706){% else %}#15803d{% endif %}">
+                {{ proj.pending_amount | inr }}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
+      {% else %}
+       <div style="padding:16px 14px;font-size:12px;color:var(--hint);font-style:italic">
+        No payments recorded yet.
+      </div>
+      {% endif %}
     </div>
-
   </div>
 
   {# Signature #}
