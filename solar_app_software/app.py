@@ -1725,7 +1725,12 @@ def edit_project(pid):
                             )
                         proj.coordinator_id = new_coord_id
                         proj.coordinator_name = None
-                else:
+                elif raw_coord_id == '__clear__':          
+                    if proj.coordinator_id:
+                        old_coord = proj.coordinator
+                        create_notification(old_coord.id, pid,
+                            f'You have been unassigned as coordinator from {proj.project_code} — {proj.customer.name}.', 'info')
+                        changes.append(f'Coordinator: {old_coord.full_name} → None')
                     proj.coordinator_id = None
                     proj.coordinator_name = None
 
