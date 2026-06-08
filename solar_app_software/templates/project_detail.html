@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 {{ proj.days_in_stage }}d
               {% endif %}
             </span>
-            {% if proj.days_in_stage > 30 %} ⚠ Overdue{% endif %}
+            {% if proj.days_in_stage > 60 %} ⚠ Overdue{% endif %}
           </span>
         </td>
       </tr>
@@ -726,18 +726,71 @@ document.addEventListener('DOMContentLoaded', function () {
     {% if proj.payments %}
     <div class="table-wrap">
     <table>
-      <thead><tr><th>Date</th><th>Amount</th><th>Type</th><th>Ref No.</th><th>Notes</th></tr></thead>
-      <tbody>
-        {% for pay in proj.payments | sort(attribute='payment_date', reverse=True) %}
-        <tr>
-          <td>{{ pay.payment_date | date_fmt }}</td>
-          <td style="font-weight:500">{{ pay.amount | inr }}</td>
-          <td><span class="tag">{{ pay.payment_type }}</span></td>
-          <td style="font-size:12px;color:var(--muted)">{{ pay.reference_no or '—' }}</td>
-          <td style="font-size:12px;color:var(--muted)">{{ pay.notes or '—' }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
+      <thead><tr><th>Date</th><th>Amount</th><th>Type</th><th>Ref No.</th><th>Notes</th>{% if current_user.role in ['admin','payments'] %}<th></th>{% endif %}</tr></thead>
+<tbody>
+  {% for pay in proj.payments | sort(attribute='payment_date', reverse=True) %}
+  <tr id="pay-row-{{ pay.id }}">
+    <td>{{ pay.payment_date | date_fmt }}</td>
+    <td style="font-weight:500">{{ pay.amount | inr }}</td>
+    <td><span class="tag">{{ pay.payment_type }}</span></td>
+    <td style="font-size:12px;color:var(--muted)">{{ pay.reference_no or '—' }}</td>
+    <td style="font-size:12px;color:var(--muted)">{{ pay.notes or '—' }}</td>
+    {% if current_user.role in ['admin','payments'] %}
+    <td style="white-space:nowrap">
+  <button class="btn btn-sm pay-edit-btn" data-pay="{{ pay.id }}">Edit</button>
+  <form method="POST" action="{{ url_for('delete_payment', pid=proj.id, pay_id=pay.id) }}"
+        style="display:inline"
+        onsubmit="return confirm('Delete this payment?')">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+  </form>
+</td>
+    {% endif %}
+  </tr>
+  {% if current_user.role in ['admin','payments'] %}
+  <tr id="pay-edit-{{ pay.id }}" style="display:none;background:var(--bg)">
+    <td colspan="6" style="padding:12px 14px">
+      <form method="POST" action="{{ url_for('edit_payment', pid=proj.id, pay_id=pay.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
+          <div>
+            <label style="font-size:12px">Amount (₹)</label>
+            <input type="number" name="amount" step="0.01" min="1"
+                   value="{{ pay.amount | float | round(2) }}" required/>
+          </div>
+          <div>
+            <label style="font-size:12px">Type</label>
+            <select name="payment_type">
+              {% for t in ['Cash','Bank','Cheque','Online'] %}
+              <option {% if pay.payment_type == t %}selected{% endif %}>{{ t }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px">Date</label>
+            <input type="date" name="payment_date"
+                   value="{{ pay.payment_date.isoformat() }}" required/>
+          </div>
+          <div>
+            <label style="font-size:12px">Reference no.</label>
+            <input type="text" name="reference_no" value="{{ pay.reference_no or '' }}"/>
+          </div>
+          <div style="display:flex;gap:6px">
+  <button type="submit" class="btn btn-primary btn-sm">Save</button>
+  <button type="button" class="btn btn-sm pay-edit-btn" data-pay="{{ pay.id }}">Cancel</button>
+</div>
+        </div>
+        <div style="margin-top:8px">
+          <label style="font-size:12px">Notes</label>
+          <input type="text" name="notes" value="{{ pay.notes or '' }}"
+                 style="width:100%" placeholder="Optional"/>
+        </div>
+      </form>
+    </td>
+  </tr>
+  {% endif %}
+  {% endfor %}
+</tbody>
     </table>
     </div>
     {% else %}
@@ -1329,5 +1382,22 @@ function validatePanelForm(form) {
   serialsInput.style.borderColor   = '';
   return true;
 }
+function togglePayEdit(payId) {
+  var editRow = document.getElementById('pay-edit-' + payId);
+  if (editRow) {
+    editRow.style.display = editRow.style.display === 'none' ? 'table-row' : 'none';
+  }
+}
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.pay-edit-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var payId   = this.getAttribute('data-pay');
+      var editRow = document.getElementById('pay-edit-' + payId);
+      if (editRow) {
+        editRow.style.display = editRow.style.display === 'none' ? 'table-row' : 'none';
+      }
+    });
+  });
+});
 </script>
 {% endblock %}

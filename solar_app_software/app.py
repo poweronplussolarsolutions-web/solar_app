@@ -2220,7 +2220,52 @@ def add_payment(pid):
     db.session.commit()
     flash(f'Payment of ₹{amount:,.0f} recorded.', 'success')
     return redirect(url_for('project_detail', pid=pid))
+@app.route('/projects/<int:pid>/payments/<int:pay_id>/edit', methods=['POST'])
+@login_required
+@roles_required('admin', 'payments')
+def edit_payment(pid, pay_id):
+    pay  = Payment.query.get_or_404(pay_id)
+    proj = Project.query.get_or_404(pid)
 
+    old_amount = float(pay.amount)
+    new_amount = _safe_float(request.form.get('amount'))
+
+    if new_amount <= 0:
+        flash('Amount must be greater than 0.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+
+    # Recalculate collected_amount: remove old, add new
+    proj.collected_amount = float(proj.collected_amount or 0) - old_amount + new_amount
+
+    pay.amount       = new_amount
+    pay.payment_type = request.form.get('payment_type', pay.payment_type)
+    pay.payment_date = date.fromisoformat(request.form['payment_date']) if request.form.get('payment_date') else pay.payment_date
+    pay.reference_no = _clean(request.form.get('reference_no', ''), 80) or None
+    pay.notes        = _clean(request.form.get('notes', ''), 500)
+
+    log_action(pid, f'Payment edited: ₹{old_amount:,.0f} → ₹{new_amount:,.0f}',
+               old_val=str(old_amount), new_val=str(new_amount))
+    db.session.commit()
+    flash(f'Payment updated to ₹{new_amount:,.0f}.', 'success')
+    return redirect(url_for('project_detail', pid=pid))
+
+
+@app.route('/projects/<int:pid>/payments/<int:pay_id>/delete', methods=['POST'])
+@login_required
+@roles_required('admin', 'payments')
+def delete_payment(pid, pay_id):
+    pay  = Payment.query.get_or_404(pay_id)
+    proj = Project.query.get_or_404(pid)
+
+    amount = float(pay.amount)
+    proj.collected_amount = max(0, float(proj.collected_amount or 0) - amount)
+
+    log_action(pid, f'Payment deleted: ₹{amount:,.0f} ({pay.payment_type})',
+               old_val=str(amount), new_val='Deleted')
+    db.session.delete(pay)
+    db.session.commit()
+    flash(f'Payment of ₹{amount:,.0f} deleted.', 'warning')
+    return redirect(url_for('project_detail', pid=pid))
 
 @app.route('/payments')
 @login_required
