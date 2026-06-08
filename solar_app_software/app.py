@@ -668,6 +668,7 @@ class OnsiteProgress(db.Model):
     updated_at             = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by             = db.Column(db.Integer, db.ForeignKey('users.id'))
     project                = db.relationship('Project', backref=db.backref('onsite_progress', uselist=False))
+    important_notes=db.Column(db.Text, nullable=True)
 
 
 class OnsiteLog(db.Model):
@@ -2737,7 +2738,7 @@ def onsite_progress(pid):
         old_struct  = progress.structure_work_status
         old_install = progress.installation_status or 'NotStarted'
         old_elec    = progress.electrical_status   or 'NotStarted'
-
+        progress.important_notes=request.form.get('important_notes',progress.important_notes or '')
         progress.structure_work_status = new_struct
         progress.structure_notes       = _clean(request.form.get('structure_notes', ''), 500)
 

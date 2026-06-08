@@ -54,6 +54,66 @@
 {% set total_mats     = proj.materials | length %}
 {% set all_delivered  = total_mats > 0 and proj.materials | selectattr('dispatch_status','ne','Delivered') | list | length == 0 %}
 
+{# ══════════════════════════════════════════ #}
+{# IMPORTANT NOTES BANNER                     #}
+{# ══════════════════════════════════════════ #}
+{% if progress.important_notes %}
+<div style="display:flex;gap:10px;padding:12px 14px;
+     border-radius:var(--radius);border:0.5px solid #fbbf24;
+     background:#fffbeb;margin-bottom:16px;align-items:flex-start">
+  <span style="font-size:16px;flex-shrink:0">📌</span>
+  <div style="flex:1">
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;
+                text-transform:uppercase;color:#92400e;margin-bottom:4px">Important notes</div>
+    <div style="font-size:13px;color:#78350f;white-space:pre-wrap">{{ progress.important_notes }}</div>
+  </div>
+  {% if current_user.role in ['admin','onsite'] %}
+  <button class="btn btn-sm" id="notes-edit-btn"
+          style="flex-shrink:0;border-color:#fbbf24;color:#92400e">Edit</button>
+  {% endif %}
+</div>
+{% elif current_user.role in ['admin','onsite'] %}
+<div style="margin-bottom:16px">
+  <button class="btn btn-sm" id="notes-edit-btn">+ Add important notes</button>
+</div>
+{% endif %}
+
+<div id="notes-form" style="display:none;margin-bottom:16px">
+  <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="materials_ordered" value="{{ 'on' if progress.materials_ordered else '' }}"/>
+    <input type="hidden" name="materials_ordered_date" value="{{ progress.materials_ordered_date or '' }}"/>
+    <input type="hidden" name="materials_delivered" value="{{ 'on' if progress.materials_delivered else '' }}"/>
+    <input type="hidden" name="materials_delivered_date" value="{{ progress.materials_delivered_date or '' }}"/>
+    <input type="hidden" name="structure_work_status" value="{{ progress.structure_work_status or 'NotStarted' }}"/>
+    <input type="hidden" name="structure_start_date" value="{{ progress.structure_start_date or '' }}"/>
+    <input type="hidden" name="structure_end_date" value="{{ progress.structure_end_date or '' }}"/>
+    <input type="hidden" name="structure_notes" value="{{ progress.structure_notes or '' }}"/>
+    <input type="hidden" name="installation_status" value="{{ progress.installation_status or 'NotStarted' }}"/>
+    <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}"/>
+    <input type="hidden" name="installation_end_date" value="{{ progress.installation_end_date or '' }}"/>
+    <input type="hidden" name="installation_notes" value="{{ progress.installation_notes or '' }}"/>
+    <input type="hidden" name="electrical_status" value="{{ progress.electrical_status or 'NotStarted' }}"/>
+    <input type="hidden" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}"/>
+    <input type="hidden" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}"/>
+    <input type="hidden" name="electrical_notes" value="{{ progress.electrical_notes or '' }}"/>
+    <div style="border:0.5px solid #fbbf24;border-radius:var(--radius);
+                background:#fffbeb;padding:12px 14px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;
+                  text-transform:uppercase;color:#92400e;margin-bottom:8px">📌 Important notes</div>
+      <textarea name="important_notes" rows="3"
+                style="width:100%;font-size:13px;background:transparent;
+                       border:0.5px solid #fbbf24;border-radius:var(--radius);
+                       color:#78350f;padding:8px;resize:vertical"
+                placeholder="Enter notes visible to all team members on this project…">{{ progress.important_notes or '' }}</textarea>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        <button type="button" class="btn btn-sm" id="notes-cancel-btn">Cancel</button>
+      </div>
+    </div>
+  </form>
+</div>
+
 {# ── STEP TRACK ── #}
 <div class="step-track-wrap">
 <div class="step-track">
@@ -1078,6 +1138,21 @@ if (installCancelBtn) {
     installForm.style.display = 'none';
     installView.style.display = 'block';
     installEditBtn.style.display = 'inline-block';
+  });
+}
+var notesEditBtn   = document.getElementById('notes-edit-btn');
+var notesCancelBtn = document.getElementById('notes-cancel-btn');
+var notesForm      = document.getElementById('notes-form');
+if (notesEditBtn) {
+  notesEditBtn.addEventListener('click', function() {
+    notesForm.style.display = 'block';
+    notesEditBtn.style.display = 'none';
+  });
+}
+if (notesCancelBtn) {
+  notesCancelBtn.addEventListener('click', function() {
+    notesForm.style.display = 'none';
+    if (notesEditBtn) notesEditBtn.style.display = 'inline-block';
   });
 }
 </script>
