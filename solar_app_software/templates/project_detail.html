@@ -749,6 +749,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <div style="font-size:18px;font-weight:500;color:var(--green-600)">{{ p1.amount | inr }}</div>
         <div style="font-size:12px;color:var(--muted);margin-top:4px">{{ p1.payment_date | date_fmt }}</div>
         {% if p1.reference_no %}<div style="font-size:11px;color:var(--hint)">Ref: {{ p1.reference_no }}</div>{% endif %}
+        {% if p1.notes %}<div style="font-size:11px;color:var(--hint)">Notes: {{ p1.notes }}</div>{% endif %}
         <span class="badge badge-Completed" style="margin-top:6px;display:inline-block">Received</span>
         {% if current_user.role in ['admin','payments'] %}
         <div style="margin-top:10px;display:flex;gap:6px">
@@ -812,6 +813,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <div style="font-size:18px;font-weight:500;color:var(--green-600)">{{ p2.amount | inr }}</div>
         <div style="font-size:12px;color:var(--muted);margin-top:4px">{{ p2.payment_date | date_fmt }}</div>
         {% if p2.reference_no %}<div style="font-size:11px;color:var(--hint)">Ref: {{ p2.reference_no }}</div>{% endif %}
+        {% if p2.notes %}<div style="font-size:11px;color:var(--hint)">Notes: {{ p2.notes }}</div>{% endif %}
         <span class="badge badge-Completed" style="margin-top:6px;display:inline-block">Received</span>
         {% if current_user.role in ['admin','payments'] %}
         <div style="margin-top:10px;display:flex;gap:6px">
