@@ -125,7 +125,13 @@
     <a href="{{ url_for('onsite_progress', pid=p.id) }}" style="text-decoration:none;color:inherit;display:block">
       <div class="proj-card">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
-  <div class="proj-card-code">{{ p.project_code }} {% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}</div>
+  <div class="proj-card-code">{{ p.project_code }} . {% if proj.coordinator %}
+          {{ proj.coordinator.full_name }}
+        {% elif proj.coordinator_name %}
+          {{ proj.coordinator_name }}
+        {% else %}
+          —
+        {% endif %}</div>
   <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">
     {% if p.days_open <= 7 %}<span class="tag-pill pill-new">New</span>{% endif %}
     <span class="tag-pill pill-malabar">Not ordered</span>
