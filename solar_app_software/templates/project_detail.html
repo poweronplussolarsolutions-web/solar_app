@@ -612,7 +612,63 @@ document.addEventListener('DOMContentLoaded', function () {
         {% endif %}
       </div>
     </div>
+{# ── Loan details edit (admin only) ── #}
+{% if current_user.role == 'admin' %}
+{% set ld = proj.loan_detail %}
+<div style="border:0.5px solid var(--border);border-radius:var(--radius);
+            padding:14px;margin-bottom:16px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <div style="font-size:12px;font-weight:600;color:var(--muted);
+                text-transform:uppercase;letter-spacing:0.05em">Loan details</div>
+    <button class="btn btn-sm" id="loan-edit-btn">Edit</button>
+  </div>
 
+  <div id="loan-view" style="font-size:13px;display:flex;gap:24px;flex-wrap:wrap">
+    <div>
+      <span style="color:var(--muted)">Bank: </span>
+      <span style="font-weight:500">{{ ld.bank_name if ld and ld.bank_name else '—' }}</span>
+    </div>
+    <div>
+      <span style="color:var(--muted)">Loan amount: </span>
+      <span style="font-weight:500">{{ ld.loan_amount | inr if ld and ld.loan_amount else '—' }}</span>
+    </div>
+    <div>
+      <span style="color:var(--muted)">Notes: </span>
+      <span style="font-size:12px;color:var(--hint)">{{ ld.notes if ld and ld.notes else '—' }}</span>
+    </div>
+  </div>
+
+  <div id="loan-form" style="display:none;margin-top:12px;border-top:0.5px solid var(--border);padding-top:12px">
+    <form method="POST" action="{{ url_for('edit_loan_details_inline', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:10px;align-items:flex-end">
+        <div>
+          <label style="font-size:12px">Bank name</label>
+          <input type="text" name="bank_name"
+                 value="{{ ld.bank_name if ld and ld.bank_name else '' }}"
+                 placeholder="e.g. SBI, Canara"/>
+        </div>
+        <div>
+          <label style="font-size:12px">Loan amount (₹)</label>
+          <input type="number" name="loan_amount" step="0.01" min="0"
+                 value="{{ ld.loan_amount | float | round(2) if ld and ld.loan_amount else '' }}"
+                 placeholder="0"/>
+        </div>
+        <div>
+          <label style="font-size:12px">Notes</label>
+          <input type="text" name="notes"
+                 value="{{ ld.notes if ld and ld.notes else '' }}"
+                 placeholder="Optional"/>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          <button type="button" class="btn btn-sm" id="loan-cancel-btn">Cancel</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
     {% if not payment_complete and current_user.role in ['admin','payments'] and proj.next_bank_instalment %}
     <div style="border-top:0.5px solid var(--border);padding-top:16px;margin-bottom:16px">
       <div style="font-size:13px;font-weight:500;margin-bottom:10px">
@@ -653,73 +709,93 @@ document.addEventListener('DOMContentLoaded', function () {
     </div>
     {% endif %}
 
-    {% set customer_pays = proj.payments | selectattr('payment_source','eq','Customer') | list %}
-    {% if customer_pays %}
-    <div style="border-top:0.5px solid var(--border);padding-top:16px;margin-bottom:4px">
-      <div style="font-size:13px;font-weight:500;margin-bottom:10px;color:var(--text)">
-        Customer payments
-        <span style="font-weight:400;color:var(--muted);font-size:12px">(down-payment / balance)</span>
-      </div>
-      <div class="table-wrap">
-      <table>
-        <thead>
-          <tr><th>Date</th><th>Amount</th><th>Type</th><th>Ref No.</th><th>Notes</th></tr>
-        </thead>
-        <tbody>
-          {% for pay in customer_pays | sort(attribute='payment_date', reverse=True) %}
-          <tr>
-            <td>{{ pay.payment_date | date_fmt }}</td>
-            <td style="font-weight:500">{{ pay.amount | inr }}</td>
-            <td><span class="tag">{{ pay.payment_type }}</span></td>
-            <td style="font-size:12px;color:var(--muted)">{{ pay.reference_no or '—' }}</td>
-            <td style="font-size:12px;color:var(--muted)">{{ pay.notes or '—' }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      </div>
-    </div>
-    {% endif %}
-
-    {% if not payment_complete and current_user.role in ['admin','payments'] %}
-    <div style="border-top:0.5px solid var(--border);padding-top:16px">
-      <div style="font-size:13px;font-weight:500;margin-bottom:10px">
-        Record customer payment
-        <span style="font-weight:400;color:var(--muted);font-size:12px">(down-payment / remaining balance)</span>
-      </div>
-      <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="payment_source" value="Customer"/>
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Amount (₹)</label>
-            <input type="number" name="amount" step="0.01" min="1"
-                   max="{{ proj.pending_amount | round(2) }}"
-                   required placeholder="0"/>
-          </div>
-          <div class="form-group">
-            <label>Payment type</label>
-            <select name="payment_type">
-              <option>Cash</option><option>Bank</option><option>Cheque</option><option>Online</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Payment date</label>
-            <input type="date" name="payment_date" required/>
-          </div>
-          <div class="form-group">
-            <label>Reference No.</label>
-            <input type="text" name="reference_no" placeholder="Optional"/>
-          </div>
-          <div class="form-group full">
-            <label>Notes</label>
-            <input type="text" name="notes" placeholder="Optional"/>
-          </div>
-        </div>
-        <button type="submit" class="btn btn-primary">Save customer payment</button>
-      </form>
-    </div>
-    {% endif %}
+{% set customer_pays = proj.payments | selectattr('payment_source','eq','Customer') | list %}
+{% if customer_pays %}
+<div style="border-top:0.5px solid var(--border);padding-top:16px;margin-bottom:4px">
+  <div style="font-size:13px;font-weight:500;margin-bottom:10px;color:var(--text)">
+    Customer payments
+    <span style="font-weight:400;color:var(--muted);font-size:12px">(down-payment / balance)</span>
+  </div>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Amount</th><th>Type</th><th>Ref No.</th><th>Notes</th>
+        {% if current_user.role in ['admin','payments'] %}<th></th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for pay in customer_pays | sort(attribute='payment_date', reverse=True) %}
+      <tr>
+        <td>{{ pay.payment_date | date_fmt }}</td>
+        <td style="font-weight:500">{{ pay.amount | inr }}</td>
+        <td><span class="tag">{{ pay.payment_type }}</span></td>
+        <td style="font-size:12px;color:var(--muted)">{{ pay.reference_no or '—' }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ pay.notes or '—' }}</td>
+        {% if current_user.role in ['admin','payments'] %}
+        <td style="white-space:nowrap">
+          <button class="btn btn-sm pay-edit-btn" data-pay="{{ pay.id }}">Edit</button>
+          <form method="POST"
+                action="{{ url_for('delete_payment', pid=proj.id, pay_id=pay.id) }}"
+                style="display:inline"
+                onsubmit="return confirm('Delete this payment?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% if current_user.role in ['admin','payments'] %}
+      <tr id="pay-edit-{{ pay.id }}" style="display:none;background:var(--bg)">
+        <td colspan="6" style="padding:12px 14px">
+          <form method="POST"
+                action="{{ url_for('edit_payment', pid=proj.id, pay_id=pay.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
+              <div>
+                <label style="font-size:12px">Amount (₹)</label>
+                <input type="number" name="amount" step="0.01" min="1"
+                       value="{{ pay.amount | float | round(2) }}" required/>
+              </div>
+              <div>
+                <label style="font-size:12px">Type</label>
+                <select name="payment_type">
+                  {% for t in ['Cash','Bank','Cheque','Online'] %}
+                  <option {% if pay.payment_type == t %}selected{% endif %}>{{ t }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label style="font-size:12px">Date</label>
+                <input type="date" name="payment_date"
+                       value="{{ pay.payment_date.isoformat() }}" required/>
+              </div>
+              <div>
+                <label style="font-size:12px">Reference no.</label>
+                <input type="text" name="reference_no"
+                       value="{{ pay.reference_no or '' }}"/>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                <button type="button" class="btn btn-sm pay-edit-btn"
+                        data-pay="{{ pay.id }}">Cancel</button>
+              </div>
+            </div>
+            <div style="margin-top:8px">
+              <label style="font-size:12px">Notes</label>
+              <input type="text" name="notes" value="{{ pay.notes or '' }}"
+                     style="width:100%" placeholder="Optional"/>
+            </div>
+          </form>
+        </td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
 
   {% else %}
     {# ────────────────── CASH PROJECT ────────────────── #}
@@ -1399,5 +1475,23 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 });
+var loanEditBtn   = document.getElementById('loan-edit-btn');
+var loanCancelBtn = document.getElementById('loan-cancel-btn');
+var loanView      = document.getElementById('loan-view');
+var loanForm      = document.getElementById('loan-form');
+if (loanEditBtn) {
+  loanEditBtn.addEventListener('click', function () {
+    loanView.style.display = 'none';
+    loanForm.style.display = 'block';
+    loanEditBtn.style.display = 'none';
+  });
+}
+if (loanCancelBtn) {
+  loanCancelBtn.addEventListener('click', function () {
+    loanForm.style.display = 'none';
+    loanView.style.display = 'flex';
+    loanEditBtn.style.display = 'inline-block';
+  });
+}
 </script>
 {% endblock %}
