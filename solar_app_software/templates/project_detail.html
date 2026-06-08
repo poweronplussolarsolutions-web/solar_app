@@ -35,8 +35,6 @@
       {% endif %}
     </div>
   </div>
-
-  {# ── Admin: Uncancel button ── #}
   {% if proj.status == 'Cancelled' and current_user.role == 'admin' %}
   <button class="btn btn-sm btn-primary"
           onclick="togglePanel('uncancelPanel')"
@@ -46,7 +44,6 @@
   {% endif %}
 </div>
 
-{# Uncancel panel #}
 {% if proj.status == 'Cancelled' and current_user.role == 'admin' %}
 <div id="uncancelPanel" style="display:none;margin:-10px 0 16px 0;
      border:1px solid #6ee7b7;border-radius:var(--radius);
@@ -73,7 +70,6 @@
 </div>
 {% endif %}
 
-{# JS lock #}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('form').forEach(function (form) {
@@ -85,7 +81,6 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     }
   });
-
   document.querySelectorAll('button, a.btn').forEach(function (el) {
     var onclick = el.getAttribute('onclick') || '';
     var href    = el.getAttribute('href')    || '';
@@ -99,7 +94,6 @@ document.addEventListener('DOMContentLoaded', function () {
     var isNotification = el.id === 'notif-btn' || el.closest('#notif-btn') ||
                          el.classList.contains('notif-btn') || el.closest('.notif-btn') ||
                          onclick.includes('notif') || href.includes('notif');
-
     if (!isToggle && !isHoldForm && !isBack && !isNotification) {
       el.style.pointerEvents = 'none';
       el.style.opacity       = '0.4';
@@ -142,14 +136,12 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Loan amount</td><td>{{ ld.loan_amount | inr if ld and ld.loan_amount else '—' }}</td></tr>
       {% endif %}
       <tr><td style="color:var(--muted);padding:5px 0">Roof</td><td>{{ proj.roof_type }}</td></tr>
-      
       <tr><td style="color:var(--muted);padding:5px 0">Stage</td><td>{{ proj.stage }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Coordinator</td><td>
         {% if proj.coordinator %}
           {{ proj.coordinator.full_name }}
         {% elif proj.coordinator_name %}
           {{ proj.coordinator_name }}
-          
         {% else %}
           —
         {% endif %}
@@ -302,7 +294,6 @@ document.addEventListener('DOMContentLoaded', function () {
         <span style="font-size:11px;background:var(--surface);border:0.5px solid var(--border);
                      border-radius:20px;padding:2px 8px;color:var(--muted)">Optional</span>
       </div>
-
       {% if proj.site_visits %}
       <div class="table-wrap">
       <table style="margin-bottom:14px">
@@ -321,8 +312,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 Mark complete
               </button>
               <div id="complete-visit-{{ v.id }}" style="display:none;margin-top:8px">
-                <form method="POST"
-                      action="{{ url_for('complete_site_visit', pid=proj.id, vid=v.id) }}">
+                <form method="POST" action="{{ url_for('complete_site_visit', pid=proj.id, vid=v.id) }}">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
                     <div class="form-group" style="margin:0">
@@ -355,7 +345,6 @@ document.addEventListener('DOMContentLoaded', function () {
         No site visit scheduled — this is optional and won't affect the project flow.
       </div>
       {% endif %}
-
       {% if not proj.site_visits %}
       <form method="POST" action="{{ url_for('add_site_visit', pid=proj.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -377,13 +366,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     <script>
     const stageStatusMap = {
-      'Lead':          'Created',
-      'Site Visit':    'Created',
-      'Documentation': 'InProgress',
-      'Onsite Work':   'InProgress',
-      'Connection':    'InProgress',
-      'Subsidy':       'InProgress',
-      'Payment':       'InProgress',
+      'Lead':'Created','Site Visit':'Created','Documentation':'InProgress',
+      'Onsite Work':'InProgress','Connection':'InProgress','Subsidy':'InProgress','Payment':'InProgress',
     };
     function syncStatus(stageSelect) {
       const auto = stageStatusMap[stageSelect.value];
@@ -391,7 +375,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     </script>
 
-    {# Payment summary card #}
+    {# ── Payment summary card ── #}
     <div class="card" style="margin-top:0">
       <div class="card-title">Payment summary</div>
       <div style="font-size:22px;font-weight:500;margin-bottom:4px">{{ proj.effective_collected | inr }}</div>
@@ -415,54 +399,49 @@ document.addEventListener('DOMContentLoaded', function () {
         Max next payment: {{ proj.pending_amount | inr }}
       </div>
       {% endif %}
-      {# Payment breakdown #}
       <div class="payment-grid">
         <div style="background:var(--bg);border-radius:var(--radius);padding:10px 14px">
           <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Contract amount</div>
           <div style="font-size:16px;font-weight:500">{{ proj.total_amount | inr }}</div>
         </div>
-
-        {% set cd = proj.expenses | selectattr('expense_type','eq','CD Payment') | first | default(none) %}
-        {% set nm = proj.expenses | selectattr('expense_type','eq','Meter')  | first | default(none) %}
-
-        {% if cd %}
-        <div style="background:{% if cd.paid_by == 'Company' %}var(--amber-50){% else %}var(--bg){% endif %};border-radius:var(--radius);padding:10px 14px">
+        {% set cd_exp = proj.expenses | selectattr('expense_type','eq','CD Payment') | first | default(none) %}
+        {% set nm_exp = proj.expenses | selectattr('expense_type','eq','Meter') | first | default(none) %}
+        {% if cd_exp %}
+        <div style="background:{% if cd_exp.paid_by == 'Company' %}var(--amber-50){% else %}var(--bg){% endif %};border-radius:var(--radius);padding:10px 14px">
           <div style="font-size:11px;color:var(--muted);margin-bottom:2px">
             CD Payment
-            <span class="tag" style="margin-left:4px;font-size:10px">{{ cd.paid_by }}</span>
+            <span class="tag" style="margin-left:4px;font-size:10px">{{ cd_exp.paid_by }}</span>
           </div>
-          <div style="font-size:16px;font-weight:500">{{ cd.amount | inr }}</div>
-          {% if cd.paid_by == 'Company' and not cd.recovered %}
+          <div style="font-size:16px;font-weight:500">{{ cd_exp.amount | inr }}</div>
+          {% if cd_exp.paid_by == 'Company' and not cd_exp.recovered %}
           <div style="font-size:10px;color:var(--amber-600);margin-top:2px">Pending recovery</div>
-          {% elif cd.paid_by == 'Company' and cd.recovered %}
+          {% elif cd_exp.paid_by == 'Company' and cd_exp.recovered %}
           <div style="font-size:10px;color:var(--green-600);margin-top:2px">✓ Recovered</div>
-          {% if cd.recovery_date %}<div style="font-size:10px;color:var(--muted);margin-top:1px">{{ cd.recovery_date | date_fmt }}</div>{% endif %}
-          {% if cd.recovery_method %}<div style="font-size:10px;color:var(--muted)">via {{ cd.recovery_method }}</div>{% endif %}
-          {% if cd.recovery_reference %}<div style="font-size:10px;color:var(--hint);font-family:monospace">Ref: {{ cd.recovery_reference }}</div>{% endif %}
-          {% if cd.recovery_notes %}<div style="font-size:10px;color:var(--hint);margin-top:1px">{{ cd.recovery_notes }}</div>{% endif %}
+          {% if cd_exp.recovery_date %}<div style="font-size:10px;color:var(--muted);margin-top:1px">{{ cd_exp.recovery_date | date_fmt }}</div>{% endif %}
+          {% if cd_exp.recovery_method %}<div style="font-size:10px;color:var(--muted)">via {{ cd_exp.recovery_method }}</div>{% endif %}
+          {% if cd_exp.recovery_reference %}<div style="font-size:10px;color:var(--hint);font-family:monospace">Ref: {{ cd_exp.recovery_reference }}</div>{% endif %}
+          {% if cd_exp.recovery_notes %}<div style="font-size:10px;color:var(--hint);margin-top:1px">{{ cd_exp.recovery_notes }}</div>{% endif %}
           {% endif %}
         </div>
         {% endif %}
-
-        {% if nm %}
-        <div style="background:{% if nm.paid_by == 'Company' %}var(--amber-50){% else %}var(--bg){% endif %};border-radius:var(--radius);padding:10px 14px">
+        {% if nm_exp %}
+        <div style="background:{% if nm_exp.paid_by == 'Company' %}var(--amber-50){% else %}var(--bg){% endif %};border-radius:var(--radius);padding:10px 14px">
           <div style="font-size:11px;color:var(--muted);margin-bottom:2px">
             Meter
-            <span class="tag" style="margin-left:4px;font-size:10px">{{ nm.paid_by }}</span>
+            <span class="tag" style="margin-left:4px;font-size:10px">{{ nm_exp.paid_by }}</span>
           </div>
-          <div style="font-size:16px;font-weight:500">{{ nm.amount | inr }}</div>
-          {% if nm.paid_by == 'Company' and not nm.recovered %}
+          <div style="font-size:16px;font-weight:500">{{ nm_exp.amount | inr }}</div>
+          {% if nm_exp.paid_by == 'Company' and not nm_exp.recovered %}
           <div style="font-size:10px;color:var(--amber-600);margin-top:2px">Pending recovery</div>
-          {% elif nm.paid_by == 'Company' and nm.recovered %}
+          {% elif nm_exp.paid_by == 'Company' and nm_exp.recovered %}
           <div style="font-size:10px;color:var(--green-600);margin-top:2px">✓ Recovered</div>
-          {% if nm.recovery_date %}<div style="font-size:10px;color:var(--muted);margin-top:1px">{{ nm.recovery_date | date_fmt }}</div>{% endif %}
-          {% if nm.recovery_method %}<div style="font-size:10px;color:var(--muted)">via {{ nm.recovery_method }}</div>{% endif %}
-          {% if nm.recovery_reference %}<div style="font-size:10px;color:var(--hint);font-family:monospace">Ref: {{ nm.recovery_reference }}</div>{% endif %}
-          {% if nm.recovery_notes %}<div style="font-size:10px;color:var(--hint);margin-top:1px">{{ nm.recovery_notes }}</div>{% endif %}
+          {% if nm_exp.recovery_date %}<div style="font-size:10px;color:var(--muted);margin-top:1px">{{ nm_exp.recovery_date | date_fmt }}</div>{% endif %}
+          {% if nm_exp.recovery_method %}<div style="font-size:10px;color:var(--muted)">via {{ nm_exp.recovery_method }}</div>{% endif %}
+          {% if nm_exp.recovery_reference %}<div style="font-size:10px;color:var(--hint);font-family:monospace">Ref: {{ nm_exp.recovery_reference }}</div>{% endif %}
+          {% if nm_exp.recovery_notes %}<div style="font-size:10px;color:var(--hint);margin-top:1px">{{ nm_exp.recovery_notes }}</div>{% endif %}
           {% endif %}
         </div>
         {% endif %}
-
         <div style="background:var(--teal-50);border-radius:var(--radius);padding:10px 14px">
           <div style="font-size:11px;color:var(--teal-800);margin-bottom:2px">Total receivable</div>
           <div style="font-size:16px;font-weight:600;color:var(--teal-800)">{{ proj.total_receivable | inr }}</div>
@@ -487,8 +466,7 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
             <div id="recoverPanel_{{ expense.id }}" style="display:none;border-top:1px solid var(--amber-200,#fde68a);padding:14px;background:#fff">
               <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:12px">Recovery details — {{ expense.expense_type }}</div>
-              <form method="POST"
-                    action="{{ url_for('mark_expense_recovered', pid=proj.id, eid=expense.id) }}">
+              <form method="POST" action="{{ url_for('mark_expense_recovered', pid=proj.id, eid=expense.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="form-grid">
                   <div class="form-group">
@@ -524,9 +502,9 @@ document.addEventListener('DOMContentLoaded', function () {
           {% endif %}
         {% endfor %}
       {% endif %}
-    </div>
-  </div>
-</div>
+    </div>{# end payment summary card #}
+  </div>{# end right column div #}
+</div>{# end two-col #}
 
 {# ── QUICK LINKS ── #}
 <div class="card" style="margin-bottom:16px;padding:12px 20px">
@@ -548,7 +526,9 @@ document.addEventListener('DOMContentLoaded', function () {
   </div>
 </div>
 
-{# ── PAYMENTS ── #}
+{# ══════════════════════════════════════════════════════
+   PAYMENTS CARD
+   ══════════════════════════════════════════════════════ #}
 <div class="card" id="payments">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div class="card-title" style="margin:0">Payment history</div>
@@ -579,374 +559,432 @@ document.addEventListener('DOMContentLoaded', function () {
   {% endif %}
 
   {% if proj.project_type == 'Loan' %}
-    {# ────────────────── LOAN PROJECT ────────────────── #}
-    {% set instalments = proj.bank_instalments %}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+  {# ════════════════ LOAN PROJECT ════════════════ #}
+  {% set instalments = proj.bank_instalments %}
 
-  {# First instalment #}
-  <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px">
-    <div style="font-size:11px;color:var(--muted);margin-bottom:6px">First bank payment</div>
-    {% if 'First' in instalments %}
-      {% set p1 = instalments['First'] %}
-      <div style="font-size:18px;font-weight:500;color:var(--green-600)">{{ p1.amount | inr }}</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px">{{ p1.payment_date | date_fmt }}</div>
-      {% if p1.reference_no %}<div style="font-size:11px;color:var(--hint)">Ref: {{ p1.reference_no }}</div>{% endif %}
-      <span class="badge badge-Completed" style="margin-top:6px;display:inline-block">Received</span>
-      {% if current_user.role in ['admin','payments'] %}
-      <div style="margin-top:10px;display:flex;gap:6px">
-        <button class="btn btn-sm pay-edit-btn" data-pay="{{ p1.id }}">Edit</button>
-        <form method="POST" action="{{ url_for('delete_payment', pid=proj.id, pay_id=p1.id) }}"
-              style="display:inline" onsubmit="return confirm('Delete first bank payment?')">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-        </form>
-      </div>
-      <div id="pay-edit-{{ p1.id }}" style="display:none;margin-top:10px;
-           border-top:0.5px solid var(--border);padding-top:10px">
-        <form method="POST" action="{{ url_for('edit_payment', pid=proj.id, pay_id=p1.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="form-grid">
-            <div class="form-group">
-              <label style="font-size:12px">Amount (₹)</label>
-              <input type="number" name="amount" step="0.01" min="1"
-                     value="{{ p1.amount | float | round(2) }}" required/>
-            </div>
-            <div class="form-group">
-              <label style="font-size:12px">Type</label>
-              <select name="payment_type">
-                {% for t in ['Bank','Cheque','Online','Cash'] %}
-                <option {% if p1.payment_type == t %}selected{% endif %}>{{ t }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="form-group">
-              <label style="font-size:12px">Date</label>
-              <input type="date" name="payment_date"
-                     value="{{ p1.payment_date.isoformat() }}" required/>
-            </div>
-            <div class="form-group">
-              <label style="font-size:12px">Reference no.</label>
-              <input type="text" name="reference_no" value="{{ p1.reference_no or '' }}"/>
-            </div>
-            <div class="form-group full">
-              <label style="font-size:12px">Notes</label>
-              <input type="text" name="notes" value="{{ p1.notes or '' }}" placeholder="Optional"/>
-            </div>
-          </div>
-          <div style="display:flex;gap:6px;margin-top:6px">
-            <button type="submit" class="btn btn-primary btn-sm">Save</button>
-            <button type="button" class="btn btn-sm pay-edit-btn" data-pay="{{ p1.id }}">Cancel</button>
-          </div>
-        </form>
-      </div>
-      {% endif %}
-    {% else %}
-      <div style="font-size:15px;font-weight:500;color:var(--hint)">—</div>
-      <span class="badge badge-Pending" style="margin-top:6px;display:inline-block">Awaiting</span>
-    {% endif %}
-  </div>
+  {# ── Bank instalment cards ── #}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
 
-  {# Second instalment #}
-  <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px">
-    <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Second bank payment</div>
-    {% if 'Second' in instalments %}
-      {% set p2 = instalments['Second'] %}
-      <div style="font-size:18px;font-weight:500;color:var(--green-600)">{{ p2.amount | inr }}</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px">{{ p2.payment_date | date_fmt }}</div>
-      {% if p2.reference_no %}<div style="font-size:11px;color:var(--hint)">Ref: {{ p2.reference_no }}</div>{% endif %}
-      <span class="badge badge-Completed" style="margin-top:6px;display:inline-block">Received</span>
-      {% if current_user.role in ['admin','payments'] %}
-      <div style="margin-top:10px;display:flex;gap:6px">
-        <button class="btn btn-sm pay-edit-btn" data-pay="{{ p2.id }}">Edit</button>
-        <form method="POST" action="{{ url_for('delete_payment', pid=proj.id, pay_id=p2.id) }}"
-              style="display:inline" onsubmit="return confirm('Delete second bank payment?')">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-        </form>
-      </div>
-      <div id="pay-edit-{{ p2.id }}" style="display:none;margin-top:10px;
-           border-top:0.5px solid var(--border);padding-top:10px">
-        <form method="POST" action="{{ url_for('edit_payment', pid=proj.id, pay_id=p2.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="form-grid">
-            <div class="form-group">
-              <label style="font-size:12px">Amount (₹)</label>
-              <input type="number" name="amount" step="0.01" min="1"
-                     value="{{ p2.amount | float | round(2) }}" required/>
-            </div>
-            <div class="form-group">
-              <label style="font-size:12px">Type</label>
-              <select name="payment_type">
-                {% for t in ['Bank','Cheque','Online','Cash'] %}
-                <option {% if p2.payment_type == t %}selected{% endif %}>{{ t }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="form-group">
-              <label style="font-size:12px">Date</label>
-              <input type="date" name="payment_date"
-                     value="{{ p2.payment_date.isoformat() }}" required/>
-            </div>
-            <div class="form-group">
-              <label style="font-size:12px">Reference no.</label>
-              <input type="text" name="reference_no" value="{{ p2.reference_no or '' }}"/>
-            </div>
-            <div class="form-group full">
-              <label style="font-size:12px">Notes</label>
-              <input type="text" name="notes" value="{{ p2.notes or '' }}" placeholder="Optional"/>
-            </div>
-          </div>
-          <div style="display:flex;gap:6px;margin-top:6px">
-            <button type="submit" class="btn btn-primary btn-sm">Save</button>
-            <button type="button" class="btn btn-sm pay-edit-btn" data-pay="{{ p2.id }}">Cancel</button>
-          </div>
-        </form>
-      </div>
-      {% endif %}
-    {% elif 'First' in instalments %}
-      <div style="font-size:15px;font-weight:500;color:var(--hint)">—</div>
-      <span class="badge badge-Created" style="margin-top:6px;display:inline-block">Pending</span>
-    {% else %}
-      <div style="font-size:15px;font-weight:500;color:var(--hint)">—</div>
-      <span class="badge badge-Closed" style="margin-top:6px;display:inline-block">Locked</span>
-    {% endif %}
-  </div>
-
-</div>
-
-    {% if not payment_complete and current_user.role in ['admin','payments'] and proj.next_bank_instalment %}
-    <div style="border-top:0.5px solid var(--border);padding-top:16px;margin-bottom:16px">
-      <div style="font-size:13px;font-weight:500;margin-bottom:10px">
-        Record <span style="color:var(--amber-600)">{{ proj.next_bank_instalment }} bank payment</span>
-      </div>
-      <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="payment_source" value="Bank"/>
-        <input type="hidden" name="instalment" value="{{ proj.next_bank_instalment }}"/>
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Amount (₹)</label>
-            <input type="number" name="amount" step="0.01" min="1"
-                   max="{{ proj.pending_amount | round(2) }}"
-                   required placeholder="0"/>
-          </div>
-          <div class="form-group">
-            <label>Payment date</label>
-            <input type="date" name="payment_date" required/>
-          </div>
-          <div class="form-group">
-            <label>Payment type</label>
-            <select name="payment_type">
-              <option>Bank</option><option>Cheque</option><option>Online</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Bank reference no.</label>
-            <input type="text" name="reference_no" placeholder="Ref / UTR number"/>
-          </div>
-          <div class="form-group full">
-            <label>Notes</label>
-            <input type="text" name="notes" placeholder="Optional"/>
-          </div>
+    {# First instalment #}
+    <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">First bank payment</div>
+      {% if 'First' in instalments %}
+        {% set p1 = instalments['First'] %}
+        <div style="font-size:18px;font-weight:500;color:var(--green-600)">{{ p1.amount | inr }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">{{ p1.payment_date | date_fmt }}</div>
+        {% if p1.reference_no %}<div style="font-size:11px;color:var(--hint)">Ref: {{ p1.reference_no }}</div>{% endif %}
+        <span class="badge badge-Completed" style="margin-top:6px;display:inline-block">Received</span>
+        {% if current_user.role in ['admin','payments'] %}
+        <div style="margin-top:10px;display:flex;gap:6px">
+          <button class="btn btn-sm pay-edit-btn" data-pay="{{ p1.id }}">Edit</button>
+          <form method="POST" action="{{ url_for('delete_payment', pid=proj.id, pay_id=p1.id) }}"
+                style="display:inline" onsubmit="return confirm('Delete first bank payment?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
         </div>
-        <button type="submit" class="btn btn-primary">Save {{ proj.next_bank_instalment }} payment</button>
-      </form>
+        <div id="pay-edit-{{ p1.id }}" style="display:none;margin-top:10px;
+             border-top:0.5px solid var(--border);padding-top:10px">
+          <form method="POST" action="{{ url_for('edit_payment', pid=proj.id, pay_id=p1.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-grid">
+              <div class="form-group">
+                <label style="font-size:12px">Amount (₹)</label>
+                <input type="number" name="amount" step="0.01" min="1"
+                       value="{{ p1.amount | float | round(2) }}" required/>
+              </div>
+              <div class="form-group">
+                <label style="font-size:12px">Type</label>
+                <select name="payment_type">
+                  {% for t in ['Bank','Cheque','Online','Cash'] %}
+                  <option {% if p1.payment_type == t %}selected{% endif %}>{{ t }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="form-group">
+                <label style="font-size:12px">Date</label>
+                <input type="date" name="payment_date"
+                       value="{{ p1.payment_date.isoformat() }}" required/>
+              </div>
+              <div class="form-group">
+                <label style="font-size:12px">Reference no.</label>
+                <input type="text" name="reference_no" value="{{ p1.reference_no or '' }}"/>
+              </div>
+              <div class="form-group full">
+                <label style="font-size:12px">Notes</label>
+                <input type="text" name="notes" value="{{ p1.notes or '' }}" placeholder="Optional"/>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button type="submit" class="btn btn-primary btn-sm">Save</button>
+              <button type="button" class="btn btn-sm pay-edit-btn" data-pay="{{ p1.id }}">Cancel</button>
+            </div>
+          </form>
+        </div>
+        {% endif %}
+      {% else %}
+        <div style="font-size:15px;font-weight:500;color:var(--hint)">—</div>
+        <span class="badge badge-Pending" style="margin-top:6px;display:inline-block">Awaiting</span>
+      {% endif %}
     </div>
-    {% endif %}
 
-    {% set customer_pays = proj.payments | selectattr('payment_source','eq','Customer') | list %}
-    {% if customer_pays %}
-    <div style="border-top:0.5px solid var(--border);padding-top:16px;margin-bottom:4px">
-      <div style="font-size:13px;font-weight:500;margin-bottom:10px;color:var(--text)">
-        Customer payments
-        <span style="font-weight:400;color:var(--muted);font-size:12px">(down-payment / balance)</span>
-      </div>
-      <div class="table-wrap">
-      <table>
-        <thead>
-          <tr><th>Date</th><th>Amount</th><th>Type</th><th>Ref No.</th><th>Notes</th></tr>
-        </thead>
-        <tbody>
-         {# ── In the loan section, customer_pays table ── #}
-{% for pay in customer_pays | sort(attribute='payment_date', reverse=True) %}
-<tr id="pay-row-{{ pay.id }}">
-  <td>{{ pay.payment_date | date_fmt }}</td>
-  <td style="font-weight:500">{{ pay.amount | inr }}</td>
-  <td><span class="tag">{{ pay.payment_type }}</span></td>
-  <td style="font-size:12px;color:var(--muted)">{{ pay.reference_no or '—' }}</td>
-  <td style="font-size:12px;color:var(--muted)">{{ pay.notes or '—' }}</td>
-  {% if current_user.role in ['admin','payments'] %}
-  <td style="white-space:nowrap">
-    <button class="btn btn-sm pay-edit-btn" data-pay="{{ pay.id }}">Edit</button>
-    <form method="POST" action="{{ url_for('delete_payment', pid=proj.id, pay_id=pay.id) }}"
-          style="display:inline" onsubmit="return confirm('Delete this payment?')">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-    </form>
-  </td>
-  {% endif %}
-</tr>
-{% if current_user.role in ['admin','payments'] %}
-<tr id="pay-edit-{{ pay.id }}" style="display:none;background:var(--bg)">
-  <td colspan="6" style="padding:12px 14px">
-    <form method="POST" action="{{ url_for('edit_payment', pid=proj.id, pay_id=pay.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
-        <div>
-          <label style="font-size:12px">Amount (₹)</label>
-          <input type="number" name="amount" step="0.01" min="1"
-                 value="{{ pay.amount | float | round(2) }}" required/>
+    {# Second instalment #}
+    <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Second bank payment</div>
+      {% if 'Second' in instalments %}
+        {% set p2 = instalments['Second'] %}
+        <div style="font-size:18px;font-weight:500;color:var(--green-600)">{{ p2.amount | inr }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">{{ p2.payment_date | date_fmt }}</div>
+        {% if p2.reference_no %}<div style="font-size:11px;color:var(--hint)">Ref: {{ p2.reference_no }}</div>{% endif %}
+        <span class="badge badge-Completed" style="margin-top:6px;display:inline-block">Received</span>
+        {% if current_user.role in ['admin','payments'] %}
+        <div style="margin-top:10px;display:flex;gap:6px">
+          <button class="btn btn-sm pay-edit-btn" data-pay="{{ p2.id }}">Edit</button>
+          <form method="POST" action="{{ url_for('delete_payment', pid=proj.id, pay_id=p2.id) }}"
+                style="display:inline" onsubmit="return confirm('Delete second bank payment?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
         </div>
-        <div>
-          <label style="font-size:12px">Type</label>
+        <div id="pay-edit-{{ p2.id }}" style="display:none;margin-top:10px;
+             border-top:0.5px solid var(--border);padding-top:10px">
+          <form method="POST" action="{{ url_for('edit_payment', pid=proj.id, pay_id=p2.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-grid">
+              <div class="form-group">
+                <label style="font-size:12px">Amount (₹)</label>
+                <input type="number" name="amount" step="0.01" min="1"
+                       value="{{ p2.amount | float | round(2) }}" required/>
+              </div>
+              <div class="form-group">
+                <label style="font-size:12px">Type</label>
+                <select name="payment_type">
+                  {% for t in ['Bank','Cheque','Online','Cash'] %}
+                  <option {% if p2.payment_type == t %}selected{% endif %}>{{ t }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="form-group">
+                <label style="font-size:12px">Date</label>
+                <input type="date" name="payment_date"
+                       value="{{ p2.payment_date.isoformat() }}" required/>
+              </div>
+              <div class="form-group">
+                <label style="font-size:12px">Reference no.</label>
+                <input type="text" name="reference_no" value="{{ p2.reference_no or '' }}"/>
+              </div>
+              <div class="form-group full">
+                <label style="font-size:12px">Notes</label>
+                <input type="text" name="notes" value="{{ p2.notes or '' }}" placeholder="Optional"/>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button type="submit" class="btn btn-primary btn-sm">Save</button>
+              <button type="button" class="btn btn-sm pay-edit-btn" data-pay="{{ p2.id }}">Cancel</button>
+            </div>
+          </form>
+        </div>
+        {% endif %}
+      {% elif 'First' in instalments %}
+        <div style="font-size:15px;font-weight:500;color:var(--hint)">—</div>
+        <span class="badge badge-Created" style="margin-top:6px;display:inline-block">Pending</span>
+      {% else %}
+        <div style="font-size:15px;font-weight:500;color:var(--hint)">—</div>
+        <span class="badge badge-Closed" style="margin-top:6px;display:inline-block">Locked</span>
+      {% endif %}
+    </div>
+
+  </div>{# end bank instalment grid #}
+
+  {# ── Record next bank instalment form ── #}
+  {% if not payment_complete and current_user.role in ['admin','payments'] and proj.next_bank_instalment %}
+  <div style="border-top:0.5px solid var(--border);padding-top:16px;margin-bottom:16px">
+    <div style="font-size:13px;font-weight:500;margin-bottom:10px">
+      Record <span style="color:var(--amber-600)">{{ proj.next_bank_instalment }} bank payment</span>
+    </div>
+    <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="payment_source" value="Bank"/>
+      <input type="hidden" name="instalment" value="{{ proj.next_bank_instalment }}"/>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Amount (₹)</label>
+          <input type="number" name="amount" step="0.01" min="1"
+                 max="{{ proj.pending_amount | round(2) }}"
+                 required placeholder="0"/>
+        </div>
+        <div class="form-group">
+          <label>Payment date</label>
+          <input type="date" name="payment_date" required/>
+        </div>
+        <div class="form-group">
+          <label>Payment type</label>
           <select name="payment_type">
-            {% for t in ['Cash','Bank','Cheque','Online'] %}
-            <option {% if pay.payment_type == t %}selected{% endif %}>{{ t }}</option>
-            {% endfor %}
+            <option>Bank</option><option>Cheque</option><option>Online</option>
           </select>
         </div>
-        <div>
-          <label style="font-size:12px">Date</label>
-          <input type="date" name="payment_date"
-                 value="{{ pay.payment_date.isoformat() }}" required/>
+        <div class="form-group">
+          <label>Bank reference no.</label>
+          <input type="text" name="reference_no" placeholder="Ref / UTR number"/>
         </div>
-        <div>
-          <label style="font-size:12px">Reference no.</label>
-          <input type="text" name="reference_no" value="{{ pay.reference_no or '' }}"/>
-        </div>
-        <div style="display:flex;gap:6px">
-          <button type="submit" class="btn btn-primary btn-sm">Save</button>
-          <button type="button" class="btn btn-sm pay-edit-btn" data-pay="{{ pay.id }}">Cancel</button>
+        <div class="form-group full">
+          <label>Notes</label>
+          <input type="text" name="notes" placeholder="Optional"/>
         </div>
       </div>
-      <div style="margin-top:8px">
-        <label style="font-size:12px">Notes</label>
-        <input type="text" name="notes" value="{{ pay.notes or '' }}"
-               style="width:100%" placeholder="Optional"/>
-      </div>
+      <button type="submit" class="btn btn-primary">Save {{ proj.next_bank_instalment }} payment</button>
     </form>
-  </td>
-</tr>
-{% endif %}
-{% endfor %}
-{% endif %}
-  {% else %}
-    {# ────────────────── CASH PROJECT ────────────────── #}
-    {% if proj.payments %}
+  </div>
+  {% endif %}
+
+  {# ── Customer / down-payments ── #}
+  {% set customer_pays = proj.payments | selectattr('payment_source','eq','Customer') | list %}
+  {% if customer_pays %}
+  <div style="border-top:0.5px solid var(--border);padding-top:16px;margin-bottom:4px">
+    <div style="font-size:13px;font-weight:500;margin-bottom:10px;color:var(--text)">
+      Customer payments
+      <span style="font-weight:400;color:var(--muted);font-size:12px">(down-payment / balance)</span>
+    </div>
     <div class="table-wrap">
     <table>
-      <thead><tr><th>Date</th><th>Amount</th><th>Type</th><th>Ref No.</th><th>Notes</th>{% if current_user.role in ['admin','payments'] %}<th></th>{% endif %}</tr></thead>
-<tbody>
-  {% for pay in proj.payments | sort(attribute='payment_date', reverse=True) %}
-  <tr id="pay-row-{{ pay.id }}">
-    <td>{{ pay.payment_date | date_fmt }}</td>
-    <td style="font-weight:500">{{ pay.amount | inr }}</td>
-    <td><span class="tag">{{ pay.payment_type }}</span></td>
-    <td style="font-size:12px;color:var(--muted)">{{ pay.reference_no or '—' }}</td>
-    <td style="font-size:12px;color:var(--muted)">{{ pay.notes or '—' }}</td>
-    {% if current_user.role in ['admin','payments'] %}
-    <td style="white-space:nowrap">
-  <button class="btn btn-sm pay-edit-btn" data-pay="{{ pay.id }}">Edit</button>
-  <form method="POST" action="{{ url_for('delete_payment', pid=proj.id, pay_id=pay.id) }}"
-        style="display:inline"
-        onsubmit="return confirm('Delete this payment?')">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-  </form>
-</td>
-    {% endif %}
-  </tr>
-  {% if current_user.role in ['admin','payments'] %}
-  <tr id="pay-edit-{{ pay.id }}" style="display:none;background:var(--bg)">
-    <td colspan="6" style="padding:12px 14px">
-      <form method="POST" action="{{ url_for('edit_payment', pid=proj.id, pay_id=pay.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
-          <div>
-            <label style="font-size:12px">Amount (₹)</label>
-            <input type="number" name="amount" step="0.01" min="1"
-                   value="{{ pay.amount | float | round(2) }}" required/>
-          </div>
-          <div>
-            <label style="font-size:12px">Type</label>
-            <select name="payment_type">
-              {% for t in ['Cash','Bank','Cheque','Online'] %}
-              <option {% if pay.payment_type == t %}selected{% endif %}>{{ t }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div>
-            <label style="font-size:12px">Date</label>
-            <input type="date" name="payment_date"
-                   value="{{ pay.payment_date.isoformat() }}" required/>
-          </div>
-          <div>
-            <label style="font-size:12px">Reference no.</label>
-            <input type="text" name="reference_no" value="{{ pay.reference_no or '' }}"/>
-          </div>
-          <div style="display:flex;gap:6px">
-  <button type="submit" class="btn btn-primary btn-sm">Save</button>
-  <button type="button" class="btn btn-sm pay-edit-btn" data-pay="{{ pay.id }}">Cancel</button>
-</div>
-        </div>
-        <div style="margin-top:8px">
-          <label style="font-size:12px">Notes</label>
-          <input type="text" name="notes" value="{{ pay.notes or '' }}"
-                 style="width:100%" placeholder="Optional"/>
-        </div>
-      </form>
-    </td>
-  </tr>
-  {% endif %}
-  {% endfor %}
-</tbody>
+      <thead>
+        <tr>
+          <th>Date</th><th>Amount</th><th>Type</th><th>Ref No.</th><th>Notes</th>
+          {% if current_user.role in ['admin','payments'] %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for pay in customer_pays | sort(attribute='payment_date', reverse=True) %}
+        <tr id="pay-row-{{ pay.id }}">
+          <td>{{ pay.payment_date | date_fmt }}</td>
+          <td style="font-weight:500">{{ pay.amount | inr }}</td>
+          <td><span class="tag">{{ pay.payment_type }}</span></td>
+          <td style="font-size:12px;color:var(--muted)">{{ pay.reference_no or '—' }}</td>
+          <td style="font-size:12px;color:var(--muted)">{{ pay.notes or '—' }}</td>
+          {% if current_user.role in ['admin','payments'] %}
+          <td style="white-space:nowrap">
+            <button class="btn btn-sm pay-edit-btn" data-pay="{{ pay.id }}">Edit</button>
+            <form method="POST" action="{{ url_for('delete_payment', pid=proj.id, pay_id=pay.id) }}"
+                  style="display:inline" onsubmit="return confirm('Delete this payment?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% if current_user.role in ['admin','payments'] %}
+        <tr id="pay-edit-{{ pay.id }}" style="display:none;background:var(--bg)">
+          <td colspan="6" style="padding:12px 14px">
+            <form method="POST" action="{{ url_for('edit_payment', pid=proj.id, pay_id=pay.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
+                <div>
+                  <label style="font-size:12px">Amount (₹)</label>
+                  <input type="number" name="amount" step="0.01" min="1"
+                         value="{{ pay.amount | float | round(2) }}" required/>
+                </div>
+                <div>
+                  <label style="font-size:12px">Type</label>
+                  <select name="payment_type">
+                    {% for t in ['Cash','Bank','Cheque','Online'] %}
+                    <option {% if pay.payment_type == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:12px">Date</label>
+                  <input type="date" name="payment_date"
+                         value="{{ pay.payment_date.isoformat() }}" required/>
+                </div>
+                <div>
+                  <label style="font-size:12px">Reference no.</label>
+                  <input type="text" name="reference_no" value="{{ pay.reference_no or '' }}"/>
+                </div>
+                <div style="display:flex;gap:6px">
+                  <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                  <button type="button" class="btn btn-sm pay-edit-btn" data-pay="{{ pay.id }}">Cancel</button>
+                </div>
+              </div>
+              <div style="margin-top:8px">
+                <label style="font-size:12px">Notes</label>
+                <input type="text" name="notes" value="{{ pay.notes or '' }}"
+                       style="width:100%" placeholder="Optional"/>
+              </div>
+            </form>
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
     </table>
     </div>
-    {% else %}
-    <div style="color:var(--hint);font-size:13px;padding:8px 0">No payments recorded yet.</div>
-    {% endif %}
+  </div>
+  {% endif %}{# end if customer_pays #}
 
-    {% if not payment_complete and current_user.role in ['admin','payments'] %}
-    <div style="margin-top:16px;border-top:0.5px solid var(--border);padding-top:16px">
-      <div style="font-size:13px;font-weight:500;margin-bottom:10px">Record customer payment</div>
-      <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="payment_source" value="Customer"/>
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Amount (₹)</label>
-            <input type="number" name="amount" step="0.01" min="1"
-                   max="{{ proj.pending_amount | round(2) }}"
-                   required placeholder="0"/>
-          </div>
-          <div class="form-group">
-            <label>Payment type</label>
-            <select name="payment_type">
-              <option>Cash</option><option>Bank</option><option>Cheque</option><option>Online</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Payment date</label>
-            <input type="date" name="payment_date" required/>
-          </div>
-          <div class="form-group">
-            <label>Reference No.</label>
-            <input type="text" name="reference_no" placeholder="Optional"/>
-          </div>
-          <div class="form-group full">
-            <label>Notes</label>
-            <input type="text" name="notes" placeholder="Optional"/>
-          </div>
-        </div>
-        <button type="submit" class="btn btn-primary">Save payment</button>
-      </form>
+  {# ── Record customer payment form ── #}
+  {% if not payment_complete and current_user.role in ['admin','payments'] %}
+  <div style="margin-top:16px;border-top:0.5px solid var(--border);padding-top:16px">
+    <div style="font-size:13px;font-weight:500;margin-bottom:10px">
+      Record customer payment
+      <span style="font-weight:400;color:var(--muted);font-size:12px">(down-payment / remaining balance)</span>
     </div>
-    {% endif %}
+    <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="payment_source" value="Customer"/>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Amount (₹)</label>
+          <input type="number" name="amount" step="0.01" min="1"
+                 max="{{ proj.pending_amount | round(2) }}"
+                 required placeholder="0"/>
+        </div>
+        <div class="form-group">
+          <label>Payment type</label>
+          <select name="payment_type">
+            <option>Cash</option><option>Bank</option><option>Cheque</option><option>Online</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Payment date</label>
+          <input type="date" name="payment_date" required/>
+        </div>
+        <div class="form-group">
+          <label>Reference No.</label>
+          <input type="text" name="reference_no" placeholder="Optional"/>
+        </div>
+        <div class="form-group full">
+          <label>Notes</label>
+          <input type="text" name="notes" placeholder="Optional"/>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary">Save customer payment</button>
+    </form>
+  </div>
+  {% endif %}
 
-  {% endif %}{# end project_type == Loan #}
-</div>
+  {% else %}
+  {# ════════════════ CASH PROJECT ════════════════ #}
+  {% if proj.payments %}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Amount</th><th>Type</th><th>Ref No.</th><th>Notes</th>
+        {% if current_user.role in ['admin','payments'] %}<th></th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for pay in proj.payments | sort(attribute='payment_date', reverse=True) %}
+      <tr id="pay-row-{{ pay.id }}">
+        <td>{{ pay.payment_date | date_fmt }}</td>
+        <td style="font-weight:500">{{ pay.amount | inr }}</td>
+        <td><span class="tag">{{ pay.payment_type }}</span></td>
+        <td style="font-size:12px;color:var(--muted)">{{ pay.reference_no or '—' }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ pay.notes or '—' }}</td>
+        {% if current_user.role in ['admin','payments'] %}
+        <td style="white-space:nowrap">
+          <button class="btn btn-sm pay-edit-btn" data-pay="{{ pay.id }}">Edit</button>
+          <form method="POST" action="{{ url_for('delete_payment', pid=proj.id, pay_id=pay.id) }}"
+                style="display:inline" onsubmit="return confirm('Delete this payment?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% if current_user.role in ['admin','payments'] %}
+      <tr id="pay-edit-{{ pay.id }}" style="display:none;background:var(--bg)">
+        <td colspan="6" style="padding:12px 14px">
+          <form method="POST" action="{{ url_for('edit_payment', pid=proj.id, pay_id=pay.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
+              <div>
+                <label style="font-size:12px">Amount (₹)</label>
+                <input type="number" name="amount" step="0.01" min="1"
+                       value="{{ pay.amount | float | round(2) }}" required/>
+              </div>
+              <div>
+                <label style="font-size:12px">Type</label>
+                <select name="payment_type">
+                  {% for t in ['Cash','Bank','Cheque','Online'] %}
+                  <option {% if pay.payment_type == t %}selected{% endif %}>{{ t }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label style="font-size:12px">Date</label>
+                <input type="date" name="payment_date"
+                       value="{{ pay.payment_date.isoformat() }}" required/>
+              </div>
+              <div>
+                <label style="font-size:12px">Reference no.</label>
+                <input type="text" name="reference_no" value="{{ pay.reference_no or '' }}"/>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                <button type="button" class="btn btn-sm pay-edit-btn" data-pay="{{ pay.id }}">Cancel</button>
+              </div>
+            </div>
+            <div style="margin-top:8px">
+              <label style="font-size:12px">Notes</label>
+              <input type="text" name="notes" value="{{ pay.notes or '' }}"
+                     style="width:100%" placeholder="Optional"/>
+            </div>
+          </form>
+        </td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="color:var(--hint);font-size:13px;padding:8px 0">No payments recorded yet.</div>
+  {% endif %}
 
-{# ── DOCUMENTS SUMMARY ── #}
+  {% if not payment_complete and current_user.role in ['admin','payments'] %}
+  <div style="margin-top:16px;border-top:0.5px solid var(--border);padding-top:16px">
+    <div style="font-size:13px;font-weight:500;margin-bottom:10px">Record customer payment</div>
+    <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="payment_source" value="Customer"/>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Amount (₹)</label>
+          <input type="number" name="amount" step="0.01" min="1"
+                 max="{{ proj.pending_amount | round(2) }}"
+                 required placeholder="0"/>
+        </div>
+        <div class="form-group">
+          <label>Payment type</label>
+          <select name="payment_type">
+            <option>Cash</option><option>Bank</option><option>Cheque</option><option>Online</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Payment date</label>
+          <input type="date" name="payment_date" required/>
+        </div>
+        <div class="form-group">
+          <label>Reference No.</label>
+          <input type="text" name="reference_no" placeholder="Optional"/>
+        </div>
+        <div class="form-group full">
+          <label>Notes</label>
+          <input type="text" name="notes" placeholder="Optional"/>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary">Save payment</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% endif %}{# end if proj.project_type == 'Loan' / else #}
+</div>{# end payments card #}
+
+{# ══════════════════════════════════════════════════════
+   DOCUMENTS SUMMARY
+   ══════════════════════════════════════════════════════ #}
 <div class="card" id="documents">
   <div class="card-title">Documents</div>
   {% if proj.documents %}
@@ -1008,7 +1046,9 @@ document.addEventListener('DOMContentLoaded', function () {
   {% endif %}
 </div>
 
-{# ── SUBSIDY (DCR projects only) ── #}
+{# ══════════════════════════════════════════════════════
+   SUBSIDY (DCR projects only)
+   ══════════════════════════════════════════════════════ #}
 {% if proj.project_subtype == 'DCR' %}
 {% set sub = proj.subsidy %}
 {% set sub_status = sub.status if sub else 'NotStarted' %}
@@ -1026,7 +1066,6 @@ document.addEventListener('DOMContentLoaded', function () {
     </div>
   </div>
 
-  {# ── Step indicator: Redeemed → Received ── #}
   <div style="display:flex;gap:0;margin-bottom:20px">
     {% for step_label, step_val in [('Redeemed','Redeemed'),('Received','Received')] %}
     {% set is_done = (sub_status == 'Received') or (step_val == 'Redeemed' and sub_status in ['Redeemed','Received']) %}
@@ -1043,7 +1082,6 @@ document.addEventListener('DOMContentLoaded', function () {
     {% endfor %}
   </div>
 
-  {# ── Subsidy amount + distribution summary ── #}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px">
     <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px">
       <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Subsidy amount</div>
@@ -1066,9 +1104,6 @@ document.addEventListener('DOMContentLoaded', function () {
     {% endif %}
   </div>
 
-  {# ── Role-based form/view ── #}
-
-  {# Read-only for coordinator and other non-privileged roles #}
   {% if current_user.role not in ['admin', 'documents', 'payments'] %}
   <div style="background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius);padding:14px;font-size:13px;color:var(--muted)">
     {% if sub_status == 'Received' %}
@@ -1089,11 +1124,7 @@ document.addEventListener('DOMContentLoaded', function () {
       Subsidy process not yet started.
     {% endif %}
   </div>
-
-  {# Editable form for admin, documents, payments #}
   {% else %}
-
-    {# Completed banner — show for non-admin editable roles when Received #}
     {% if sub_status == 'Received' and current_user.role != 'admin' %}
     <div style="display:flex;align-items:center;gap:10px;background:var(--green-50,#f0fdf4);
                 border:1px solid var(--green-200,#bbf7d0);border-radius:var(--radius);padding:12px 16px">
@@ -1107,8 +1138,6 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
       </div>
     </div>
-
-    {# Editable form for admin/documents/payments when not yet Received #}
     {% else %}
     <form method="POST" action="{{ url_for('subsidy', pid=proj.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -1128,8 +1157,6 @@ document.addEventListener('DOMContentLoaded', function () {
           <input type="text" name="notes" value="{{ sub.notes if sub else '' }}" placeholder="Any remarks…">
         </div>
       </div>
-
-      {# Share split — only shown when Received #}
       <div id="sub_split" style="display:none;margin-top:4px">
         <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;
                     letter-spacing:0.04em;margin-bottom:10px">Subsidy distribution (₹78,000)</div>
@@ -1154,7 +1181,6 @@ document.addEventListener('DOMContentLoaded', function () {
           Allocated: ₹0 of ₹78,000 — Remaining: ₹78,000
         </div>
       </div>
-
       <button type="submit" class="btn btn-primary btn-sm">Save</button>
     </form>
     <script>
@@ -1178,12 +1204,13 @@ document.addEventListener('DOMContentLoaded', function () {
     document.addEventListener('DOMContentLoaded', function() { toggleSubSplit(); });
     </script>
     {% endif %}
-
-  {% endif %}{# end role check #}
+  {% endif %}
 </div>
 {% endif %}{# end DCR check #}
 
-{# ── ONSITE PROGRESS SUMMARY ── #}
+{# ══════════════════════════════════════════════════════
+   ONSITE PROGRESS SUMMARY
+   ══════════════════════════════════════════════════════ #}
 {% set op = proj.onsite_progress %}
 {% set onsite_complete = op and op.materials_ordered and op.materials_delivered
     and op.structure_work_status == 'Completed'
@@ -1213,29 +1240,13 @@ document.addEventListener('DOMContentLoaded', function () {
     <tbody>
       <tr>
         <td style="padding:5px 0">① Materials order</td>
-        <td>
-          {% if op.materials_ordered %}
-            <span class="badge badge-Completed">Ordered</span>
-          {% else %}
-            <span class="badge badge-Created">Pending</span>
-          {% endif %}
-        </td>
-        <td style="color:var(--muted);font-size:12px">
-          {{ op.materials_ordered_date | date_fmt if op.materials_ordered_date else '—' }}
-        </td>
+        <td>{% if op.materials_ordered %}<span class="badge badge-Completed">Ordered</span>{% else %}<span class="badge badge-Created">Pending</span>{% endif %}</td>
+        <td style="color:var(--muted);font-size:12px">{{ op.materials_ordered_date | date_fmt if op.materials_ordered_date else '—' }}</td>
       </tr>
       <tr>
         <td style="padding:5px 0">② Materials delivery</td>
-        <td>
-          {% if op.materials_delivered %}
-            <span class="badge badge-Completed">Delivered</span>
-          {% else %}
-            <span class="badge badge-Created">Awaiting</span>
-          {% endif %}
-        </td>
-        <td style="color:var(--muted);font-size:12px">
-          {{ op.materials_delivered_date | date_fmt if op.materials_delivered_date else '—' }}
-        </td>
+        <td>{% if op.materials_delivered %}<span class="badge badge-Completed">Delivered</span>{% else %}<span class="badge badge-Created">Awaiting</span>{% endif %}</td>
+        <td style="color:var(--muted);font-size:12px">{{ op.materials_delivered_date | date_fmt if op.materials_delivered_date else '—' }}</td>
       </tr>
       <tr>
         <td style="padding:5px 0">③ Structure</td>
@@ -1259,7 +1270,9 @@ document.addEventListener('DOMContentLoaded', function () {
 </div>
 {% endif %}
 
-{# ── PANEL & METER DETAILS ── #}
+{# ══════════════════════════════════════════════════════
+   PANEL & METER DETAILS
+   ══════════════════════════════════════════════════════ #}
 {% set pd = proj.panel_details %}
 <div class="card" id="panel-details">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
@@ -1270,34 +1283,15 @@ document.addEventListener('DOMContentLoaded', function () {
     </button>
     {% endif %}
   </div>
-
   {% if pd %}
   <div class="table-wrap">
     <table style="font-size:13px">
-      <tr>
-        <td style="color:var(--muted);width:180px;padding:5px 0">Panel brand</td>
-        <td style="font-weight:500">{{ pd.panel_brand or '—' }}</td>
-      </tr>
-      <tr>
-        <td style="color:var(--muted);padding:5px 0">No. of panels</td>
-        <td>{{ pd.num_panels or '—' }}</td>
-      </tr>
-      <tr>
-        <td style="color:var(--muted);padding:5px 0">Inverter brand</td>
-        <td style="font-weight:500">{{ pd.inverter_brand or '—' }}</td>
-      </tr>
-      <tr>
-        <td style="color:var(--muted);padding:5px 0">Inverter serial no.</td>
-        <td style="font-family:monospace;font-size:12px">{{ pd.inverter_serial_number or '—' }}</td>
-      </tr>
-      <tr>
-        <td style="color:var(--muted);padding:5px 0">Net meter serial no.</td>
-        <td style="font-family:monospace;font-size:12px">{{ pd.net_meter_serial_number or '—' }}</td>
-      </tr>
-      <tr>
-        <td style="color:var(--muted);padding:5px 0">Energy meter serial no.</td>
-        <td style="font-family:monospace;font-size:12px">{{ pd.energy_meter_serial_number or '—' }}</td>
-      </tr>
+      <tr><td style="color:var(--muted);width:180px;padding:5px 0">Panel brand</td><td style="font-weight:500">{{ pd.panel_brand or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">No. of panels</td><td>{{ pd.num_panels or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Inverter brand</td><td style="font-weight:500">{{ pd.inverter_brand or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Inverter serial no.</td><td style="font-family:monospace;font-size:12px">{{ pd.inverter_serial_number or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Net meter serial no.</td><td style="font-family:monospace;font-size:12px">{{ pd.net_meter_serial_number or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Energy meter serial no.</td><td style="font-family:monospace;font-size:12px">{{ pd.energy_meter_serial_number or '—' }}</td></tr>
       {% if pd.panel_serial_numbers %}
       <tr>
         <td style="color:var(--muted);padding:5px 0;vertical-align:top">Panel serial nos.</td>
@@ -1315,26 +1309,19 @@ document.addEventListener('DOMContentLoaded', function () {
       </tr>
       {% endif %}
       {% if pd.notes %}
-      <tr>
-        <td style="color:var(--muted);padding:5px 0;vertical-align:top">Notes</td>
-        <td style="font-size:12px;color:var(--hint)">{{ pd.notes }}</td>
-      </tr>
+      <tr><td style="color:var(--muted);padding:5px 0;vertical-align:top">Notes</td><td style="font-size:12px;color:var(--hint)">{{ pd.notes }}</td></tr>
       {% endif %}
       <tr>
         <td style="color:var(--muted);padding:5px 0">Last updated</td>
         <td style="font-size:12px;color:var(--hint)">
-          {{ pd.updated_at | date_fmt }}
-          {% if pd.updater %} by {{ pd.updater.full_name }}{% endif %}
+          {{ pd.updated_at | date_fmt }}{% if pd.updater %} by {{ pd.updater.full_name }}{% endif %}
         </td>
       </tr>
     </table>
   </div>
   {% else %}
-  <div style="color:var(--hint);font-size:13px;padding:4px 0 10px">
-    No panel or meter details recorded yet.
-  </div>
+  <div style="color:var(--hint);font-size:13px;padding:4px 0 10px">No panel or meter details recorded yet.</div>
   {% endif %}
-
   {% if current_user.role in ['admin','documents','onsite'] %}
   <div id="panelDetailsForm" style="display:{% if not pd %}block{% else %}none{% endif %};
        margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
@@ -1343,60 +1330,49 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="form-grid">
         <div class="form-group">
           <label>Panel brand</label>
-          <input type="text" name="panel_brand"
-                 value="{{ pd.panel_brand or '' if pd else '' }}"
+          <input type="text" name="panel_brand" value="{{ pd.panel_brand or '' if pd else '' }}"
                  placeholder="e.g. UTL, Waaree, Adani"/>
         </div>
         <div class="form-group">
           <label>Number of panels</label>
           <input type="number" name="num_panels" min="1" max="500"
-                 value="{{ pd.num_panels or '' if pd else '' }}"
-                 placeholder="e.g. 8"/>
+                 value="{{ pd.num_panels or '' if pd else '' }}" placeholder="e.g. 8"/>
         </div>
         <div class="form-group">
           <label>Inverter brand</label>
-          <input type="text" name="inverter_brand"
-                 value="{{ pd.inverter_brand or '' if pd else '' }}"
+          <input type="text" name="inverter_brand" value="{{ pd.inverter_brand or '' if pd else '' }}"
                  placeholder="e.g. UTL, Waaree, Deye"/>
         </div>
         <div class="form-group">
           <label>Inverter serial number</label>
           <input type="text" name="inverter_serial_number"
-                 value="{{ pd.inverter_serial_number or '' if pd else '' }}"
-                 placeholder="INV-XXXX"/>
+                 value="{{ pd.inverter_serial_number or '' if pd else '' }}" placeholder="INV-XXXX"/>
         </div>
         <div class="form-group">
           <label>Net meter serial number</label>
           <input type="text" name="net_meter_serial_number"
-                 value="{{ pd.net_meter_serial_number or '' if pd else '' }}"
-                 placeholder="NM-XXXX"/>
+                 value="{{ pd.net_meter_serial_number or '' if pd else '' }}" placeholder="NM-XXXX"/>
         </div>
         <div class="form-group">
           <label>Energy meter serial number</label>
           <input type="text" name="energy_meter_serial_number"
-                 value="{{ pd.energy_meter_serial_number or '' if pd else '' }}"
-                 placeholder="EM-XXXX"/>
+                 value="{{ pd.energy_meter_serial_number or '' if pd else '' }}" placeholder="EM-XXXX"/>
         </div>
         <div class="form-group full">
-          <label>
-            Panel serial numbers
-            <span style="color:var(--muted);font-weight:400;font-size:11px">— one per line</span>
-          </label>
+          <label>Panel serial numbers <span style="color:var(--muted);font-weight:400;font-size:11px">— one per line</span></label>
           <textarea name="panel_serial_numbers" rows="4"
                     placeholder="SN-001&#10;SN-002&#10;SN-003">{{ pd.panel_serial_numbers or '' if pd else '' }}</textarea>
         </div>
         <div class="form-group full">
           <label>Notes <span style="color:var(--muted);font-weight:400;font-size:11px">(optional)</span></label>
-          <textarea name="notes" rows="2"
-                    placeholder="Any additional info…">{{ pd.notes or '' if pd else '' }}</textarea>
+          <textarea name="notes" rows="2" placeholder="Any additional info…">{{ pd.notes or '' if pd else '' }}</textarea>
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:4px;align-items:center">
         <button type="submit" class="btn btn-primary btn-sm"
                 onclick="return validatePanelForm(this.closest('form'))">Save details</button>
         {% if pd %}
-        <button type="button" class="btn btn-sm"
-                onclick="togglePanel('panelDetailsForm')">Cancel</button>
+        <button type="button" class="btn btn-sm" onclick="togglePanel('panelDetailsForm')">Cancel</button>
         {% endif %}
         <span id="panel-form-error" style="display:none;font-size:12px;color:var(--red-600,#dc2626);margin-left:4px"></span>
       </div>
@@ -1405,7 +1381,9 @@ document.addEventListener('DOMContentLoaded', function () {
   {% endif %}
 </div>
 
-{# ── ACTIVITY LOG ── #}
+{# ══════════════════════════════════════════════════════
+   ACTIVITY LOG
+   ══════════════════════════════════════════════════════ #}
 <div class="card">
   <div class="card-title">Activity log</div>
   {% set seen = [] %}
@@ -1448,7 +1426,6 @@ document.addEventListener('DOMContentLoaded', function() {
       if (row) row.style.display = (row.style.display === 'none' || row.style.display === '') ? 'table-row' : 'none';
     });
   });
-
   document.querySelectorAll('.unassign-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var aid   = this.getAttribute('data-aid');
@@ -1469,14 +1446,11 @@ function validatePanelForm(form) {
   var errEl = form.querySelector('#panel-form-error');
   errEl.style.display = 'none';
   errEl.textContent = '';
-
   var numPanelsInput = form.querySelector('[name="num_panels"]');
   var serialsInput   = form.querySelector('[name="panel_serial_numbers"]');
-
   var numPanels = parseInt(numPanelsInput.value.trim(), 10);
   var serialsRaw = serialsInput.value;
   var serials = serialsRaw.split('\n').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
-
   if (!isNaN(numPanels) && numPanels > 0 && serials.length > 0) {
     if (serials.length !== numPanels) {
       errEl.textContent = 'Mismatch: ' + numPanels + ' panels specified but ' + serials.length + ' serial number(s) entered.';
@@ -1486,7 +1460,6 @@ function validatePanelForm(form) {
       return false;
     }
   }
-
   numPanelsInput.style.borderColor = '';
   serialsInput.style.borderColor   = '';
   return true;
