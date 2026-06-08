@@ -559,6 +559,182 @@ document.addEventListener('DOMContentLoaded', function () {
   {% endif %}
 
   {% if proj.project_type == 'Loan' %}
+  {# ── Company Bank Advance (Loan projects only) ── #}
+{% if proj.project_type == 'Loan' %}
+{% set adv = proj.bank_advance %}
+<div class="card" style="margin-bottom:16px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div class="card-title" style="margin:0">
+      Company Bank Advance
+      <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:6px">
+        — initial payment made to bank on behalf of customer
+      </span>
+    </div>
+    {% if current_user.role in ['admin', 'payments'] and not adv %}
+    <button class="btn btn-sm btn-warning" onclick="togglePanel('bankAdvanceForm')">
+      + Record Advance
+    </button>
+    {% endif %}
+  </div>
+
+  {% if adv %}
+  {# ── Recorded state ── #}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:{% if not adv.recovered %}14px{% else %}0{% endif %}">
+    <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px;
+                background:{% if adv.recovered %}var(--green-50,#f0fdf4){% else %}var(--amber-50,#fffbeb){% endif %}">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Amount paid to bank</div>
+      <div style="font-size:20px;font-weight:600;
+                  color:{% if adv.recovered %}var(--green-700){% else %}var(--amber-700){% endif %}">
+        {{ adv.amount | inr }}
+      </div>
+      {% if adv.paid_date %}
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">
+        Paid on {{ adv.paid_date | date_fmt }}
+      </div>
+      {% endif %}
+      {% if adv.notes %}
+      <div style="font-size:11px;color:var(--hint);margin-top:4px">{{ adv.notes }}</div>
+      {% endif %}
+    </div>
+    <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px;
+                background:{% if adv.recovered %}var(--green-50,#f0fdf4){% else %}var(--surface){% endif %}">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Recovery status</div>
+      {% if adv.recovered %}
+        <span class="badge badge-Completed" style="display:inline-block;margin-bottom:6px">✓ Recovered</span>
+        {% if adv.recovery_date %}
+        <div style="font-size:12px;color:var(--muted)">{{ adv.recovery_date | date_fmt }}</div>
+        {% endif %}
+        {% if adv.recovery_method %}
+        <div style="font-size:12px;color:var(--muted)">via {{ adv.recovery_method }}</div>
+        {% endif %}
+        {% if adv.recovery_reference %}
+        <div style="font-size:11px;color:var(--hint);font-family:monospace">Ref: {{ adv.recovery_reference }}</div>
+        {% endif %}
+        {% if adv.recovery_notes %}
+        <div style="font-size:11px;color:var(--hint);margin-top:2px">{{ adv.recovery_notes }}</div>
+        {% endif %}
+      {% else %}
+        <span class="badge badge-Pending" style="display:inline-block;margin-bottom:4px">Pending recovery</span>
+        <div style="font-size:12px;color:var(--amber-600)">
+          To be recovered when bank releases payment
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Edit advance (if not yet recovered) #}
+  {% if current_user.role in ['admin', 'payments'] and not adv.recovered %}
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <button class="btn btn-sm btn-warning" onclick="togglePanel('recoverAdvPanel')">
+      ✓ Mark Recovered
+    </button>
+    <button class="btn btn-sm" onclick="togglePanel('bankAdvanceForm')">
+      ✏ Edit
+    </button>
+  </div>
+
+  {# Recovery panel #}
+  <div id="recoverAdvPanel" style="display:none;border:1px solid var(--green-200,#bbf7d0);
+       border-radius:var(--radius);background:#f0fdf4;padding:16px;margin-bottom:12px">
+    <div style="font-size:13px;font-weight:600;color:var(--green-700);margin-bottom:10px">
+      Mark Bank Advance Recovered
+    </div>
+    <form method="POST" action="{{ url_for('recover_bank_advance', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Recovery date</label>
+          <input type="date" name="recovery_date" required/>
+        </div>
+        <div class="form-group">
+          <label>Payment method</label>
+          <select name="recovery_method">
+            <option value="Cash">Cash</option>
+            <option value="Bank">Bank Transfer</option>
+            <option value="Cheque">Cheque</option>
+            <option value="Online">Online</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Reference / UTR <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="text" name="recovery_reference" placeholder="Ref / UTR number"/>
+        </div>
+        <div class="form-group full">
+          <label>Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="text" name="recovery_notes" placeholder="Any additional info…"/>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button type="submit" class="btn btn-primary btn-sm">✓ Confirm Recovery</button>
+        <button type="button" class="btn btn-sm" onclick="togglePanel('recoverAdvPanel')">Cancel</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  {# Edit form (reuses same save route) #}
+  {% if current_user.role in ['admin', 'payments'] %}
+  <div id="bankAdvanceForm" style="display:none;border-top:0.5px solid var(--border);
+       padding-top:14px;margin-top:{% if adv.recovered %}14px{% else %}0{% endif %}">
+    <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;
+                letter-spacing:0.04em;margin-bottom:10px">Edit advance details</div>
+    <form method="POST" action="{{ url_for('save_bank_advance', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Amount (₹)</label>
+          <input type="number" name="amount" step="0.01" min="1"
+                 value="{{ adv.amount | float | round(2) }}" required/>
+        </div>
+        <div class="form-group">
+          <label>Date paid to bank</label>
+          <input type="date" name="paid_date"
+                 value="{{ adv.paid_date.isoformat() if adv.paid_date else '' }}"/>
+        </div>
+        <div class="form-group full">
+          <label>Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="text" name="notes" value="{{ adv.notes or '' }}" placeholder="e.g. Paid via HDFC branch…"/>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        <button type="button" class="btn btn-sm" onclick="togglePanel('bankAdvanceForm')">Cancel</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  {% else %}
+  {# ── Not yet recorded ── #}
+  <div id="bankAdvanceForm" style="display:none">
+    <form method="POST" action="{{ url_for('save_bank_advance', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Amount paid to bank (₹)</label>
+          <input type="number" name="amount" step="0.01" min="1" required placeholder="0"/>
+        </div>
+        <div class="form-group">
+          <label>Date paid</label>
+          <input type="date" name="paid_date"/>
+        </div>
+        <div class="form-group full">
+          <label>Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="text" name="notes" placeholder="e.g. Paid via HDFC branch, to be reimbursed on first instalment…"/>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button type="submit" class="btn btn-primary btn-sm">Save advance</button>
+        <button type="button" class="btn btn-sm" onclick="togglePanel('bankAdvanceForm')">Cancel</button>
+      </div>
+    </form>
+  </div>
+  {% if current_user.role in ['admin', 'payments'] %}
+  <div style="color:var(--hint);font-size:13px">No company bank advance recorded for this project.</div>
+  {% endif %}
+  {% endif %}
+</div>
+{% endif %}
   {# ════════════════ LOAN PROJECT ════════════════ #}
   {% set instalments = proj.bank_instalments %}
 

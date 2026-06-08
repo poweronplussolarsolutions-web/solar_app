@@ -432,7 +432,23 @@ class Payment(db.Model):
     received_by   = db.Column(db.Integer, db.ForeignKey('users.id'))
     notes         = db.Column(db.Text)
     created_at    = db.Column(db.DateTime, default=datetime.utcnow)
-
+class CompanyBankAdvance(db.Model):
+    __tablename__ = 'company_bank_advances'
+    id             = db.Column(db.Integer, primary_key=True)
+    project_id     = db.Column(db.Integer, db.ForeignKey('projects.id'), unique=True, nullable=False)
+    amount         = db.Column(db.Numeric(12, 2), nullable=False)
+    paid_date      = db.Column(db.Date, nullable=True)
+    notes          = db.Column(db.String(300), nullable=True)
+    recovered      = db.Column(db.Boolean, default=False)
+    recovery_date  = db.Column(db.Date, nullable=True)
+    recovery_method = db.Column(db.String(50), nullable=True)
+    recovery_reference = db.Column(db.String(100), nullable=True)
+    recovery_notes = db.Column(db.String(300), nullable=True)
+    recorded_by    = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at     = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    project        = db.relationship('Project', backref=db.backref('bank_advance', uselist=False))
+    recorder       = db.relationship('User', foreign_keys=[recorded_by])
 
 class Worker(db.Model):
     __tablename__ = 'workers'
@@ -2282,6 +2298,54 @@ def edit_loan_details_inline(pid):
                new_val=f'{ld.bank_name}, ₹{float(ld.loan_amount or 0):,.0f}')
     db.session.commit()
     flash('Loan details updated.', 'success')
+    return redirect(url_for('project_detail', pid=pid))
+@app.route('/projects/<int:pid>/bank_advance', methods=['POST'])
+@login_required
+@roles_required('admin', 'payments')
+def save_bank_advance(pid):
+    proj = Project.query.get_or_404(pid)
+    if proj.project_type != 'Loan':
+        flash('Bank advance only applies to Loan projects.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+
+    adv = proj.bank_advance or CompanyBankAdvance(project_id=pid)
+    adv.amount      = _safe_float(request.form.get('amount'))
+    adv.paid_date   = date.fromisoformat(request.form['paid_date']) if request.form.get('paid_date') else None
+    adv.notes       = _clean(request.form.get('notes', ''), 300) or None
+    adv.recorded_by = current_user.id
+
+    if not adv.id:
+        db.session.add(adv)
+
+    log_action(pid, f'Company bank advance recorded: ₹{float(adv.amount):,.0f}',
+               new_val=str(adv.amount))
+
+    for u in User.query.filter_by(role='payments', is_active=True).all():
+        if u.id != current_user.id:
+            create_notification(u.id, pid,
+                f'{proj.project_code} — {proj.customer.name}: Company paid ₹{float(adv.amount):,.0f} '
+                f'as initial bank advance. To be recovered when bank releases payment.', 'task')
+
+    db.session.commit()
+    flash(f'Bank advance of ₹{float(adv.amount):,.0f} recorded.', 'success')
+    return redirect(url_for('project_detail', pid=pid))
+
+
+@app.route('/projects/<int:pid>/bank_advance/recover', methods=['POST'])
+@login_required
+@roles_required('admin', 'payments')
+def recover_bank_advance(pid):
+    adv = CompanyBankAdvance.query.filter_by(project_id=pid).first_or_404()
+    adv.recovered          = True
+    adv.recovery_date      = date.fromisoformat(request.form['recovery_date']) if request.form.get('recovery_date') else date.today()
+    adv.recovery_method    = request.form.get('recovery_method') or None
+    adv.recovery_reference = _clean(request.form.get('recovery_reference', ''), 100) or None
+    adv.recovery_notes     = _clean(request.form.get('recovery_notes', ''), 300) or None
+
+    log_action(pid, f'Company bank advance recovered: ₹{float(adv.amount):,.0f}',
+               new_val='Recovered')
+    db.session.commit()
+    flash(f'Bank advance of ₹{float(adv.amount):,.0f} marked as recovered.', 'success')
     return redirect(url_for('project_detail', pid=pid))
 @app.route('/payments')
 @login_required
