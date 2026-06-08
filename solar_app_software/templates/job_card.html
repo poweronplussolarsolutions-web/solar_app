@@ -273,7 +273,10 @@
       <div class="jc-section-title">Customer</div>
       {% for lbl, val in [
         ('Handling',   proj.doc_staff.full_name if proj.doc_staff else '—'),
-        ('C/O',        proj.coordinator.full_name if proj.coordinator elif proj.coordinator_name else '—'),
+        ('C/O',
+  proj.coordinator.full_name if proj.coordinator
+  else (proj.coordinator_name if proj.coordinator_name else '—')
+),
         ('Sub C/O',    c.sub_co or '—'),
         ('Name',       c.name),
         ('House Name', c.house_name or '—'),
