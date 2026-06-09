@@ -408,21 +408,31 @@ document.addEventListener('DOMContentLoaded', function () {
         {% set nm_exp = proj.expenses | selectattr('expense_type','eq','Meter') | first | default(none) %}
         {% if cd_exp %}
         <div style="background:{% if cd_exp.paid_by == 'Company' %}var(--amber-50){% else %}var(--bg){% endif %};border-radius:var(--radius);padding:10px 14px">
-          <div style="font-size:11px;color:var(--muted);margin-bottom:2px">
-            CD Payment
-            <span class="tag" style="margin-left:4px;font-size:10px">{{ cd_exp.paid_by }}</span>
-          </div>
-          <div style="font-size:16px;font-weight:500">{{ cd_exp.amount | inr }}</div>
-          {% if cd_exp.paid_by == 'Company' and not cd_exp.recovered %}
-          <div style="font-size:10px;color:var(--amber-600);margin-top:2px">Pending recovery</div>
-          {% elif cd_exp.paid_by == 'Company' and cd_exp.recovered %}
-          <div style="font-size:10px;color:var(--green-600);margin-top:2px">✓ Recovered</div>
-          {% if cd_exp.recovery_date %}<div style="font-size:10px;color:var(--muted);margin-top:1px">{{ cd_exp.recovery_date | date_fmt }}</div>{% endif %}
-          {% if cd_exp.recovery_method %}<div style="font-size:10px;color:var(--muted)">via {{ cd_exp.recovery_method }}</div>{% endif %}
-          {% if cd_exp.recovery_reference %}<div style="font-size:10px;color:var(--hint);font-family:monospace">Ref: {{ cd_exp.recovery_reference }}</div>{% endif %}
-          {% if cd_exp.recovery_notes %}<div style="font-size:10px;color:var(--hint);margin-top:1px">{{ cd_exp.recovery_notes }}</div>{% endif %}
-          {% endif %}
-        </div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:2px">
+    CD Payment
+    <span class="tag" style="margin-left:4px;font-size:10px">{{ cd_exp.paid_by }}</span>
+  </div>
+  <div style="font-size:16px;font-weight:500">{{ cd_exp.amount | inr }}</div>
+  {% if cd_exp.paid_by == 'Company' %}
+    {% if not cd_exp.recovered %}
+      <div style="font-size:10px;color:var(--amber-600);margin-top:2px">Pending recovery</div>
+    {% else %}
+      <div style="font-size:10px;color:var(--green-600);margin-top:2px">✓ Recovered</div>
+      {% if cd_exp.recovery_date %}
+        <div style="font-size:10px;color:var(--muted);margin-top:1px">{{ cd_exp.recovery_date | date_fmt }}</div>
+      {% endif %}
+      {% if cd_exp.recovery_method %}
+        <div style="font-size:10px;color:var(--muted)">via {{ cd_exp.recovery_method }}</div>
+      {% endif %}
+      {% if cd_exp.recovery_reference %}
+        <div style="font-size:10px;color:var(--hint);font-family:monospace">Ref: {{ cd_exp.recovery_reference }}</div>
+      {% endif %}
+      {% if cd_exp.recovery_notes %}
+        <div style="font-size:10px;color:var(--hint);margin-top:1px">{{ cd_exp.recovery_notes }}</div>
+      {% endif %}
+    {% endif %}
+  {% endif %}
+</div>
         {% endif %}
         {% if nm_exp %}
         <div style="background:{% if nm_exp.paid_by == 'Company' %}var(--amber-50){% else %}var(--bg){% endif %};border-radius:var(--radius);padding:10px 14px">
