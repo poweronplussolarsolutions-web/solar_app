@@ -1532,7 +1532,7 @@ def projects():
         q = q.filter(Project.status == status_filter)
     if search:
         q = q.filter(Customer.name.ilike(f'%{search}%') | Project.project_code.ilike(f'%{search}%'))
-    pagination    = q.order_by(Project.updated_at.desc()).paginate(page=page, per_page=15, error_out=False)
+    pagination    = q.order_by(Project.updated_at.desc()).paginate(page=page, per_page=25, error_out=False)
     return render_template('projects.html', projects=pagination.items, pagination=pagination,
                            status_filter=status_filter, search=search)
 
