@@ -427,7 +427,7 @@ document.addEventListener('DOMContentLoaded', function () {
       {% if cd_exp.recovery_reference %}
         <div style="font-size:10px;color:var(--hint);font-family:monospace">Ref: {{ cd_exp.recovery_reference }}</div>
       {% endif %}
-      {% if cd_exp.recovery_notes %}
+      {% if recovery_notes %}
         <div style="font-size:10px;color:var(--hint);margin-top:1px">Notes: {{ cd_exp.recovery_notes }}</div>
       {% endif %}
     {% endif %}
