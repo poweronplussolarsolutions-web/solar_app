@@ -662,33 +662,68 @@ function printJobCard() {
     <title>Job Card</title>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: Arial, sans-serif; font-size: 11px; color: #000; background: #fff; }
+      body { font-family: Arial, sans-serif; font-size: 9px; color: #000; background: #fff; }
       .jc-download-bar { display: none; }
       .jc-header-strip { display: flex; justify-content: space-between; align-items: center;
-        background: #000; color: #fff; padding: 8px 14px; font-weight: 700; font-size: 13px; }
-      .jc-serial { font-size: 11px; text-align: right; }
+        background: #000; color: #fff; padding: 6px 12px; font-weight: 700; font-size: 11px; }
+      .jc-serial { font-size: 9px; text-align: right; }
       .jc-serial span { display: block; }
       .jc-grid { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #000; }
       .jc-section { border-right: 0.5px solid #ccc; }
       .jc-section:nth-child(even) { border-right: none; }
       .jc-full { grid-column: 1 / -1; border-right: none; }
-      .jc-val { padding: 3px 8px; flex: 1; display: flex; align-items: center;
-      font-size: 10px; font-weight: 500; gap: 5px; }
       .jc-section-title { background: #f0f0f0; border-bottom: 0.5px solid #ccc;
-        border-top: 0.5px solid #ccc; padding: 4px 10px;
-        font-weight: 700; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; }
-      .jc-row { display: flex; border-bottom: 0.5px solid #e0e0e0; min-height: 28px; }
+        border-top: 0.5px solid #ccc; padding: 3px 8px;
+        font-weight: 700; font-size: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+      .jc-row { display: flex; border-bottom: 0.5px solid #e0e0e0; min-height: 20px; }
       .jc-row:last-child { border-bottom: none; }
-      .jc-label { width: 110px; flex-shrink: 0; padding: 3px 8px 3px 10px;
-        color: #666; font-size: 9px; display: flex; align-items: center;
+      .jc-label { width: 90px; flex-shrink: 0; padding: 2px 6px 2px 8px;
+        color: #666; font-size: 8px; display: flex; align-items: center;
         border-right: 0.5px solid #e0e0e0; }
-      .jc-val { padding: 3px 8px; flex: 1; display: flex; align-items: center;
-        font-size: 10px; font-weight: 500; gap: 5px; }
+      .jc-val { padding: 2px 6px; flex: 1; display: flex; align-items: center;
+        font-size: 8px; font-weight: 500; gap: 4px; word-break: break-word; }
+      table { width: 100%; border-collapse: collapse; font-size: 8px; }
+      th { padding: 3px 8px 3px 10px; text-align: left; font-weight: 600;
+           color: #555; font-size: 7px; border-bottom: 0.5px solid #ccc;
+           background: #f5f5f5; white-space: nowrap; }
+      td { padding: 3px 8px; }
+      tfoot td { font-weight: 700; font-size: 9px; }
       @media print {
+        html, body { width: 210mm; height: 297mm; }
         body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        @page { size: A4 portrait; margin: 10mm; }
+        @page { size: A4 portrait; margin: 6mm; }
+        * { transform-origin: top left; }
+        body { zoom: 1; }
+        .jc-preview {
+          transform: scale(1);
+          transform-origin: top left;
+          width: 100%;
+        }
       }
     </style>
+    <script>
+      window.addEventListener('load', function() {
+        var preview = document.querySelector('.jc-preview');
+        if (!preview) { window.print(); return; }
+        var pageH = 297 - 12; // A4 minus margins in mm
+        var pageW = 210 - 12;
+        var mmToPx = 3.7795;
+        var availH = pageH * mmToPx;
+        var availW = pageW * mmToPx;
+        var contentH = preview.scrollHeight;
+        var contentW = preview.scrollWidth;
+        var scaleH = availH / contentH;
+        var scaleW = availW / contentW;
+        var scale = Math.min(scaleH, scaleW, 1);
+        if (scale < 1) {
+          preview.style.transform = 'scale(' + scale + ')';
+          preview.style.transformOrigin = 'top left';
+          preview.style.width = (100 / scale) + '%';
+          document.body.style.overflow = 'hidden';
+        }
+        window.print();
+      });
+    <\/script>
   </head><body>${card.innerHTML}</body></html>`);
   w.document.close();
   w.focus();
