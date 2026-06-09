@@ -550,8 +550,12 @@
           <span class="tag-pill" style="background:#ede9fe;color:#5b21b6;border:0.5px solid #c4b5fd">UTL</span>
         {% elif p.brand == 'waaree' %}
           <span class="tag-pill" style="background:#fee2e2;color:#991b1b;border:0.5px solid #fca5a5">Waaree</span>
+        {% elif p.brand == 'adani' %}
+          <span class="tag-pill" style="background:#fee2e2;color:#991b1b;border:0.5px solid #fca5a5">Adani</span>
+        {% elif p.brand == 'sunora' %}
+          <span class="tag-pill" style="background:#fef9c3;color:#713f12;border:0.5px solid #fde047">Sunora</span>    
         {% else %}
-          <span class="tag-pill" style="background:#e0f2fe;color:#075985;border:0.5px solid #7dd3fc">Adani</span>
+          <span class="tag-pill" style="background:#f0fdf4;color:#14532d;border:0.5px solid #4ade80">Amaze</span>
         {% endif %}
         {% if p.panel_type == 'topcon' %}
           <span class="tag-pill" style="background:#f0fdf4;color:#166534;border:0.5px solid #86efac">TopCon</span>
@@ -613,6 +617,8 @@
           <option value="utl"    {% if p.brand == 'utl' %}selected{% endif %}>UTL</option>
           <option value="waaree" {% if p.brand == 'waaree' %}selected{% endif %}>Waaree</option>
           <option value="adani"  {% if p.brand == 'adani' %}selected{% endif %}>Adani</option>
+          <option value="adani"  {% if p.brand == 'sunora' %}selected{% endif %}>Sunora</option>
+          <option value="adani"  {% if p.brand == 'amaze' %}selected{% endif %}>Amaze</option>
         </select>
       </div>
       <div>
@@ -656,6 +662,8 @@
             <option value="utl">UTL</option>
             <option value="waaree">Waaree</option>
             <option value="adani">Adani</option>
+            <option value="adani">Sunora</option>
+            <option value="adani">Amaze</option>
           </select>
         </div>
         <div>

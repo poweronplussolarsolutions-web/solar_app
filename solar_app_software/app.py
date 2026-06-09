@@ -3894,7 +3894,7 @@ def date_fmt(value):
     if not value:
         return '—'
     if isinstance(value, datetime):
-        return value.strftime('%d %b %Y')
+        return value.strftime('%d/%m/%Y')
     return str(value)
 
 
