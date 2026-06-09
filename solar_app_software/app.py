@@ -1932,9 +1932,12 @@ def update_expense(pid):
 @login_required
 @roles_required('admin', 'payments')
 def mark_expense_recovered(pid, eid):
-    expense                = ProjectExpense.query.get_or_404(eid)
-    expense.recovered      = True
-    expense.recovered_date = date.today()
+    expense                    = ProjectExpense.query.get_or_404(eid)
+    expense.recovered          = True
+    expense.recovered_date     = date.fromisoformat(request.form['recovery_date']) if request.form.get('recovery_date') else date.today()
+    expense.recovery_method    = request.form.get('recovery_method') or None
+    expense.recovery_reference = _clean(request.form.get('recovery_reference', ''), 100) or None
+    expense.recovery_notes     = _clean(request.form.get('recovery_notes', ''), 300) or None
     log_action(pid, f'{expense.expense_type} marked as recovered from customer')
     db.session.commit()
     flash(f'{expense.expense_type} marked as recovered.', 'success')
