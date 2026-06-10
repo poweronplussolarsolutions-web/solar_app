@@ -949,7 +949,14 @@ def auto_advance_stage(proj):
             proj.status = 'InProgress'
 
     elif proj.stage == 'Payment':
-        fully_paid = proj.total_receivable > 0 and proj.pending_amount <= 0
+    # For loan projects, only count up to contract amount — excess is tracked separately
+        if proj.project_type == 'Loan':
+            bank_total = sum(float(p.amount) for p in proj.payments if p.payment_source == 'Bank')
+            customer_total = sum(float(p.amount) for p in proj.payments if p.payment_source == 'Customer')
+            effective = min(bank_total, float(proj.total_receivable)) + customer_total
+            fully_paid = proj.total_receivable > 0 and effective >= float(proj.total_receivable)
+        else:
+            fully_paid = proj.total_receivable > 0 and proj.pending_amount <= 0
         if fully_paid:
             if proj.project_subtype == 'DCR':
                 proj.stage  = 'Subsidy'
@@ -2292,7 +2299,14 @@ def add_payment(pid):
         notes=_clean(request.form.get('notes', ''), 500),
     )
     db.session.add(pay)
-    proj.collected_amount = float(proj.collected_amount or 0) + amount
+    if source == 'Bank' and proj.project_type == 'Loan':
+    # Cap collected_amount at total_receivable — excess is tracked via BankExcessReturn
+        proj.collected_amount = min(
+        float(proj.collected_amount or 0) + amount,
+        float(proj.total_receivable)
+    )
+    else:
+        proj.collected_amount = float(proj.collected_amount or 0) + amount
     log_action(pid, f"{'Bank' if instalment else 'Customer'} payment recorded: ₹{amount:,.0f}", new_val=str(amount))
 
     # ── Notify onsite team when first bank instalment is received ─────────
