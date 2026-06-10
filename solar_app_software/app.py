@@ -2263,13 +2263,16 @@ def add_payment(pid):
     source = request.form.get('payment_source', 'Customer')
 
     if proj.total_amount and float(proj.total_amount) > 0:
-        if float(proj.collected_amount or 0) >= float(proj.total_amount):
-            flash('This project is fully paid. No further payments can be recorded.', 'danger')
-            return redirect(url_for('project_detail', pid=pid))
-        remaining = proj.pending_amount
-        if amount > remaining + 0.01:
-            flash(f'Payment of ₹{amount:,.0f} exceeds the remaining balance of ₹{remaining:,.0f}.', 'danger')
-            return redirect(url_for('project_detail', pid=pid))
+    # Bank instalments on Loan projects can exceed contract amount (excess tracked separately)
+        is_bank_loan = (source == 'Bank' and proj.project_type == 'Loan')
+        if not is_bank_loan:
+            if float(proj.collected_amount or 0) >= float(proj.total_amount):
+                flash('This project is fully paid. No further payments can be recorded.', 'danger')
+                return redirect(url_for('project_detail', pid=pid))
+            remaining = proj.pending_amount
+            if amount > remaining + 0.01:
+                flash(f'Payment of ₹{amount:,.0f} exceeds the remaining balance of ₹{remaining:,.0f}.', 'danger')
+                return redirect(url_for('project_detail', pid=pid))
 
     instalment = None
     if source == 'Bank':
