@@ -2441,6 +2441,74 @@ def documents(pid):
         flash(f'{doc_type} — {status}.', 'success')
 
     return render_template('documents.html', proj=proj, stages=stages)
+
+@app.route('/works_status')
+@login_required
+@roles_required('admin', 'documents')
+def works_status():
+    from sqlalchemy.orm import joinedload
+
+    projects = (Project.query
+        .options(
+            joinedload(Project.customer),
+            joinedload(Project.documents),
+            joinedload(Project.expenses),
+            joinedload(Project.coordinator),
+            joinedload(Project.doc_staff),
+        )
+        .filter(Project.status.notin_(['Cancelled', 'Closed', 'Completed']))
+        .order_by(Project.updated_at.desc())
+        .all())
+
+    if current_user.role == 'documents':
+        projects = [p for p in projects if p.doc_staff_id == current_user.id]
+
+    KEY_DOCS = [
+        'Feasibility Receipt',
+        'MNRE',
+        'CD Payment Receipt',
+        'KSEB Connection',
+        'Warranty Card',
+    ]
+
+    DONE_STATUSES = {'Received', 'Sent', 'Completed'}
+
+    rows = []
+    for p in projects:
+        doc_map = {d.doc_type: d.status for d in p.documents}
+        cd_expense = next(
+            (e for e in p.expenses if e.expense_type == 'CD Payment'), None
+        )
+        rows.append({
+            'project':    p,
+            'doc_map':    doc_map,
+            'cd_expense': cd_expense,
+        })
+
+    # Summary counts for cards at top
+    def _done(doc_name):
+        return sum(
+            1 for r in rows
+            if r['doc_map'].get(doc_name) in DONE_STATUSES
+        )
+
+    dcr_rows = [r for r in rows if r['project'].project_subtype == 'DCR']
+
+    summary = {
+        'total':    len(rows),
+        'feas':     _done('Feasibility Receipt'),
+        'mnre':     sum(1 for r in dcr_rows if r['doc_map'].get('MNRE') in DONE_STATUSES),
+        'mnre_tot': len(dcr_rows),
+        'cd':       sum(1 for r in rows if r['cd_expense'] and r['cd_expense'].paid_by),
+        'kseb':     _done('KSEB Connection'),
+        'warr':     _done('Warranty Card'),
+    }
+
+    return render_template('works_status.html',
+                           rows=rows,
+                           key_docs=KEY_DOCS,
+                           summary=summary,
+                           done_statuses=DONE_STATUSES)
 @app.route('/projects/<int:pid>/connection_details', methods=['POST'])
 @login_required
 @roles_required('admin', 'documents')

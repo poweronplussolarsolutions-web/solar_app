@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}Works Status{% endblock %}
+{% block page_title %}Works Status Board{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('dashboard') }}" class="btn btn-sm">← Dashboard</a>
+{% endblock %}
+
+{% block head %}
+<style>
+.ws-toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center; }
+.ws-toolbar input { flex:1; min-width:180px; }
+.filter-pill {
+  padding:5px 12px; border:0.5px solid var(--border); border-radius:20px;
+  cursor:pointer; font-size:12px; background:var(--surface); color:var(--muted);
+  white-space:nowrap; transition:all .15s;
+}
+.filter-pill.active { background:var(--blue-50); border-color:var(--blue-600); color:var(--blue-800); }
+.ws-table { width:100%; border-collapse:collapse; table-layout:fixed; }
+.ws-table th {
+  background:var(--bg); padding:9px 10px; font-size:11px; font-weight:500;
+  color:var(--muted); text-align:left; border-bottom:0.5px solid var(--border);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.ws-table td {
+  padding:9px 10px; border-bottom:0.5px solid var(--border);
+  vertical-align:middle; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.ws-table tr:last-child td { border-bottom:none; }
+.ws-table tbody tr:hover td { background:var(--bg); }
+.ws-table th.col-mid, .ws-table td.col-mid { text-align:center; width:46px; }
+.status-dot {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:22px; height:22px; border-radius:50%; font-size:11px; font-weight:600;
+}
+.dot-done { background:var(--teal-50); color:var(--teal-800); }
+.dot-pend { background:var(--bg); color:var(--muted); border:0.5px solid var(--border); }
+.dot-na   { background:transparent; color:var(--border); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── Summary bar ── #}
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+  {% for label, val in [
+    ('Active projects',   summary.total ~ ''),
+    ('Feasibility done',  summary.feas  ~ '/' ~ summary.total),
+    ('MNRE done (DCR)',   summary.mnre  ~ '/' ~ summary.mnre_tot),
+    ('CD payment',        summary.cd    ~ '/' ~ summary.total),
+    ('KSEB connected',    summary.kseb  ~ '/' ~ summary.total),
+    ('Warranty done',     summary.warr  ~ '/' ~ summary.total),
+  ] %}
+  <div style="background:var(--surface);border:0.5px solid var(--border);
+              border-radius:var(--radius);padding:10px 16px;text-align:center;
+              flex:1;min-width:100px">
+    <div style="font-size:18px;font-weight:500">{{ val }}</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:2px">{{ label }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+{# ── Filter toolbar ── #}
+<div class="ws-toolbar">
+  <input type="text" id="ws-search" placeholder="Search code or customer…" oninput="wsFilter()">
+  <button class="filter-pill active" data-f="all"         onclick="wsSetFilter('all',this)">All</button>
+  <button class="filter-pill"        data-f="feas"        onclick="wsSetFilter('feas',this)">Feasibility ✗</button>
+  <button class="filter-pill"        data-f="mnre"        onclick="wsSetFilter('mnre',this)">MNRE ✗</button>
+  <button class="filter-pill"        data-f="cd"          onclick="wsSetFilter('cd',this)">CD ✗</button>
+  <button class="filter-pill"        data-f="kseb"        onclick="wsSetFilter('kseb',this)">KSEB ✗</button>
+  <button class="filter-pill"        data-f="warranty"    onclick="wsSetFilter('warranty',this)">Warranty ✗</button>
+</div>
+
+{# ── Table ── #}
+<div style="border:0.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden">
+<table class="ws-table" id="ws-table">
+<thead>
+<tr>
+  <th style="width:80px">Code</th>
+  <th style="width:140px">Customer</th>
+  <th style="width:55px">Type</th>
+  <th style="width:110px">Stage</th>
+  <th class="col-mid" title="Feasibility Receipt">Feas.</th>
+  <th class="col-mid" title="MNRE (DCR only)">MNRE</th>
+  <th class="col-mid" title="CD Payment">CD</th>
+  <th class="col-mid" title="KSEB Connection">KSEB</th>
+  <th class="col-mid" title="Warranty Card">Warr.</th>
+  <th style="width:110px">Doc staff</th>
+</tr>
+</thead>
+<tbody>
+{% for row in rows %}
+  {% set p  = row.project %}
+  {% set dm = row.doc_map %}
+  {% set cd = row.cd_expense %}
+  {% set is_dcr = p.project_subtype == 'DCR' %}
+
+  {% set feas_done = dm.get('Feasibility Receipt') in done_statuses %}
+  {% set mnre_done = dm.get('MNRE') in done_statuses %}
+  {% set cd_done   = cd and cd.paid_by %}
+  {% set kseb_done = dm.get('KSEB Connection') in done_statuses %}
+  {% set warr_done = dm.get('Warranty Card')   in done_statuses %}
+
+  <tr
+    data-code="{{ p.project_code }}"
+    data-name="{{ p.customer.name | lower }}"
+    data-feas="{{ 'done' if feas_done else 'pend' }}"
+    data-mnre="{{ 'done' if mnre_done else ('pend' if is_dcr else 'na') }}"
+    data-cd="{{ 'done' if cd_done else 'pend' }}"
+    data-kseb="{{ 'done' if kseb_done else 'pend' }}"
+    data-warr="{{ 'done' if warr_done else 'pend' }}"
+  >
+    <td>
+      <a href="{{ url_for('project_detail', pid=p.id) }}"
+         style="font-size:12px;font-weight:500;color:var(--blue-600);text-decoration:none">
+        {{ p.project_code }}
+      </a>
+    </td>
+    <td>
+      <div style="font-size:12px">{{ p.customer.name }}</div>
+      <div style="font-size:11px;color:var(--muted)">{{ p.customer.place or '' }}</div>
+    </td>
+    <td>
+      <span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span>
+    </td>
+    <td>
+      <span class="badge badge-{{ p.status }}" style="font-size:10px">{{ p.stage }}</span>
+    </td>
+
+    {# Feasibility #}
+    <td class="col-mid">
+      <span class="status-dot {{ 'dot-done' if feas_done else 'dot-pend' }}"
+            title="{{ 'Done' if feas_done else 'Pending' }}">
+        {{ '✓' if feas_done else '✗' }}
+      </span>
+    </td>
+
+    {# MNRE — DCR only #}
+    <td class="col-mid">
+      {% if is_dcr %}
+        <span class="status-dot {{ 'dot-done' if mnre_done else 'dot-pend' }}"
+              title="{{ 'Done' if mnre_done else 'Pending' }}">
+          {{ '✓' if mnre_done else '✗' }}
+        </span>
+      {% else %}
+        <span class="status-dot dot-na" title="Not applicable">—</span>
+      {% endif %}
+    </td>
+
+    {# CD Payment #}
+    <td class="col-mid">
+      {% if cd_done %}
+        <span class="status-dot dot-done"
+              title="Paid by {{ cd.paid_by }}{% if cd.amount %} · ₹{{ cd.amount | int }}{% endif %}">✓</span>
+      {% else %}
+        <span class="status-dot dot-pend" title="Not recorded">✗</span>
+      {% endif %}
+    </td>
+
+    {# KSEB Connection #}
+    <td class="col-mid">
+      <span class="status-dot {{ 'dot-done' if kseb_done else 'dot-pend' }}"
+            title="{{ 'Done' if kseb_done else 'Pending' }}">
+        {{ '✓' if kseb_done else '✗' }}
+      </span>
+    </td>
+
+    {# Warranty Card #}
+    <td class="col-mid">
+      <span class="status-dot {{ 'dot-done' if warr_done else 'dot-pend' }}"
+            title="{{ 'Done' if warr_done else 'Pending' }}">
+        {{ '✓' if warr_done else '✗' }}
+      </span>
+    </td>
+
+    <td style="font-size:11px;color:var(--muted)">
+      {{ p.doc_staff.full_name if p.doc_staff else '—' }}
+    </td>
+  </tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+
+<div id="ws-empty" style="display:none;text-align:center;padding:24px;
+     color:var(--muted);font-size:13px">No projects match this filter.</div>
+
+<script>
+let wsActiveFilter = 'all';
+
+function wsSetFilter(f, el) {
+  wsActiveFilter = f;
+  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  wsFilter();
+}
+
+function wsFilter() {
+  const q   = document.getElementById('ws-search').value.toLowerCase();
+  const rows = document.querySelectorAll('#ws-table tbody tr');
+  let vis = 0;
+
+  rows.forEach(tr => {
+    const code = tr.dataset.code.toLowerCase();
+    const name = tr.dataset.name;
+    const matchSearch = !q || code.includes(q) || name.includes(q);
+
+    let matchFilter = true;
+    if (wsActiveFilter === 'feas')    matchFilter = tr.dataset.feas    === 'pend';
+    if (wsActiveFilter === 'mnre')    matchFilter = tr.dataset.mnre    === 'pend';
+    if (wsActiveFilter === 'cd')      matchFilter = tr.dataset.cd      === 'pend';
+    if (wsActiveFilter === 'kseb')    matchFilter = tr.dataset.kseb    === 'pend';
+    if (wsActiveFilter === 'warranty') matchFilter = tr.dataset.warr   === 'pend';
+
+    const show = matchSearch && matchFilter;
+    tr.style.display = show ? '' : 'none';
+    if (show) vis++;
+  });
+
+  document.getElementById('ws-empty').style.display = vis === 0 ? 'block' : 'none';
+}
+</script>
+{% endblock %}
