@@ -883,6 +883,206 @@ document.addEventListener('DOMContentLoaded', function () {
     </div>
 
   </div>{# end bank instalment grid #}
+  {% if proj.project_type == 'Loan' %}
+{% set bank_total = 0 %}
+{% for p in proj.payments %}
+  {% if p.payment_source == 'Bank' %}
+    {% set bank_total = bank_total + (p.amount | float) %}
+  {% endif %}
+{% endfor %}
+{% set contract_amt = proj.total_amount | float %}
+{% set excess_amt = bank_total - contract_amt %}
+{% set exc = proj.bank_excess %}
+ 
+{% if excess_amt > 0.01 or exc %}
+<div class="card" style="margin-bottom:16px;
+     border-color:{% if exc and exc.returned %}var(--green-200,#bbf7d0){% else %}var(--amber-200,#fde68a){% endif %};
+     background:{% if exc and exc.returned %}var(--green-50,#f0fdf4){% else %}var(--amber-50,#fffbeb){% endif %}">
+ 
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div class="card-title" style="margin:0;
+         color:{% if exc and exc.returned %}var(--green-700){% else %}var(--amber-700){% endif %}">
+      ⚠ Bank Excess
+      <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:6px">
+        — bank paid more than contract amount
+      </span>
+    </div>
+    {% if exc and exc.returned %}
+    <span class="badge badge-Completed">✓ Returned</span>
+    {% else %}
+    <span class="badge badge-Pending">Pending Return</span>
+    {% endif %}
+  </div>
+ 
+  {# ── Summary grid ── #}
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:{% if exc and not exc.returned %}14px{% else %}0{% endif %}">
+    <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:12px 14px;background:#fff">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Total bank received</div>
+      <div style="font-size:18px;font-weight:600;color:var(--text)">{{ bank_total | int | inr }}</div>
+      {% set instalments_done = proj.bank_instalments %}
+      <div style="font-size:11px;color:var(--hint);margin-top:3px">
+        {% if 'First' in instalments_done %}1st: {{ instalments_done['First'].amount | inr }}{% endif %}
+        {% if 'Second' in instalments_done %} + 2nd: {{ instalments_done['Second'].amount | inr }}{% endif %}
+      </div>
+    </div>
+    <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:12px 14px;background:#fff">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Contract amount</div>
+      <div style="font-size:18px;font-weight:600;color:var(--text)">{{ contract_amt | inr }}</div>
+    </div>
+    <div style="border:0.5px solid
+         {% if exc and exc.returned %}var(--green-300){% else %}var(--amber-300,#fcd34d){% endif %};
+         border-radius:var(--radius);padding:12px 14px;
+         background:{% if exc and exc.returned %}var(--green-100){% else %}var(--amber-100,#fef3c7){% endif %}">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Excess amount</div>
+      <div style="font-size:18px;font-weight:700;
+                  color:{% if exc and exc.returned %}var(--green-700){% else %}var(--amber-700){% endif %}">
+        {% if exc %}{{ exc.excess_amount | inr }}{% else %}{{ excess_amt | inr }}{% endif %}
+      </div>
+      {% if exc and exc.received_date %}
+      <div style="font-size:11px;color:var(--hint);margin-top:3px">
+        Received {{ exc.received_date | date_fmt }}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+ 
+  {# ── Returned state ── #}
+  {% if exc and exc.returned %}
+  <div style="margin-top:14px;border-top:0.5px solid var(--green-200,#bbf7d0);padding-top:12px">
+    <div style="font-size:12px;font-weight:600;color:var(--green-700);margin-bottom:8px">Return details</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:13px">
+      <div>
+        <div style="font-size:11px;color:var(--muted)">Returned on</div>
+        <div style="font-weight:500">{{ exc.returned_date | date_fmt }}</div>
+      </div>
+      {% if exc.returned_method %}
+      <div>
+        <div style="font-size:11px;color:var(--muted)">Method</div>
+        <div style="font-weight:500">{{ exc.returned_method }}</div>
+      </div>
+      {% endif %}
+      {% if exc.returned_reference %}
+      <div>
+        <div style="font-size:11px;color:var(--muted)">Reference / UTR</div>
+        <div style="font-weight:500;font-family:monospace;font-size:12px">{{ exc.returned_reference }}</div>
+      </div>
+      {% endif %}
+    </div>
+    {% if exc.returned_notes %}
+    <div style="margin-top:8px;font-size:12px;color:var(--hint)">Notes: {{ exc.returned_notes }}</div>
+    {% endif %}
+    {% if current_user.role in ['admin', 'payments'] %}
+    <button class="btn btn-sm" style="margin-top:10px" onclick="togglePanel('bankExcessEditForm')">
+      ✏ Edit record
+    </button>
+    {% endif %}
+  </div>
+  {% endif %}
+ 
+  {% if current_user.role in ['admin', 'payments'] %}
+ 
+  {# ── Action buttons (not yet returned) ── #}
+  {% if not exc or not exc.returned %}
+  <div style="display:flex;gap:8px;margin-top:{% if exc %}0{% else %}4px{% endif %}">
+    {% if exc %}
+    <button class="btn btn-sm btn-warning" onclick="togglePanel('bankExcessReturnForm')">
+      ↩ Mark Returned
+    </button>
+    <button class="btn btn-sm" onclick="togglePanel('bankExcessEditForm')">
+      ✏ Edit
+    </button>
+    {% else %}
+    <button class="btn btn-sm btn-warning" onclick="togglePanel('bankExcessEditForm')">
+      + Record Excess
+    </button>
+    {% endif %}
+  </div>
+ 
+  {# Return form #}
+  {% if exc %}
+  <div id="bankExcessReturnForm" style="display:none;border:1px solid var(--green-200,#bbf7d0);
+       border-radius:var(--radius);background:#f0fdf4;padding:16px;margin-top:12px">
+    <div style="font-size:13px;font-weight:600;color:var(--green-700);margin-bottom:10px">
+      ↩ Mark Excess Returned 
+    </div>
+    <form method="POST" action="{{ url_for('return_bank_excess', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Date returned</label>
+          <input type="date" name="returned_date" required/>
+        </div>
+        <div class="form-group">
+          <label>Payment method</label>
+          <select name="returned_method">
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="NEFT">NEFT</option>
+            <option value="RTGS">RTGS</option>
+            <option value="Cheque">Cheque</option>
+            <option value="Cash">Cash</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Reference / UTR <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="text" name="returned_reference" placeholder="UTR / ref number"/>
+        </div>
+        <div class="form-group full">
+          <label>Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="text" name="returned_notes" placeholder="Any additional info…"/>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button type="submit" class="btn btn-primary btn-sm">✓ Confirm Return</button>
+        <button type="button" class="btn btn-sm" onclick="togglePanel('bankExcessReturnForm')">Cancel</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+  {% endif %}
+ 
+  {# Record / Edit excess form #}
+  <div id="bankExcessEditForm" style="display:{% if not exc %}none{% else %}none{% endif %};
+       border:{% if not exc %}none{% else %}1px solid var(--amber-200,#fde68a){% endif %};
+       border-radius:var(--radius);background:#fff;padding:{% if exc %}16px{% else %}0{% endif %};
+       margin-top:{% if exc %}12px{% else %}0{% endif %}">
+    {% if exc %}<div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:10px">Edit excess details</div>{% endif %}
+    <form method="POST" action="{{ url_for('save_bank_excess', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Excess amount (₹)</label>
+          <input type="number" name="excess_amount" step="0.01" min="1"
+                 value="{% if exc %}{{ exc.excess_amount | float | round(2) }}{% else %}{{ excess_amt | round(2) }}{% endif %}"
+                 required/>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">
+            Auto-calculated: bank total ({{ bank_total | inr }}) − contract ({{ contract_amt | inr }})
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Date received from bank</label>
+          <input type="date" name="received_date"
+                 value="{% if exc and exc.received_date %}{{ exc.received_date.isoformat() }}{% endif %}"/>
+        </div>
+        <div class="form-group full">
+          <label>Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="text" name="notes"
+                 value="{% if exc and exc.notes %}{{ exc.notes }}{% endif %}"
+                 placeholder="e.g. Bank paid excess on second instalment…"/>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        {% if exc %}
+        <button type="button" class="btn btn-sm" onclick="togglePanel('bankExcessEditForm')">Cancel</button>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+ 
+  {% endif %}{# end role check #}
+</div>
+{% endif %}{# end excess_amt > 0 or exc #}
+{% endif %}{# end Loan check #}
 
   {# ── Record next bank instalment form ── #}
   {% if not payment_complete and current_user.role in ['admin','payments'] and proj.next_bank_instalment %}

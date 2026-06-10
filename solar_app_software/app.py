@@ -449,7 +449,23 @@ class CompanyBankAdvance(db.Model):
     updated_at     = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     project        = db.relationship('Project', backref=db.backref('bank_advance', uselist=False))
     recorder       = db.relationship('User', foreign_keys=[recorded_by])
-
+class BankExcessReturn(db.Model):
+    __tablename__ = 'bank_excess_returns'
+    id               = db.Column(db.Integer, primary_key=True)
+    project_id       = db.Column(db.Integer, db.ForeignKey('projects.id'), unique=True, nullable=False)
+    excess_amount    = db.Column(db.Numeric(12, 2), nullable=False)
+    received_date    = db.Column(db.Date, nullable=True)
+    notes            = db.Column(db.String(300), nullable=True)
+    returned         = db.Column(db.Boolean, default=False)
+    returned_date    = db.Column(db.Date, nullable=True)
+    returned_method  = db.Column(db.String(50), nullable=True)
+    returned_reference = db.Column(db.String(100), nullable=True)
+    returned_notes   = db.Column(db.String(300), nullable=True)
+    recorded_by      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at       = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at       = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    project          = db.relationship('Project', backref=db.backref('bank_excess', uselist=False))
+    recorder         = db.relationship('User', foreign_keys=[recorded_by])
 class Worker(db.Model):
     __tablename__ = 'workers'
     id           = db.Column(db.Integer, primary_key=True)
@@ -1926,7 +1942,55 @@ def update_expense(pid):
     db.session.commit()
     flash(f'{expense_type} updated.', 'success')
     return redirect(url_for('documents', pid=pid))
-
+@app.route('/projects/<int:pid>/bank_excess/save', methods=['POST'])
+@login_required
+@roles_required('admin', 'payments')
+def save_bank_excess(pid):
+    proj = Project.query.get_or_404(pid)
+    if proj.project_type != 'Loan':
+        flash('Bank excess only applies to Loan projects.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+ 
+    exc = proj.bank_excess or BankExcessReturn(project_id=pid)
+    exc.excess_amount  = _safe_float(request.form.get('excess_amount'))
+    exc.received_date  = date.fromisoformat(request.form['received_date']) if request.form.get('received_date') else None
+    exc.notes          = _clean(request.form.get('notes', ''), 300) or None
+    exc.recorded_by    = current_user.id
+ 
+    if not exc.id:
+        db.session.add(exc)
+ 
+    log_action(pid, f'Bank excess recorded: ₹{float(exc.excess_amount):,.0f}',
+               new_val=str(exc.excess_amount))
+ 
+    for u in User.query.filter_by(role='payments', is_active=True).all():
+        if u.id != current_user.id:
+            create_notification(u.id, pid,
+                f'{proj.project_code} — {proj.customer.name}: Bank excess of '
+                f'₹{float(exc.excess_amount):,.0f} recorded. To be returned.', 'task')
+ 
+    db.session.commit()
+    flash(f'Bank excess of ₹{float(exc.excess_amount):,.0f} recorded.', 'success')
+    return redirect(url_for('project_detail', pid=pid))
+ 
+ 
+@app.route('/projects/<int:pid>/bank_excess/return', methods=['POST'])
+@login_required
+@roles_required('admin', 'payments')
+def return_bank_excess(pid):
+    exc = BankExcessReturn.query.filter_by(project_id=pid).first_or_404()
+    exc.returned           = True
+    exc.returned_date      = date.fromisoformat(request.form['returned_date']) if request.form.get('returned_date') else date.today()
+    exc.returned_method    = request.form.get('returned_method') or None
+    exc.returned_reference = _clean(request.form.get('returned_reference', ''), 100) or None
+    exc.returned_notes     = _clean(request.form.get('returned_notes', ''), 300) or None
+ 
+    log_action(pid, f'Bank excess returned to bank: ₹{float(exc.excess_amount):,.0f}',
+               new_val='Returned')
+    db.session.commit()
+    flash(f'Bank excess of ₹{float(exc.excess_amount):,.0f} marked as returned', 'success')
+    return redirect(url_for('project_detail', pid=pid))
+ 
 
 @app.route('/projects/<int:pid>/expenses/<int:eid>/mark_recovered', methods=['POST'])
 @login_required
