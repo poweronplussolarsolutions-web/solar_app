@@ -4561,6 +4561,7 @@ def download_job_card(pid):
                 joinedload(Project.coordinator),
                 joinedload(Project.doc_staff),
                 joinedload(Project.kseb_task),
+                joinedload(Project.assignments).joinedload(WorkerAssignment.worker),
             )
             .filter_by(id=pid)
             .first_or_404())

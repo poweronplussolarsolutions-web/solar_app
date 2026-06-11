@@ -357,26 +357,28 @@ def build_job_card(project=None, output_path="/tmp/job_card.xlsx"):
     merge("E22", "H22", bank_val, size=8)
     merge("I22", "N22", "", size=8)
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # ROW 23 — Transportation-1 / Structure
-    # ──────────────────────────────────────────────────────────────────────────
+    # ── ROW 23 — Transportation-1 / Structure with workers ──────────────────
     rh(23, 14)
     merge("A23", "D23", "Transportation-1:", size=8, bold=True)
     merge("E23", "H23", "", size=8)
     label(9, 23, "Structure:", bold=True, size=8)
     op = p.onsite_progress if p else None
-    struct_val = safe(op.structure_work_status if op else "")
-    merge("J23", "N23", struct_val, size=8)
+    struct_status = safe(op.structure_work_status if op else "")
+    struct_names = [a.worker.name for a in p.assignments
+                if a.work_phase in ('Structure', 'Full Work') and a.worker] if p else []
+    struct_val_full = struct_status + (f" ({', '.join(struct_names)})" if struct_names else "")
+    merge("J23", "N23", struct_val_full, size=8)
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # ROW 24 — Structure (left) / Electrical
-    # ──────────────────────────────────────────────────────────────────────────
+    # ── ROW 24 — Structure (left) / Electrical with workers ─────────────────
     rh(24, 14)
     merge("A24", "D24", "Structure:", size=8, bold=True)
-    merge("E24", "H24", struct_val, size=8)
+    merge("E24", "H24", struct_val_full, size=8)
     label(9, 24, "Electrical:", bold=True, size=8)
-    elec_val = safe(op.electrical_status if op else "")
-    merge("J24", "N24", elec_val, size=8)
+    elec_status = safe(op.electrical_status if op else "")
+    inst_names = [a.worker.name for a in p.assignments
+              if a.work_phase in ('Electrical/Installation', 'Full Work') and a.worker] if p else []
+    elec_val_full = elec_status + (f" ({', '.join(inst_names)})" if inst_names else "")
+    merge("J24", "N24", elec_val_full, size=8)
 
     # ──────────────────────────────────────────────────────────────────────────
     # ROW 25 — Wheeling / Wheeling

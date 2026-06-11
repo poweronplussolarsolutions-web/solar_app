@@ -325,8 +325,8 @@
       <div class="jc-section-title">Document Status</div>
       {% for doc_key, label in [
         ('Feasibility Receipt', 'Feasibility'),
-        ('KSEB Connection',     'KSEB Connection'),
         ('CD Payment Receipt', 'CD Payment Receipt'),
+        ('KSEB Connection',     'KSEB Connection'),
         ('MNRE',                'MNRE'),
         ('Subsidy Request',     'Subsidy Request'),
         ('Warranty Card',       'Warranty Card'),
@@ -356,8 +356,6 @@
   {% for lbl, doc_key in [
     ('Stamp Paper',  'KSEB Stamp Paper'),
     ('B-Class Lic.', 'B-Class Licence'),
-    ('Inspection',   'Inspection'),
-    
   ] %}
   {% set doc = doc_map.get(doc_key) %}
   {% set is_done = doc and doc.status in ['Received','Completed','Sent'] %}
@@ -374,11 +372,37 @@
     </div>
   </div>
   {% endfor %}
-  {# Onsite & Subsidy remain the same #}
+
+  {# Structure with workers #}
+  {% set struct_workers = proj.assignments | selectattr('work_phase', 'in', ['Structure', 'Full Work']) | list %}
+  <div class="jc-row">
+    <div class="jc-label">Structure</div>
+    <div class="jc-val" style="flex-direction:column;align-items:flex-start;gap:2px">
+      <span>{{ op.structure_work_status if op else '—' }}</span>
+      {% if struct_workers %}
+      <span style="font-size:10px;color:var(--muted)">
+        {{ struct_workers | map(attribute='worker') | map(attribute='name') | join(', ') }}
+      </span>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Installation with workers #}
+  {% set install_workers = proj.assignments | selectattr('work_phase', 'in', ['Electrical/Installation', 'Full Work']) | list %}
+  <div class="jc-row">
+    <div class="jc-label">Installation</div>
+    <div class="jc-val" style="flex-direction:column;align-items:flex-start;gap:2px">
+      <span>{{ op.installation_status if op else '—' }}</span>
+      {% if install_workers %}
+      <span style="font-size:10px;color:var(--muted)">
+        {{ install_workers | map(attribute='worker') | map(attribute='name') | join(', ') }}
+      </span>
+      {% endif %}
+    </div>
+  </div>
+
   {% for lbl, val in [
-    ('Structure',    (op.structure_work_status if op else '—')),
-    ('Installation', (op.installation_status if op else '—')),
-    ('Subsidy',      (sub.status if sub else '—')),
+    ('Subsidy', (sub.status if sub else '—')),
   ] %}
   <div class="jc-row">
     <div class="jc-label">{{ lbl }}</div>
