@@ -463,7 +463,7 @@
         <span class="dot"></span> Projects
       </a>
       {% if current_user.role in ['admin', 'documents'] %}
-<a href="{{ url_for('works_status') }}" class="nav-link">Status</a>
+<a class="nav-link {% if request.endpoint == 'works_status' %}active{% endif %}" href="{{ url_for('works_status') }}" class="nav-link">Status</a>
 {% endif %}
       {% if current_user.role in ['coordinator','documents','payments','onsite','appinstall'] %}
       <a class="nav-link {% if request.endpoint in 'change_password' %}active{% endif %}" href="{{ url_for('change_password') }}">

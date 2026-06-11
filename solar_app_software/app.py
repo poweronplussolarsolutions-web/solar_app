@@ -4045,7 +4045,7 @@ def inr_filter(value):
 def date_fmt(value):
     if not value:
         return '—'
-    if isinstance(value, datetime):
+    if isinstance(value, (datetime, date)):
         return value.strftime('%d/%m/%Y')
     return str(value)
 
