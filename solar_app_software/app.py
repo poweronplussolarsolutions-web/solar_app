@@ -3378,7 +3378,7 @@ def subsidy(pid):
 
     if request.method == 'POST':
         if current_user.role not in ['admin', 'payments', 'documents']:
-            flash('Subsidy can be updated only by payments team', 'danger')
+            flash('Subsidy can be updated only by payments or documents team', 'danger')
             return redirect(url_for('subsidy', pid=pid))
 
         if sub is None:
@@ -3429,7 +3429,7 @@ def subsidy(pid):
         db.session.commit()
         flash('Subsidy record updated.', 'success')
 
-    return render_template('subsidy.html', proj=proj, sub=sub)
+    return render_template('project_detail.html', proj=proj, sub=sub)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
