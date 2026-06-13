@@ -387,86 +387,93 @@
      {% endif %}
   {% endfor %}
 </div>
-{# ── CD PAYMENT & NET METER ── #}
+{# ── COMPANY EXPENSES ── #}
 <div class="card" style="margin-top:20px">
-  <div class="card-title">CD Payment & Meter</div>
+  <div class="card-title">Company Expenses</div>
   <p style="font-size:12px;color:var(--muted);margin-bottom:16px">
     Record whether these were paid by the customer or by the company (to be recovered later).
   </p>
 
-  {% set cd_expense  = proj.expenses | selectattr('expense_type','eq','CD Payment')  | first | default(none) %}
-  {% set nm_expense  = proj.expenses | selectattr('expense_type','eq','Meter')   | first | default(none) %}
+  {% set cd_expense   = proj.expenses | selectattr('expense_type','eq','CD Payment')   | first | default(none) %}
+  {% set nm_expense   = proj.expenses | selectattr('expense_type','eq','Meter')        | first | default(none) %}
+  {% set ld_expense   = proj.expenses | selectattr('expense_type','eq','Load')         | first | default(none) %}
+  {% set add_expense  = proj.expenses | selectattr('expense_type','eq','Additional')   | first | default(none) %}
 
- {% for label, existing in [('CD Payment', cd_expense), ('Meter', nm_expense)] %}
-{% set form_id = 'expense-form-' ~ loop.index %}
-<div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-    <div style="font-size:13px;font-weight:500">{{ label }}</div>
-    <div style="display:flex;align-items:center;gap:8px">
-      {% if existing %}
-        <span class="badge badge-{% if existing.paid_by == 'Company' %}Delayed{% else %}Completed{% endif %}">
-          Paid by {{ existing.paid_by }}
-          {% if existing.paid_by == 'Company' and existing.recovered %} · Recovered{% endif %}
-          {% if existing.paid_by == 'Company' and not existing.recovered %} · Pending recovery{% endif %}
-        </span>
-        {% if current_user.role in ['admin', 'documents'] %}
-        <button class="btn btn-sm" onclick="toggleExpenseForm('{{ form_id }}')">Edit</button>
-        {% endif %}
-      {% else %}
-        <span class="badge badge-Lead">Not recorded</span>
-      {% endif %}
-    </div>
-  </div>
-
-  {% if existing %}
-  <div style="font-size:12px;color:var(--muted);margin-bottom:10px;display:flex;gap:16px">
-    <span>Amount: <strong>₹{{ existing.amount | int }}</strong></span>
-    <span>Date: <strong>{{ existing.paid_date | date_fmt }}</strong></span>
-    {% if existing.notes %}<span>Note: {{ existing.notes }}</span>{% endif %}
-  </div>
-  {% endif %}
-
-  {% if current_user.role in ['admin', 'documents'] %}
-  <div id="{{ form_id }}" style="{{ 'display:none' if existing else '' }}">
-    <form method="POST" action="{{ url_for('update_expense', pid=proj.id) }}" >
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="expense_type" value="{{ label }}">
-      <div class="expense-grid">
-        <div>
-          <label>Amount (₹)</label>
-          <input type="number" name="amount" min="0" step="1"
-                 value="{{ existing.amount | int if existing else '' }}" placeholder="0"/>
-        </div>
-        <div>
-          <label>Paid by</label>
-          <select name="paid_by">
-            <option value="Customer" {% if existing and existing.paid_by == 'Customer' %}selected{% endif %}>Customer</option>
-            <option value="Company"  {% if existing and existing.paid_by == 'Company'  %}selected{% endif %}>Company</option>
-          </select>
-        </div>
-        <div>
-          <label>Date paid</label>
-          <input type="date" name="paid_date"
-                 value="{{ existing.paid_date.isoformat() if existing and existing.paid_date else '' }}"/>
-        </div>
-        <div>
-          <label>Notes</label>
-          <input type="text" name="notes"
-                 value="{{ existing.notes or '' }}" placeholder="Optional…"/>
-        </div>
-        <div class="expense-btns">
-          <button type="submit" class="btn btn-primary btn-sm">Save</button>
-          {% if existing %}
-          <button type="button" class="btn btn-sm"
-                  onclick="toggleExpenseForm('{{ form_id }}')">Cancel</button>
+  {% for label, existing in [
+      ('CD Payment',  cd_expense),
+      ('Meter',       nm_expense),
+      ('Load',        ld_expense),
+      ('Additional',  add_expense),
+  ] %}
+  {% set form_id = 'expense-form-' ~ loop.index %}
+  <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:500">{{ label }}</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        {% if existing %}
+          <span class="badge badge-{% if existing.paid_by == 'Company' %}Delayed{% else %}Completed{% endif %}">
+            Paid by {{ existing.paid_by }}
+            {% if existing.paid_by == 'Company' and existing.recovered %} · Recovered{% endif %}
+            {% if existing.paid_by == 'Company' and not existing.recovered %} · Pending recovery{% endif %}
+          </span>
+          {% if current_user.role in ['admin', 'documents'] %}
+          <button class="btn btn-sm" onclick="toggleExpenseForm('{{ form_id }}')">Edit</button>
           {% endif %}
-        </div>
+        {% else %}
+          <span class="badge badge-Lead">Not recorded</span>
+        {% endif %}
       </div>
-    </form>
+    </div>
+
+    {% if existing %}
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;display:flex;gap:16px">
+      <span>Amount: <strong>₹{{ existing.amount | int }}</strong></span>
+      <span>Date: <strong>{{ existing.paid_date | date_fmt }}</strong></span>
+      {% if existing.notes %}<span>Note: {{ existing.notes }}</span>{% endif %}
+    </div>
+    {% endif %}
+
+    {% if current_user.role in ['admin', 'documents'] %}
+    <div id="{{ form_id }}" style="{{ 'display:none' if existing else '' }}">
+      <form method="POST" action="{{ url_for('update_expense', pid=proj.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="expense_type" value="{{ label }}">
+        <div class="expense-grid">
+          <div>
+            <label>Amount (₹)</label>
+            <input type="number" name="amount" min="0" step="1"
+                   value="{{ existing.amount | int if existing else '' }}" placeholder="0"/>
+          </div>
+          <div>
+            <label>Paid by</label>
+            <select name="paid_by">
+              <option value="Customer" {% if existing and existing.paid_by == 'Customer' %}selected{% endif %}>Customer</option>
+              <option value="Company"  {% if existing and existing.paid_by == 'Company'  %}selected{% endif %}>Company</option>
+            </select>
+          </div>
+          <div>
+            <label>Date paid</label>
+            <input type="date" name="paid_date"
+                   value="{{ existing.paid_date.isoformat() if existing and existing.paid_date else '' }}"/>
+          </div>
+          <div>
+            <label>Notes</label>
+            <input type="text" name="notes"
+                   value="{{ existing.notes or '' }}" placeholder="Optional…"/>
+          </div>
+          <div class="expense-btns">
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+            {% if existing %}
+            <button type="button" class="btn btn-sm"
+                    onclick="toggleExpenseForm('{{ form_id }}')">Cancel</button>
+            {% endif %}
+          </div>
+        </div>
+      </form>
+    </div>
+    {% endif %}
   </div>
-  {% endif %}
-</div>
-{% endfor %}
+  {% endfor %}
 </div>
 {% endif %}
 
