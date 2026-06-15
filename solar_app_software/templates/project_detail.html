@@ -34,6 +34,44 @@
         This project is on hold. Resume it to unlock actions.
       {% endif %}
     </div>
+    {% set reason_text = none %}
+    {% for log in logs %}
+      {% if (proj.status == 'Cancelled' and log.action.startswith('Project cancelled. Reason:'))
+         or (proj.status == 'OnHold' and log.action.startswith('Project put on hold. Reason:')) %}
+        {% if reason_text is none %}
+          {% set reason_text = log.action.split('Reason:')[1].strip() %}
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+    {% if reason_text and reason_text != 'No reason provided' %}
+    <div style="font-size:12px;margin-top:6px;font-weight:500">
+      Reason: {{ reason_text }}
+    </div>
+    {% endif %}
+
+    {% if current_user.role == 'admin' %}
+      {% set missing = [] %}
+      {% if not proj.customer.phone %}{% set _ = missing.append('Customer phone') %}{% endif %}
+      {% if not proj.customer.house_name %}{% set _ = missing.append('House name') %}{% endif %}
+      {% if not proj.customer.place %}{% set _ = missing.append('Place') %}{% endif %}
+      {% if not proj.customer.pincode %}{% set _ = missing.append('Pincode') %}{% endif %}
+      {% if not proj.customer.village %}{% set _ = missing.append('Village') %}{% endif %}
+      {% if not proj.coordinator and not proj.coordinator_name %}{% set _ = missing.append('Coordinator') %}{% endif %}
+      {% if not proj.doc_staff %}{% set _ = missing.append('Doc staff') %}{% endif %}
+      {% set cd_check = proj.connection_details %}
+      {% if not cd_check or not cd_check.connection_type %}{% set _ = missing.append('Connection type') %}{% endif %}
+      {% if not cd_check or not cd_check.consumer_number %}{% set _ = missing.append('Consumer number') %}{% endif %}
+      {% if proj.project_type == 'Loan' and (not proj.loan_detail or not proj.loan_detail.bank_name) %}
+        {% set _ = missing.append('Loan bank details') %}
+      {% endif %}
+      {% if not proj.panel_details %}{% set _ = missing.append('Panel & meter details') %}{% endif %}
+      {% if missing %}
+      <div style="font-size:12px;margin-top:8px;padding:8px 10px;background:rgba(255,255,255,0.5);
+                  border-radius:var(--radius);border:1px dashed currentColor">
+        <strong>Missing details (admin view):</strong> {{ missing | join(', ') }}
+      </div>
+      {% endif %}
+    {% endif %}
   </div>
   {% if proj.status == 'Cancelled' and current_user.role == 'admin' %}
   <button class="btn btn-sm btn-primary"

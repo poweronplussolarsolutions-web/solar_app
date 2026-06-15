@@ -560,6 +560,17 @@
        
       </div>
       {% endif %}
+      <div style="border-top:0.5px solid var(--border);padding:8px 14px">
+        <div style="font-size:10px;color:var(--muted);font-weight:500;margin-bottom:6px">Pending Payments (write-in)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0">
+          {% for _ in range(3) %}
+          <div class="jc-row" style="border-right:0.5px solid var(--border);min-height:30px">
+            <div class="jc-val"></div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
     </div>
   </div>
 
