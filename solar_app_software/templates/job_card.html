@@ -272,21 +272,21 @@
     <div class="jc-section">
       <div class="jc-section-title">Customer</div>
       {% for lbl, val in [
-        ('Handling',   proj.doc_staff.full_name if proj.doc_staff else '—'),
+        ('Handling',   proj.doc_staff.full_name if proj.doc_staff else ' '),
         ('C/O',
   proj.coordinator.full_name if proj.coordinator
-  else (proj.coordinator_name if proj.coordinator_name else '—')
+  else (proj.coordinator_name if proj.coordinator_name else ' ')
 ),
-        ('Sub C/O',    c.sub_co or '—'),
+        ('Sub C/O',    c.sub_co or ' '),
         ('Name',       c.name),
-        ('House Name', c.house_name or '—'),
-        ('Place',      c.place or '—'),
-        ('Post',       c.post or '—'),
-        ('Pin',        c.pincode or '—'),
-        ('Village',    c.village or '—'),
-        ('Taluk',      c.taluk or '—'),
-        ('District',   c.district or '—'),
-        ('Phone',      c.phone or '—'),
+        ('House Name', c.house_name or ' '),
+        ('Place',      c.place or ' '),
+        ('Post',       c.post or ' '),
+        ('Pin',        c.pincode or ' '),
+        ('Village',    c.village or ' '),
+        ('Taluk',      c.taluk or ' '),
+        ('District',   c.district or ' '),
+        ('Phone',      c.phone or ' '),
         
       ] %}
       <div class="jc-row">
@@ -303,15 +303,15 @@
         ('KW (Inverter)', proj.inverter_capacity_kw ~ ' kW'),
         ('KW (Panel)',    proj.panel_capacity_kw ~ ' kW'),
         ('Type',          proj.project_type ~ (' / ' ~ proj.project_subtype if proj.project_subtype else '')),
-        ('Roof',          proj.roof_type or '—'),
-        ('Inverter Type', proj.inverter_type or '—'),
-        ('Phase',         (cd.connection_type if cd and cd.connection_type else '—')),
-        ('Section',       (cd.kseb_section if cd and cd.kseb_section else '—')),
-        ('Consumer No.',  (cd.consumer_number if cd and cd.consumer_number else '—')),
-        ('Category',      (cd.category if cd and cd.category else '—')),
+        ('Roof',          proj.roof_type or ' '),
+        ('Inverter Type', proj.inverter_type or ' '),
+        ('Phase',         (cd.connection_type if cd and cd.connection_type else ' ')),
+        ('Section',       (cd.kseb_section if cd and cd.kseb_section else ' ')),
+        ('Consumer No.',  (cd.consumer_number if cd and cd.consumer_number else ' ')),
+        ('Category',      (cd.category if cd and cd.category else ' ')),
         ('Ownership',     ('Required' if cd and cd.ownership_change_needed else 'Not Required')),
         ('Load Clearance',('Required' if cd and cd.load_clearance_needed else 'Not Required')),
-        ('Loan Bank',     (ld.bank_name if ld and ld.bank_name else '—')),
+        ('Loan Bank',     ((ld.bank_name or '—') ~ '   |   Loan Amount: ' ~ (ld.loan_amount | inr if ld and ld.loan_amount else ' ')) if ld else ' '),
       ] %}
       <div class="jc-row">
         <div class="jc-label">{{ lbl }}</div>
@@ -378,7 +378,7 @@
   <div class="jc-row">
     <div class="jc-label">Structure</div>
     <div class="jc-val" style="flex-direction:column;align-items:flex-start;gap:2px">
-      <span>{{ op.structure_work_status if op else '—' }}</span>
+      <span>{{ op.structure_work_status if op else ' ' }}</span>
       {% if struct_workers %}
       <span style="font-size:10px;color:var(--muted)">
         {{ struct_workers | map(attribute='worker') | map(attribute='name') | join(', ') }}
@@ -402,7 +402,7 @@
   </div>
 
   {% for lbl, val in [
-    ('Subsidy', (sub.status if sub else '—')),
+    ('Subsidy', (sub.status if sub else ' ')),
   ] %}
   <div class="jc-row">
     <div class="jc-label">{{ lbl }}</div>
@@ -417,12 +417,12 @@
       {% if pd %}
       <div style="display:grid;grid-template-columns:1fr 1fr">
         {% for lbl, val in [
-          ('Panel Brand',         pd.panel_brand or '—'),
-          ('Inverter Brand',      pd.inverter_brand or '—'),
-          ('No. of Panels',       (pd.num_panels|string) if pd.num_panels else '—'),
-          ('Inverter Serial',     pd.inverter_serial_number or '—'),
-          ('Net Meter Serial',    pd.net_meter_serial_number or '—'),
-          ('Energy Meter Serial', pd.energy_meter_serial_number or '—'),
+          ('Panel Brand',         pd.panel_brand or ' '),
+          ('Inverter Brand',      pd.inverter_brand or ' '),
+          ('No. of Panels',       (pd.num_panels|string) if pd.num_panels else ' '),
+          ('Inverter Serial',     pd.inverter_serial_number or ' '),
+          ('Net Meter Serial',    pd.net_meter_serial_number or ' '),
+          ('Energy Meter Serial', pd.energy_meter_serial_number or ' '),
         ] %}
         <div class="jc-row" style="border-right:0.5px solid var(--border)">
           <div class="jc-label">{{ lbl }}</div>
@@ -444,7 +444,7 @@
       </div>
       {% endif %}
       {% else %}
-      <div class="jc-row"><div class="jc-val" style="padding-left:14px;color:var(--hint)">No panel details recorded yet.</div></div>
+      <div class="jc-row"><div class="jc-val" style="padding-left:14px;color:var(--hint)"></div></div>
       {% endif %}
     </div>
 
@@ -458,8 +458,8 @@
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;border-bottom:0.5px solid var(--border)">
         {% for lbl, val, hl in [
           ('Work Amount',  proj.total_amount | inr,                          false),
-          ('CD Payment',       (cd_exp.amount | inr if cd_exp else '—'),         false),
-          ('Net Meter (NM)',   (nm_exp.amount | inr if nm_exp else '—'),         false),
+          ('CD Payment',       (cd_exp.amount | inr if cd_exp else ' '),         false),
+          ('Net Meter (NM)',   (nm_exp.amount | inr if nm_exp else ' '),         false),
           ('Total Receivable', proj.total_receivable | inr,                      true),
         ] %}
         <div style="padding:8px 14px;{% if hl %}background:var(--teal-50,#f0fdfa);{% endif %}
@@ -512,7 +512,7 @@
                 {{ pay.payment_source }}{% if pay.instalment %} · {{ pay.instalment }}{% endif %}
               </td>
               <td style="padding:5px 10px;font-family:monospace;font-size:10px;color:var(--muted)">
-                {{ pay.reference_no or '—' }}
+                {{ pay.reference_no or ' ' }}
               </td>
               <td style="padding:5px 14px 5px 10px;text-align:right;font-weight:600;
                          white-space:nowrap">{{ pay.amount | inr }}</td>
@@ -546,7 +546,7 @@
       </div>
       {% else %}
        <div style="padding:16px 14px;font-size:12px;color:var(--hint);font-style:italic">
-        No payments recorded yet.
+       
       </div>
       {% endif %}
     </div>
