@@ -120,8 +120,7 @@
       <thead>
         <tr>
           <th>Project</th><th>Customer</th><th>Phone</th>
-          <th>Location</th><th>kW</th><th>Scheduled</th>
-          <th>Reschedule</th><th></th>
+          <th>Location</th><th>Inverter kW</th><th>Panel kW</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -144,39 +143,25 @@
                 {{ i.project.customer.district }}
                 {% if i.project.customer.pincode %} — {{ i.project.customer.pincode }}{% endif %}
               {% endif %}
-              {% if i.project.customer.address %}
-                <div style="font-size:11px;color:var(--hint);margin-top:2px;max-width:160px;
+              {% if i.project.customer.house_name or i.project.customer.place %}
+                <div style="font-size:11px;color:var(--hint);margin-top:2px;max-width:200px;
                             white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
-                     title="{{ i.project.customer.address }}">
-                  {{ i.project.customer.address }}
+                     title="{{ [i.project.customer.house_name, i.project.customer.place, i.project.customer.post] | select | join(', ') }}">
+                  {{ [i.project.customer.house_name, i.project.customer.place, i.project.customer.post] | select | join(', ') }}
                 </div>
               {% endif %}
-              {% if not i.project.customer.district and not i.project.customer.address %}
+              {% if not i.project.customer.district and not i.project.customer.house_name and not i.project.customer.place %}
                 <span style="color:var(--hint)">—</span>
               {% endif %}
             </div>
           </td>
 
-          <td data-label="kW" style="font-size:12px;color:var(--muted)">
-            {{ i.project.system_kw }} kW
+          <td data-label="Inverter kW" style="font-size:12px;color:var(--muted)">
+            {{ i.project.inverter_capacity_kw }} kW
           </td>
 
-          <td data-label="Scheduled">{{ i.scheduled_date | date_fmt }}</td>
-
-          <td data-label="Reschedule" class="td-actions">
-            {% if current_user.role in ['admin','appinstall'] %}
-            <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}" 
-                  style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="status" value="Scheduled">
-              <input type="date" name="scheduled_date"
-                     style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border);
-                            border-radius:var(--radius);background:transparent"/>
-              <button type="submit" class="btn btn-sm">Reschedule</button>
-            </form>
-            {% else %}
-            <span style="font-size:12px;color:var(--hint)">{{ i.rescheduled_date | date_fmt }}</span>
-            {% endif %}
+          <td data-label="Panel kW" style="font-size:12px;color:var(--muted)">
+            {{ i.project.panel_capacity_kw }} kW
           </td>
 
           <td class="td-actions">
@@ -209,7 +194,7 @@
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
     <table class="completed-table">
       <thead>
-        <tr><th>Project</th><th>Customer</th><th>Location</th><th>Completed</th></tr>
+        <tr><th>Project</th><th>Customer</th><th>Location</th><th>kW</th><th>Completed</th></tr>
       </thead>
       <tbody>
         {% for i in completed %}
@@ -218,6 +203,9 @@
           <td data-label="Customer">{{ i.project.customer.name }}</td>
           <td data-label="Location" style="font-size:12px;color:var(--muted)">
             {{ i.project.customer.district or '—' }}
+          </td>
+          <td data-label="kW" style="font-size:12px;color:var(--muted)">
+            {{ i.project.inverter_capacity_kw }} / {{ i.project.panel_capacity_kw }} kW
           </td>
           <td data-label="Completed">{{ i.completed_date | date_fmt }}</td>
         </tr>
