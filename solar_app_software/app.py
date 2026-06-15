@@ -2510,9 +2510,30 @@ def documents(pid):
                 log_action(pid, 'KSEB connection complete → App Installation queued', new_val='Pending')
                 for u in User.query.filter_by(role='appinstall', is_active=True).all():
                     create_notification(u.id, pid,
-                        f'KSEB connection done for {proj.project_code} — {proj.customer.name} '
-                        f'({proj.inverter_capacity_kw} kW). Schedule app installation.', 'task')
+                    f'KSEB connection done for {proj.project_code} — {proj.customer.name} '
+                    f'({proj.inverter_capacity_kw} kW). Schedule app installation.', 'task')
 
+    # ── Create service schedule as soon as KSEB connection is done ──
+            if not ServiceRecord.query.filter_by(project_id=pid).first():
+                base = date.today()
+                for visit_num in range(1, 11):
+                    months_ahead = visit_num * 6
+                    year_offset, month_offset = divmod(base.month - 1 + months_ahead, 12)
+                    sched = base.replace(year=base.year + year_offset, month=month_offset + 1)
+                    db.session.add(ServiceRecord(
+                    project_id     = pid,
+                    visit_number   = visit_num,
+                    scheduled_date = sched,
+                    status         = 'Upcoming',
+                    ))
+                log_action(pid, 'Service schedule created on KSEB connection', new_val='Upcoming')
+                notify_onsite_team(pid,
+                f'Service schedule created for {proj.project_code} — {proj.customer.name}. '
+                f'10 panel-cleaning visits over 5 years starting {base.strftime("%d %b %Y")}.', 'info')
+                if proj.coordinator_id:
+                    create_notification(proj.coordinator_id, pid,
+                    f'{proj.project_code} — {proj.customer.name}: KSEB connected. '
+                    f'Service schedule of 10 visits created.', 'info')
         if current_user.role == 'admin' and was_complete and proj.doc_staff_id:
             create_notification(proj.doc_staff_id, pid,
                 f'{proj.project_code} - {proj.customer.name}: Admin ({current_user.full_name}) '
@@ -2596,17 +2617,24 @@ def service_management():
     from sqlalchemy.orm import joinedload
     refresh_service_statuses()
 
-    projects = (Project.query
-        .options(
-            joinedload(Project.customer),
-            joinedload(Project.coordinator),
-        )
-        .filter(Project.status.notin_(['Cancelled']))
-        .order_by(Project.updated_at.desc())
-        .all())
+    from sqlalchemy.orm import joinedload
+    from sqlalchemy import exists
 
-    # Only projects that have a service schedule
-    projects = [p for p in projects if p.service_records]
+# Projects that have at least one service record, excluding cancelled
+    has_service = (db.session.query(Project.id)
+    .join(ServiceRecord, ServiceRecord.project_id == Project.id)
+    .filter(Project.status.notin_(['Cancelled']))
+    .distinct()
+    .subquery())
+
+    projects = (Project.query
+    .options(
+        joinedload(Project.customer),
+        joinedload(Project.coordinator),
+    )
+    .filter(Project.id.in_(has_service))
+    .order_by(Project.updated_at.desc())
+    .all())
 
     # Attach records sorted by visit number
     proj_data = []

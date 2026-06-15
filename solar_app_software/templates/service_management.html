@@ -343,10 +343,18 @@
     <div class="sm-proj-info">
       <div class="sm-proj-name">{{ p.customer.name }}</div>
       <div class="sm-proj-meta">
-        {{ p.inverter_capacity_kw }} kW · {{ p.project_type }}
-        {% if p.project_subtype %} · {{ p.project_subtype }}{% endif %}
-        {% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}
-      </div>
+  {{ p.inverter_capacity_kw }} kW · {{ p.project_type }}
+  {% if p.project_subtype %} · {{ p.project_subtype }}{% endif %}
+  {% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}
+  {% set kseb_doc = p.documents | selectattr('doc_type','eq','KSEB Connection') | first | default(none) %}
+  {% if kseb_doc and kseb_doc.status in ['Received','Completed'] %}
+    · <span style="color:#16a34a;font-weight:500">⚡ KSEB Connected</span>
+  {% endif %}
+  {% set stage_badge_color = '#16a34a' if p.status in ['Completed','Closed']
+                              else '#d97706' if p.status == 'Delayed'
+                              else 'var(--muted)' %}
+  · <span style="color:{{ stage_badge_color }}">{{ p.stage }}</span>
+</div>
     </div>
 
     {# Visit pills #}
@@ -415,6 +423,21 @@
 
   {# ── Card body ── #}
   <div class="sm-card-body" id="body-{{ p.id }}">
+    {% if p.status not in ['Completed', 'Closed'] %}
+<div style="display:flex;align-items:center;gap:10px;
+            background:#fffbeb;border-bottom:0.5px solid #fde68a;
+            padding:10px 16px;font-size:12px;color:#92400e">
+  <span>⏳</span>
+  <div>
+    <strong>Project in progress</strong> — Stage: {{ p.stage }} · Status: {{ p.status }}.
+    Service schedule is active; visits will be tracked as work continues.
+    <a href="{{ url_for('project_detail', pid=p.id) }}"
+       style="color:#92400e;font-weight:600;margin-left:6px">
+      View project →
+    </a>
+  </div>
+</div>
+{% endif %}
     {% for rec in pd.records %}
       {% if loop.index0 == 0 %}
         {% set prev_done = true %}
