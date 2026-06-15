@@ -51,7 +51,6 @@
 
     
   </div>
-
   {% if proj.status == 'Cancelled' and current_user.role == 'admin' %}
   <button class="btn btn-sm btn-primary"
           onclick="togglePanel('uncancelPanel')"
@@ -86,29 +85,7 @@
   </form>
 </div>
 {% endif %}
-{% if current_user.role == 'admin' %}
-      {% set missing = [] %}
-      {% if not proj.customer.phone %}{% set _ = missing.append('Customer phone') %}{% endif %}
-      {% if not proj.customer.house_name %}{% set _ = missing.append('House name') %}{% endif %}
-      {% if not proj.customer.place %}{% set _ = missing.append('Place') %}{% endif %}
-      {% if not proj.customer.pincode %}{% set _ = missing.append('Pincode') %}{% endif %}
-      {% if not proj.customer.village %}{% set _ = missing.append('Village') %}{% endif %}
-      {% if not proj.coordinator and not proj.coordinator_name %}{% set _ = missing.append('Coordinator') %}{% endif %}
-      {% if not proj.doc_staff %}{% set _ = missing.append('Doc staff') %}{% endif %}
-      {% set cd_check = proj.connection_details %}
-      {% if not cd_check or not cd_check.connection_type %}{% set _ = missing.append('Connection type') %}{% endif %}
-      {% if not cd_check or not cd_check.consumer_number %}{% set _ = missing.append('Consumer number') %}{% endif %}
-      {% if proj.project_type == 'Loan' and (not proj.loan_detail or not proj.loan_detail.bank_name) %}
-        {% set _ = missing.append('Loan bank details') %}
-      {% endif %}
-      {% if not proj.panel_details %}{% set _ = missing.append('Panel & meter details') %}{% endif %}
-      {% if missing %}
-      <div style="font-size:12px;margin-top:8px;padding:8px 10px;background:rgba(255,255,255,0.5);
-                  border-radius:var(--radius);border:1px dashed currentColor">
-        <strong>Missing details (admin view):</strong> {{ missing | join(', ') }}
-      </div>
-      {% endif %}
-    {% endif %}
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('form').forEach(function (form) {
@@ -143,7 +120,34 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 {% endif %}
-
+{% if current_user.role == 'admin' %}
+  {% set missing = [] %}
+  {% if not proj.customer.phone %}{% set _ = missing.append('Customer phone') %}{% endif %}
+  {% if not proj.customer.house_name %}{% set _ = missing.append('House name') %}{% endif %}
+  {% if not proj.customer.place %}{% set _ = missing.append('Place') %}{% endif %}
+  {% if not proj.customer.pincode %}{% set _ = missing.append('Pincode') %}{% endif %}
+  {% if not proj.customer.village %}{% set _ = missing.append('Village') %}{% endif %}
+  {% if not proj.coordinator and not proj.coordinator_name %}{% set _ = missing.append('Coordinator') %}{% endif %}
+  {% if not proj.doc_staff %}{% set _ = missing.append('Doc staff') %}{% endif %}
+  {% set cd_check = proj.connection_details %}
+  {% if not cd_check or not cd_check.connection_type %}{% set _ = missing.append('Connection type') %}{% endif %}
+  {% if not cd_check or not cd_check.consumer_number %}{% set _ = missing.append('Consumer number') %}{% endif %}
+  {% if proj.project_type == 'Loan' and (not proj.loan_detail or not proj.loan_detail.bank_name) %}
+    {% set _ = missing.append('Loan bank details') %}
+  {% endif %}
+  {% if not proj.panel_details %}{% set _ = missing.append('Panel & meter details') %}{% endif %}
+  {% if missing %}
+  <div style="display:flex;align-items:flex-start;gap:10px;
+              padding:12px 16px;margin-bottom:16px;border-radius:var(--radius);
+              background:var(--amber-50,#fffbeb);border:1px dashed var(--amber-300,#fcd34d);
+              color:var(--amber-800,#92400e)">
+    <span style="font-size:16px">📋</span>
+    <div style="font-size:12px">
+      <strong>Missing details (admin view):</strong> {{ missing | join(', ') }}
+    </div>
+  </div>
+  {% endif %}
+{% endif %}
 {# ── INFO HEADER ── #}
 <div class="two-col">
   <div class="card">
