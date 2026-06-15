@@ -2267,6 +2267,9 @@ def add_payment(pid):
         return redirect(url_for('project_detail', pid=pid))
 
     amount = _safe_float(request.form.get('amount'))
+    if amount <= 0:
+        flash('Please enter a valid payment amount greater than zero.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
     source = request.form.get('payment_source', 'Customer')
 
     if proj.total_amount and float(proj.total_amount) > 0:
