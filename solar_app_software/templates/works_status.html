@@ -96,7 +96,6 @@
 
   {% set feas_done = dm.get('Feasibility Receipt') in done_statuses %}
   {% set mnre_done = dm.get('MNRE') in done_statuses %}
-  {% set cd_done   = cd and cd.paid_by %}
   {% set kseb_done = dm.get('KSEB Connection') in done_statuses %}
   {% set warr_done = dm.get('Warranty Card')   in done_statuses %}
 
