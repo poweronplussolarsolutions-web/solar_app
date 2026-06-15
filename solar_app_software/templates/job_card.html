@@ -342,8 +342,8 @@
             <span style="font-size:15px;color:#16a34a;line-height:1">✓</span>
             <span style="font-size:11px;color:#16a34a;font-weight:600">Completed</span>
           {% else %}
-            <span style="font-size:15px;color:#9ca3af;line-height:1">✗</span>
-            <span style="font-size:11px;color:#9ca3af">{{ 'Pending' if doc else 'Not recorded' }}</span>
+            <span style="font-size:15px;color:#9ca3af;line-height:1"></span>
+            <span style="font-size:11px;color:#9ca3af">{{ 'Pending' if doc else ' ' }}</span>
           {% endif %}
         </div>
       </div>
@@ -366,8 +366,8 @@
         <span style="font-size:15px;color:#16a34a;line-height:1">✓</span>
         <span style="font-size:11px;color:#16a34a;font-weight:600"> Completed</span>
       {% else %}
-        <span style="font-size:15px;color:#9ca3af;line-height:1">✗</span>
-        <span style="font-size:11px;color:#9ca3af">{{ 'Pending' if doc else 'Not recorded' }}</span>
+        <span style="font-size:15px;color:#9ca3af;line-height:1"></span>
+        <span style="font-size:11px;color:#9ca3af">{{ 'Pending' if doc else ' ' }}</span>
       {% endif %}
     </div>
   </div>
@@ -431,21 +431,32 @@
         {% endfor %}
       </div>
       {% if pd.panel_serial_numbers %}
-      <div class="jc-row" style="flex-direction:column;padding:8px 14px;gap:6px">
-        <div style="font-size:11px;color:var(--muted);font-weight:500">Panel Serial Numbers</div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px">
-          {% for sn in pd.panel_serial_numbers.splitlines() %}
-          {% if sn.strip() %}
-          <span style="font-family:monospace;font-size:10px;background:var(--bg);
-                       border:0.5px solid var(--border);border-radius:4px;padding:2px 6px">{{ sn.strip() }}</span>
-          {% endif %}
-          {% endfor %}
-        </div>
-      </div>
+      <div class="jc-row" style="flex-direction:column;padding:8px 14px;gap:6px;min-height:60px">
+  <div style="font-size:11px;color:var(--muted);font-weight:500">Panel Serial Numbers</div>
+  {% if pd.panel_serial_numbers %}
+  <div style="display:flex;flex-wrap:wrap;gap:4px">
+    {% for sn in pd.panel_serial_numbers.splitlines() %}
+    {% if sn.strip() %}
+    <span style="font-family:monospace;font-size:10px;background:var(--bg);
+                 border:0.5px solid var(--border);border-radius:4px;padding:2px 6px">{{ sn.strip() }}</span>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
       {% endif %}
       {% else %}
-      <div class="jc-row"><div class="jc-val" style="padding-left:14px;color:var(--hint)"></div></div>
-      {% endif %}
+<div style="display:grid;grid-template-columns:1fr 1fr">
+  {% for _ in range(6) %}
+  <div class="jc-row" style="border-right:0.5px solid var(--border);min-height:32px">
+    <div class="jc-val"></div>
+  </div>
+  {% endfor %}
+</div>
+<div class="jc-row" style="flex-direction:column;padding:8px 14px;gap:6px;min-height:60px">
+  <div style="font-size:11px;color:var(--muted);font-weight:500">Panel Serial Numbers</div>
+</div>
+{% endif %}
     </div>
 
     {# FULL: Payment #}
