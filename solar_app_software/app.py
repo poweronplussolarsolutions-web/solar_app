@@ -2316,8 +2316,7 @@ def add_payment(pid):
     if source == 'Bank' and instalment == 'First':
         notify_onsite_team(pid,
             f'Loan work {proj.project_code} — {proj.customer.name} '
-            f'({proj.inverter_capacity_kw} kW): First bank payment of ₹{amount:,.0f} received. '
-            f'Site work can now begin.', 'task')
+            f'({proj.inverter_capacity_kw} kW): First bank payment of ₹{amount:,.0f} received. ', 'task')
 
     auto_advance_stage(proj)
     db.session.commit()
@@ -2560,13 +2559,9 @@ def works_status():
     rows = []
     for p in projects:
         doc_map = {d.doc_type: d.status for d in p.documents}
-        cd_expense = next(
-            (e for e in p.expenses if e.expense_type == 'CD Payment'), None
-        )
         rows.append({
             'project':    p,
             'doc_map':    doc_map,
-            'cd_expense': cd_expense,
         })
 
     # Summary counts for cards at top
@@ -2583,7 +2578,7 @@ def works_status():
         'feas':     _done('Feasibility Receipt'),
         'mnre':     sum(1 for r in dcr_rows if r['doc_map'].get('MNRE') in DONE_STATUSES),
         'mnre_tot': len(dcr_rows),
-        'cd':       sum(1 for r in rows if r['cd_expense'] and r['cd_expense'].paid_by),
+        'cd':       _done('CD Payment Receipt'),
         'kseb':     _done('KSEB Connection'),
         'warr':     _done('Warranty Card'),
     }

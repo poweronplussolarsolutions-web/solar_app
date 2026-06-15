@@ -91,7 +91,7 @@
 {% for row in rows %}
   {% set p  = row.project %}
   {% set dm = row.doc_map %}
-  {% set cd = row.cd_expense %}
+  {% set cd_done   = dm.get('CD Payment Receipt') in done_statuses %}
   {% set is_dcr = p.project_subtype == 'DCR' %}
 
   {% set feas_done = dm.get('Feasibility Receipt') in done_statuses %}
@@ -147,14 +147,12 @@
     </td>
 
     {# CD Payment #}
-    <td class="col-mid">
-      {% if cd_done %}
-        <span class="status-dot dot-done"
-              title="Paid by {{ cd.paid_by }}{% if cd.amount %} · ₹{{ cd.amount | int }}{% endif %}">✓</span>
-      {% else %}
-        <span class="status-dot dot-pend" title="Not recorded">✗</span>
-      {% endif %}
-    </td>
+<td class="col-mid">
+  <span class="status-dot {{ 'dot-done' if cd_done else 'dot-pend' }}"
+        title="{{ 'Done' if cd_done else 'Pending' }}">
+    {{ '✓' if cd_done else '✗' }}
+  </span>
+</td>
 
     {# KSEB Connection #}
     <td class="col-mid">
