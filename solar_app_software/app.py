@@ -2588,6 +2588,65 @@ def works_status():
                            key_docs=KEY_DOCS,
                            summary=summary,
                            done_statuses=DONE_STATUSES)
+
+@app.route('/service_management')
+@login_required
+@roles_required('admin', 'onsite', 'coordinator')
+def service_management():
+    from sqlalchemy.orm import joinedload
+    refresh_service_statuses()
+
+    projects = (Project.query
+        .options(
+            joinedload(Project.customer),
+            joinedload(Project.coordinator),
+        )
+        .filter(Project.status.notin_(['Cancelled']))
+        .order_by(Project.updated_at.desc())
+        .all())
+
+    # Only projects that have a service schedule
+    projects = [p for p in projects if p.service_records]
+
+    # Attach records sorted by visit number
+    proj_data = []
+    for p in projects:
+        records = sorted(p.service_records, key=lambda r: r.visit_number)
+        done    = sum(1 for r in records if r.status == 'Completed')
+        over    = sum(1 for r in records if r.status == 'Overdue')
+        due     = sum(1 for r in records if r.status == 'Due')
+        skipped = sum(1 for r in records if r.status == 'Skipped')
+        total   = len(records)
+        pct     = int(done / total * 100) if total else 0
+        next_v  = next((r for r in records if r.status not in ('Completed', 'Skipped')), None)
+        proj_data.append({
+            'project': p,
+            'records': records,
+            'done':    done,
+            'over':    over,
+            'due':     due,
+            'skipped': skipped,
+            'total':   total,
+            'pct':     pct,
+            'next':    next_v,
+        })
+
+    # Global stats
+    all_records = [r for pd in proj_data for r in pd['records']]
+    stats = {
+        'projects':  len(proj_data),
+        'overdue':   sum(1 for r in all_records if r.status == 'Overdue'),
+        'due':       sum(1 for r in all_records if r.status == 'Due'),
+        'completed': sum(1 for r in all_records if r.status == 'Completed'),
+        'upcoming':  sum(1 for r in all_records if r.status == 'Upcoming'),
+        'skipped':   sum(1 for r in all_records if r.status == 'Skipped'),
+    }
+
+    return render_template('service_management.html',
+                           proj_data=proj_data,
+                           stats=stats,
+                           today=date.today())
+
 @app.route('/projects/<int:pid>/connection_details', methods=['POST'])
 @login_required
 @roles_required('admin', 'documents')

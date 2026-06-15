@@ -501,9 +501,9 @@
       {% endif %}
       {% if current_user.role in ['admin', 'onsite', 'coordinator'] %}
 <li class="nav-item">
-  <a class="nav-link {{ 'active' if request.endpoint == 'service_dashboard' }}"
-     href="{{ url_for('service_dashboard') }}">
-    <span class="dot"></span>Service 
+  <a class="nav-link {{ 'active' if request.endpoint == 'service_management' }}"
+     href="{{ url_for('service_management') }}">
+    <span class="dot"></span>Service Management
     <span id="service-badge" class="badge bg-danger ms-1" style="display:none"></span>
   </a>
 </li>
