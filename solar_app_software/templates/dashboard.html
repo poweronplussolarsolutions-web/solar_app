@@ -332,20 +332,7 @@
   {% endfor %}
 </div>
 {% endif %}
-<script>
-document.addEventListener('click', function(e) {
-  const open = e.target.closest('.notif-open');
-  if (open) {
-    fetch('/api/notifications/read/' + open.dataset.nid, { method: 'POST' });
-  }
 
-  const dismiss = e.target.closest('.notif-dismiss');
-  if (dismiss) {
-    fetch('/api/notifications/read/' + dismiss.dataset.nid, { method: 'POST' });
-    dismiss.closest('.notif-item').remove();
-  }
-});
-</script>
 
 <div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
   <div class="stat-card">
@@ -833,6 +820,20 @@ document.addEventListener('click', function(e) {
 {% endif %}
 {% endif %}
 <script>
+document.addEventListener('click', function(e) {
+  const open = e.target.closest('.notif-open');
+  if (open) {
+    fetch('/api/notifications/read/' + open.dataset.nid, { method: 'POST' });
+  }
+
+  const dismiss = e.target.closest('.notif-dismiss');
+  if (dismiss) {
+    fetch('/api/notifications/read/' + dismiss.dataset.nid, { method: 'POST' });
+    dismiss.closest('.notif-item').remove();
+  }
+});
+</script>
+<script>
 function tableSearch(inputId, tableId) {
   const input = document.getElementById(inputId);
   if (!input) return;
@@ -850,6 +851,7 @@ function onsiteSearch(val) {
     row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
   });
 }
+
 tableSearch('search-admin',    'tbl-admin');
 tableSearch('search-coord',    'tbl-coord');
 tableSearch('search-docs',     'tbl-docs');
