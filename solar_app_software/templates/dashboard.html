@@ -4,13 +4,14 @@
   {% if current_user.role == 'admin' %}Admin Dashboard
   {% elif current_user.role == 'coordinator' %}Coordinator Dashboard
   {% elif current_user.role == 'documents' %}Documents Team
+  {% elif current_user.role == 'office' %}Office Manager
   {% elif current_user.role == 'payments' %}Payments Dashboard
   {% elif current_user.role == 'onsite' %}On-site Management
   {% elif current_user.role == 'appinstall' %}App Installation
   {% endif %}
 {% endblock %}
 {% block topbar_actions %}
-  {% if current_user.role == 'coordinator' %}
+  {% if current_user.role in ['coordinator','office'] %}
   <a href="{{ url_for('new_project') }}" class="btn btn-primary">+ New Project</a>
   {% endif %}
 {% endblock %}
@@ -426,7 +427,108 @@ document.addEventListener('click', function(e) {
   <div style="text-align:center;padding:32px;color:var(--hint)">No projects assigned to you yet.</div>
   {% endif %}
 </div>
+{# ── OFFICE MANAGER ── #}
+{% elif current_user.role == 'office' %}
+{% if data.notifications %}
+<div style="margin-bottom:16px;display:flex;flex-direction:column;gap:8px">
+  {% for n in data.notifications %}
+  <div class="notif-item" style="background:{% if n.notif_type == 'task' %}var(--teal-50){% else %}var(--surface){% endif %};
+              border:0.5px solid {% if n.notif_type == 'task' %}var(--teal-100){% else %}var(--border){% endif %};
+              border-radius:var(--radius-lg);padding:12px 16px;
+              display:flex;flex-direction:row;gap:12px">
+    <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:7px;
+                background:{% if n.notif_type == 'task' %}var(--teal-600){% else %}var(--muted){% endif %}"></div>
+    <div style="flex:1">
+      <div style="font-size:13px;font-weight:500;color:{% if n.notif_type == 'task' %}var(--teal-800){% else %}var(--fg){% endif %}">
+        {{ n.message }}
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">{{ n.created_at | date_fmt }}</div>
+    </div>
+    <a href="{{ url_for('project_detail', pid=n.project_id) }}" class="btn btn-sm notif-open" data-nid="{{ n.id }}">Open →</a>
+    <button type="button" class="notif-dismiss" data-nid="{{ n.id }}"
+            style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:0 4px">×</button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 
+<div class="stats-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+  <div class="stat-card">
+    <div class="stat-label">All active projects</div>
+    <div class="stat-value">{{ data.queue }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Not started</div>
+    <div class="stat-value" style="color:var(--amber-600)">{{ data.new_count }}</div>
+    <div class="stat-sub">No documents yet</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">In progress</div>
+    <div class="stat-value" style="color:var(--teal-600)">
+      {{ data.projects | selectattr('status','eq','InProgress') | list | length }}
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Completed</div>
+    <div class="stat-value" style="color:var(--green-600)">{{ data.completed_count }}</div>
+    <div class="stat-sub">Closed or completed</div>
+  </div>
+</div>
+
+<div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div class="card-title" style="margin:0">All projects</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <a href="{{ url_for('works_status') }}" class="btn btn-sm">Works status →</a>
+      <input id="search-office" type="search" placeholder="Search projects…"
+             style="font-size:13px;padding:5px 10px;border:0.5px solid var(--border);
+                    border-radius:var(--radius);background:transparent;color:var(--fg);width:220px"/>
+    </div>
+  </div>
+  {% if data.projects %}
+  <div class="table-wrap">
+  <table id="tbl-office">
+    <thead>
+      <tr>
+        <th>Project</th>
+        <th>Customer</th>
+        <th>Type</th>
+        <th>Stage</th>
+        <th>Status</th>
+        <th>Doc Staff</th>
+        <th>Coordinator</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in data.projects_with_counts %}
+      {% set p = item.project %}
+      <tr>
+        <td><span style="font-weight:500">{{ p.project_code }}</span></td>
+        <td>{{ p.customer.name }}</td>
+        <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
+        <td style="font-size:12px;color:var(--muted)">{{ p.stage }}</td>
+        <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
+        <td style="font-size:12px">
+          {% if p.doc_staff %}{{ p.doc_staff.full_name }}
+          {% else %}<span style="color:var(--red-600);font-size:11px">Unassigned</span>{% endif %}
+        </td>
+        <td style="font-size:12px">
+          {% if p.coordinator %}{{ p.coordinator.full_name }}
+          {% elif p.coordinator_name %}{{ p.coordinator_name }}
+          {% else %}<span style="color:var(--hint)">—</span>{% endif %}
+        </td>
+        <td><a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">Open</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {{ paginate('?', data.page, data.total_pages) }}
+  {% else %}
+  <div style="text-align:center;padding:32px;color:var(--hint)">No active projects.</div>
+  {% endif %}
+</div>
 {# ── PAYMENTS ── #}
 {% elif current_user.role == 'payments' %}
 <div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
@@ -754,6 +856,7 @@ tableSearch('search-docs',     'tbl-docs');
 tableSearch('search-payments', 'tbl-payments');
 // tableSearch('search-onsite',   'tbl-onsite');
 tableSearch('search-installs-pending',   'tbl-installs-pending');
+tableSearch('search-office',             'tbl-office');
 tableSearch('search-installs-scheduled', 'tbl-installs-scheduled');
 </script>
 {% endblock %}

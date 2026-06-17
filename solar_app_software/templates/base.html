@@ -462,10 +462,10 @@
       <a class="nav-link {% if request.endpoint in ['projects','project_detail'] %}active{% endif %}" href="{{ url_for('projects') }}">
         <span class="dot"></span> Projects
       </a>
-      {% if current_user.role in ['admin', 'documents'] %}
+      {% if current_user.role in ['admin', 'documents','office'] %}
 <a class="nav-link {% if request.endpoint == 'works_status' %}active{% endif %}" href="{{ url_for('works_status') }}"><span class="dot"></span>Status</a>
 {% endif %}
-      {% if current_user.role in ['coordinator','documents','payments','onsite','appinstall'] %}
+      {% if current_user.role in ['coordinator','documents','payments','onsite','appinstall','office'] %}
       <a class="nav-link {% if request.endpoint in 'change_password' %}active{% endif %}" href="{{ url_for('change_password') }}">
         <span class="dot"></span>Change Password</a> 
       {% endif %}
@@ -494,7 +494,7 @@
       
       {% endif %}
 
-      {% if current_user.role in ['admin','appinstall','documents'] %}
+      {% if current_user.role in ['admin','appinstall','documents','office'] %}
       <a class="nav-link {% if request.endpoint == 'installations' %}active{% endif %}" href="{{ url_for('installations') }}">
         <span class="dot"></span> App Installations
       </a>
