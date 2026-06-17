@@ -220,12 +220,12 @@ document.addEventListener('DOMContentLoaded', function () {
   </div>
 
   <div>
-    {% if current_user.role in ['admin', 'coordinator','documents'] and proj.status not in ['Cancelled', 'Closed'] %}
+    {% if current_user.role in ['admin', 'coordinator','documents','office'] and proj.status not in ['Cancelled', 'Closed'] %}
     <button class="btn btn-danger btn-sm" onclick="togglePanel('cancelPanel')" style="margin:5px">
       ✕ Cancel Project
     </button>
     {% endif %}
-    {% if current_user.role in ['admin', 'coordinator', 'documents'] and proj.status not in ['Cancelled', 'Closed'] %}
+    {% if current_user.role in ['admin', 'coordinator', 'documents','office'] and proj.status not in ['Cancelled', 'Closed'] %}
       {% if proj.status == 'OnHold' %}
         <form method="POST" action="{{ url_for('hold_project', pid=proj.id) }}" class="d-inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -236,11 +236,12 @@ document.addEventListener('DOMContentLoaded', function () {
           ⏸ Put On Hold
         </button>
       {% endif %}
-      {% if current_user.role in ['admin', 'coordinator', 'documents','onsite'] and proj.status not in ['Cancelled', 'Closed'] %}
+      {% if current_user.role in ['admin', 'coordinator', 'documents','onsite','office'] and proj.status not in ['Cancelled', 'Closed'] %}
       {% set can_edit = current_user.role == 'admin'
           or (current_user.role == 'coordinator' and proj.coordinator_id == current_user.id)
           or (current_user.role == 'onsite')
-          or (current_user.role == 'documents' and proj.doc_staff_id == current_user.id) %}
+          or (current_user.role == 'documents' and proj.doc_staff_id == current_user.id)
+          or current_user.role == 'office' %}
       {% if can_edit %}
       <a href="{{ url_for('edit_project', pid=proj.id) }}" class="btn btn-sm">
         ✏ Edit details
@@ -539,7 +540,7 @@ document.addEventListener('DOMContentLoaded', function () {
     {% if proj.project_subtype == 'DCR' %}
     <a href="#subsidy" class="btn btn-sm">Subsidy</a>
     {% endif %}
-    {% if current_user.role in ['admin'] or
+    {% if current_user.role in ['admin','office'] or
          (current_user.role == 'documents' and proj.doc_staff_id == current_user.id) %}
     <a href="{{ url_for('documents', pid=proj.id) }}" class="btn btn-sm">Doc Timeline</a>
     {% endif %}
@@ -1408,7 +1409,7 @@ document.addEventListener('DOMContentLoaded', function () {
   {% else %}
   <div style="color:var(--hint);font-size:13px;padding:4px 0">No documents yet.</div>
   {% endif %}
-  {% if current_user.role == 'admin' or
+  {% if current_user.role in ['admin','office'] or
        (current_user.role == 'documents' and proj.doc_staff_id == current_user.id) %}
   {% set doc_map_pd = {} %}
   {% for d in proj.documents %}{% if doc_map_pd.update({d.doc_type: d}) %}{% endif %}{% endfor %}
@@ -1506,7 +1507,7 @@ document.addEventListener('DOMContentLoaded', function () {
     {% endif %}
   </div>
 
-  {% if current_user.role not in ['admin', 'documents', 'payments'] %}
+  {% if current_user.role not in ['admin', 'documents', 'payments','office'] %}
   <div style="background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius);padding:14px;font-size:13px;color:var(--muted)">
     {% if sub_status == 'Received' %}
       <div style="display:flex;align-items:center;gap:10px">
@@ -1527,7 +1528,7 @@ document.addEventListener('DOMContentLoaded', function () {
     {% endif %}
   </div>
   {% else %}
-    {% if sub_status == 'Received' and current_user.role != 'admin' %}
+    {% if sub_status == 'Received' and current_user.role not in ['admin','office'] %}
     <div style="display:flex;align-items:center;gap:10px;background:var(--green-50,#f0fdf4);
                 border:1px solid var(--green-200,#bbf7d0);border-radius:var(--radius);padding:12px 16px">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green-600)" stroke-width="2" stroke-linecap="round">
@@ -1785,7 +1786,7 @@ document.addEventListener('DOMContentLoaded', function () {
 <div class="card" id="panel-details">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div class="card-title" style="margin:0">Panel &amp; meter details</div>
-    {% if current_user.role in ['admin','documents','onsite'] %}
+    {% if current_user.role in ['admin','documents','onsite','office'] %}
     <button class="btn btn-sm" onclick="togglePanel('panelDetailsForm')">
       {% if pd %}✏ Edit{% else %}＋ Add{% endif %}
     </button>
@@ -1830,7 +1831,7 @@ document.addEventListener('DOMContentLoaded', function () {
   {% else %}
   <div style="color:var(--hint);font-size:13px;padding:4px 0 10px">No panel or meter details recorded yet.</div>
   {% endif %}
-  {% if current_user.role in ['admin','documents','onsite'] %}
+  {% if current_user.role in ['admin','documents','onsite','office'] %}
   <div id="panelDetailsForm" style="display:{% if not pd %}block{% else %}none{% endif %};
        margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
     <form method="POST" action="{{ url_for('update_panel_details', pid=proj.id) }}">
