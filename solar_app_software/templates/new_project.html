@@ -176,6 +176,9 @@
           {% for u in doc_staff %}
           <option value="{{ u.id }}">{{ u.full_name }}</option>
           {% endfor %}
+          {% for u in office %}
+          <option value="{{u.id}}">{{u.full_name}}</option>
+          {% endfor %}
         </select>
       </div>
 
