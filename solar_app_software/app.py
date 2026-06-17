@@ -1631,6 +1631,7 @@ def new_project():
     coordinators=User.query.filter_by(role='coordinator').order_by(User.full_name).all()
     customers       = Customer.query.order_by(Customer.name).all()
     doc_staff       = User.query.filter_by(role='documents', is_active=True).all()
+    office = User.query.filter_by(role='office').all()
     suggested_code  = next_project_code()
 
     if request.method == 'POST':
@@ -1717,7 +1718,7 @@ def new_project():
         return redirect(url_for('project_detail', pid=proj.id))
 
     return render_template('new_project.html',coordinators=coordinators, customers=customers,
-                           doc_staff=doc_staff, suggested_code=suggested_code)
+                           doc_staff=doc_staff, suggested_code=suggested_code,office=office)
 
 
 @app.route('/projects/<int:pid>/edit', methods=['GET', 'POST'])
