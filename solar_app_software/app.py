@@ -1478,8 +1478,11 @@ def dashboard():
         from sqlalchemy import func
 
         all_projects = Project.query.options(
-        joinedload(Project.documents)
-    ).filter(Project.status.notin_(['Cancelled', 'OnHold'])).all()
+    joinedload(Project.documents)
+).filter(
+    Project.status.notin_(['Cancelled', 'OnHold']),
+    Project.doc_staff_id == current_user.id
+).all()
 
         project_ids = [p.id for p in all_projects]
 
