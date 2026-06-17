@@ -1739,6 +1739,7 @@ def edit_project(pid):
 
     doc_staff    = User.query.filter_by(role='documents',   is_active=True).all()
     coordinators = User.query.filter_by(role='coordinator', is_active=True).all()
+    office = User.query.filter_by(role='office',is_active=True).all()
 
     if request.method == 'POST':
         old_type     = proj.project_type
@@ -1920,7 +1921,7 @@ def edit_project(pid):
         return redirect(url_for('project_detail', pid=pid))
 
     return render_template('edit_project.html', proj=proj,
-                           doc_staff=doc_staff, coordinators=coordinators)
+                           doc_staff=doc_staff, coordinators=coordinators,office=office)
 
 
 @app.route('/projects/<int:pid>/site_visit', methods=['POST'])
