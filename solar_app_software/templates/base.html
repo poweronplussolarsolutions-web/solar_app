@@ -499,7 +499,7 @@
         <span class="dot"></span> App Installations
       </a>
       {% endif %}
-      {% if current_user.role in ['admin', 'onsite', 'coordinator'] %}
+      {% if current_user.role in ['admin'] %}
 <li class="nav-item">
   <a class="nav-link {{ 'active' if request.endpoint == 'service_management' }}"
      href="{{ url_for('service_management') }}">
