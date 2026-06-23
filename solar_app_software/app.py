@@ -4618,6 +4618,470 @@ def download_docstaff_report():
         download_name=f'DocsReport_{staff.username}_{month_name}_{year}.xlsx',
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+# ─────────────────────────────────────────────────────────────────────────────
+# REPORT HELPERS  — paste anywhere above the routes, e.g. near _inr()
+# ─────────────────────────────────────────────────────────────────────────────
+
+STATUS_COLORS_HTML = {
+    'Completed':  ('#d4edda', '#155724'),
+    'Closed':     ('#d4edda', '#155724'),
+    'InProgress': ('#d1ecf1', '#0c5460'),
+    'Delayed':    ('#f8d7da', '#721c24'),
+    'OnHold':     ('#fff3cd', '#856404'),
+    'Cancelled':  ('#e2e3e5', '#383d41'),
+    'Lead':       ('#e2e3e5', '#383d41'),
+}
+
+
+def _inr_fmt(v):
+    try:
+        return f'₹{float(v or 0):,.0f}'
+    except Exception:
+        return '₹0'
+
+
+def _doc_done(project, doc_name):
+    dm = {d.doc_type: d for d in project.documents}
+    return bool(dm.get(doc_name) and dm[doc_name].status in ('Received', 'Sent', 'Completed'))
+
+
+def _project_to_dict_coord(p):
+    bg, fg = STATUS_COLORS_HTML.get(p.status, ('#fff', '#000'))
+    return {
+        'code':      p.project_code,
+        'customer':  p.customer.name,
+        'type':      p.project_type,
+        'subtype':   p.project_subtype or '—',
+        'stage':     p.stage,
+        'status':    p.status,
+        'status_bg': bg,
+        'status_fg': fg,
+        'contract':  _inr_fmt(p.total_amount),
+        'collected': _inr_fmt(p.collected_amount),
+        'pending':   _inr_fmt(float(p.total_amount or 0) - float(p.collected_amount or 0)),
+        'doc_staff': p.doc_staff.full_name if p.doc_staff else '—',
+        'days_open': p.days_open,
+        'created':   p.created_at.strftime('%d %b %Y'),
+    }
+
+
+def _project_to_dict_docstaff(p):
+    bg, fg = STATUS_COLORS_HTML.get(p.status, ('#fff', '#000'))
+    return {
+        'code':        p.project_code,
+        'customer':    p.customer.name,
+        'type':        p.project_type,
+        'stage':       p.stage,
+        'status':      p.status,
+        'status_bg':   bg,
+        'status_fg':   fg,
+        'feas':        _doc_done(p, 'Feasibility Receipt'),
+        'conn':        _doc_done(p, 'KSEB Connection'),
+        'warranty':    _doc_done(p, 'Warranty Card'),
+        'coordinator': p.coordinator.full_name if p.coordinator else '—',
+        'days_open':   p.days_open,
+        'created':     p.created_at.strftime('%d %b %Y'),
+    }
+
+
+# ── Template filter used in print templates ───────────────────────────────────
+@app.template_filter('format_inr')
+def format_inr_filter(value):
+    try:
+        return f'₹{int(float(value)):,}'
+    except Exception:
+        return '₹0'
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ALL-WORKS EXCEL BUILDERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_allworks_coordinator_report(coordinator, projects, output_dir='/tmp'):
+    """Single flat sheet — all coordinator projects, no month filter."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'All Projects'
+    _page_setup(ws)
+    ws.freeze_panes = 'A6'
+
+    # Title block
+    titles = [
+        ('Power On Plus Solar Solutions',          C_HEADER_BG, C_HEADER_FG, 14, False, True),
+        (f'All Works — {coordinator.full_name}',   C_SUBHDR_BG, C_HEADER_FG, 11, False, True),
+        (f'Generated: {date.today().strftime("%d %b %Y")}', C_ALT_BG, '444444', 10, True, True),
+        ('', 'FFFFFF', '000000', 8, False, False),
+    ]
+    for r, (txt, bg_c, fg_c, sz, italic, center) in enumerate(titles, 1):
+        ws.merge_cells(f'A{r}:L{r}')
+        c = ws[f'A{r}']
+        c.value = txt or None
+        c.font  = _font(bold=(not italic and bool(txt)), color=fg_c, size=sz, italic=italic)
+        c.fill  = _fill(bg_c)
+        if center:
+            c.alignment = _center()
+    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[2].height = 22
+    ws.row_dimensions[3].height = 18
+    ws.row_dimensions[4].height = 8
+
+    # Column headers
+    ws.row_dimensions[5].height = 20
+    headers = ['MNRE No.', 'Customer', 'Type', 'Subtype', 'Stage', 'Status',
+               'Contract (₹)', 'Collected (₹)', 'Pending (₹)', 'Doc Staff', 'Days Open', 'Created']
+    for col, h in enumerate(headers, 1):
+        _style_header_cell(ws.cell(5, col), h)
+
+    # Data
+    sorted_projects = sorted(projects, key=lambda x: x.created_at, reverse=True)
+    row = 6
+    for i, p in enumerate(sorted_projects):
+        bg     = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        s_bg, s_fg = STATUS_COLORS.get(p.status, ('FFFFFF', '000000'))
+        pend   = float(p.total_amount or 0) - float(p.collected_amount or 0)
+        ws.row_dimensions[row].height = 17
+        vals   = [p.project_code, p.customer.name, p.project_type, p.project_subtype or '—',
+                  p.stage, p.status,
+                  float(p.total_amount or 0), float(p.collected_amount or 0), pend,
+                  p.doc_staff.full_name if p.doc_staff else '—',
+                  p.days_open, p.created_at.strftime('%d %b %Y')]
+        fmts   = [None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0', None, None, None]
+        aligns = ['center', 'left', 'center', 'center', 'center', 'center',
+                  'right', 'right', 'right', 'left', 'center', 'center']
+        for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
+            _style_data_cell(ws.cell(row, col), val,
+                             bg=s_bg if col == 6 else bg,
+                             fg=s_fg if col == 6 else '000000',
+                             align=aln, number_fmt=fmt)
+        row += 1
+
+    # Totals
+    total_val  = sum(float(p.total_amount    or 0) for p in sorted_projects)
+    total_coll = sum(float(p.collected_amount or 0) for p in sorted_projects)
+    ws.row_dimensions[row].height = 20
+    for col in range(1, 13):
+        cell = ws.cell(row, col)
+        if col == 1:
+            _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 2:
+            _style_data_cell(cell, f'{len(sorted_projects)} projects',
+                             bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
+        elif col == 7:
+            _style_data_cell(cell, total_val,  bg=C_TOTAL_BG, fg=C_TOTAL_FG,
+                             bold=True, align='right', number_fmt='₹#,##0')
+        elif col == 8:
+            _style_data_cell(cell, total_coll, bg=C_TOTAL_BG, fg=C_TOTAL_FG,
+                             bold=True, align='right', number_fmt='₹#,##0')
+        elif col == 9:
+            _style_data_cell(cell, total_val - total_coll, bg=C_TOTAL_BG, fg=C_TOTAL_FG,
+                             bold=True, align='right', number_fmt='₹#,##0')
+        else:
+            cell.fill = _fill(C_TOTAL_BG)
+            cell.border = _border()
+
+    col_widths = [12, 24, 8, 10, 16, 12, 14, 14, 14, 18, 10, 13]
+    for i, w in enumerate(col_widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    path = os.path.join(output_dir, f'AllWorks_{coordinator.username}.xlsx')
+    wb.save(path)
+    return path
+
+
+def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
+    """Single flat sheet — all projects for a doc staff member, no month filter."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'All Projects'
+    _page_setup(ws)
+    ws.freeze_panes = 'A6'
+
+    titles = [
+        ('Power On Plus Solar Solutions',        C_HEADER_BG, C_HEADER_FG, 14, False, True),
+        (f'All Works — {staff.full_name}',       C_SUBHDR_BG, C_HEADER_FG, 11, False, True),
+        (f'Generated: {date.today().strftime("%d %b %Y")}', C_ALT_BG, '444444', 10, True, True),
+        ('', 'FFFFFF', '000000', 8, False, False),
+    ]
+    for r, (txt, bg_c, fg_c, sz, italic, center) in enumerate(titles, 1):
+        ws.merge_cells(f'A{r}:L{r}')
+        c = ws[f'A{r}']
+        c.value = txt or None
+        c.font  = _font(bold=(not italic and bool(txt)), color=fg_c, size=sz, italic=italic)
+        c.fill  = _fill(bg_c)
+        if center:
+            c.alignment = _center()
+    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[2].height = 22
+    ws.row_dimensions[3].height = 18
+    ws.row_dimensions[4].height = 8
+
+    ws.row_dimensions[5].height = 20
+    headers = ['MNRE No.', 'Customer', 'Type', 'Subtype', 'Stage', 'Status',
+               'Feasibility', 'KSEB Conn.', 'Warranty', 'Coordinator', 'Days Open', 'Created']
+    for col, h in enumerate(headers, 1):
+        _style_header_cell(ws.cell(5, col), h)
+
+    sorted_projects = sorted(projects, key=lambda x: x.created_at, reverse=True)
+    row = 6
+    for i, p in enumerate(sorted_projects):
+        bg     = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        s_bg, s_fg = STATUS_COLORS.get(p.status, ('FFFFFF', '000000'))
+        feas   = _doc_done(p, 'Feasibility Receipt')
+        conn   = _doc_done(p, 'KSEB Connection')
+        warr   = _doc_done(p, 'Warranty Card')
+        ws.row_dimensions[row].height = 17
+        vals   = [p.project_code, p.customer.name, p.project_type, p.project_subtype or '—',
+                  p.stage, p.status,
+                  '✓' if feas else '✗', '✓' if conn else '✗', '✓' if warr else '✗',
+                  p.coordinator.full_name if p.coordinator else '—',
+                  p.days_open, p.created_at.strftime('%d %b %Y')]
+        aligns = ['center', 'left', 'center', 'center', 'center', 'center',
+                  'center', 'center', 'center', 'left', 'center', 'center']
+        for col, (val, aln) in enumerate(zip(vals, aligns), 1):
+            if col == 6:
+                c_bg, c_fg = s_bg, s_fg
+            elif col in (7, 8, 9):
+                c_bg = C_GREEN_BG if val == '✓' else C_RED_BG
+                c_fg = C_GREEN_FG if val == '✓' else C_RED_FG
+            else:
+                c_bg, c_fg = bg, '000000'
+            _style_data_cell(ws.cell(row, col), val, bg=c_bg, fg=c_fg, align=aln)
+        row += 1
+
+    feas_done = sum(1 for p in sorted_projects if _doc_done(p, 'Feasibility Receipt'))
+    conn_done = sum(1 for p in sorted_projects if _doc_done(p, 'KSEB Connection'))
+    warr_done = sum(1 for p in sorted_projects if _doc_done(p, 'Warranty Card'))
+    ws.row_dimensions[row].height = 20
+    for col in range(1, 13):
+        cell = ws.cell(row, col)
+        if col == 1:
+            _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 2:
+            _style_data_cell(cell, f'{len(sorted_projects)} projects',
+                             bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
+        elif col == 7:
+            _style_data_cell(cell, feas_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 8:
+            _style_data_cell(cell, conn_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 9:
+            _style_data_cell(cell, warr_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        else:
+            cell.fill = _fill(C_TOTAL_BG)
+            cell.border = _border()
+
+    col_widths = [12, 24, 8, 10, 16, 12, 10, 10, 10, 20, 10, 13]
+    for i, w in enumerate(col_widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    path = os.path.join(output_dir, f'AllWorks_Docs_{staff.username}.xlsx')
+    wb.save(path)
+    return path
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NEW ROUTES — paste after the existing download_docstaff_report route
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Coordinator: all-works Excel ─────────────────────────────────────────────
+@app.route('/admin/coordinator_reports/download_all')
+@login_required
+@roles_required('admin')
+def download_coordinator_report_all():
+    coord_id = request.args.get('coordinator_id', type=int)
+    if not coord_id:
+        flash('Please select a coordinator.', 'danger')
+        return redirect(url_for('coordinator_reports'))
+    coordinator = User.query.get_or_404(coord_id)
+    if coordinator.role != 'coordinator':
+        flash('Selected user is not a coordinator.', 'danger')
+        return redirect(url_for('coordinator_reports'))
+    projects = Project.query.filter_by(coordinator_id=coord_id).all()
+    path = build_allworks_coordinator_report(coordinator, projects, tempfile.gettempdir())
+    return send_file(path, as_attachment=True,
+        download_name=f'AllWorks_{coordinator.username}.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+# ── Doc staff: all-works Excel ───────────────────────────────────────────────
+@app.route('/admin/docstaff_reports/download_all')
+@login_required
+@roles_required('admin')
+def download_docstaff_report_all():
+    staff_id = request.args.get('staff_id', type=int)
+    if not staff_id:
+        flash('Please select a staff member.', 'danger')
+        return redirect(url_for('docstaff_reports'))
+    staff = User.query.get_or_404(staff_id)
+    if staff.role != 'documents':
+        flash('Selected user is not a documents staff member.', 'danger')
+        return redirect(url_for('docstaff_reports'))
+    projects = Project.query.filter_by(doc_staff_id=staff_id).all()
+    path = build_allworks_docstaff_report(staff, projects, tempfile.gettempdir())
+    return send_file(path, as_attachment=True,
+        download_name=f'AllWorks_Docs_{staff.username}.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+# ── Coordinator: JSON preview (shared by monthly + all-works) ─────────────────
+@app.route('/admin/coordinator_reports/preview_data')
+@login_required
+@roles_required('admin')
+def coordinator_report_preview_data():
+    coord_id = request.args.get('coordinator_id', type=int)
+    month    = request.args.get('month', type=int)
+    year     = request.args.get('year',  type=int)
+    if not coord_id:
+        return jsonify({'error': 'Missing coordinator_id'}), 400
+
+    coordinator  = User.query.get_or_404(coord_id)
+    all_projects = Project.query.filter_by(coordinator_id=coord_id).all()
+
+    if month and year:
+        month_end = date(year, month, calendar.monthrange(year, month)[1])
+        projects  = [p for p in all_projects
+                     if p.created_at.date() <= month_end and p.status != 'Cancelled']
+    else:
+        projects = [p for p in all_projects if p.status != 'Cancelled']
+
+    total_val = sum(float(p.total_amount    or 0) for p in projects)
+    collected = sum(float(p.collected_amount or 0) for p in projects)
+    active    = [p for p in projects if p.status in ('InProgress', 'Delayed', 'Lead', 'OnHold')]
+    completed = [p for p in projects if p.status in ('Completed', 'Closed')]
+
+    return jsonify({
+        'kpis': {
+            'Total':     len(projects),
+            'Active':    len(active),
+            'Completed': len(completed),
+            'Value':     _inr_fmt(total_val),
+            'Collected': _inr_fmt(collected),
+            'Pending':   _inr_fmt(total_val - collected),
+        },
+        'projects': [_project_to_dict_coord(p)
+                     for p in sorted(projects, key=lambda x: x.created_at, reverse=True)],
+    })
+
+
+# ── Doc staff: JSON preview (shared by monthly + all-works) ──────────────────
+@app.route('/admin/docstaff_reports/preview_data')
+@login_required
+@roles_required('admin')
+def docstaff_report_preview_data():
+    staff_id = request.args.get('staff_id', type=int)
+    month    = request.args.get('month', type=int)
+    year     = request.args.get('year',  type=int)
+    if not staff_id:
+        return jsonify({'error': 'Missing staff_id'}), 400
+
+    staff        = User.query.get_or_404(staff_id)
+    all_projects = Project.query.filter_by(doc_staff_id=staff_id).all()
+
+    if month and year:
+        month_end = date(year, month, calendar.monthrange(year, month)[1])
+        projects  = [p for p in all_projects
+                     if p.created_at.date() <= month_end and p.status != 'Cancelled']
+    else:
+        projects = [p for p in all_projects if p.status != 'Cancelled']
+
+    feas_done = sum(1 for p in projects if _doc_done(p, 'Feasibility Receipt'))
+    conn_done = sum(1 for p in projects if _doc_done(p, 'KSEB Connection'))
+    warr_done = sum(1 for p in projects if _doc_done(p, 'Warranty Card'))
+    completed = [p for p in projects if p.status in ('Completed', 'Closed')]
+    inprog    = [p for p in projects if p.status == 'InProgress']
+
+    return jsonify({
+        'kpis': {
+            'Total':       len(projects),
+            'Completed':   len(completed),
+            'In Progress': len(inprog),
+            'Feasibility': feas_done,
+            'KSEB Conn.':  conn_done,
+            'Warranty':    warr_done,
+        },
+        'projects': [_project_to_dict_docstaff(p)
+                     for p in sorted(projects, key=lambda x: x.created_at, reverse=True)],
+    })
+
+
+# ── Coordinator: printable HTML ───────────────────────────────────────────────
+@app.route('/admin/coordinator_reports/print')
+@login_required
+@roles_required('admin')
+def print_coordinator_report():
+    coord_id = request.args.get('coordinator_id', type=int)
+    month    = request.args.get('month', type=int)
+    year     = request.args.get('year',  type=int)
+    if not coord_id:
+        flash('Missing coordinator.', 'danger')
+        return redirect(url_for('coordinator_reports'))
+
+    coordinator  = User.query.get_or_404(coord_id)
+    all_projects = Project.query.filter_by(coordinator_id=coord_id).all()
+
+    if month and year:
+        month_end = date(year, month, calendar.monthrange(year, month)[1])
+        projects  = [p for p in all_projects
+                     if p.created_at.date() <= month_end and p.status != 'Cancelled']
+        period    = f'{calendar.month_name[month]} {year}'
+    else:
+        projects = [p for p in all_projects if p.status != 'Cancelled']
+        period   = 'All Works'
+
+    projects   = sorted(projects, key=lambda x: x.created_at, reverse=True)
+    total_val  = sum(float(p.total_amount    or 0) for p in projects)
+    total_coll = sum(float(p.collected_amount or 0) for p in projects)
+
+    return render_template('print_coordinator_report.html',
+        coordinator=coordinator,
+        projects=projects,
+        period=period,
+        total_val=total_val,
+        total_coll=total_coll,
+        total_pend=total_val - total_coll,
+        generated=date.today().strftime('%d %b %Y'),
+    )
+
+
+# ── Doc staff: printable HTML ─────────────────────────────────────────────────
+@app.route('/admin/docstaff_reports/print')
+@login_required
+@roles_required('admin')
+def print_docstaff_report():
+    staff_id = request.args.get('staff_id', type=int)
+    month    = request.args.get('month', type=int)
+    year     = request.args.get('year',  type=int)
+    if not staff_id:
+        flash('Missing staff member.', 'danger')
+        return redirect(url_for('docstaff_reports'))
+
+    staff        = User.query.get_or_404(staff_id)
+    all_projects = Project.query.filter_by(doc_staff_id=staff_id).all()
+
+    if month and year:
+        month_end = date(year, month, calendar.monthrange(year, month)[1])
+        projects  = [p for p in all_projects
+                     if p.created_at.date() <= month_end and p.status != 'Cancelled']
+        period    = f'{calendar.month_name[month]} {year}'
+    else:
+        projects = [p for p in all_projects if p.status != 'Cancelled']
+        period   = 'All Works'
+
+    projects  = sorted(projects, key=lambda x: x.created_at, reverse=True)
+    feas_done = sum(1 for p in projects if _doc_done(p, 'Feasibility Receipt'))
+    conn_done = sum(1 for p in projects if _doc_done(p, 'KSEB Connection'))
+    warr_done = sum(1 for p in projects if _doc_done(p, 'Warranty Card'))
+
+    return render_template('print_docstaff_report.html',
+        staff=staff,
+        projects=projects,
+        period=period,
+        feas_done=feas_done,
+        conn_done=conn_done,
+        warr_done=warr_done,
+        doc_done=_doc_done,
+        generated=date.today().strftime('%d %b %Y'),
+    )
+
 from solar_app_software.job_card_excel import build_job_card
 
 @app.route('/job_card')

@@ -3,30 +3,30 @@
 {% block page_title %}Monthly Coordinator Reports{% endblock %}
 
 {% block content %}
-<div class="card" style="max-width:560px">
+<div class="card" style="max-width:620px">
 
-  <div style="font-size:13px;color:var(--muted);margin-bottom:18px">
+  <div style="font-size:13px;color:var(--muted);margin-bottom:20px">
     Generate a downloadable Excel sheet with project summary, stage breakdown,
     and payment records for any coordinator and month.
   </div>
 
-  <form method="GET" action="{{ url_for('download_coordinator_report') }}">
-
+  {# ── Monthly report form ──────────────────────────────────────────────── #}
+  <form method="GET" action="{{ url_for('download_coordinator_report') }}" id="monthlyForm">
     <div class="form-grid">
 
       <div class="form-group full">
         <label>Coordinator *</label>
-        <select name="coordinator_id" required>
+        <select name="coordinator_id" id="coordSelect" required>
           <option value="">— Select coordinator —</option>
           {% for c in coordinators %}
-          <option value="{{ c.id }}">{{ c.full_name }}</option>
+          <option value="{{ c.id }}" data-name="{{ c.full_name }}">{{ c.full_name }}</option>
           {% endfor %}
         </select>
       </div>
 
       <div class="form-group">
         <label>Month *</label>
-        <select name="month" required>
+        <select name="month" id="monthSelect" required>
           {% for m in range(1, 13) %}
           <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>
             {{ ['','January','February','March','April','May','June',
@@ -38,35 +38,209 @@
 
       <div class="form-group">
         <label>Year *</label>
-        <select name="year" required>
+        <select name="year" id="yearSelect" required>
           {% for y in range(current_year, current_year - 4, -1) %}
-          <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>
-            {{ y }}
-          </option>
+          <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
           {% endfor %}
         </select>
       </div>
 
     </div>
 
-    <div style="margin-top:8px;display:flex;gap:10px;align-items:center">
-      <button type="submit" class="btn btn-primary">
-        ↓ Download Excel Report
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button type="button" class="btn btn-secondary" onclick="openPreview('monthly')">
+        👁 Preview
       </button>
-      <span style="font-size:11px;color:var(--hint)">
-        .xlsx file — opens in Excel or Google Sheets
-      </span>
+      <button type="submit" class="btn btn-primary">
+        ↓ Download Monthly Excel
+      </button>
+      <button type="button" class="btn btn-secondary" onclick="openPrint('monthly')">
+        🖨 Print View
+      </button>
+      <span style="font-size:11px;color:var(--hint)">.xlsx — Excel / Google Sheets</span>
     </div>
-
   </form>
+
+  <div style="border-top:0.5px solid var(--border);margin:24px 0 20px"></div>
+
+  {# ── All-works report ─────────────────────────────────────────────────── #}
+  <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:10px">
+    All Works Report
+  </div>
+  <div style="font-size:12px;color:var(--hint);margin-bottom:14px">
+    Single flat sheet — every project for this coordinator, no month filter.
+  </div>
+
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div class="form-group" style="margin:0;min-width:200px">
+      <select id="coordSelectAll">
+        <option value="">— Select coordinator —</option>
+        {% for c in coordinators %}
+        <option value="{{ c.id }}" data-name="{{ c.full_name }}">{{ c.full_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="button" class="btn btn-secondary" onclick="openPreview('all')">
+      👁 Preview
+    </button>
+    <button type="button" class="btn btn-primary" onclick="downloadAll()">
+      ↓ Download All Works
+    </button>
+    <button type="button" class="btn btn-secondary" onclick="openPrint('all')">
+      🖨 Print View
+    </button>
+  </div>
 
   <div style="border-top:0.5px solid var(--border);margin-top:24px;
               padding-top:16px;font-size:12px;color:var(--hint)">
-    <strong style="color:var(--muted)">Report includes:</strong>
+    <strong style="color:var(--muted)">Monthly report includes:</strong>
     Summary KPIs &nbsp;·&nbsp; All active projects &nbsp;·&nbsp;
     New projects this month &nbsp;·&nbsp; Stage breakdown &nbsp;·&nbsp;
     Payments received this month
+    <br><br>
+    <strong style="color:var(--muted)">All-works report includes:</strong>
+    One flat sheet &nbsp;·&nbsp; Every project &nbsp;·&nbsp; Key status columns &nbsp;·&nbsp; Totals row
   </div>
 
 </div>
+
+{# ── Preview modal ────────────────────────────────────────────────────────── #}
+<div id="previewModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);
+     z-index:1000;overflow-y:auto;padding:24px 12px">
+  <div style="background:var(--bg,#fff);border-radius:8px;max-width:900px;margin:0 auto;
+              box-shadow:0 8px 32px rgba(0,0,0,.18)">
+
+    <div style="display:flex;justify-content:space-between;align-items:center;
+                padding:16px 20px;border-bottom:1px solid var(--border)">
+      <strong id="previewTitle" style="font-size:14px"></strong>
+      <button onclick="closeModal()" style="background:none;border:none;font-size:20px;
+              cursor:pointer;color:var(--muted);line-height:1">&times;</button>
+    </div>
+
+    <div id="previewBody" style="padding:20px;overflow-x:auto">
+      <div style="color:var(--hint);text-align:center;padding:40px">Loading…</div>
+    </div>
+
+    <div style="padding:12px 20px;border-top:1px solid var(--border);
+                display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+      <button class="btn btn-primary" id="modalDownloadBtn">↓ Download Excel</button>
+      <button class="btn btn-secondary" id="modalPrintBtn">🖨 Print View</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function getMonthlyParams() {
+  const coordId = document.getElementById('coordSelect').value;
+  const month   = document.getElementById('monthSelect').value;
+  const year    = document.getElementById('yearSelect').value;
+  const name    = document.getElementById('coordSelect').selectedOptions[0]?.dataset.name || '';
+  return { coordId, month, year, name };
+}
+
+function getAllParams() {
+  const sel = document.getElementById('coordSelectAll');
+  const coordId = sel.value;
+  const name    = sel.selectedOptions[0]?.dataset.name || '';
+  return { coordId, name };
+}
+
+function downloadAll() {
+  const { coordId } = getAllParams();
+  if (!coordId) { alert('Please select a coordinator.'); return; }
+  window.location = `/admin/coordinator_reports/download_all?coordinator_id=${coordId}`;
+}
+
+function openPrint(mode) {
+  if (mode === 'monthly') {
+    const { coordId, month, year } = getMonthlyParams();
+    if (!coordId) { alert('Please select a coordinator.'); return; }
+    window.open(`/admin/coordinator_reports/print?coordinator_id=${coordId}&month=${month}&year=${year}`, '_blank');
+  } else {
+    const { coordId } = getAllParams();
+    if (!coordId) { alert('Please select a coordinator.'); return; }
+    window.open(`/admin/coordinator_reports/print?coordinator_id=${coordId}`, '_blank');
+  }
+}
+
+function openPreview(mode) {
+  let url, title, downloadUrl, printUrl;
+
+  if (mode === 'monthly') {
+    const { coordId, month, year, name } = getMonthlyParams();
+    if (!coordId) { alert('Please select a coordinator.'); return; }
+    const monthName = document.getElementById('monthSelect').selectedOptions[0].text;
+    title       = `Preview — ${name} · ${monthName} ${year}`;
+    url         = `/admin/coordinator_reports/preview_data?coordinator_id=${coordId}&month=${month}&year=${year}`;
+    downloadUrl = `/admin/coordinator_reports/download?coordinator_id=${coordId}&month=${month}&year=${year}`;
+    printUrl    = `/admin/coordinator_reports/print?coordinator_id=${coordId}&month=${month}&year=${year}`;
+  } else {
+    const { coordId, name } = getAllParams();
+    if (!coordId) { alert('Please select a coordinator.'); return; }
+    title       = `Preview — ${name} · All Works`;
+    url         = `/admin/coordinator_reports/preview_data?coordinator_id=${coordId}`;
+    downloadUrl = `/admin/coordinator_reports/download_all?coordinator_id=${coordId}`;
+    printUrl    = `/admin/coordinator_reports/print?coordinator_id=${coordId}`;
+  }
+
+  document.getElementById('previewTitle').textContent = title;
+  document.getElementById('previewBody').innerHTML = '<div style="color:var(--hint);text-align:center;padding:40px">Loading…</div>';
+  document.getElementById('modalDownloadBtn').onclick = () => { window.location = downloadUrl; };
+  document.getElementById('modalPrintBtn').onclick    = () => { window.open(printUrl, '_blank'); };
+  document.getElementById('previewModal').style.display = 'block';
+
+  fetch(url)
+    .then(r => r.json())
+    .then(data => renderPreview(data))
+    .catch(() => {
+      document.getElementById('previewBody').innerHTML = '<div style="color:red;padding:20px">Failed to load preview.</div>';
+    });
+}
+
+function renderPreview(data) {
+  const th = s => `<th style="padding:6px 10px;text-align:left;background:var(--muted,#555);color:#fff;font-size:12px;white-space:nowrap">${s}</th>`;
+  const td = (s, right) => `<td style="padding:5px 10px;font-size:12px;border-bottom:1px solid var(--border);${right?'text-align:right':''}">${s ?? '—'}</td>`;
+
+  const kpis = data.kpis;
+  let html = `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:18px">
+      ${Object.entries(kpis).map(([k,v]) => `
+        <div style="background:var(--surface,#f5f5f5);border-radius:6px;padding:10px 16px;min-width:100px">
+          <div style="font-size:11px;color:var(--hint)">${k}</div>
+          <div style="font-size:16px;font-weight:700;color:var(--text,#222)">${v}</div>
+        </div>`).join('')}
+    </div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr>
+        ${['MNRE No.','Customer','Type','Subtype','Stage','Status','Contract','Collected','Pending','Doc Staff','Days Open','Created'].map(th).join('')}
+      </tr></thead>
+      <tbody>`;
+
+  data.projects.forEach((p, i) => {
+    const bg = i % 2 === 0 ? 'var(--surface,#f9f9f9)' : '#fff';
+    html += `<tr style="background:${bg}">
+      ${td(p.code)}${td(p.customer)}${td(p.type)}${td(p.subtype)}
+      ${td(p.stage)}
+      <td style="padding:5px 10px;font-size:12px;border-bottom:1px solid var(--border)">
+        <span style="padding:2px 8px;border-radius:10px;font-size:11px;background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
+      </td>
+      ${td(p.contract, true)}${td(p.collected, true)}${td(p.pending, true)}
+      ${td(p.doc_staff)}${td(p.days_open, true)}${td(p.created)}
+    </tr>`;
+  });
+
+  html += `</tbody></table></div>`;
+  document.getElementById('previewBody').innerHTML = html;
+}
+
+function closeModal() {
+  document.getElementById('previewModal').style.display = 'none';
+}
+
+document.getElementById('previewModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+</script>
 {% endblock %}

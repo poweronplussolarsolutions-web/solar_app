@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coordinator Report — {{ coordinator.full_name }} — {{ period }}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #222; background: #fff; }
+
+  .print-header { background: #1a3c5e; color: #fff; padding: 16px 24px 12px; }
+  .print-header h1 { font-size: 17px; font-weight: 700; }
+  .print-header h2 { font-size: 13px; font-weight: 400; margin-top: 4px; opacity: .85; }
+  .print-header .meta { font-size: 11px; opacity: .7; margin-top: 6px; }
+
+  .kpi-bar { display: flex; gap: 0; border-bottom: 2px solid #1a3c5e; }
+  .kpi-box { flex: 1; padding: 10px 14px; border-right: 1px solid #dde3ea; background: #f2f7fb; }
+  .kpi-box:last-child { border-right: none; }
+  .kpi-box .label { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: .4px; }
+  .kpi-box .value { font-size: 15px; font-weight: 700; color: #1a3c5e; margin-top: 2px; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 0; }
+  thead tr { background: #1a3c5e; color: #fff; }
+  thead th { padding: 7px 8px; text-align: left; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  tbody tr:nth-child(even) { background: #f2f7fb; }
+  tbody tr:nth-child(odd)  { background: #fff; }
+  tbody td { padding: 6px 8px; border-bottom: 1px solid #dde3ea; font-size: 11px; vertical-align: middle; }
+  td.right { text-align: right; }
+  td.center { text-align: center; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+  .b-completed  { background: #d4edda; color: #155724; }
+  .b-closed     { background: #d4edda; color: #155724; }
+  .b-inprogress { background: #d1ecf1; color: #0c5460; }
+  .b-delayed    { background: #f8d7da; color: #721c24; }
+  .b-onhold     { background: #fff3cd; color: #856404; }
+  .b-cancelled  { background: #e2e3e5; color: #383d41; }
+  .b-lead       { background: #e2e3e5; color: #383d41; }
+
+  tfoot tr { background: #fff3cd; font-weight: 700; }
+  tfoot td { padding: 7px 8px; border-top: 2px solid #1a3c5e; font-size: 11px; color: #856404; }
+
+  .no-print { margin: 16px 20px; display: flex; gap: 10px; }
+  .btn-print { background: #1a3c5e; color: #fff; border: none; padding: 8px 20px;
+               border-radius: 4px; font-size: 13px; cursor: pointer; }
+  .btn-close { background: #e2e3e5; color: #383d41; border: none; padding: 8px 20px;
+               border-radius: 4px; font-size: 13px; cursor: pointer; }
+  .page-note { font-size: 11px; color: #888; margin-left: auto; align-self: center; }
+
+  @media print {
+    .no-print { display: none !important; }
+    body { font-size: 10px; }
+    .print-header { padding: 10px 16px 8px; }
+    thead th, tbody td, tfoot td { padding: 4px 6px; font-size: 10px; }
+    .kpi-box .value { font-size: 13px; }
+  }
+  @page { size: A4 landscape; margin: 10mm 8mm; }
+</style>
+</head>
+<body>
+
+<div class="no-print">
+  <button class="btn-print" onclick="window.print()">🖨 Print / Save as PDF</button>
+  <button class="btn-close" onclick="window.close()">✕ Close</button>
+  <span class="page-note">Tip: In print dialog → set to Landscape, enable Background graphics</span>
+</div>
+
+<div class="print-header">
+  <h1>Power On Plus Solar Solutions</h1>
+  <h2>Coordinator Report &nbsp;·&nbsp; {{ coordinator.full_name }} &nbsp;·&nbsp; {{ period }}</h2>
+  <div class="meta">Generated: {{ generated }}</div>
+</div>
+
+<div class="kpi-bar">
+  <div class="kpi-box"><div class="label">Total Projects</div><div class="value">{{ projects|length }}</div></div>
+  <div class="kpi-box"><div class="label">Completed</div>
+    <div class="value">{{ projects|selectattr('status','in',['Completed','Closed'])|list|length }}</div></div>
+  <div class="kpi-box"><div class="label">In Progress</div>
+    <div class="value">{{ projects|selectattr('status','equalto','InProgress')|list|length }}</div></div>
+  <div class="kpi-box"><div class="label">Delayed</div>
+    <div class="value">{{ projects|selectattr('status','equalto','Delayed')|list|length }}</div></div>
+  <div class="kpi-box"><div class="label">Total Value</div>
+    <div class="value">{{ total_val | int | format_inr }}</div></div>
+  <div class="kpi-box"><div class="label">Collected</div>
+    <div class="value">{{ total_coll | int | format_inr }}</div></div>
+  <div class="kpi-box"><div class="label">Pending</div>
+    <div class="value">{{ total_pend | int | format_inr }}</div></div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>MNRE No.</th>
+      <th>Customer</th>
+      <th>Type</th>
+      <th>Subtype</th>
+      <th>Stage</th>
+      <th>Status</th>
+      <th>Contract (₹)</th>
+      <th>Collected (₹)</th>
+      <th>Pending (₹)</th>
+      <th>Doc Staff</th>
+      <th>Days Open</th>
+      <th>Created</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in projects %}
+    {% set pend = (p.total_amount or 0)|float - (p.collected_amount or 0)|float %}
+    <tr>
+      <td class="center">{{ loop.index }}</td>
+      <td class="center">{{ p.project_code }}</td>
+      <td>{{ p.customer.name }}</td>
+      <td class="center">{{ p.project_type }}</td>
+      <td class="center">{{ p.project_subtype or '—' }}</td>
+      <td class="center">{{ p.stage }}</td>
+      <td class="center">
+        <span class="badge b-{{ p.status | lower | replace(' ','') }}">{{ p.status }}</span>
+      </td>
+      <td class="right">{{ (p.total_amount or 0) | int | format_inr }}</td>
+      <td class="right">{{ (p.collected_amount or 0) | int | format_inr }}</td>
+      <td class="right">{{ pend | int | format_inr }}</td>
+      <td>{{ p.doc_staff.full_name if p.doc_staff else '—' }}</td>
+      <td class="center">{{ p.days_open }}</td>
+      <td class="center">{{ p.created_at.strftime('%d/%m/%y') }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="13" style="text-align:center;padding:20px;color:#888">No projects found.</td></tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="2" style="text-align:center">TOTAL</td>
+      <td>{{ projects|length }} projects</td>
+      <td colspan="4"></td>
+      <td class="right">{{ total_val | int | format_inr }}</td>
+      <td class="right">{{ total_coll | int | format_inr }}</td>
+      <td class="right">{{ total_pend | int | format_inr }}</td>
+      <td colspan="3"></td>
+    </tr>
+  </tfoot>
+</table>
+
+</body>
+</html>
