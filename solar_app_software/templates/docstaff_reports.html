@@ -214,7 +214,7 @@ function renderPreview(data) {
     <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr>
-        ${['MNRE No.','Customer','Type','Stage','Status','Feasibility','Connection','Warranty','Coordinator','Days Open','Created'].map(th).join('')}
+        ${['MNRE No.','Customer','Type','Status','Feasibility','Connection','MNRE','Coordinator','Created'].map(th).join('')}
       </tr></thead>
       <tbody>`;
 
@@ -224,14 +224,14 @@ function renderPreview(data) {
       ? `<span style="color:#155724;font-weight:700">✓</span>`
       : `<span style="color:#721c24">✗</span>`;
     html += `<tr style="background:${bg}">
-      ${td(p.code)}${td(p.customer)}${td(p.type)}${td(p.stage)}
+      ${td(p.code)}${td(p.customer)}${td(p.type)}
       <td style="padding:5px 10px;font-size:12px;border-bottom:1px solid var(--border)">
         <span style="padding:2px 8px;border-radius:10px;font-size:11px;background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
       </td>
       <td style="padding:5px 10px;text-align:center;border-bottom:1px solid var(--border)">${tick(p.feas)}</td>
       <td style="padding:5px 10px;text-align:center;border-bottom:1px solid var(--border)">${tick(p.conn)}</td>
-      <td style="padding:5px 10px;text-align:center;border-bottom:1px solid var(--border)">${tick(p.warranty)}</td>
-      ${td(p.coordinator)}${td(p.days_open, true)}${td(p.created)}
+      <td style="padding:5px 10px;text-align:center;border-bottom:1px solid var(--border)">${tick(p.mnre)}</td>
+      ${td(p.coordinator)}${td(p.created)}
     </tr>`;
   });
 

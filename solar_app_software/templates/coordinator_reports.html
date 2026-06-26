@@ -214,20 +214,20 @@ function renderPreview(data) {
     <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr>
-        ${['MNRE No.','Customer','Type','Subtype','Stage','Status','Contract','Collected','Pending','Doc Staff','Days Open','Created'].map(th).join('')}
+        ${['MNRE No.','Customer','Place','Type','Subtype','Status','Contract','Collected','Pending','Doc Staff','Created'].map(th).join('')}
       </tr></thead>
       <tbody>`;
 
   data.projects.forEach((p, i) => {
     const bg = i % 2 === 0 ? 'var(--surface,#f9f9f9)' : '#fff';
     html += `<tr style="background:${bg}">
-      ${td(p.code)}${td(p.customer)}${td(p.type)}${td(p.subtype)}
-      ${td(p.stage)}
+      ${td(p.code)}${td(p.customer)}${td(p.place)}${td(p.type)}${td(p.subtype)}
+      
       <td style="padding:5px 10px;font-size:12px;border-bottom:1px solid var(--border)">
         <span style="padding:2px 8px;border-radius:10px;font-size:11px;background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
       </td>
       ${td(p.contract, true)}${td(p.collected, true)}${td(p.pending, true)}
-      ${td(p.doc_staff)}${td(p.days_open, true)}${td(p.created)}
+      ${td(p.doc_staff)}${td(p.created)}
     </tr>`;
   });
 
