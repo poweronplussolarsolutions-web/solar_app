@@ -433,7 +433,7 @@
     </div>
     {% endif %}
 
-    {% if current_user.role in ['admin', 'documents'] %}
+    {% if current_user.role in ['admin', 'documents','office'] %}
     <div id="{{ form_id }}" style="{{ 'display:none' if existing else '' }}">
       <form method="POST" action="{{ url_for('update_expense', pid=proj.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -482,7 +482,7 @@
 <div class="card" style="margin-top:20px">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
     <div class="card-title" style="margin:0">Connection Details</div>
-    {% if current_user.role in ['admin','documents'] %}
+    {% if current_user.role in ['admin','documents','office'] %}
     <button class="btn btn-sm" onclick="toggleExpenseForm('conn-detail-form')">
       {{ 'Edit' if cd else 'Add' }}
     </button>
@@ -552,7 +552,7 @@
   </div>
   {% endif %}
   {# Edit form #}
-  {% if current_user.role in ['admin','documents'] %}
+  {% if current_user.role in ['admin','documents','office'] %}
   <div id="conn-detail-form" style="{{ '' if not cd else 'display:none' }};margin-top:12px">
     <form method="POST" action="{{ url_for('update_connection_details', pid=proj.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -641,7 +641,7 @@
 <div class="card" style="margin-top:20px">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
     <div class="card-title" style="margin:0">Loan Details</div>
-    {% if current_user.role in ['admin','documents'] %}
+    {% if current_user.role in ['admin','documents','office'] %}
     <button class="btn btn-sm" onclick="toggleExpenseForm('loan-detail-form')">
       {{ 'Edit' if proj.loan_detail else 'Add' }}
     </button>
@@ -678,7 +678,7 @@
   <div style="font-size:12px;color:var(--hint);margin-bottom:10px">No loan details recorded yet.</div>
   {% endif %}
 
-  {% if current_user.role in ['admin','documents'] %}
+  {% if current_user.role in ['admin','documents','office'] %}
   <div id="loan-detail-form" style="{{ '' if not ld else 'display:none' }};margin-top:12px">
     <form method="POST" action="{{ url_for('update_loan_details', pid=proj.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
