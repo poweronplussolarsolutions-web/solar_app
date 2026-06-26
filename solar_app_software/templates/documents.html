@@ -320,7 +320,7 @@
         {% else %}badge-Completed{% endif %}">
         {{ doc.status }}
       </span>
-      {% if current_user.role in ['admin','documents'] %}
+      {% if current_user.role in ['admin','documents','office'] %}
       <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline" >
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
@@ -330,7 +330,7 @@
       {% endif %}
     {% elif doc and doc.status == 'Pending' %}
       <span class="badge badge-Pending">Pending</span>
-      {% if current_user.role in ['admin','documents'] %}
+      {% if current_user.role in ['admin','documents','office'] %}
       <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline" >
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
@@ -340,7 +340,7 @@
       {% endif %}
     {% else %}
       <span style="font-size:11px;color:var(--hint)">Not recorded</span>
-      {% if current_user.role in ['admin','documents'] %}
+      {% if current_user.role in ['admin','documents','office'] %}
       <button class="btn btn-sm btn-primary"
               onclick="openAddForm(this, '{{ doc_name }}', '{{ stage.name }}')">
         + Add
@@ -351,7 +351,7 @@
 </div>
 {% endfor %}
 
-          {% if current_user.role in ['admin','documents'] %}
+          {% if current_user.role in ['admin','documents','office'] %}
           <div class="add-form" id="form-{{ stage.name | replace(' ','_') | replace('/','_') }}">
   <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" >
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
