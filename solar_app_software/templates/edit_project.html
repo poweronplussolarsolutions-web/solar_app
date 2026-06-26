@@ -222,8 +222,8 @@
           </option>
           {% endfor %}
           {% for u in office %}
-          <option value="{{u.id}}">{{u.full_name}}</option>
-          {% endfor %}
+<option value="{{ u.id }}" {% if proj.doc_staff_id == u.id %}selected{% endif %}>{{ u.full_name }}</option>
+{% endfor %}
         </select>
       </div>
 
