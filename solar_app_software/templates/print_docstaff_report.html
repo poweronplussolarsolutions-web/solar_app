@@ -91,13 +91,14 @@
 </div>
 
 <table>
-  <thead>
+ <thead>
     <tr>
       <th>#</th>
       <th>MNRE No.</th>
       <th>Customer</th>
       <th>Place</th>
-      <th>kW</th>
+      <th>Inv. kW</th>
+      <th>Panel kW</th>
       <th>C/O</th>
       <th>Roof</th>
       <th>Loan</th>
@@ -113,27 +114,23 @@
   </thead>
   <tbody>
     {% for p in projects %}
-    {# ── Load/OW status ── #}
     {% set cd = p.connection_details %}
-    {% if cd %}
-      {% set load_s = cd.load_clearance_status if cd.load_clearance_needed else 'N/A' %}
-      {% set ow_s   = cd.ownership_change_status if cd.ownership_change_needed else 'N/A' %}
-    {% else %}
-      {% set load_s = 'N/A' %}
-      {% set ow_s   = 'N/A' %}
-    {% endif %}
+    {% set load_s = cd.load_clearance_status if cd and cd.load_clearance_needed else 'N/A' %}
+    {% set ow_s   = cd.ownership_change_status if cd and cd.ownership_change_needed else 'N/A' %}
+    {% set roof_label = 'Clay Tile (Oodu)' if p.roof_type == 'Clay Tile' else (p.roof_type or '—') %}
     <tr>
       <td class="center">{{ loop.index }}</td>
       <td class="center">{{ p.project_code }}</td>
       <td>{{ p.customer.name }}</td>
       <td>{{ p.customer.place or '—' }}</td>
       <td class="center">{{ p.inverter_capacity_kw }}</td>
+      <td class="center">{{ p.panel_capacity_kw }}</td>
       <td>{{ p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—') }}</td>
-      <td class="center">{{ p.roof_type or '—' }}</td>
+      <td class="center">{{ roof_label }}</td>
       <td class="center">{{ p.project_type }}</td>
       <td class="center" style="font-size:10px">
-        L:{{ load_s | replace('Not Required','N/A') | replace('InProgress','In Prog') | truncate(7,True,'') }}<br>
-        OW:{{ ow_s | replace('Not Required','N/A') | replace('InProgress','In Prog') | truncate(7,True,'') }}
+        L:{{ load_s | replace('Not Required','N/A') | replace('InProgress','InProg') | truncate(7,True,'') }}<br>
+        OW:{{ ow_s | replace('Not Required','N/A') | replace('InProgress','InProg') | truncate(7,True,'') }}
       </td>
       <td class="center">{{ p.project_type }}</td>
       <td class="center">{{ p.project_subtype or '—' }}</td>
@@ -155,14 +152,14 @@
       <td class="center">{{ p.created_at.strftime('%d/%m/%y') }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="16" style="text-align:center;padding:20px;color:#888">No projects found.</td></tr>
+    <tr><td colspan="17" style="text-align:center;padding:20px;color:#888">No projects found.</td></tr>
     {% endfor %}
   </tbody>
   <tfoot>
     <tr>
       <td colspan="2" style="text-align:center">TOTAL</td>
       <td>{{ projects|length }} projects</td>
-      <td colspan="9"></td>
+      <td colspan="10"></td>
       <td class="center">{{ feas_done }}</td>
       <td class="center">{{ conn_done }}</td>
       <td class="center">{{ mnre_done }}</td>
