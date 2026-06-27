@@ -66,9 +66,26 @@
   .pill-done    { background: var(--teal-50);  color: var(--teal-800); }
   .pill-pending { background: var(--amber-50); color: var(--amber-800); }
 
-  .add-form      { margin-top: 10px; padding: 12px; background: var(--bg); border-radius: var(--radius); display: none; }
-  .add-form.open { display: block; }
-  .add-form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; align-items: flex-end; }
+  .badge-NotRecorded { background: var(--bg); color: var(--hint); border: 0.5px solid var(--border); }
+
+  .quick-mark-form { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .quick-date {
+    font-size: 11px; padding: 3px 6px; border-radius: var(--radius);
+    border: 0.5px solid var(--border); background: var(--surface); color: var(--muted);
+    width: 118px;
+  }
+  .quick-note {
+    font-size: 11px; padding: 3px 8px; border-radius: var(--radius);
+    border: 0.5px solid var(--border); background: var(--surface);
+    width: 110px;
+  }
+  .quick-note:focus, .quick-date:focus { border-color: var(--blue-600); outline: none; width: 150px; }
+
+  .note-flag {
+    display: inline-flex; vertical-align: middle; margin-left: 4px;
+    color: var(--amber-600); cursor: help;
+  }
+  .note-flag svg { width: 12px; height: 12px; }
 
   .chevron      { transition: transform .2s; color: var(--hint); }
   .chevron.open { transform: rotate(180deg); }
@@ -83,12 +100,16 @@
   .expense-grid{
     grid-template-columns:1fr 1fr;
   }
+  .quick-date, .quick-note { width: 92px; }
 }
 
 @media (max-width:480px){
   .expense-grid{
     grid-template-columns:1fr;
   }
+  .doc-row { flex-wrap: wrap; }
+  .quick-mark-form { width: 100%; }
+  .quick-date, .quick-note { flex: 1; width: auto; }
 }
 .expense-btns{
   display:flex;
@@ -107,17 +128,18 @@
 {% set ns_total = namespace(expected=0, done=0) %}
 {% for stage in [
   {'condition':'always','docs':['ID Proof','Pass Book','Electricity Bill']},
-  {'condition':'loan',  'docs':['GEO Tag Photo','Bank Stamp Paper','Bank File']},
+  {'condition':'loan',  'docs':['Bank File']},
   {'condition':'always','docs':['Feasibility Receipt']},
   {'condition':'always','docs':['KSEB Stamp Paper','B-Class Licence','KSEB File']},
   {'condition':'always','docs':['MNRE']},
-  {'condition':'always','docs':['Inspection','CD Payment Receipt','KSEB Connection']},
+  {'condition':'always','docs':['Second Payment']},
+  {'condition':'always','docs':['CD Payment Receipt','KSEB Connection']},
   {'condition':'dcr',   'docs':['Subsidy Request','Subsidy Redeem']},
   {'condition':'always','docs':['Payment Completion','Warranty Card','App Installation']},
 ] %}
   {% if stage.condition == 'always'
      or (stage.condition == 'loan' and proj.project_type == 'Loan')
-     or (stage.condition == 'dcr'  and proj.project_subtype == 'DCR') %}
+     or (stage.condition == 'dcr' and proj.project_subtype == 'DCR') %}
     {% for doc_name in stage.docs %}
       {% set ns_total.expected = ns_total.expected + 1 %}
       {% if doc_name in doc_map and doc_map[doc_name].status in ['Received','Sent','Completed'] %}
@@ -141,7 +163,7 @@
     'name': 'Bank / Loan file',
     'stage': 'Bank/Feasibility',
     'condition': 'loan',
-    'docs': ['GEO Tag Photo', 'Bank Stamp Paper', 'Bank File'],
+    'docs': ['Bank File'],
     'statuses':['Pending','Sent','Received']
   },
   {
@@ -166,10 +188,17 @@
     'statuses':['Pending','Received']
   },
   {
+    'name': 'Second Payment',
+    'stage': 'Second Payment',
+    'condition': 'always',
+    'docs': ['Second Payment'],
+    'statuses':['Pending','Received']
+  },
+  {
     'name': 'Inspection & connection',
     'stage': 'Inspection',
     'condition': 'always',
-    'docs': ['CD Payment Receipt','Inspection', 'KSEB Connection'],
+    'docs': ['CD Payment Receipt', 'KSEB Connection'],
     'statuses':['Pending','Completed']
   },
   {
@@ -299,89 +328,61 @@
 
         <div class="tl-body {% if dot_cls in ['active','partial'] %}open{% endif %}">
 
-          {% for doc_name in stage.docs %}
-            {% set doc = doc_map.get(doc_name) %}
-      {% set final_status = stage.statuses[-1] %}
-{% set is_done = doc and doc.status in ['Received','Sent','Completed'] and doc.status != 'Pending' %}
-<div class="doc-row">
-  <div class="doc-status-dot
-    {% if doc and doc.status in ['Received','Completed'] %}received
-    {% elif doc and doc.status == 'Sent' %}sent
-    {% else %}pending{% endif %}">
-  </div>
-  <div class="doc-name">{{ doc_name }}</div>
-  <div class="doc-date">
-    {% if doc and doc.received_date %}{{ doc.received_date | date_fmt }}{% endif %}
-  </div>
-  <div class="doc-actions">
-    {% if is_done %}
-      <span class="badge
-        {% if doc.status == 'Sent' %}badge-InProgress
-        {% else %}badge-Completed{% endif %}">
-        {{ doc.status }}
-      </span>
-      {% if current_user.role in ['admin','documents','office'] %}
-      <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline" >
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
-        <input type="hidden" name="status"   value="Pending"/>
-        <button type="submit" class="btn btn-sm" title="Revert to Pending">↩</button>
-      </form>
-      {% endif %}
-    {% elif doc and doc.status == 'Pending' %}
-      <span class="badge badge-Pending">Pending</span>
-      {% if current_user.role in ['admin','documents','office'] %}
-      <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline" >
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
-        <input type="hidden" name="status"   value="{{ final_status }}"/>
-        <button type="submit" class="btn btn-sm btn-primary">Mark {{ final_status }}</button>
-      </form>
-      {% endif %}
-    {% else %}
-      <span style="font-size:11px;color:var(--hint)">Not recorded</span>
-      {% if current_user.role in ['admin','documents','office'] %}
-      <button class="btn btn-sm btn-primary"
-              onclick="openAddForm(this, '{{ doc_name }}', '{{ stage.name }}')">
-        + Add
-      </button>
-      {% endif %}
-    {% endif %}
-  </div>
-</div>
-{% endfor %}
-
-          {% if current_user.role in ['admin','documents','office'] %}
-          <div class="add-form" id="form-{{ stage.name | replace(' ','_') | replace('/','_') }}">
-  <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" >
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="add-form-grid">
-      <div>
-        <label>Document</label>
-        <input type="text" name="doc_type" readonly style="background:var(--surface)"/>
-      </div>
-      <div>
-        <label>Status</label>
-        <select name="status">
-          {% for s in stage.statuses %}
-          <option {% if loop.last %}selected{% endif %}>{{ s }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      
-      <div>
-        <button type="submit" class="btn btn-primary btn-sm">Save</button>
-      </div>
-    </div>
-    <div style="margin-top:6px">
-      <label>Notes</label>
-      <input type="text" name="notes" placeholder="Optional"/>
-    </div>
-  </form>
-</div>
-          {% endif %}
-
+      {% for doc_name in stage.docs %}
+        {% set doc = doc_map.get(doc_name) %}
+        {% set final_status = stage.statuses[-1] %}
+        {% set is_done = doc and doc.status in ['Received','Sent','Completed'] and doc.status != 'Pending' %}
+        <div class="doc-row">
+          <div class="doc-status-dot
+            {% if doc and doc.status in ['Received','Completed'] %}received
+            {% elif doc and doc.status == 'Sent' %}sent
+            {% else %}pending{% endif %}">
+          </div>
+          <div class="doc-name">
+            {{ doc_name }}
+            {% if doc and doc.notes %}
+            <span class="note-flag" title="{{ doc.notes }}">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M3 2h7l3 3v9H3V2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M5.5 7h5M5.5 9.5h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            </span>
+            {% endif %}
+          </div>
+          <div class="doc-date">
+            {% if doc and doc.received_date %}{{ doc.received_date | date_fmt }}{% endif %}
+          </div>
+          <div class="doc-actions">
+            {% if is_done %}
+              <span class="badge
+                {% if doc.status == 'Sent' %}badge-InProgress
+                {% else %}badge-Completed{% endif %}">
+                {{ doc.status }}
+              </span>
+              {% if current_user.role in ['admin','documents','office'] %}
+              <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline" >
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
+                <input type="hidden" name="status"   value="Pending"/>
+                <button type="submit" class="btn btn-sm" title="Revert to Pending">↩</button>
+              </form>
+              {% endif %}
+            {% else %}
+              <span class="badge {% if doc and doc.status == 'Pending' %}badge-Pending{% else %}badge-NotRecorded{% endif %}">
+                {{ 'Pending' if doc and doc.status == 'Pending' else 'Not recorded' }}
+              </span>
+              {% if current_user.role in ['admin','documents','office'] %}
+              <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" class="quick-mark-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="doc_type" value="{{ doc_name }}"/>
+                <input type="hidden" name="status"   value="{{ final_status }}"/>
+                <input type="date" name="received_date" class="quick-date" title="Date">
+                <input type="text" name="notes" class="quick-note" placeholder="Note (optional)">
+                <button type="submit" class="btn btn-sm btn-primary" title="Mark {{ final_status }}">✓ {{ final_status }}</button>
+              </form>
+              {% endif %}
+            {% endif %}
+          </div>
         </div>
+      {% endfor %}
+
       </div>
     </div>
      {% endif %}
@@ -712,7 +713,7 @@
 </div>
 {% endif %}
 {% if all_docs_complete %}
-<div style="margin-top:20px;display:flex;align-items:center;justify-content:space-between;
+<div style="margin-top:20px;display:flex;align-items:center;justify-content:between;
             background:var(--teal-50);border:0.5px solid var(--teal-100);
             border-radius:var(--radius-lg);padding:14px 18px;flex-wrap:wrap;gap:10px">
   <div style="display:flex;align-items:center;gap:10px">
@@ -750,15 +751,14 @@ function toggleStage(header) {
   chevron.classList.toggle('open');
 }
 
-function openAddForm(btn, docName, stageName) {
-  const stageKey = stageName.replace(/ /g, '_').replace(/\//g, '_');
-  const form     = document.getElementById('form-' + stageKey);
-  const input    = form.querySelector('input[name="doc_type"]');
-  input.value    = docName;
-  form.classList.add('open');
-  btn.style.display = 'none';
-  form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
+// Default every quick-mark date field to today so a single click on
+// "Mark ..." is enough — the date is pre-filled but still editable.
+document.querySelectorAll('.quick-date').forEach(function (el) {
+  if (!el.value) {
+    el.value = new Date().toISOString().slice(0, 10);
+  }
+});
+
 function toggleExpenseForm(id) {
   const form = document.getElementById(id);
   form.style.display = form.style.display === 'none' ? '' : 'none';
