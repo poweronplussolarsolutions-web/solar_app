@@ -303,7 +303,7 @@
         ('KW (Inverter)', proj.inverter_capacity_kw ~ ' kW'),
         ('KW (Panel)',    proj.panel_capacity_kw ~ ' kW'),
         ('Type',          proj.project_type ~ (' / ' ~ proj.project_subtype if proj.project_subtype else '')),
-        ('Roof',          proj.roof_type or ' '),
+        ('Roof', ('Clay Tile (Oodu)' if proj.roof_type == 'Clay Tile' else (proj.roof_type or ' '))),
         ('Inverter Type', proj.inverter_type or ' '),
         ('Phase',         (cd.connection_type if cd and cd.connection_type else ' ')),
         ('Section',       (cd.kseb_section if cd and cd.kseb_section else ' ')),

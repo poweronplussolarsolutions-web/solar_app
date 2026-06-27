@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Bank</td><td>{{ ld.bank_name if ld and ld.bank_name else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Loan amount</td><td>{{ ld.loan_amount | inr if ld and ld.loan_amount else '—' }}</td></tr>
       {% endif %}
-      <tr><td style="color:var(--muted);padding:5px 0">Roof</td><td>{{ proj.roof_type }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Roof</td><td>{{ 'Clay Tile (Oodu)' if proj.roof_type == 'Clay Tile' else (proj.roof_type or '—') }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Stage</td><td>{{ proj.stage }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Coordinator</td><td>
         {% if proj.coordinator %}
