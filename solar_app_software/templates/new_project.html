@@ -107,9 +107,9 @@
   <label>Roof type</label>
   <select name="roof_type">
     <option value="">— Select —</option>
-    {% for rt in ['Flat','Sheet','Slope'] %}
-    <option value="{{ rt }}">{{ rt }}</option>
-    {% endfor %}
+    {% for rt, label in [('Flat','Flat'),('Sheet','Sheet'),('Slope','Slope'),('Clay Tile','Clay Tile (Oodu)')] %}
+<option value="{{ rt }}">{{ label }}</option>
+{% endfor %}
   </select>
 </div>
 <div class="form-group">
