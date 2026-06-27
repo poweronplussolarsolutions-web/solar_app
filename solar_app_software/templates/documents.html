@@ -94,6 +94,41 @@
   .icon-btn { display: inline-flex; align-items: center; gap: 4px; }
   .icon-btn svg { width: 12px; height: 12px; }
 
+  /* ── Onsite progress card ── */
+  .readonly-tag {
+    font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 500;
+    background: var(--bg); color: var(--hint); border: 0.5px solid var(--border);
+  }
+  .op-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .op-tile {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 12px; border: 0.5px solid var(--border); border-radius: var(--radius);
+    background: var(--bg); transition: border-color .15s;
+  }
+  .op-tile-icon {
+    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface); border: 0.5px solid var(--border); color: var(--muted);
+  }
+  .op-tile-icon svg { width: 15px; height: 15px; }
+  .op-tile.op-done .op-tile-icon { color: var(--teal-600); border-color: var(--teal-100); background: var(--teal-50); }
+  .op-tile.op-active .op-tile-icon { color: var(--blue-600); border-color: var(--blue-100); background: var(--blue-50); }
+  .op-tile-body { flex: 1; min-width: 0; }
+  .op-tile-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+  .op-tile-date { font-size: 11px; color: var(--hint); margin-left: 6px; }
+  .op-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .op-bar-track { flex: 1; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+  .op-bar-fill { height: 100%; background: var(--teal-600); border-radius: 3px; transition: width .3s ease; }
+  .op-bar-text { font-size: 11px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+  .op-notes {
+    margin-top: 14px; padding-top: 12px; border-top: 0.5px solid var(--border);
+    font-size: 12px; color: var(--muted);
+  }
+  .op-notes strong { color: var(--hint); }
+
+  @media (max-width: 768px) { .op-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 480px) { .op-grid { grid-template-columns: 1fr; } }
+
 
 
   .doc-row {
@@ -871,7 +906,8 @@ document.querySelectorAll('.quick-date').forEach(function (el) {
   }
 });
 
-
+// Give instant feedback on submit and guard against accidental double-clicks
+// while the page is reloading.
 document.querySelectorAll('form').forEach(function (form) {
   form.addEventListener('submit', function () {
     const btn = form.querySelector('button[type="submit"]');
