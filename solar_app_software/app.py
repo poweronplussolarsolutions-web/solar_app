@@ -4634,9 +4634,12 @@ def _resolve_coord_projects(coord_id, coord_name):
 def docstaff_reports():
     today = date.today()
     return render_template('docstaff_reports.html',
-        staff_list=User.query.filter_by(role='documents', is_active=True).all(),
-        current_year=today.year, current_month=today.month)
-
+        staff_list=User.query.filter(
+            User.role.in_(['documents', 'office']),
+            User.is_active == True
+        ).order_by(User.full_name).all(),
+        current_year=today.year,
+        current_month=today.month)
 
 @app.route('/admin/docstaff_reports/download')
 @login_required
@@ -4649,8 +4652,8 @@ def download_docstaff_report():
         flash('Invalid report parameters.', 'danger')
         return redirect(url_for('docstaff_reports'))
     staff = User.query.get_or_404(staff_id)
-    if staff.role != 'documents':
-        flash('Selected user is not a documents staff member.', 'danger')
+    if staff.role not in ('documents', 'office'):
+        flash('Selected user is not a documents or office staff member.', 'danger')
         return redirect(url_for('docstaff_reports'))
     projects   = Project.query.filter_by(doc_staff_id=staff_id).all()
     path       = build_docstaff_monthly_report(staff, projects, year, month, tempfile.gettempdir())
@@ -4965,8 +4968,8 @@ def download_docstaff_report_all():
         flash('Please select a staff member.', 'danger')
         return redirect(url_for('docstaff_reports'))
     staff = User.query.get_or_404(staff_id)
-    if staff.role != 'documents':
-        flash('Selected user is not a documents staff member.', 'danger')
+    if staff.role not in ('documents', 'office'):
+        flash('Selected user is not a documents or office staff member.', 'danger')
         return redirect(url_for('docstaff_reports'))
     projects = Project.query.filter_by(doc_staff_id=staff_id).all()
     path = build_allworks_docstaff_report(staff, projects, tempfile.gettempdir())
