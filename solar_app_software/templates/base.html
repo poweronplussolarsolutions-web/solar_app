@@ -477,6 +477,10 @@
       <a class="nav-link {% if request.endpoint == 'coordinator_analytics' %}active{% endif %}" href="{{ url_for('coordinator_analytics') }}">
         <span class="dot"></span> Analytics
       </a>
+      <a class="nav-link {% if request.endpoint == 'coordinator_my_report' %}active{% endif %}"
+    href="{{ url_for('coordinator_my_report') }}">
+    <span class="dot"></span> My Report
+    </a>
       {% endif %}
 
       {% if current_user.role in ['admin','payments'] %}
@@ -522,10 +526,7 @@
         <span class="dot"></span>C/O Report</a>
       <a class="nav-link {% if request.endpoint in 'docstaff_reports' %}active{% endif %}" href="{{ url_for('docstaff_reports') }}">
         <span class="dot"></span>Staff Report</a>
-      <a class="nav-link {% if request.endpoint == 'coordinator_my_report' %}active{% endif %}"
-    href="{{ url_for('coordinator_my_report') }}">
-    <span class="dot"></span> My Report
-    </a>
+      
       <a class="nav-link {% if request.endpoint in 'job_card_page' %}active{% endif %}" href="{{ url_for('job_card_page') }}">
         <span class="dot"></span>Job Card</a>
       <a class="nav-link {% if request.endpoint in 'admin_change_password' %}active{% endif %}" href="{{ url_for('admin_change_password') }}">
