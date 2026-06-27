@@ -5139,7 +5139,116 @@ def print_docstaff_report():
         doc_done=_doc_done,
         generated=date.today().strftime('%d %b %Y'),
     )
+from flask import abort
+from io import BytesIO
+@app.route('/coordinator/my_report')
+@login_required
+def coordinator_my_report():
+    if current_user.role != 'coordinator':
+        abort(403)
+    now = datetime.now()
+    return render_template('coordinator_my_report.html',
+        current_month=now.month,
+        current_year=now.year)
 
+
+@app.route('/coordinator/my_report/preview_data')
+@login_required
+def coordinator_my_report_preview():
+    if current_user.role != 'coordinator':
+        abort(403)
+    month = request.args.get('month', type=int)
+    year  = request.args.get('year',  type=int)
+
+    all_projects = Project.query.filter_by(coordinator_id=current_user.id).all()
+    if month and year:
+        month_end = date(year, month, calendar.monthrange(year, month)[1])
+        projects  = [p for p in all_projects
+                     if p.created_at.date() <= month_end and p.status != 'Cancelled']
+    else:
+        projects = [p for p in all_projects if p.status != 'Cancelled']
+
+    total_val = sum(float(p.total_amount    or 0) for p in projects)
+    collected = sum(float(p.collected_amount or 0) for p in projects)
+    active    = [p for p in projects if p.status in ('InProgress','Delayed','Lead','OnHold')]
+    completed = [p for p in projects if p.status in ('Completed','Closed')]
+
+    return jsonify({
+        'kpis': {
+            'Total':     len(projects),
+            'Active':    len(active),
+            'Completed': len(completed),
+            'Value':     _inr_fmt(total_val),
+            'Collected': _inr_fmt(collected),
+            'Pending':   _inr_fmt(total_val - collected),
+        },
+        'projects': [_project_to_dict_coord(p)
+                     for p in sorted(projects, key=lambda x: x.created_at, reverse=True)],
+    })
+
+
+@app.route('/coordinator/my_report/download')
+@login_required
+def coordinator_my_report_download():
+    if current_user.role != 'coordinator':
+        abort(403)
+    coord = User.query.get_or_404(current_user.id)
+    month = request.args.get('month', type=int)
+    year  = request.args.get('year',  type=int)
+    if not all([month, year]) or not (1 <= month <= 12):
+        flash('Invalid parameters.', 'danger')
+        return redirect(url_for('coordinator_my_report'))
+    projects = Project.query.filter_by(coordinator_id=current_user.id).all()
+    path = build_coordinator_monthly_report(coord, projects, year, month, tempfile.gettempdir())
+    return send_file(path, as_attachment=True,
+        download_name=f"report_{coord.full_name.replace(' ','_')}_{year}_{month:02d}.xlsx",
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+@app.route('/coordinator/my_report/download_all')
+@login_required
+def coordinator_my_report_download_all():
+    if current_user.role != 'coordinator':
+        abort(403)
+    coord    = User.query.get_or_404(current_user.id)
+    projects = Project.query.filter_by(coordinator_id=current_user.id).all()
+    path     = build_allworks_coordinator_report(coord, projects, tempfile.gettempdir())
+    return send_file(path, as_attachment=True,
+        download_name=f"AllWorks_{coord.username}.xlsx",
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+@app.route('/coordinator/my_report/print')
+@login_required
+def coordinator_my_report_print():
+    if current_user.role != 'coordinator':
+        abort(403)
+    coord    = User.query.get_or_404(current_user.id)
+    month    = request.args.get('month', type=int)
+    year     = request.args.get('year',  type=int)
+    projects = Project.query.filter_by(coordinator_id=current_user.id).all()
+
+    if month and year:
+        month_end = date(year, month, calendar.monthrange(year, month)[1])
+        projects  = [p for p in projects
+                     if p.created_at.date() <= month_end and p.status != 'Cancelled']
+        period    = f'{calendar.month_name[month]} {year}'
+    else:
+        projects = [p for p in projects if p.status != 'Cancelled']
+        period   = 'All Works'
+
+    projects   = sorted(projects, key=lambda x: x.created_at, reverse=True)
+    total_val  = sum(float(p.total_amount    or 0) for p in projects)
+    total_coll = sum(float(p.collected_amount or 0) for p in projects)
+
+    return render_template('print_coordinator_report.html',
+        coordinator=coord,
+        projects=projects,
+        period=period,
+        total_val=total_val,
+        total_coll=total_coll,
+        total_pend=total_val - total_coll,
+        generated=datetime.now().strftime('%d %b %Y, %I:%M %p'))
 from solar_app_software.job_card_excel import build_job_card
 
 @app.route('/job_card')
