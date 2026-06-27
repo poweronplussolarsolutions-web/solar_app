@@ -199,39 +199,38 @@ function openPreview(mode) {
 }
 
 function renderPreview(data) {
-  const th = s => `<th style="padding:6px 10px;text-align:left;background:var(--muted,#555);color:#fff;font-size:12px;white-space:nowrap">${s}</th>`;
-  const td = (s, right) => `<td style="padding:5px 10px;font-size:12px;border-bottom:1px solid var(--border);${right?'text-align:right':''}">${s ?? '—'}</td>`;
+  const th = s => `<th style="padding:6px 8px;text-align:left;background:var(--muted,#555);color:#fff;font-size:11px;white-space:nowrap">${s}</th>`;
+  const td = (s) => `<td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border)">${s ?? '—'}</td>`;
+  const tdc = (s) => `<td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border);text-align:center">${s ?? '—'}</td>`;
+  const tick = v => v
+    ? `<span style="color:#155724;font-weight:700">✓</span>`
+    : `<span style="color:#721c24">✗</span>`;
 
   const kpis = data.kpis;
   let html = `
-    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:18px">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px">
       ${Object.entries(kpis).map(([k,v]) => `
-        <div style="background:var(--surface,#f5f5f5);border-radius:6px;padding:10px 16px;min-width:100px">
+        <div style="background:var(--surface,#f5f5f5);border-radius:6px;padding:10px 14px;min-width:90px">
           <div style="font-size:11px;color:var(--hint)">${k}</div>
-          <div style="font-size:16px;font-weight:700;color:var(--text,#222)">${v}</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text,#222)">${v}</div>
         </div>`).join('')}
     </div>
     <div style="overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
       <thead><tr>
-        ${['MNRE No.','Customer','Type','Status','Feasibility','Connection','MNRE','Coordinator','Created'].map(th).join('')}
+        ${['MNRE','Customer','Place','kW','C/O','Roof','Loan','Load/OW','Type','Sub','Status','Feas.','Conn.','MNRE✓','Created'].map(th).join('')}
       </tr></thead>
       <tbody>`;
 
   data.projects.forEach((p, i) => {
     const bg = i % 2 === 0 ? 'var(--surface,#f9f9f9)' : '#fff';
-    const tick = v => v
-      ? `<span style="color:#155724;font-weight:700">✓</span>`
-      : `<span style="color:#721c24">✗</span>`;
     html += `<tr style="background:${bg}">
-      ${td(p.code)}${td(p.customer)}${td(p.type)}
-      <td style="padding:5px 10px;font-size:12px;border-bottom:1px solid var(--border)">
-        <span style="padding:2px 8px;border-radius:10px;font-size:11px;background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
+      ${tdc(p.code)}${td(p.customer)}${td(p.place)}${tdc(p.kw)}${td(p.coordinator)}
+      ${tdc(p.roof)}${tdc(p.loan)}${tdc(p.load_ow)}${tdc(p.type)}${tdc(p.subtype)}
+      <td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border);text-align:center">
+        <span style="padding:2px 6px;border-radius:10px;font-size:10px;background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
       </td>
-      <td style="padding:5px 10px;text-align:center;border-bottom:1px solid var(--border)">${tick(p.feas)}</td>
-      <td style="padding:5px 10px;text-align:center;border-bottom:1px solid var(--border)">${tick(p.conn)}</td>
-      <td style="padding:5px 10px;text-align:center;border-bottom:1px solid var(--border)">${tick(p.mnre)}</td>
-      ${td(p.coordinator)}${td(p.created)}
+      ${tdc(tick(p.feas))}${tdc(tick(p.conn))}${tdc(tick(p.mnre))}${tdc(p.created)}
     </tr>`;
   });
 

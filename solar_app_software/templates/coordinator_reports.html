@@ -254,34 +254,35 @@ function openPreview(mode) {
 }
 
 function renderPreview(data) {
-  const th = s => `<th style="padding:6px 10px;text-align:left;background:var(--muted,#555);color:#fff;font-size:12px;white-space:nowrap">${s}</th>`;
-  const td = (s, right) => `<td style="padding:5px 10px;font-size:12px;border-bottom:1px solid var(--border);${right?'text-align:right':''}">${s ?? '—'}</td>`;
+  const th = s => `<th style="padding:6px 8px;text-align:left;background:var(--muted,#555);color:#fff;font-size:11px;white-space:nowrap">${s}</th>`;
+  const td = (s) => `<td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border)">${s ?? '—'}</td>`;
+  const tdc = (s) => `<td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border);text-align:center">${s ?? '—'}</td>`;
+  const tdr = (s) => `<td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border);text-align:right">${s ?? '—'}</td>`;
 
   const kpis = data.kpis;
   let html = `
-    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:18px">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px">
       ${Object.entries(kpis).map(([k,v]) => `
-        <div style="background:var(--surface,#f5f5f5);border-radius:6px;padding:10px 16px;min-width:100px">
+        <div style="background:var(--surface,#f5f5f5);border-radius:6px;padding:10px 14px;min-width:90px">
           <div style="font-size:11px;color:var(--hint)">${k}</div>
-          <div style="font-size:16px;font-weight:700;color:var(--text,#222)">${v}</div>
+          <div style="font-size:15px;font-weight:700;color:var(--text,#222)">${v}</div>
         </div>`).join('')}
     </div>
     <div style="overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
       <thead><tr>
-        ${['MNRE No.','Customer','Place','Type','Subtype','Status','Contract','Collected','Pending','Doc Staff','Created'].map(th).join('')}
+        ${['MNRE No.','Customer','Place','kW','Type','Subtype','Roof','Status','Contract','Collected','Pending','Doc Staff','Created'].map(th).join('')}
       </tr></thead>
       <tbody>`;
 
   data.projects.forEach((p, i) => {
     const bg = i % 2 === 0 ? 'var(--surface,#f9f9f9)' : '#fff';
     html += `<tr style="background:${bg}">
-      ${td(p.code)}${td(p.customer)}${td(p.place)}${td(p.type)}${td(p.subtype)}
-      <td style="padding:5px 10px;font-size:12px;border-bottom:1px solid var(--border)">
-        <span style="padding:2px 8px;border-radius:10px;font-size:11px;background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
+      ${tdc(p.code)}${td(p.customer)}${td(p.place)}${tdc(p.kw)}${tdc(p.type)}${tdc(p.subtype)}${tdc(p.roof)}
+      <td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border);text-align:center">
+        <span style="padding:2px 6px;border-radius:10px;font-size:10px;background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
       </td>
-      ${td(p.contract, true)}${td(p.collected, true)}${td(p.pending, true)}
-      ${td(p.doc_staff)}${td(p.created)}
+      ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${td(p.doc_staff)}${tdc(p.created)}
     </tr>`;
   });
 

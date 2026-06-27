@@ -94,8 +94,10 @@
       <th>MNRE No.</th>
       <th>Customer</th>
       <th>Place</th>
+      <th>kW</th>
       <th>Type</th>
       <th>Subtype</th>
+      <th>Roof</th>
       <th>Status</th>
       <th>Contract (₹)</th>
       <th>Collected (₹)</th>
@@ -112,8 +114,10 @@
       <td class="center">{{ p.project_code }}</td>
       <td>{{ p.customer.name }}</td>
       <td>{{ p.customer.place or '—' }}</td>
+      <td class="center">{{ p.inverter_capacity_kw }}</td>
       <td class="center">{{ p.project_type }}</td>
       <td class="center">{{ p.project_subtype or '—' }}</td>
+      <td class="center">{{ p.roof_type or '—' }}</td>
       <td class="center">
         <span class="badge b-{{ p.status | lower | replace(' ','') }}">{{ p.status }}</span>
       </td>
@@ -124,14 +128,14 @@
       <td class="center">{{ p.created_at.strftime('%d/%m/%y') }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="13" style="text-align:center;padding:20px;color:#888">No projects found.</td></tr>
+    <tr><td colspan="14" style="text-align:center;padding:20px;color:#888">No projects found.</td></tr>
     {% endfor %}
   </tbody>
   <tfoot>
     <tr>
       <td colspan="2" style="text-align:center">TOTAL</td>
       <td>{{ projects|length }} projects</td>
-      <td colspan="4"></td>
+      <td colspan="6"></td>
       <td class="right">{{ total_val | int | format_inr }}</td>
       <td class="right">{{ total_coll | int | format_inr }}</td>
       <td class="right">{{ total_pend | int | format_inr }}</td>

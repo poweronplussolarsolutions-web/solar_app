@@ -4691,9 +4691,11 @@ def _project_to_dict_coord(p):
     return {
         'code':      p.project_code,
         'customer':  p.customer.name,
+        'place':     p.customer.place or '—',
+        'kw':        p.inverter_capacity_kw,
         'type':      p.project_type,
         'subtype':   p.project_subtype or '—',
-        'place': p.customer.place or '—',
+        'roof':      p.roof_type or '—',
         'status':    p.status,
         'status_bg': bg,
         'status_fg': fg,
@@ -4707,17 +4709,26 @@ def _project_to_dict_coord(p):
 
 def _project_to_dict_docstaff(p):
     bg, fg = STATUS_COLORS_HTML.get(p.status, ('#fff', '#000'))
+    cd = p.connection_details
+    load_s = (cd.load_clearance_status if cd and cd.load_clearance_needed else 'N/A')
+    ow_s   = (cd.ownership_change_status if cd and cd.ownership_change_needed else 'N/A')
     return {
         'code':        p.project_code,
         'customer':    p.customer.name,
+        'place':       p.customer.place or '—',
+        'kw':          p.inverter_capacity_kw,
+        'coordinator': p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—'),
+        'roof':        p.roof_type or '—',
+        'loan':        p.project_type,
+        'load_ow':     f'L:{load_s[:6]} OW:{ow_s[:6]}',
         'type':        p.project_type,
+        'subtype':     p.project_subtype or '—',
         'status':      p.status,
         'status_bg':   bg,
         'status_fg':   fg,
         'feas':        _doc_done(p, 'Feasibility Receipt'),
         'conn':        _doc_done(p, 'KSEB Connection'),
         'mnre':        _doc_done(p, 'MNRE'),
-        'coordinator': p.coordinator.full_name if p.coordinator else '—',
         'created':     p.created_at.strftime('%d %b %Y'),
     }
 
