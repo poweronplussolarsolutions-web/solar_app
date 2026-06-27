@@ -4557,37 +4557,76 @@ def build_docstaff_monthly_report(staff, all_projects, year, month, output_dir='
 # REPORT DOWNLOAD ROUTES
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ── coordinator_reports route ─────────────────────────────────────────────────
 @app.route('/admin/coordinator_reports')
 @login_required
 @roles_required('admin')
 def coordinator_reports():
     coordinators = User.query.filter_by(role='coordinator', is_active=True).all()
     today = date.today()
-    return render_template('coordinator_reports.html', coordinators=coordinators,
-                           current_year=today.year, current_month=today.month)
 
+    # Collect free-text coordinator names (projects with no coordinator_id)
+    other_names = (
+        db.session.query(Project.coordinator_name)
+        .filter(Project.coordinator_id == None, Project.coordinator_name != None, Project.coordinator_name != '')
+        .distinct()
+        .all()
+    )
+    # Case-insensitive dedup, preserve original casing of first occurrence
+    seen = {}
+    for (name,) in other_names:
+        key = name.strip().lower()
+        if key not in seen:
+            seen[key] = name.strip()
+    other_coord_names = sorted(seen.values(), key=lambda n: n.lower())
+
+    return render_template('coordinator_reports.html',
+                           coordinators=coordinators,
+                           other_coord_names=other_coord_names,
+                           current_year=today.year,
+                           current_month=today.month)
 
 @app.route('/admin/coordinator_reports/download')
 @login_required
 @roles_required('admin')
 def download_coordinator_report():
-    coord_id = request.args.get('coordinator_id', type=int)
-    year     = request.args.get('year',  type=int)
-    month    = request.args.get('month', type=int)
-    if not all([coord_id, year, month]) or not (1 <= month <= 12):
+    coord_id   = request.args.get('coordinator_id', type=int)
+    coord_name = request.args.get('coordinator_name', '').strip()
+    year       = request.args.get('year',  type=int)
+    month      = request.args.get('month', type=int)
+
+    if not (coord_id or coord_name) or not all([year, month]) or not (1 <= month <= 12):
         flash('Invalid report parameters.', 'danger')
         return redirect(url_for('coordinator_reports'))
-    coordinator = User.query.get_or_404(coord_id)
-    if coordinator.role != 'coordinator':
-        flash('Selected user is not a coordinator.', 'danger')
-        return redirect(url_for('coordinator_reports'))
-    projects   = Project.query.filter_by(coordinator_id=coord_id).all()
-    path       = build_coordinator_monthly_report(coordinator, projects, year, month, tempfile.gettempdir())
+
+    label, coordinator, projects = _resolve_coord_projects(coord_id, coord_name)
+    path = build_coordinator_monthly_report(coordinator, projects, year, month, tempfile.gettempdir())
     month_name = calendar.month_name[month]
     return send_file(path, as_attachment=True,
         download_name=f'Report_{coordinator.username}_{month_name}_{year}.xlsx',
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+def _resolve_coord_projects(coord_id, coord_name):
+    """
+    Returns (label_name, projects_queryset_list) for either a User-based
+    coordinator (coord_id) or a free-text coordinator_name (coord_name).
+    """
+    if coord_id:
+        coordinator = User.query.get_or_404(coord_id)
+        projects = Project.query.filter_by(coordinator_id=coord_id).all()
+        return coordinator.full_name, coordinator, projects
+    else:
+        # Case-insensitive match on coordinator_name
+        projects = Project.query.filter(
+            Project.coordinator_id == None,
+            db.func.lower(Project.coordinator_name) == coord_name.strip().lower()
+        ).all()
+        # Fake a simple object for templates that expect coordinator.full_name
+        class _FakeCoord:
+            def __init__(self, name):
+                self.full_name = name
+                self.username  = name.replace(' ', '_').lower()
+        return coord_name.strip(), _FakeCoord(coord_name.strip()), projects
 
 @app.route('/admin/docstaff_reports')
 @login_required
@@ -4889,15 +4928,14 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
 @login_required
 @roles_required('admin')
 def download_coordinator_report_all():
-    coord_id = request.args.get('coordinator_id', type=int)
-    if not coord_id:
+    coord_id   = request.args.get('coordinator_id', type=int)
+    coord_name = request.args.get('coordinator_name', '').strip()
+
+    if not (coord_id or coord_name):
         flash('Please select a coordinator.', 'danger')
         return redirect(url_for('coordinator_reports'))
-    coordinator = User.query.get_or_404(coord_id)
-    if coordinator.role != 'coordinator':
-        flash('Selected user is not a coordinator.', 'danger')
-        return redirect(url_for('coordinator_reports'))
-    projects = Project.query.filter_by(coordinator_id=coord_id).all()
+
+    label, coordinator, projects = _resolve_coord_projects(coord_id, coord_name)
     path = build_allworks_coordinator_report(coordinator, projects, tempfile.gettempdir())
     return send_file(path, as_attachment=True,
         download_name=f'AllWorks_{coordinator.username}.xlsx',
@@ -4929,14 +4967,15 @@ def download_docstaff_report_all():
 @login_required
 @roles_required('admin')
 def coordinator_report_preview_data():
-    coord_id = request.args.get('coordinator_id', type=int)
-    month    = request.args.get('month', type=int)
-    year     = request.args.get('year',  type=int)
-    if not coord_id:
-        return jsonify({'error': 'Missing coordinator_id'}), 400
+    coord_id   = request.args.get('coordinator_id', type=int)
+    coord_name = request.args.get('coordinator_name', '').strip()
+    month      = request.args.get('month', type=int)
+    year       = request.args.get('year',  type=int)
 
-    coordinator  = User.query.get_or_404(coord_id)
-    all_projects = Project.query.filter_by(coordinator_id=coord_id).all()
+    if not (coord_id or coord_name):
+        return jsonify({'error': 'Missing coordinator'}), 400
+
+    label, coordinator, all_projects = _resolve_coord_projects(coord_id, coord_name)
 
     if month and year:
         month_end = date(year, month, calendar.monthrange(year, month)[1])
@@ -5010,15 +5049,16 @@ def docstaff_report_preview_data():
 @login_required
 @roles_required('admin')
 def print_coordinator_report():
-    coord_id = request.args.get('coordinator_id', type=int)
-    month    = request.args.get('month', type=int)
-    year     = request.args.get('year',  type=int)
-    if not coord_id:
+    coord_id   = request.args.get('coordinator_id', type=int)
+    coord_name = request.args.get('coordinator_name', '').strip()
+    month      = request.args.get('month', type=int)
+    year       = request.args.get('year',  type=int)
+
+    if not (coord_id or coord_name):
         flash('Missing coordinator.', 'danger')
         return redirect(url_for('coordinator_reports'))
 
-    coordinator  = User.query.get_or_404(coord_id)
-    all_projects = Project.query.filter_by(coordinator_id=coord_id).all()
+    label, coordinator, all_projects = _resolve_coord_projects(coord_id, coord_name)
 
     if month and year:
         month_end = date(year, month, calendar.monthrange(year, month)[1])

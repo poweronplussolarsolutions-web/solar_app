@@ -11,85 +11,104 @@
   </div>
 
   {# ── Monthly report form ──────────────────────────────────────────────── #}
-  <form method="GET" action="{{ url_for('download_coordinator_report') }}" id="monthlyForm">
-    <div class="form-grid">
+<form method="GET" action="{{ url_for('download_coordinator_report') }}" id="monthlyForm">
+  <div class="form-grid">
 
-      <div class="form-group full">
-        <label>Coordinator *</label>
-        <select name="coordinator_id" id="coordSelect" required>
-          <option value="">— Select coordinator —</option>
+    <div class="form-group full">
+      <label>Coordinator *</label>
+      <select name="coordinator_id" id="coordSelect" required>
+        <option value="">— Select coordinator —</option>
+        {% if coordinators %}
+        <optgroup label="System Users">
           {% for c in coordinators %}
-          <option value="{{ c.id }}" data-name="{{ c.full_name }}">{{ c.full_name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label>Month *</label>
-        <select name="month" id="monthSelect" required>
-          {% for m in range(1, 13) %}
-          <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>
-            {{ ['','January','February','March','April','May','June',
-                'July','August','September','October','November','December'][m] }}
+          <option value="{{ c.id }}" data-name="{{ c.full_name }}" data-type="user">
+            {{ c.full_name }}
           </option>
           {% endfor %}
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label>Year *</label>
-        <select name="year" id="yearSelect" required>
-          {% for y in range(current_year, current_year - 4, -1) %}
-          <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+        </optgroup>
+        {% endif %}
+        {% if other_coord_names %}
+        <optgroup label="Other Coordinators">
+          {% for name in other_coord_names %}
+          <option value="__other__" data-name="{{ name }}" data-type="other" data-coord-name="{{ name }}">
+            {{ name }}
+          </option>
           {% endfor %}
-        </select>
-      </div>
-
+        </optgroup>
+        {% endif %}
+      </select>
     </div>
 
-    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button type="button" class="btn btn-secondary" onclick="openPreview('monthly')">
-        👁 Preview
-      </button>
-      <button type="submit" class="btn btn-primary">
-        ↓ Download Monthly Excel
-      </button>
-      <button type="button" class="btn btn-secondary" onclick="openPrint('monthly')">
-        🖨 Print View
-      </button>
-      <span style="font-size:11px;color:var(--hint)">.xlsx — Excel / Google Sheets</span>
-    </div>
-  </form>
+    <!-- hidden field carries coordinator_name for "other" entries -->
+    <input type="hidden" name="coordinator_name" id="coordNameHidden" value="">
 
-  <div style="border-top:0.5px solid var(--border);margin:24px 0 20px"></div>
-
-  {# ── All-works report ─────────────────────────────────────────────────── #}
-  <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:10px">
-    All Works Report
-  </div>
-  <div style="font-size:12px;color:var(--hint);margin-bottom:14px">
-    Single flat sheet — every project for this coordinator, no month filter.
-  </div>
-
-  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-    <div class="form-group" style="margin:0;min-width:200px">
-      <select id="coordSelectAll">
-        <option value="">— Select coordinator —</option>
-        {% for c in coordinators %}
-        <option value="{{ c.id }}" data-name="{{ c.full_name }}">{{ c.full_name }}</option>
+    <div class="form-group">
+      <label>Month *</label>
+      <select name="month" id="monthSelect" required>
+        {% for m in range(1, 13) %}
+        <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>
+          {{ ['','January','February','March','April','May','June',
+              'July','August','September','October','November','December'][m] }}
+        </option>
         {% endfor %}
       </select>
     </div>
-    <button type="button" class="btn btn-secondary" onclick="openPreview('all')">
-      👁 Preview
-    </button>
-    <button type="button" class="btn btn-primary" onclick="downloadAll()">
-      ↓ Download All Works
-    </button>
-    <button type="button" class="btn btn-secondary" onclick="openPrint('all')">
-      🖨 Print View
-    </button>
+
+    <div class="form-group">
+      <label>Year *</label>
+      <select name="year" id="yearSelect" required>
+        {% for y in range(current_year, current_year - 4, -1) %}
+        <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
   </div>
+
+  <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <button type="button" class="btn btn-secondary" onclick="openPreview('monthly')">👁 Preview</button>
+    <button type="submit" class="btn btn-primary" onclick="prepareMonthlyForm()">↓ Download Monthly Excel</button>
+    <button type="button" class="btn btn-secondary" onclick="openPrint('monthly')">🖨 Print View</button>
+    <span style="font-size:11px;color:var(--hint)">.xlsx — Excel / Google Sheets</span>
+  </div>
+</form>
+
+<div style="border-top:0.5px solid var(--border);margin:24px 0 20px"></div>
+
+{# ── All-works report ─────────────────────────────────────────────────── #}
+<div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:10px">All Works Report</div>
+<div style="font-size:12px;color:var(--hint);margin-bottom:14px">
+  Single flat sheet — every project for this coordinator, no month filter.
+</div>
+
+<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+  <div class="form-group" style="margin:0;min-width:200px">
+    <select id="coordSelectAll">
+      <option value="">— Select coordinator —</option>
+      {% if coordinators %}
+      <optgroup label="System Users">
+        {% for c in coordinators %}
+        <option value="{{ c.id }}" data-name="{{ c.full_name }}" data-type="user">
+          {{ c.full_name }}
+        </option>
+        {% endfor %}
+      </optgroup>
+      {% endif %}
+      {% if other_coord_names %}
+      <optgroup label="Other Coordinators">
+        {% for name in other_coord_names %}
+        <option value="__other__" data-name="{{ name }}" data-type="other" data-coord-name="{{ name }}">
+          {{ name }}
+        </option>
+        {% endfor %}
+      </optgroup>
+      {% endif %}
+    </select>
+  </div>
+  <button type="button" class="btn btn-secondary" onclick="openPreview('all')">👁 Preview</button>
+  <button type="button" class="btn btn-primary" onclick="downloadAll()">↓ Download All Works</button>
+  <button type="button" class="btn btn-secondary" onclick="openPrint('all')">🖨 Print View</button>
+</div>
 
   <div style="border-top:0.5px solid var(--border);margin-top:24px;
               padding-top:16px;font-size:12px;color:var(--hint)">
@@ -131,36 +150,69 @@
 </div>
 
 <script>
+function _getCoordParams(sel) {
+  const opt = sel.selectedOptions[0];
+  if (!opt || !opt.value) return null;
+  const type = opt.dataset.type;
+  const name = opt.dataset.name || '';
+  if (type === 'other') {
+    return { coordId: null, coordName: opt.dataset.coordName || name, name };
+  }
+  return { coordId: opt.value, coordName: '', name };
+}
+
+function _buildQS(params, extra) {
+  const p = new URLSearchParams();
+  if (params.coordId)   p.set('coordinator_id',   params.coordId);
+  if (params.coordName) p.set('coordinator_name',  params.coordName);
+  Object.entries(extra || {}).forEach(([k, v]) => p.set(k, v));
+  return p.toString();
+}
+
 function getMonthlyParams() {
-  const coordId = document.getElementById('coordSelect').value;
-  const month   = document.getElementById('monthSelect').value;
-  const year    = document.getElementById('yearSelect').value;
-  const name    = document.getElementById('coordSelect').selectedOptions[0]?.dataset.name || '';
-  return { coordId, month, year, name };
+  const sel   = document.getElementById('coordSelect');
+  const coord = _getCoordParams(sel);
+  const month = document.getElementById('monthSelect').value;
+  const year  = document.getElementById('yearSelect').value;
+  const monthName = document.getElementById('monthSelect').selectedOptions[0].text;
+  return { coord, month, year, monthName };
 }
 
 function getAllParams() {
   const sel = document.getElementById('coordSelectAll');
-  const coordId = sel.value;
-  const name    = sel.selectedOptions[0]?.dataset.name || '';
-  return { coordId, name };
+  return _getCoordParams(sel);
+}
+
+// Fires when the monthly form submits via the Download button
+function prepareMonthlyForm() {
+  const { coord } = getMonthlyParams();
+  if (!coord) { alert('Please select a coordinator.'); return false; }
+  // Patch the hidden coordinator_id select value so Flask gets it correctly
+  const sel = document.getElementById('coordSelect');
+  if (coord.coordId) {
+    sel.name = 'coordinator_id';
+    document.getElementById('coordNameHidden').value = '';
+  } else {
+    sel.name = '';  // suppress so no coordinator_id is sent
+    document.getElementById('coordNameHidden').value = coord.coordName;
+  }
 }
 
 function downloadAll() {
-  const { coordId } = getAllParams();
-  if (!coordId) { alert('Please select a coordinator.'); return; }
-  window.location = `/admin/coordinator_reports/download_all?coordinator_id=${coordId}`;
+  const coord = getAllParams();
+  if (!coord) { alert('Please select a coordinator.'); return; }
+  window.location = `/admin/coordinator_reports/download_all?${_buildQS(coord)}`;
 }
 
 function openPrint(mode) {
   if (mode === 'monthly') {
-    const { coordId, month, year } = getMonthlyParams();
-    if (!coordId) { alert('Please select a coordinator.'); return; }
-    window.open(`/admin/coordinator_reports/print?coordinator_id=${coordId}&month=${month}&year=${year}`, '_blank');
+    const { coord, month, year } = getMonthlyParams();
+    if (!coord) { alert('Please select a coordinator.'); return; }
+    window.open(`/admin/coordinator_reports/print?${_buildQS(coord, { month, year })}`, '_blank');
   } else {
-    const { coordId } = getAllParams();
-    if (!coordId) { alert('Please select a coordinator.'); return; }
-    window.open(`/admin/coordinator_reports/print?coordinator_id=${coordId}`, '_blank');
+    const coord = getAllParams();
+    if (!coord) { alert('Please select a coordinator.'); return; }
+    window.open(`/admin/coordinator_reports/print?${_buildQS(coord)}`, '_blank');
   }
 }
 
@@ -168,24 +220,26 @@ function openPreview(mode) {
   let url, title, downloadUrl, printUrl;
 
   if (mode === 'monthly') {
-    const { coordId, month, year, name } = getMonthlyParams();
-    if (!coordId) { alert('Please select a coordinator.'); return; }
-    const monthName = document.getElementById('monthSelect').selectedOptions[0].text;
-    title       = `Preview — ${name} · ${monthName} ${year}`;
-    url         = `/admin/coordinator_reports/preview_data?coordinator_id=${coordId}&month=${month}&year=${year}`;
-    downloadUrl = `/admin/coordinator_reports/download?coordinator_id=${coordId}&month=${month}&year=${year}`;
-    printUrl    = `/admin/coordinator_reports/print?coordinator_id=${coordId}&month=${month}&year=${year}`;
+    const { coord, month, year, monthName } = getMonthlyParams();
+    if (!coord) { alert('Please select a coordinator.'); return; }
+    const qs = _buildQS(coord, { month, year });
+    title       = `Preview — ${coord.name} · ${monthName} ${year}`;
+    url         = `/admin/coordinator_reports/preview_data?${qs}`;
+    downloadUrl = `/admin/coordinator_reports/download?${qs}`;
+    printUrl    = `/admin/coordinator_reports/print?${qs}`;
   } else {
-    const { coordId, name } = getAllParams();
-    if (!coordId) { alert('Please select a coordinator.'); return; }
-    title       = `Preview — ${name} · All Works`;
-    url         = `/admin/coordinator_reports/preview_data?coordinator_id=${coordId}`;
-    downloadUrl = `/admin/coordinator_reports/download_all?coordinator_id=${coordId}`;
-    printUrl    = `/admin/coordinator_reports/print?coordinator_id=${coordId}`;
+    const coord = getAllParams();
+    if (!coord) { alert('Please select a coordinator.'); return; }
+    const qs = _buildQS(coord);
+    title       = `Preview — ${coord.name} · All Works`;
+    url         = `/admin/coordinator_reports/preview_data?${qs}`;
+    downloadUrl = `/admin/coordinator_reports/download_all?${qs}`;
+    printUrl    = `/admin/coordinator_reports/print?${qs}`;
   }
 
   document.getElementById('previewTitle').textContent = title;
-  document.getElementById('previewBody').innerHTML = '<div style="color:var(--hint);text-align:center;padding:40px">Loading…</div>';
+  document.getElementById('previewBody').innerHTML =
+    '<div style="color:var(--hint);text-align:center;padding:40px">Loading…</div>';
   document.getElementById('modalDownloadBtn').onclick = () => { window.location = downloadUrl; };
   document.getElementById('modalPrintBtn').onclick    = () => { window.open(printUrl, '_blank'); };
   document.getElementById('previewModal').style.display = 'block';
@@ -194,7 +248,8 @@ function openPreview(mode) {
     .then(r => r.json())
     .then(data => renderPreview(data))
     .catch(() => {
-      document.getElementById('previewBody').innerHTML = '<div style="color:red;padding:20px">Failed to load preview.</div>';
+      document.getElementById('previewBody').innerHTML =
+        '<div style="color:red;padding:20px">Failed to load preview.</div>';
     });
 }
 
@@ -222,7 +277,6 @@ function renderPreview(data) {
     const bg = i % 2 === 0 ? 'var(--surface,#f9f9f9)' : '#fff';
     html += `<tr style="background:${bg}">
       ${td(p.code)}${td(p.customer)}${td(p.place)}${td(p.type)}${td(p.subtype)}
-      
       <td style="padding:5px 10px;font-size:12px;border-bottom:1px solid var(--border)">
         <span style="padding:2px 8px;border-radius:10px;font-size:11px;background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
       </td>
