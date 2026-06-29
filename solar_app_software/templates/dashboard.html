@@ -300,7 +300,7 @@
 
 
 {# ── DOCUMENTS ── #}
-{% elif current_user.role == 'documents' %}
+{% elif current_user.role in ('documents','documents_k') %}
 {# ── ASSIGNMENT NOTIFICATIONS ── #}
 {% if data.notifications %}
 <div style="margin-bottom:16px;display:flex;flex-direction:column;gap:8px">

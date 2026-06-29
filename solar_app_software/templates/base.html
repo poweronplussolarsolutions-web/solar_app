@@ -465,7 +465,7 @@
       {% if current_user.role in ['admin', 'documents','office'] %}
 <a class="nav-link {% if request.endpoint == 'works_status' %}active{% endif %}" href="{{ url_for('works_status') }}"><span class="dot"></span>Status</a>
 {% endif %}
-      {% if current_user.role in ['coordinator','documents','payments','onsite','appinstall','office'] %}
+      {% if current_user.role in ['coordinator','documents','payments','onsite','appinstall','office','documents_k'] %}
       <a class="nav-link {% if request.endpoint in 'change_password' %}active{% endif %}" href="{{ url_for('change_password') }}">
         <span class="dot"></span>Change Password</a> 
       {% endif %}
