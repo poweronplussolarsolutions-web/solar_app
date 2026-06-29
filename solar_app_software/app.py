@@ -218,7 +218,7 @@ class User(UserMixin, db.Model):
     phone=db.Column(db.String(20),unique=True,nullable=False)
     password   = db.Column(db.String(512), nullable=False)   
     full_name  = db.Column(db.String(120), nullable=False)
-    role       = db.Column(db.Enum('admin','coordinator','documents','payments','onsite','appinstall','office'), nullable=False)
+    role       = db.Column(db.Enum('admin','coordinator','documents','payments','onsite','appinstall','office','documents_k'), nullable=False)
     is_active  = db.Column(db.Boolean, default=True)
     is_deleted  = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -1472,7 +1472,66 @@ def dashboard():
         user_id=current_user.id,
         is_read=False
     ).order_by(Notification.created_at.desc()).limit(20).all()
-        
+    elif role == 'documents_k':
+        from sqlalchemy.orm import joinedload
+        from sqlalchemy import func
+
+        all_my_projects = Project.query.options(
+        joinedload(Project.documents)
+    ).filter_by(doc_staff_id=current_user.id).all()
+
+        my_projects = [p for p in all_my_projects if p.status not in ['Cancelled', 'OnHold']]
+        project_ids = [p.id for p in my_projects]
+
+        doc_counts = []
+        if project_ids:
+            doc_counts = db.session.query(
+            Document.project_id,
+            func.sum(Document.status == 'Completed').label('done'),
+            func.count(Document.id).label('total')
+        ).filter(
+            Document.project_id.in_(project_ids)
+        ).group_by(Document.project_id).all()
+
+        doc_map = {
+        d.project_id: (int(d.done or 0), int(d.total or 0))
+        for d in doc_counts
+    }
+
+        projects_with_counts = []
+        for p in my_projects:
+            done, total = doc_map.get(p.id, (0, 0))
+            projects_with_counts.append({
+            'project': p,
+            'done_docs': done,
+            'total_docs': total,
+            'doc_pct': int(done / total * 100) if total > 0 else 0,
+        })
+
+        page = request.args.get('page', 1, type=int)
+        per_page = 20
+        total = len(projects_with_counts)
+        start = (page - 1) * per_page
+
+        data['projects'] = my_projects
+        data['projects_with_counts'] = projects_with_counts[start:start+per_page]
+        data['page'] = page
+        data['per_page'] = per_page
+        data['total_projects'] = total
+        data['total_pages'] = (total + per_page - 1) // per_page
+        data['queue'] = len(my_projects)
+        data['new_projects'] = [
+        p for p in my_projects
+        if p.status == 'InProgress' and len(p.documents) == 0
+    ]
+        data['new_count'] = len(data['new_projects'])
+        data['completed_projects'] = [
+        p for p in my_projects if p.status in ['Completed', 'Closed']
+    ]
+        data['completed_count'] = len(data['completed_projects'])
+        data['notifications'] = Notification.query.filter_by(
+        user_id=current_user.id, is_read=False
+    ).order_by(Notification.created_at.desc()).limit(20).all()
     elif role == 'office':
         from sqlalchemy.orm import joinedload
         from sqlalchemy import func
@@ -1614,6 +1673,8 @@ def projects():
     q = Project.query.join(Customer)
     if current_user.role == 'coordinator':
         q = q.filter(Project.coordinator_id == current_user.id)
+    if current_user.role == 'documents_k':
+        q = q.filter(Project.doc_staff_id == current_user.id)
     if status_filter:
         q = q.filter(Project.status == status_filter)
     if search:
@@ -1625,7 +1686,7 @@ def projects():
 
 @app.route('/projects/new', methods=['GET', 'POST'])
 @login_required
-@roles_required('coordinator','admin','documents','office')
+@roles_required('coordinator','admin','documents','office','documents_k')
 @limiter.limit('30 per minute')
 def new_project():
     coordinators=User.query.filter_by(role='coordinator').order_by(User.full_name).all()
@@ -1723,14 +1784,14 @@ def new_project():
 
 @app.route('/projects/<int:pid>/edit', methods=['GET', 'POST'])
 @login_required
-@roles_required('admin', 'coordinator', 'documents','office')
+@roles_required('admin', 'coordinator', 'documents','office','documents_k')
 def edit_project(pid):
     proj = Project.query.get_or_404(pid)
 
     if current_user.role == 'coordinator' and proj.coordinator_id != current_user.id:
         flash('You can only edit your own projects.', 'danger')
         return redirect(url_for('project_detail', pid=pid))
-    if current_user.role == 'documents' and proj.doc_staff_id != current_user.id:
+    if current_user.role in ('documents','documents_k') and proj.doc_staff_id != current_user.id:
         flash('You can only edit projects assigned to you.', 'danger')
         return redirect(url_for('project_detail', pid=pid))
     if proj.status in ('Cancelled', 'Closed') and current_user.role != 'admin':
@@ -1979,7 +2040,7 @@ def project_detail(pid):
 
 @app.route('/projects/<int:pid>/expenses', methods=['POST'])
 @login_required
-@roles_required('admin', 'documents','office')
+@roles_required('admin', 'documents','office','documents_k')
 def update_expense(pid):
     proj         = Project.query.get_or_404(pid)
     expense_type = _clean(request.form.get('expense_type', ''), 50)
@@ -2110,7 +2171,7 @@ def update_status(pid):
 
 @app.route('/projects/<int:pid>/cancel', methods=['POST'])
 @login_required
-@roles_required('admin', 'coordinator', 'documents','office')
+@roles_required('admin', 'coordinator', 'documents','office','documents_k')
 def cancel_project(pid):
     proj = Project.query.get_or_404(pid)
     if current_user.role == 'coordinator' and proj.coordinator_id != current_user.id:
@@ -2165,10 +2226,10 @@ def uncancel_project(pid):
 
 @app.route('/projects/<int:pid>/hold', methods=['POST'])
 @login_required
-@roles_required('admin', 'coordinator', 'documents','office')
+@roles_required('admin', 'coordinator', 'documents','office','documents_k')
 def hold_project(pid):
     proj = Project.query.get_or_404(pid)
-    if current_user.role == 'documents' and proj.doc_staff_id != current_user.id:
+    if current_user.role in ('documents','documents_k') and proj.doc_staff_id != current_user.id:
         flash('You can only put your assigned projects on hold.', 'danger')
         return redirect(url_for('project_detail', pid=pid))
     if proj.status in ('Cancelled', 'Closed', 'Completed'):
@@ -2533,7 +2594,7 @@ def pending_approvals():
 def documents(pid):
     proj   = Project.query.get_or_404(pid)
     stages = get_document_stages()
-    if current_user.role == 'documents' and proj.doc_staff_id != current_user.id:
+    if current_user.role in ('documents','documents_k') and proj.doc_staff_id != current_user.id:
         flash('This project is not assigned to you.', 'danger')
         return redirect(url_for('dashboard'))
 
@@ -2613,7 +2674,7 @@ def documents(pid):
 
 @app.route('/works_status')
 @login_required
-@roles_required('admin', 'documents','office')
+@roles_required('admin', 'documents','office','documents_k')
 def works_status():
     from sqlalchemy.orm import joinedload
 
@@ -2629,7 +2690,7 @@ def works_status():
         .order_by(Project.updated_at.desc())
         .all())
 
-    if current_user.role == 'documents':
+    if current_user.role in ('documents','documents_k'):
         projects = [p for p in projects if p.doc_staff_id == current_user.id]
 
     KEY_DOCS = [
@@ -2742,7 +2803,7 @@ def service_management():
 
 @app.route('/projects/<int:pid>/connection_details', methods=['POST'])
 @login_required
-@roles_required('admin', 'documents','office')
+@roles_required('admin', 'documents','office','documents_k')
 def update_connection_details(pid):
     proj = Project.query.get_or_404(pid)
     cd   = proj.connection_details or ConnectionDetails(project_id=pid)
@@ -2790,7 +2851,7 @@ def update_connection_details(pid):
     return redirect(url_for('documents', pid=pid))
 @app.route('/projects/<int:pid>/loan_details', methods=['POST'])
 @login_required
-@roles_required('admin', 'documents','office')
+@roles_required('admin', 'documents','office','documents_k')
 def update_loan_details(pid):
     proj = Project.query.get_or_404(pid)
     if proj.project_type != 'Loan':
@@ -2810,7 +2871,7 @@ def update_loan_details(pid):
     return redirect(url_for('documents', pid=pid))
 @app.route('/projects/<int:pid>/panel_details', methods=['POST'])
 @login_required
-@roles_required('admin', 'documents', 'onsite','office')
+@roles_required('admin', 'documents', 'onsite','office','documents_k')
 def update_panel_details(pid):
     proj = Project.query.get_or_404(pid)
     pd_  = proj.panel_details or PanelDetails(project_id=pid)
@@ -2838,7 +2899,7 @@ def update_panel_details(pid):
 @login_required
 def batch_documents(pid):
     proj = Project.query.get_or_404(pid)
-    if current_user.role == 'documents' and proj.doc_staff_id != current_user.id:
+    if current_user.role in ('documents','documents_k') and proj.doc_staff_id != current_user.id:
         flash('This project is not assigned to you.', 'danger')
         return redirect(url_for('dashboard'))
     
@@ -3527,7 +3588,7 @@ def subsidy(pid):
     sub  = proj.subsidy
 
     if request.method == 'POST':
-        if current_user.role not in ['admin', 'payments', 'documents','office']:
+        if current_user.role not in ['admin', 'payments', 'documents','office','documents_k']:
             flash('Subsidy can be updated only by payments or documents team', 'danger')
             return redirect(url_for('subsidy', pid=pid))
 
@@ -3588,7 +3649,7 @@ def subsidy(pid):
 
 @app.route('/installations')
 @login_required
-@roles_required('admin', 'appinstall', 'documents','office')
+@roles_required('admin', 'appinstall', 'documents','office','documents_k')
 def installations():
     return render_template('installations.html',
         pending=AppInstallation.query.filter_by(status='Pending').all(),
