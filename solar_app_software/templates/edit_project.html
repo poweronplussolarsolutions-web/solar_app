@@ -181,7 +181,7 @@
         <label>Roof type</label>
         <select name="roof_type">
           <option value="">— Select —</option>
-          {% for rt, label in [('Flat','Flat'),('Sheet','Sheet'),('Slope','Slope'),('Clay Tile','Clay Tile (Oodu)')] %}
+          {% for rt, label in [('Flat','Flat'),('Sheet','Sheet'),('Slope','Slope'),('Tile','Tile'),('Clay Tile','Clay Tile (Oodu)')] %}
 <option value="{{ rt }}" {% if proj.roof_type == rt %}selected{% endif %}>{{ label }}</option>
 {% endfor %}
         </select>

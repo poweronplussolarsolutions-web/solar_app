@@ -293,7 +293,7 @@ class Project(db.Model):
     materials        = db.relationship('Material',         backref='project', lazy=True)
     assignments      = db.relationship('WorkerAssignment', backref='project', lazy=True)
     loan_subtype     = db.Column(db.Enum('Assisted','Self'), nullable=True)
-    roof_type=db.Column(db.Enum('Flat','Sheet','Slope','Clay Tile'),nullable=True)
+    roof_type=db.Column(db.Enum('Flat','Sheet','Slope','Clay Tile','Tile'),nullable=True)
     inverter_type = db.Column(db.Enum('Standard','Hybrid','String'), nullable=True)
     panel_items      = db.relationship('PanelItem', backref='project', lazy=True, cascade='all,delete-orphan')
     extra_materials  = db.relationship('ExtraMaterial', backref='project', lazy=True, cascade='all,delete-orphan')
