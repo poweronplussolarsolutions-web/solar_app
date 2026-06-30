@@ -1780,7 +1780,7 @@ def new_project():
         return redirect(url_for('project_detail', pid=proj.id))
 
     return render_template('new_project.html',coordinators=coordinators, customers=customers,
-                           doc_staff=doc_staff, suggested_code=suggested_code,office=office)
+                           doc_staff=doc_staff, suggested_code=suggested_code,office=office,documents_k=documents_k)
 
 
 @app.route('/projects/<int:pid>/edit', methods=['GET', 'POST'])
@@ -1984,7 +1984,7 @@ def edit_project(pid):
         return redirect(url_for('project_detail', pid=pid))
 
     return render_template('edit_project.html', proj=proj,
-                           doc_staff=doc_staff, coordinators=coordinators,office=office)
+                           doc_staff=doc_staff, coordinators=coordinators,office=office,documents_k=documents_k)
 
 
 @app.route('/projects/<int:pid>/site_visit', methods=['POST'])
