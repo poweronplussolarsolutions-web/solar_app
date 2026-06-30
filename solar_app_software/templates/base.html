@@ -469,7 +469,10 @@
       <a class="nav-link {% if request.endpoint in 'change_password' %}active{% endif %}" href="{{ url_for('change_password') }}">
         <span class="dot"></span>Change Password</a> 
       {% endif %}
-
+       {% if current_user.role == 'documents_k' %}
+<a class="nav-link {% if request.endpoint in 'job_card_page' %}active{% endif %}" href="{{ url_for('job_card_page') }}">
+        <span class="dot"></span>Job Card</a>
+{% endif %}
       {% if current_user.role == 'coordinator' %}
       <a class="nav-link {% if request.endpoint == 'new_project' %}active{% endif %}" href="{{ url_for('new_project') }}">
         <span class="dot"></span> New Project
@@ -534,10 +537,7 @@
 
       {% endif %}
     </nav>
-{% if current_user.role == 'documents_k' %}
-<a class="nav-link {% if request.endpoint in 'job_card_page' %}active{% endif %}" href="{{ url_for('job_card_page') }}">
-        <span class="dot"></span>Job Card</a>
-{% endif %}
+
     <div class="sidebar-footer">
       <a href="{{ url_for('logout') }}" class="logout-btn">Sign out</a>
     </div>
