@@ -2609,7 +2609,10 @@ def documents(pid):
 
         doc_type = request.form['doc_type']
         status   = request.form.get('status', 'Pending')
-
+        received_date_str = request.form.get('received_date')
+        received_date = (
+        date.fromisoformat(received_date_str) if received_date_str else date.today()
+        )
         existing = Document.query.filter_by(project_id=pid, doc_type=doc_type).first()
         if existing:
             existing.status = status
@@ -2619,7 +2622,7 @@ def documents(pid):
         else:
             db.session.add(Document(
                 project_id=pid, doc_type=doc_type, status=status,
-                received_date=date.today() if status != 'Pending' else None,
+                received_date=received_date if status != 'Pending' else None,
                 notes=_clean(request.form.get('notes', ''), 500),
             ))
             log_action(pid, f'Document received: {doc_type}', new_val=status)
@@ -5031,7 +5034,7 @@ def download_docstaff_report_all():
         flash('Please select a staff member.', 'danger')
         return redirect(url_for('docstaff_reports'))
     staff = User.query.get_or_404(staff_id)
-    if staff.role not in ('documents', 'office','documents_'):
+    if staff.role not in ('documents', 'office','documents_k'):
         flash('Selected user is not a documents or office staff member.', 'danger')
         return redirect(url_for('docstaff_reports'))
     projects = Project.query.filter_by(doc_staff_id=staff_id).all()
