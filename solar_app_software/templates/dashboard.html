@@ -3,7 +3,7 @@
 {% block page_title %}
   {% if current_user.role == 'admin' %}Admin Dashboard
   {% elif current_user.role == 'coordinator' %}Coordinator Dashboard
-  {% elif current_user.role == 'documents' %}Documents Team
+  {% elif current_user.role in ['documents','documents_k'] %}Documents Team
   {% elif current_user.role == 'office' %}Office Manager
   {% elif current_user.role == 'payments' %}Payments Dashboard
   {% elif current_user.role == 'onsite' %}On-site Management
@@ -11,7 +11,7 @@
   {% endif %}
 {% endblock %}
 {% block topbar_actions %}
-  {% if current_user.role in ['coordinator','office'] %}
+  {% if current_user.role in ['coordinator','office','documents_k'] %}
   <a href="{{ url_for('new_project') }}" class="btn btn-primary">+ New Project</a>
   {% endif %}
 {% endblock %}
