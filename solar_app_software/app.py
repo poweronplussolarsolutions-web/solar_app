@@ -1693,6 +1693,7 @@ def new_project():
     customers       = Customer.query.order_by(Customer.name).all()
     doc_staff       = User.query.filter_by(role='documents', is_active=True).all()
     office = User.query.filter_by(role='office').all()
+    documents_k=User.query.filter_by(role='documents_k').all()
     suggested_code  = next_project_code()
 
     if request.method == 'POST':
@@ -1801,6 +1802,7 @@ def edit_project(pid):
     doc_staff    = User.query.filter_by(role='documents',   is_active=True).all()
     coordinators = User.query.filter_by(role='coordinator', is_active=True).all()
     office = User.query.filter_by(role='office',is_active=True).all()
+    documents_k=User.query.filter_by(role='documents_k',is_active=True).all()
 
     if request.method == 'POST':
         old_type     = proj.project_type
@@ -1839,7 +1841,7 @@ def edit_project(pid):
                     return redirect(url_for('edit_project', pid=pid))
                 changes.append(f'MNRE: {proj.project_code} → {new_code}')
                 proj.project_code = new_code
-        if current_user.role in ('admin','documents','office'):
+        if current_user.role in ('admin','documents','office','documents_k'):
             proj.customer.name       = _clean(request.form.get('customer_name', proj.customer.name), 120)
             proj.customer.phone      = _clean(request.form.get('customer_phone', ''), 20) or None
             proj.customer.email      = _clean(request.form.get('customer_email', ''), 120) or None
@@ -1934,7 +1936,7 @@ def edit_project(pid):
             create_notification(proj.doc_staff_id, pid,
                 f'{proj.project_code} — {proj.customer.name}: Project details edited '
                 f'by {current_user.full_name}. Changes: {", ".join(changes)}.', 'info')
-        if current_user.role in ('documents','office') and changes and proj.coordinator_id:
+        if current_user.role in ('documents','office','documents_k') and changes and proj.coordinator_id:
             create_notification(proj.coordinator_id, pid,
                 f'{proj.project_code} — {proj.customer.name}: Project details edited '
                 f'by {current_user.full_name} (docs). Changes: {", ".join(changes)}.', 'info')

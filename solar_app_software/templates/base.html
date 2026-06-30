@@ -534,7 +534,8 @@
 
       {% endif %}
     </nav>
-
+{% if current_user.role == 'documents_k' %}
+{% endif %}
     <div class="sidebar-footer">
       <a href="{{ url_for('logout') }}" class="logout-btn">Sign out</a>
     </div>
