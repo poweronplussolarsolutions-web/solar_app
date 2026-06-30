@@ -491,9 +491,7 @@
     {% if doc.received_date %} · {{ doc.received_date | date_fmt }}{% endif %}
   </span>
   {% if doc.notes %}
-  <span class="note-flag" title="{{ doc.notes }}" style="margin-left:0">
-    <svg viewBox="0 0 16 16" fill="none"><path d="M3 2h7l3 3v9H3V2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M5.5 7h5M5.5 9.5h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-  </span>
+  <span>{{doc.notes}}</span>
   {% endif %}
   {% if current_user.role in ['admin','documents','office'] %}
               <form method="POST" action="{{ url_for('documents', pid=proj.id) }}" style="display:inline" >
