@@ -535,6 +535,8 @@
       {% endif %}
     </nav>
 {% if current_user.role == 'documents_k' %}
+<a class="nav-link {% if request.endpoint in 'job_card_page' %}active{% endif %}" href="{{ url_for('job_card_page') }}">
+        <span class="dot"></span>Job Card</a>
 {% endif %}
     <div class="sidebar-footer">
       <a href="{{ url_for('logout') }}" class="logout-btn">Sign out</a>

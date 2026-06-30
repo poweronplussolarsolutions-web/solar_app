@@ -5319,45 +5319,35 @@ from solar_app_software.job_card_excel import build_job_card
 def job_card_page():
     query = _clean(request.args.get('q', ''), 100)
     proj  = None
- 
+
     if query:
         from sqlalchemy.orm import joinedload
-        proj = (Project.query
-                .options(
-                    joinedload(Project.connection_details),
-                    joinedload(Project.loan_detail),
-                    joinedload(Project.panel_details),
-                    joinedload(Project.subsidy),
-                    joinedload(Project.onsite_progress),
-                    joinedload(Project.documents),
-                    joinedload(Project.expenses),
-                    joinedload(Project.coordinator),
-                    joinedload(Project.doc_staff),
-                    joinedload(Project.kseb_task),
-                )
-                .filter_by(project_code=query).first())
+        opts = [
+            joinedload(Project.connection_details),
+            joinedload(Project.loan_detail),
+            joinedload(Project.panel_details),
+            joinedload(Project.subsidy),
+            joinedload(Project.onsite_progress),
+            joinedload(Project.documents),
+            joinedload(Project.expenses),
+            joinedload(Project.coordinator),
+            joinedload(Project.doc_staff),
+            joinedload(Project.kseb_task),
+        ]
+        base = Project.query.options(*opts)
+        if current_user.role == 'documents_k':
+            base = base.filter(Project.doc_staff_id == current_user.id)
+
+        proj = base.filter_by(project_code=query).first()
         if not proj:
-            proj = (Project.query
-                    .options(
-                        joinedload(Project.connection_details),
-                        joinedload(Project.loan_detail),
-                        joinedload(Project.panel_details),
-                        joinedload(Project.subsidy),
-                        joinedload(Project.onsite_progress),
-                        joinedload(Project.documents),
-                        joinedload(Project.expenses),
-                        joinedload(Project.coordinator),
-                        joinedload(Project.doc_staff),
-                        joinedload(Project.kseb_task),
-                    )
+            proj = (base
                     .join(Customer)
                     .filter(Customer.name.ilike(f'%{query}%'))
                     .order_by(Project.updated_at.desc())
                     .first())
- 
+
     now = datetime.utcnow().strftime('%d-%m-%Y')
     return render_template('job_card.html', proj=proj, query=query, now=now)
- 
  
 @app.route('/api/job_card_search')
 @login_required
@@ -5366,17 +5356,18 @@ def api_job_card_search():
     q = _clean(request.args.get('q', ''), 80)
     if len(q) < 2:
         return jsonify([])
- 
-    results = (Project.query
-               .join(Customer)
-               .filter(
-                   Customer.name.ilike(f'%{q}%') |
-                   Project.project_code.ilike(f'%{q}%')
-               )
-               .order_by(Project.updated_at.desc())
-               .limit(10)
-               .all())
- 
+
+    query = (Project.query
+             .join(Customer)
+             .filter(
+                 Customer.name.ilike(f'%{q}%') |
+                 Project.project_code.ilike(f'%{q}%')
+             ))
+    if current_user.role == 'documents_k':
+        query = query.filter(Project.doc_staff_id == current_user.id)
+
+    results = query.order_by(Project.updated_at.desc()).limit(10).all()
+
     return jsonify([{
         'code':  p.project_code,
         'name':  p.customer.name,
@@ -5384,8 +5375,7 @@ def api_job_card_search():
         'status': p.status,
         'kw':    float(p.inverter_capacity_kw),
     } for p in results])
- 
- 
+
 @app.route('/projects/<int:pid>/job_card/download')
 @login_required
 def download_job_card(pid):
@@ -5409,7 +5399,9 @@ def download_job_card(pid):
             )
             .filter_by(id=pid)
             .first_or_404())
-
+    if current_user.role == 'documents_k' and proj.doc_staff_id != current_user.id:
+        flash('This project is not assigned to you.', 'danger')
+        return redirect(url_for('job_card_page'))
     path = build_job_card(
         project=proj,
         output_path=os.path.join(
