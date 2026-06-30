@@ -4698,7 +4698,7 @@ def docstaff_reports():
     today = date.today()
     return render_template('docstaff_reports.html',
         staff_list=User.query.filter(
-            User.role.in_(['documents', 'office']),
+            User.role.in_(['documents', 'office','documents_k']),
             User.is_active == True
         ).order_by(User.full_name).all(),
         current_year=today.year,
@@ -4715,7 +4715,7 @@ def download_docstaff_report():
         flash('Invalid report parameters.', 'danger')
         return redirect(url_for('docstaff_reports'))
     staff = User.query.get_or_404(staff_id)
-    if staff.role not in ('documents', 'office'):
+    if staff.role not in ('documents', 'office','documents_k'):
         flash('Selected user is not a documents or office staff member.', 'danger')
         return redirect(url_for('docstaff_reports'))
     projects   = Project.query.filter_by(doc_staff_id=staff_id).all()
@@ -5031,7 +5031,7 @@ def download_docstaff_report_all():
         flash('Please select a staff member.', 'danger')
         return redirect(url_for('docstaff_reports'))
     staff = User.query.get_or_404(staff_id)
-    if staff.role not in ('documents', 'office'):
+    if staff.role not in ('documents', 'office','documents_'):
         flash('Selected user is not a documents or office staff member.', 'danger')
         return redirect(url_for('docstaff_reports'))
     projects = Project.query.filter_by(doc_staff_id=staff_id).all()
