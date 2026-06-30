@@ -2617,7 +2617,9 @@ def documents(pid):
         if existing:
             existing.status = status
             if status != 'Pending':
-                existing.received_date = date.today()
+                existing.received_date = received_date
+            if request.form.get('notes') is not None:
+                existing.notes = _clean(request.form.get('notes', ''), 500)
             log_action(pid, f'Document updated: {doc_type}', new_val=status)
         else:
             db.session.add(Document(
