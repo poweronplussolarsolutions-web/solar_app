@@ -4508,9 +4508,9 @@ def build_docstaff_monthly_report(staff, all_projects, year, month, output_dir='
     month_end   = date(year, month, calendar.monthrange(year, month)[1])
     month_projects     = [p for p in all_projects if p.created_at.date() <= month_end and p.status not in ('Cancelled',)]
     created_this_month = [p for p in all_projects if p.created_at.year == year and p.created_at.month == month]
-
+ 
     wb = Workbook(); ws = wb.active; ws.title = 'Summary'; _page_setup(ws); ws.freeze_panes = 'A6'
-
+ 
     for r, (txt, bg_c, fg_c, sz) in enumerate([
         ('Power On Plus Solar Solutions', C_HEADER_BG, C_HEADER_FG, 14),
         (f'Documents Staff Monthly Report — {month_name} {year}', C_SUBHDR_BG, C_HEADER_FG, 11),
@@ -4523,65 +4523,71 @@ def build_docstaff_monthly_report(staff, all_projects, year, month, output_dir='
         c.fill = _fill(bg_c); c.alignment = _center()
     ws.row_dimensions[1].height = 28; ws.row_dimensions[2].height = 22
     ws.row_dimensions[3].height = 18; ws.row_dimensions[4].height = 8; ws.row_dimensions[5].height = 20
-
-    for col, h in enumerate(['MNRE No.','Customer','Type','Subtype','Status','MNRE',
-                          'Feasibility','Connection','Payment Compl.','Coordinator','Created'], 1):
-        _style_header_cell(ws.cell(8, col), h)
-
+ 
     def _doc_done(project, doc_name):
         dm = {d.doc_type: d for d in project.documents}
         return dm.get(doc_name) and dm[doc_name].status in ('Received','Sent','Completed')
-
-    completed_p = [p for p in month_projects if p.status in ('Completed','Closed')]
-    inprog_p    = [p for p in month_projects if p.status == 'InProgress']
-    delayed_p   = [p for p in month_projects if p.status == 'Delayed']
-    feas_done   = sum(1 for p in month_projects if _doc_done(p, 'Feasibility Receipt'))
-    conn_done   = sum(1 for p in month_projects if _doc_done(p, 'KSEB Connection'))
-    pay_done    = sum(1 for p in month_projects if _doc_done(p, 'Payment Completion'))
-
+ 
+    completed_p    = [p for p in month_projects if p.status in ('Completed','Closed')]
+    inprog_p       = [p for p in month_projects if p.status == 'InProgress']
+    delayed_p      = [p for p in month_projects if p.status == 'Delayed']
+    feas_done      = sum(1 for p in month_projects if _doc_done(p, 'Feasibility Receipt'))
+    conn_done      = sum(1 for p in month_projects if _doc_done(p, 'KSEB Connection'))
+    pay_done       = sum(1 for p in month_projects if _doc_done(p, 'Payment Completion'))
+    total_work_amt = sum(_inr(p.total_amount) for p in month_projects)
+ 
+    # Summary KPI row — Total, New, Completed, InProgress, Work Amount, Feasibility, Connection, Payment, Delayed
+    for col, h in enumerate(['Total','New This Month','Completed','In Progress',
+                              'Work Amount (₹)','Feasibility','Connection','Payment Compl.','Delayed'], 1):
+        _style_header_cell(ws.cell(5, col), h, bg=C_SUBHDR_BG)
+ 
     ws.row_dimensions[6].height = 20
-    for col, val in enumerate([len(month_projects), len(created_this_month), len(completed_p),
-                                len(inprog_p), feas_done, conn_done, pay_done, len(delayed_p)], 1):
-        _style_data_cell(ws.cell(6, col), val, align='center', bold=True)
-
+    for col, (val, fmt) in enumerate(zip(
+        [len(month_projects), len(created_this_month), len(completed_p), len(inprog_p),
+         total_work_amt, feas_done, conn_done, pay_done, len(delayed_p)],
+        [None,None,None,None,'₹#,##0',None,None,None,None]), 1):
+        _style_data_cell(ws.cell(6, col), val, align='center', bold=True, number_fmt=fmt)
+ 
     ws.row_dimensions[7].height = 8; ws.row_dimensions[8].height = 20
-    for col, h in enumerate(['MNRE No.','Customer','Type','Subtype','Stage','Status','MNRE',
+    for col, h in enumerate(['MNRE No.','Customer','Type','Subtype','Stage','Status','Work Amount (₹)','MNRE',
                               'Feasibility','Connection','Payment Compl.','Coordinator','Days Open','Created'], 1):
         _style_header_cell(ws.cell(8, col), h)
-
+ 
     row = 9
     for i, p in enumerate(sorted(month_projects, key=lambda x: x.created_at, reverse=True)):
         bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
         s_bg, s_fg = STATUS_COLORS.get(p.status, ('FFFFFF','000000'))
         def _tick(dn): return '✓' if _doc_done(p, dn) else '✗'
         ws.row_dimensions[row].height = 18
-        vals  = [p.project_code, p.customer.name, p.project_type, p.project_subtype or '—',
-         p.status, _tick('MNRE'), _tick('Feasibility Receipt'),
-         _tick('KSEB Connection'), _tick('Payment Completion'),
-         p.coordinator.full_name if p.coordinator else '—',
-         p.created_at.strftime('%d %b %Y')]
-        aligns = ['center','left','center','center','center','center','center','center','center','left','center']
-        for col, (val, aln) in enumerate(zip(vals, aligns), 1):
+        vals   = [p.project_code, p.customer.name, p.project_type, p.project_subtype or '—',
+                  p.status, _inr(p.total_amount), _tick('MNRE'), _tick('Feasibility Receipt'),
+                  _tick('KSEB Connection'), _tick('Payment Completion'),
+                  p.coordinator.full_name if p.coordinator else '—',
+                  p.created_at.strftime('%d %b %Y')]
+        fmts   = [None,None,None,None,None,'₹#,##0',None,None,None,None,None,None]
+        aligns = ['center','left','center','center','center','right','center','center','center','center','left','center']
+        for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
             cell = ws.cell(row, col)
-            c_bg = s_bg if col==5 else (C_GREEN_BG if val=='✓' else C_RED_BG) if col in (6,7,8,9) else bg
-            c_fg = s_fg if col==5 else (C_GREEN_FG if val=='✓' else C_RED_FG) if col in (6,7,8,9) else '000000'
-            _style_data_cell(cell, val, bg=c_bg, fg=c_fg, align=aln)
+            c_bg = s_bg if col == 5 else (C_GREEN_BG if val == '✓' else C_RED_BG) if col in (7,8,9,10) else bg
+            c_fg = s_fg if col == 5 else (C_GREEN_FG if val == '✓' else C_RED_FG) if col in (7,8,9,10) else '000000'
+            _style_data_cell(cell, val, bg=c_bg, fg=c_fg, align=aln, number_fmt=fmt)
         row += 1
-
+ 
     ws.row_dimensions[row].height = 20
     for col in range(1, 13):
         cell = ws.cell(row, col)
-        if col==1:  _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
-        elif col==2: _style_data_cell(cell, f'{len(month_projects)} projects', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
-        elif col==7: _style_data_cell(cell, sum(1 for p in month_projects if _doc_done(p,'MNRE')), bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
-        elif col==8: _style_data_cell(cell, feas_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
-        elif col==9: _style_data_cell(cell, conn_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
-        elif col==10:_style_data_cell(cell, pay_done,  bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
-        else:        cell.fill = _fill(C_TOTAL_BG); cell.border = _border()
-
-    for i, w in enumerate([12,24,8,10,12,8,10,10,12,20,13], 1):
-        ws.column_dimensions[get_column_letter(i)].width = w    
-
+        if col == 1:  _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 2: _style_data_cell(cell, f'{len(month_projects)} projects', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
+        elif col == 6: _style_data_cell(cell, total_work_amt, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
+        elif col == 8: _style_data_cell(cell, sum(1 for p in month_projects if _doc_done(p,'MNRE')), bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 9: _style_data_cell(cell, feas_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 10:_style_data_cell(cell, conn_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 11:_style_data_cell(cell, pay_done,  bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        else:          cell.fill = _fill(C_TOTAL_BG); cell.border = _border()
+ 
+    for i, w in enumerate([12,24,8,10,12,8,16,10,10,10,12,20,13], 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+ 
     ws2 = wb.create_sheet('Document Status'); _page_setup(ws2)
     ws2.merge_cells('A1:F1'); c = ws2['A1']; c.value = f'Document Status Detail — {month_name} {year}'
     c.font = _font(bold=True, color=C_HEADER_FG, size=12); c.fill = _fill(C_HEADER_BG); c.alignment = _center()
@@ -4609,17 +4615,16 @@ def build_docstaff_monthly_report(staff, all_projects, year, month, output_dir='
     ws2.column_dimensions['A'].width = 12; ws2.column_dimensions['B'].width = 24
     ws2.column_dimensions['C'].width = 28; ws2.column_dimensions['D'].width = 12
     ws2.column_dimensions['E'].width = 14; ws2.column_dimensions['F'].width = 16
-
+ 
     ws3 = wb.create_sheet('By Stage'); _page_setup(ws3)
     _build_stage_sheet(ws3, month_projects, month_name, year, staff.full_name)
     ws4 = wb.create_sheet('New This Month'); _page_setup(ws4)
     _build_project_sheet(ws4, created_this_month, f'New Projects — {month_name} {year}', staff.full_name)
-
+ 
     fname = f'DocsReport_{staff.username}_{year}_{month:02d}.xlsx'.replace(' ', '_')
     path  = os.path.join(output_dir, fname)
     wb.save(path)
     return path
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # REPORT DOWNLOAD ROUTES
@@ -4796,6 +4801,7 @@ def _project_to_dict_docstaff(p):
         'load_ow':     f'L:{load_s[:6]} OW:{ow_s[:6]}',
         'type':        p.project_type,
         'subtype':     p.project_subtype or '—',
+        'work_amount': _inr_fmt(p.total_amount),
         'status':      p.status,
         'status_bg':   bg,
         'status_fg':   fg,
@@ -4918,7 +4924,7 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
     ws.title = 'All Projects'
     _page_setup(ws)
     ws.freeze_panes = 'A6'
-
+ 
     titles = [
         ('Power On Plus Solar Solutions',        C_HEADER_BG, C_HEADER_FG, 14, False, True),
         (f'All Works — {staff.full_name}',       C_SUBHDR_BG, C_HEADER_FG, 11, False, True),
@@ -4937,13 +4943,13 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
     ws.row_dimensions[2].height = 22
     ws.row_dimensions[3].height = 18
     ws.row_dimensions[4].height = 8
-
+ 
     ws.row_dimensions[5].height = 20
-    headers = ['MNRE No.', 'Customer', 'Type', 'Subtype', 'Status',
-           'Feasibility', 'MNRE', 'KSEB Conn.', 'Coordinator', 'Created']
+    headers = ['MNRE No.', 'Customer', 'Type', 'Subtype', 'Status', 'Work Amount (₹)',
+               'Feasibility', 'MNRE', 'KSEB Conn.', 'Coordinator', 'Created']
     for col, h in enumerate(headers, 1):
         _style_header_cell(ws.cell(5, col), h)
-
+ 
     sorted_projects = sorted(projects, key=lambda x: x.created_at, reverse=True)
     row = 6
     for i, p in enumerate(sorted_projects):
@@ -4951,33 +4957,34 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
         s_bg, s_fg = STATUS_COLORS.get(p.status, ('FFFFFF', '000000'))
         feas   = _doc_done(p, 'Feasibility Receipt')
         conn   = _doc_done(p, 'KSEB Connection')
-        warr   = _doc_done(p, 'Warranty Card')
         ws.row_dimensions[row].height = 17
         vals = [p.project_code, p.customer.name, p.project_type, p.project_subtype or '—',
-            p.status,
-            '✓' if feas else '✗',
-            '✓' if _doc_done(p, 'MNRE') else '✗',
-            '✓' if conn else '✗',
-            p.coordinator.full_name if p.coordinator else '—',
-            p.created_at.strftime('%d %b %Y')]
-        aligns = ['center','left','center','center','center',
-          'center','center','center','left','center']
-        for col, (val, aln) in enumerate(zip(vals, aligns), 1):
+                p.status, _inr(p.total_amount),
+                '✓' if feas else '✗',
+                '✓' if _doc_done(p, 'MNRE') else '✗',
+                '✓' if conn else '✗',
+                p.coordinator.full_name if p.coordinator else '—',
+                p.created_at.strftime('%d %b %Y')]
+        fmts   = [None,None,None,None,None,'₹#,##0',None,None,None,None,None]
+        aligns = ['center','left','center','center','center','right',
+                  'center','center','center','left','center']
+        for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
             if col == 5:
                 c_bg, c_fg = s_bg, s_fg
-            elif col in (6, 7, 8):
+            elif col in (7, 8, 9):
                 c_bg = C_GREEN_BG if val == '✓' else C_RED_BG
                 c_fg = C_GREEN_FG if val == '✓' else C_RED_FG
             else:
                 c_bg, c_fg = bg, '000000'
-            _style_data_cell(ws.cell(row, col), val, bg=c_bg, fg=c_fg, align=aln)
+            _style_data_cell(ws.cell(row, col), val, bg=c_bg, fg=c_fg, align=aln, number_fmt=fmt)
         row += 1
-
-    feas_done = sum(1 for p in sorted_projects if _doc_done(p, 'Feasibility Receipt'))
-    conn_done = sum(1 for p in sorted_projects if _doc_done(p, 'KSEB Connection'))
-    mnre_done = sum(1 for p in sorted_projects if _doc_done(p, 'MNRE'))
+ 
+    feas_done      = sum(1 for p in sorted_projects if _doc_done(p, 'Feasibility Receipt'))
+    conn_done      = sum(1 for p in sorted_projects if _doc_done(p, 'KSEB Connection'))
+    mnre_done      = sum(1 for p in sorted_projects if _doc_done(p, 'MNRE'))
+    total_work_amt = sum(_inr(p.total_amount) for p in sorted_projects)
     ws.row_dimensions[row].height = 20
-    for col in range(1, 11):
+    for col in range(1, 12):
         cell = ws.cell(row, col)
         if col == 1:
             _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
@@ -4985,19 +4992,21 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
             _style_data_cell(cell, f'{len(sorted_projects)} projects',
                              bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
         elif col == 6:
-            _style_data_cell(cell, feas_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+            _style_data_cell(cell, total_work_amt, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
         elif col == 7:
-            _style_data_cell(cell, conn_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+            _style_data_cell(cell, feas_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
         elif col == 8:
             _style_data_cell(cell, mnre_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 9:
+            _style_data_cell(cell, conn_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
         else:
             cell.fill = _fill(C_TOTAL_BG)
             cell.border = _border()
-
-    col_widths = [12, 24, 8, 10, 12, 10, 10, 10, 20, 13]
+ 
+    col_widths = [12, 24, 8, 10, 12, 16, 10, 10, 10, 20, 13]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
-
+ 
     path = os.path.join(output_dir, f'AllWorks_Docs_{staff.username}.xlsx')
     wb.save(path)
     return path
@@ -5097,28 +5106,30 @@ def docstaff_report_preview_data():
     year     = request.args.get('year',  type=int)
     if not staff_id:
         return jsonify({'error': 'Missing staff_id'}), 400
-
+ 
     staff        = User.query.get_or_404(staff_id)
     all_projects = Project.query.filter_by(doc_staff_id=staff_id).all()
-
+ 
     if month and year:
         month_end = date(year, month, calendar.monthrange(year, month)[1])
         projects  = [p for p in all_projects
                      if p.created_at.date() <= month_end and p.status != 'Cancelled']
     else:
         projects = [p for p in all_projects if p.status != 'Cancelled']
-
-    feas_done = sum(1 for p in projects if _doc_done(p, 'Feasibility Receipt'))
-    conn_done = sum(1 for p in projects if _doc_done(p, 'KSEB Connection'))
-    warr_done = sum(1 for p in projects if _doc_done(p, 'Warranty Card'))
-    completed = [p for p in projects if p.status in ('Completed', 'Closed')]
-    inprog    = [p for p in projects if p.status == 'InProgress']
-
+ 
+    feas_done       = sum(1 for p in projects if _doc_done(p, 'Feasibility Receipt'))
+    conn_done       = sum(1 for p in projects if _doc_done(p, 'KSEB Connection'))
+    warr_done       = sum(1 for p in projects if _doc_done(p, 'Warranty Card'))
+    completed       = [p for p in projects if p.status in ('Completed', 'Closed')]
+    inprog          = [p for p in projects if p.status == 'InProgress']
+    total_work_amt  = sum(float(p.total_amount or 0) for p in projects)
+ 
     return jsonify({
         'kpis': {
             'Total':       len(projects),
             'Completed':   len(completed),
             'In Progress': len(inprog),
+            'Work Amount': _inr_fmt(total_work_amt),
             'Feasibility': feas_done,
             'KSEB Conn.':  conn_done,
             'Warranty':    warr_done,
