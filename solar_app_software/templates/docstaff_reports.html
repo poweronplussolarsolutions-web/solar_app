@@ -219,7 +219,7 @@ function renderPreview(data) {
     <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:11px">
       <thead><tr>
-        ${['MNRE','Customer','Place','Inv.kW','Panel kW','C/O','Roof','Loan','Load/OW','Type','Sub','Work Amt','Status','Feas.','Conn.','MNRE✓','Created'].map(th).join('')}
+        ${['MNRE','Customer','Place','Inv.kW','Panel kW','C/O','Roof','Loan','Load/OW','Type','Sub','Work Amt','Status','Feas.','CD','Conn.','MNRE✓','Created'].map(th).join('')}
       </tr></thead>
       <tbody>`;
 
@@ -232,7 +232,7 @@ function renderPreview(data) {
       <td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border);text-align:center">
         <span style="padding:2px 6px;border-radius:10px;font-size:10px;background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
       </td>
-      ${tdc(tick(p.feas))}${tdc(tick(p.conn))}${tdc(tick(p.mnre))}${tdc(p.created)}
+      ${tdc(tick(p.feas))}${tdc(tick(p.cd))}${tdc(tick(p.conn))}${tdc(tick(p.mnre))}${tdc(p.created)}
     </tr>`;
   });
 
