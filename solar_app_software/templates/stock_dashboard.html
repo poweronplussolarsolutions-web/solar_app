@@ -1,265 +1,162 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="stock-page">
-
-  <div class="page-head">
-    <div>
-      <span class="eyebrow">Inventory</span>
-      <h2 class="head-title">Stock dashboard</h2>
-    </div>
-    <div class="head-actions">
-      {% if current_user.role in ['admin', 'stocks'] %}
-      <a href="{{ url_for('manage_stock_items') }}" class="btn btn-ghost">Manage catalog</a>
-      <a href="{{ url_for('new_stock_item') }}" class="btn btn-outline">
-        <svg viewBox="0 0 20 20" class="btn-icon"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-        Add item
-      </a>
-      {% endif %}
-      {% if current_user.role in ['admin', 'stocks', 'onsite'] %}
-      <a href="{{ url_for('stock_purchase') }}" class="btn btn-primary">
-        <svg viewBox="0 0 20 20" class="btn-icon"><path d="M4 6h12l-1 9a1.5 1.5 0 0 1-1.5 1.3h-7A1.5 1.5 0 0 1 5 15L4 6Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 6V5a3 3 0 0 1 6 0v1" stroke="currentColor" stroke-width="1.6"/></svg>
-        Record purchase
-      </a>
-      {% endif %}
-    </div>
+<div class="page-header">
+  <h2>Stock dashboard</h2>
+  <div style="display:flex; gap:8px;">
+    {% if current_user.role in ['admin', 'stocks'] %}
+    <a href="{{ url_for('manage_stock_items') }}" class="btn btn-outline">Manage catalog</a>
+    <a href="{{ url_for('new_stock_item') }}" class="btn btn-outline">+ Add item</a>
+    <a href="{{ url_for('stock_purchase') }}" class="btn btn-primary">+ Record purchase</a>
+    {% endif %}
   </div>
-
-  {% if low_stock %}
-  <div class="alert-banner">
-    <svg viewBox="0 0 20 20" class="alert-icon"><path d="M10 2 1 18h18L10 2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 8v4M10 15h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-    <div>
-      <strong>{{ low_stock|length }} item(s) at or below reorder level</strong>
-      <p>{{ low_stock|map(attribute='display_name')|join(', ') }}</p>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- ── Stat cards ────────────────────────────────────────────────── -->
-  <div class="stat-grid">
-    <div class="stat-card">
-      <div class="stat-icon stat-icon-slate">
-        <svg viewBox="0 0 20 20"><rect x="3" y="3" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="3" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="11" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="11" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
-      </div>
-      <div>
-        <span class="stat-value">{{ items|length }}</span>
-        <span class="stat-label">Total items</span>
-      </div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-icon stat-icon-slate">
-        <svg viewBox="0 0 20 20"><path d="M10 2 2 6l8 4 8-4-8-4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M2 10l8 4 8-4M2 14l8 4 8-4" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
-      </div>
-      <div>
-        <span class="stat-value">{{ categories|length }}</span>
-        <span class="stat-label">Categories</span>
-      </div>
-    </div>
-
-    <div class="stat-card {{ 'stat-card-warning' if low_stock }}">
-      <div class="stat-icon {{ 'stat-icon-warning' if low_stock else 'stat-icon-slate' }}">
-        <svg viewBox="0 0 20 20"><path d="M10 2 1 18h18L10 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 8v4M10 15h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-      </div>
-      <div>
-        <span class="stat-value">{{ low_stock|length }}</span>
-        <span class="stat-label">Low stock</span>
-      </div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-icon stat-icon-amber">
-        <svg viewBox="0 0 20 20"><path d="M4 8h12l-1.2 8.4a1.5 1.5 0 0 1-1.5 1.3H6.7a1.5 1.5 0 0 1-1.5-1.3L4 8Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7 8V6a3 3 0 0 1 6 0v2" stroke="currentColor" stroke-width="1.5"/></svg>
-      </div>
-      <div>
-        <span class="stat-value">{{ items|sum(attribute='current_qty')|round(0, 'floor')|int }}</span>
-        <span class="stat-label">Units on hand</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Category filter ───────────────────────────────────────────── -->
-  <div class="pill-row">
-    <a href="{{ url_for('stock_dashboard') }}" class="pill {{ 'is-active' if not selected_cat }}">All</a>
-    {% for c in categories %}
-    <a href="{{ url_for('stock_dashboard', category=c) }}" class="pill {{ 'is-active' if selected_cat == c }}">{{ c }}</a>
-    {% endfor %}
-  </div>
-
-  <!-- ── Current stock ─────────────────────────────────────────────── -->
-  <div class="panel">
-    <div class="panel-head">
-      <h3>Current stock{% if selected_cat %} <span class="panel-head-sub">— {{ selected_cat }}</span>{% endif %}</h3>
-    </div>
-    <div class="table-wrap">
-      <table class="data-table">
-        <thead>
-          <tr><th>Category</th><th>Item</th><th>Quantity</th><th>Unit</th><th></th></tr>
-        </thead>
-        <tbody>
-          {% for i in items %}
-          <tr class="{{ 'row-low' if i.is_low }}">
-            <td><span class="cat-tag">{{ i.category }}</span></td>
-            <td class="cell-strong">{{ i.display_name }}</td>
-            <td>
-              {{ i.current_qty }}
-              {% if i.is_low %} <span class="badge badge-warning">low</span>{% endif %}
-            </td>
-            <td class="cell-muted">{{ i.unit }}</td>
-            <td class="cell-actions">
-              {% if current_user.role in ['admin', 'stocks'] %}
-              <a href="{{ url_for('stock_item_ledger', iid=i.id) }}" class="btn btn-sm btn-ghost">Ledger</a>
-              {% endif %}
-            </td>
-          </tr>
-          {% else %}
-          <tr><td colspan="5" class="empty-row">No items in this category yet.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- ── Recent activity ───────────────────────────────────────────── -->
-  {% if recent_txns %}
-  <div class="panel">
-    <div class="panel-head"><h3>Recent activity</h3></div>
-    <div class="table-wrap">
-      <table class="data-table">
-        <thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Quantity</th><th>Source</th><th>By</th></tr></thead>
-        <tbody>
-          {% for t in recent_txns %}
-          <tr>
-            <td class="cell-muted">{{ t.created_at.strftime('%d %b %H:%M') }}</td>
-            <td class="cell-strong">{{ t.stock_item.display_name }}</td>
-            <td>{{ t.txn_type }}</td>
-            <td>{{ t.quantity }} {{ t.stock_item.unit }}</td>
-            <td class="cell-muted">{{ t.source }}</td>
-            <td class="cell-muted">{{ t.recorder.full_name if t.recorder else '—' }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  {% endif %}
-
-  {% if recent_site_deliveries %}
-  <div class="panel">
-    <div class="panel-head"><h3>Recent site deliveries</h3></div>
-    <div class="table-wrap">
-      <table class="data-table">
-        <thead><tr><th>Date</th><th>Item</th><th>Quantity</th><th>Project</th><th>By</th></tr></thead>
-        <tbody>
-          {% for t in recent_site_deliveries %}
-          <tr>
-            <td class="cell-muted">{{ t.created_at.strftime('%d %b %H:%M') }}</td>
-            <td class="cell-strong">{{ t.stock_item.display_name }}</td>
-            <td>{{ t.quantity }} {{ t.stock_item.unit }}</td>
-            <td>{% if t.project %}<a href="{{ url_for('project_detail', pid=t.project.id) }}" class="cell-link">{{ t.project.project_code }}</a>{% else %}<span class="cell-muted">—</span>{% endif %}</td>
-            <td class="cell-muted">{{ t.recorder.full_name if t.recorder else '—' }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  {% endif %}
-
 </div>
+
+{% if low_stock %}
+<div class="alert alert-warning">
+  <strong>{{ low_stock|length }} item(s) at or below reorder level:</strong>
+  {{ low_stock|map(attribute='display_name')|join(', ') }}
+</div>
+{% endif %}
+
+<!-- ── Stock summary stat cards ─────────────────────────────────────── -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <span class="stat-label">Total items</span>
+    <span class="stat-value">{{ items|length }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Categories</span>
+    <span class="stat-value">{{ categories|length }}</span>
+  </div>
+  <div class="stat-card {{ 'stat-card-warning' if low_stock }}">
+    <span class="stat-label">Low stock</span>
+    <span class="stat-value">{{ low_stock|length }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Total units on hand</span>
+    <span class="stat-value">{{ items|sum(attribute='current_qty')|round(0, 'floor')|int }}</span>
+  </div>
+</div>
+
+<!-- ── Category filter ──────────────────────────────────────────────── -->
+<div class="filter-pills">
+  <a href="{{ url_for('stock_dashboard') }}" class="pill {{ 'active' if not selected_cat }}">All</a>
+  {% for c in categories %}
+  <a href="{{ url_for('stock_dashboard', category=c) }}" class="pill {{ 'active' if selected_cat == c }}">{{ c }}</a>
+  {% endfor %}
+</div>
+
+<!-- ── Current stock by item ────────────────────────────────────────── -->
+<div class="card">
+  <h3>Current stock{% if selected_cat %} — {{ selected_cat }}{% endif %}</h3>
+  <table class="data-table">
+    <thead>
+      <tr><th>Category</th><th>Item</th><th>Qty</th><th>Unit</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for i in items %}
+      <tr class="{{ 'row-low' if i.is_low }}">
+        <td>{{ i.category }}</td>
+        <td>{{ i.display_name }}</td>
+        <td>
+          {{ i.current_qty }}
+          {% if i.is_low %} <span class="badge badge-warning">low</span>{% endif %}
+        </td>
+        <td>{{ i.unit }}</td>
+        <td>
+          {% if current_user.role in ['admin', 'stocks'] %}
+          <a href="{{ url_for('stock_item_ledger', iid=i.id) }}" class="btn btn-sm">Ledger</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="empty-row">No items in this category yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Recent activity ──────────────────────────────────────────────── -->
+{% if recent_txns %}
+<div class="card" style="margin-top: 16px;">
+  <h3>Recent activity</h3>
+  <table class="data-table">
+    <thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Qty</th><th>Source</th><th>By</th></tr></thead>
+    <tbody>
+      {% for t in recent_txns %}
+      <tr>
+        <td>{{ t.created_at.strftime('%d %b %H:%M') }}</td>
+        <td>{{ t.stock_item.display_name }}</td>
+        <td>{{ t.txn_type }}</td>
+        <td>{{ t.quantity }} {{ t.stock_item.unit }}</td>
+        <td>{{ t.source }}</td>
+        <td>{{ t.recorder.full_name if t.recorder else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if recent_site_deliveries %}
+<div class="card" style="margin-top: 16px;">
+  <h3>Recent site deliveries</h3>
+  <table class="data-table">
+    <thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>Project</th><th>By</th></tr></thead>
+    <tbody>
+      {% for t in recent_site_deliveries %}
+      <tr>
+        <td>{{ t.created_at.strftime('%d %b %H:%M') }}</td>
+        <td>{{ t.stock_item.display_name }}</td>
+        <td>{{ t.quantity }} {{ t.stock_item.unit }}</td>
+        <td>{% if t.project %}<a href="{{ url_for('project_detail', pid=t.project.id) }}">{{ t.project.project_code }}</a>{% else %}—{% endif %}</td>
+        <td>{{ t.recorder.full_name if t.recorder else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block extra_css %}
 <style>
-  :root{
-    --ink:#181b29; --ink-soft:#4c5166; --muted:#8a8fa3;
-    --paper:#f6f6fb; --card:#ffffff; --border:#e6e7f0;
-    --amber:#c8801a; --amber-soft:#fbead1; --amber-deep:#9c6414;
-    --slate:#3d4258; --slate-soft:#eef0f7;
-    --danger:#c0392b; --danger-soft:#fbe9e7;
-    --radius:14px; --radius-sm:9px;
-    --shadow:0 1px 2px rgba(24,27,41,.04), 0 8px 20px -12px rgba(24,27,41,.10);
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin: 18px 0 22px;
   }
-
-  .stock-page{ color:var(--ink); }
-
-  /* header */
-  .page-head{ display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:14px; margin-bottom:22px; }
-  .eyebrow{ font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--amber-deep); }
-  .head-title{ margin:2px 0 0; font-size:24px; font-weight:700; color:var(--ink); letter-spacing:-.01em; }
-  .head-actions{ display:flex; gap:8px; flex-wrap:wrap; }
-
-  .btn{ display:inline-flex; align-items:center; gap:6px; font-size:13.5px; font-weight:600;
-        padding:9px 15px; border-radius:var(--radius-sm); border:1px solid transparent;
-        cursor:pointer; text-decoration:none; transition:filter .15s, background .15s, border-color .15s; line-height:1; }
-  .btn-icon{ width:14px; height:14px; flex-shrink:0; }
-  .btn-primary{ background:var(--amber); color:#fff; box-shadow:0 4px 10px -4px rgba(200,128,26,.55); }
-  .btn-primary:hover{ background:var(--amber-deep); }
-  .btn-outline{ background:var(--card); color:var(--ink); border-color:var(--border); }
-  .btn-outline:hover{ border-color:var(--amber); color:var(--amber-deep); }
-  .btn-ghost{ background:transparent; color:var(--ink-soft); }
-  .btn-ghost:hover{ background:var(--slate-soft); color:var(--ink); }
-  .btn-sm{ padding:5px 10px; font-size:12.5px; }
-
-  /* alert */
-  .alert-banner{ display:flex; gap:12px; align-items:flex-start; background:var(--danger-soft);
-    border:1px solid #f2c9c1; border-radius:var(--radius-sm); padding:13px 16px; margin-bottom:20px; }
-  .alert-icon{ width:19px; height:19px; color:var(--danger); flex-shrink:0; margin-top:1px; }
-  .alert-banner strong{ font-size:13.5px; color:#7a2419; }
-  .alert-banner p{ margin:2px 0 0; font-size:13px; color:#8a3b2e; }
-
-  /* stat cards */
-  .stat-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:14px; margin-bottom:26px; }
-  .stat-card{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
-    padding:18px; display:flex; align-items:center; gap:14px; box-shadow:var(--shadow); }
-  .stat-card-warning{ border-color:#eecfa0; background:linear-gradient(180deg,#fffaf1,#ffffff); }
-  .stat-icon{ width:42px; height:42px; border-radius:11px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .stat-icon svg{ width:20px; height:20px; }
-  .stat-icon-slate{ background:var(--slate-soft); color:var(--slate); }
-  .stat-icon-amber{ background:var(--amber-soft); color:var(--amber-deep); }
-  .stat-icon-warning{ background:#fbe3c2; color:#9c5c14; }
-  .stat-value{ display:block; font-size:23px; font-weight:700; color:var(--ink); line-height:1.1; }
-  .stat-label{ display:block; font-size:12px; color:var(--muted); margin-top:3px; font-weight:500; }
-
-  /* pills */
-  .pill-row{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:22px; }
-  .pill{ font-size:12.5px; font-weight:600; padding:6px 13px; border-radius:999px; border:1px solid var(--border);
-    color:var(--ink-soft); text-decoration:none; background:var(--card); transition:all .15s; }
-  .pill:hover{ border-color:var(--amber); color:var(--amber-deep); }
-  .pill.is-active{ background:var(--ink); border-color:var(--ink); color:#fff; }
-
-  /* panels */
-  .panel{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
-    box-shadow:var(--shadow); margin-bottom:18px; overflow:hidden; }
-  .panel-head{ padding:16px 20px 12px; border-bottom:1px solid var(--border); }
-  .panel-head h3{ margin:0; font-size:15px; font-weight:700; color:var(--ink); }
-  .panel-head-sub{ font-weight:500; color:var(--muted); }
-
-  .table-wrap{ overflow-x:auto; }
-  .data-table{ width:100%; border-collapse:collapse; font-size:13.5px; }
-  .data-table th{ text-align:left; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
-    color:var(--muted); padding:11px 20px; border-bottom:1px solid var(--border); white-space:nowrap; }
-  .data-table td{ padding:12px 20px; border-bottom:1px solid var(--border); color:var(--ink-soft); vertical-align:middle; }
-  .data-table tbody tr:last-child td{ border-bottom:none; }
-  .data-table tbody tr:hover{ background:var(--paper); }
-  .cell-strong{ color:var(--ink); font-weight:600; }
-  .cell-muted{ color:var(--muted); }
-  .cell-link{ color:var(--amber-deep); font-weight:600; text-decoration:none; }
-  .cell-link:hover{ text-decoration:underline; }
-  .cell-actions{ text-align:right; }
-  .row-low{ background:#fffaf1; }
-  .row-low:hover{ background:#fef3e0 !important; }
-  .empty-row{ text-align:center; color:var(--muted); padding:32px 0 !important; }
-
-  .cat-tag{ font-size:11.5px; font-weight:600; color:var(--slate); background:var(--slate-soft);
-    padding:3px 9px; border-radius:6px; }
-  .badge{ font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; }
-  .badge-warning{ background:var(--amber-soft); color:var(--amber-deep); }
-
-  @media (max-width: 640px){
-    .page-head{ flex-direction:column; align-items:stretch; }
-    .head-actions{ flex-direction:column; }
-    .head-actions .btn{ justify-content:center; }
+  .stat-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .stat-card-warning {
+    border-color: #f0b429;
+    background: #fffaf0;
+  }
+  .stat-label {
+    font-size: 12px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .stat-value {
+    font-size: 26px;
+    font-weight: 700;
+    color: #111827;
+  }
+  .empty-row {
+    text-align: center;
+    color: #9ca3af;
+    padding: 24px 0;
   }
 </style>
 {% endblock %}
