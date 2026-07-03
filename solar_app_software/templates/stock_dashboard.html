@@ -1,419 +1,162 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="sd-page">
-
-  <!-- ── Page header ───────────────────────────────────────────────── -->
-  <div class="sd-header">
-    <div>
-      <h2>Stock dashboard</h2>
-      <p class="sd-subtitle">
-        {{ items|length }} item{{ 's' if items|length != 1 }} across {{ categories|length }} categor{{ 'y' if categories|length == 1 else 'ies' }}
-        {% if low_stock %}· <span class="sd-subtitle-warning">{{ low_stock|length }} need{{ 's' if low_stock|length == 1 }} reorder</span>{% endif %}
-      </p>
-    </div>
+<div class="page-header">
+  <h2>Stock dashboard</h2>
+  <div style="display:flex; gap:8px;">
     {% if current_user.role in ['admin', 'stocks'] %}
-    <div class="sd-actions">
-      <a href="{{ url_for('manage_stock_items') }}" class="btn btn-outline">Manage catalog</a>
-      <a href="{{ url_for('new_stock_item') }}" class="btn btn-outline">+ Add item</a>
-      <a href="{{ url_for('stock_purchase') }}" class="btn btn-primary">+ Record purchase</a>
-    </div>
+    <a href="{{ url_for('manage_stock_items') }}" class="btn btn-outline">Manage catalog</a>
+    <a href="{{ url_for('new_stock_item') }}" class="btn btn-outline">+ Add item</a>
+    <a href="{{ url_for('stock_purchase') }}" class="btn btn-primary">+ Record purchase</a>
     {% endif %}
   </div>
-
-  <!-- ── Low stock alert ──────────────────────────────────────────── -->
-  {% if low_stock %}
-  <div class="sd-alert">
-    <svg class="sd-alert-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M10 2L18.5 17H1.5L10 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-      <path d="M10 8V11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-      <circle cx="10" cy="14" r="0.9" fill="currentColor"/>
-    </svg>
-    <div class="sd-alert-body">
-      <strong>{{ low_stock|length }} item{{ 's' if low_stock|length != 1 }} at or below reorder level</strong>
-      <div class="sd-alert-chips">
-        {% for i in low_stock %}
-        <span class="chip chip-warning">{{ i.display_name }}</span>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- ── Stat cards ───────────────────────────────────────────────── -->
-  <div class="sd-stats">
-    <div class="sd-stat-card">
-      <span class="sd-stat-icon sd-icon-neutral">
-        <svg viewBox="0 0 20 20" fill="none"><rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M3 8h14" stroke="currentColor" stroke-width="1.5"/></svg>
-      </span>
-      <div>
-        <span class="sd-stat-value">{{ items|length }}</span>
-        <span class="sd-stat-label">Total items</span>
-      </div>
-    </div>
-
-    <div class="sd-stat-card">
-      <span class="sd-stat-icon sd-icon-neutral">
-        <svg viewBox="0 0 20 20" fill="none"><path d="M4 4h5v5H4V4Z" stroke="currentColor" stroke-width="1.5"/><path d="M11 4h5v5h-5V4Z" stroke="currentColor" stroke-width="1.5"/><path d="M4 11h5v5H4v-5Z" stroke="currentColor" stroke-width="1.5"/><path d="M11 11h5v5h-5v-5Z" stroke="currentColor" stroke-width="1.5"/></svg>
-      </span>
-      <div>
-        <span class="sd-stat-value">{{ categories|length }}</span>
-        <span class="sd-stat-label">Categories</span>
-      </div>
-    </div>
-
-    <div class="sd-stat-card {{ 'sd-stat-card-warning' if low_stock }}">
-      <span class="sd-stat-icon {{ 'sd-icon-warning' if low_stock else 'sd-icon-neutral' }}">
-        <svg viewBox="0 0 20 20" fill="none"><path d="M10 2L18.5 17H1.5L10 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 8V11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="14" r="0.9" fill="currentColor"/></svg>
-      </span>
-      <div>
-        <span class="sd-stat-value">{{ low_stock|length }}</span>
-        <span class="sd-stat-label">Low stock</span>
-      </div>
-    </div>
-
-    <div class="sd-stat-card">
-      <span class="sd-stat-icon sd-icon-neutral">
-        <svg viewBox="0 0 20 20" fill="none"><path d="M3 15V9l7-5 7 5v6" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7 17v-5h6v5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
-      </span>
-      <div>
-        <span class="sd-stat-value">{{ items|sum(attribute='current_qty')|round(0, 'floor')|int }}</span>
-        <span class="sd-stat-label">Units on hand</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Category filter ──────────────────────────────────────────── -->
-  <div class="sd-filters">
-    <a href="{{ url_for('stock_dashboard') }}" class="pill {{ 'active' if not selected_cat }}">All</a>
-    {% for c in categories %}
-    <a href="{{ url_for('stock_dashboard', category=c) }}" class="pill {{ 'active' if selected_cat == c }}">{{ c }}</a>
-    {% endfor %}
-  </div>
-
-  <!-- ── Current stock ────────────────────────────────────────────── -->
-  <div class="card sd-card">
-    <div class="sd-card-header">
-      <h3>Current stock{% if selected_cat %} — {{ selected_cat }}{% endif %}</h3>
-    </div>
-    <div class="sd-table-wrap">
-      <table class="data-table sd-table">
-        <thead>
-          <tr><th>Category</th><th>Item</th><th class="sd-col-level">Stock level</th><th>Qty</th><th></th></tr>
-        </thead>
-        <tbody>
-          {% for i in items %}
-          {% set target = (i.reorder_level * 2) if i.reorder_level and i.reorder_level > 0 else (i.current_qty if i.current_qty and i.current_qty > 0 else 1) %}
-          {% set pct = ((i.current_qty / target) * 100) if target and target > 0 else 100 %}
-          {% set pct = 100 if pct > 100 else pct %}
-          <tr class="{{ 'row-low' if i.is_low }}">
-            <td><span class="sd-cat-tag">{{ i.category }}</span></td>
-            <td class="sd-item-name">{{ i.display_name }}</td>
-            <td class="sd-col-level">
-              <div class="sd-bar-track">
-                <div class="sd-bar-fill {{ 'sd-bar-low' if i.is_low else 'sd-bar-ok' }}" style="width: {{ pct }}%;"></div>
-              </div>
-            </td>
-            <td>
-              <span class="sd-qty">{{ i.current_qty }} <span class="sd-unit">{{ i.unit }}</span></span>
-              {% if i.is_low %}<span class="badge badge-warning">low</span>{% endif %}
-            </td>
-            <td class="sd-col-action">
-              {% if current_user.role in ['admin', 'stocks'] %}
-              <a href="{{ url_for('stock_item_ledger', iid=i.id) }}" class="btn btn-sm btn-outline">Ledger</a>
-              {% endif %}
-            </td>
-          </tr>
-          {% else %}
-          <tr><td colspan="5" class="empty-row">No items in this category yet.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- ── Recent activity + deliveries ─────────────────────────────── -->
-  {% if recent_txns or recent_site_deliveries %}
-  <div class="sd-activity-grid">
-
-    {% if recent_txns %}
-    <div class="card sd-card">
-      <div class="sd-card-header">
-        <h3>Recent activity</h3>
-      </div>
-      <div class="sd-table-wrap">
-        <table class="data-table sd-table sd-table-compact">
-          <thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Qty</th><th>Source</th><th>By</th></tr></thead>
-          <tbody>
-            {% for t in recent_txns %}
-            <tr>
-              <td class="sd-muted">{{ t.created_at.strftime('%d %b %H:%M') }}</td>
-              <td>{{ t.stock_item.display_name }}</td>
-              <td>
-                <span class="badge {{ 'badge-success' if t.txn_type == 'In' else ('badge-danger' if t.txn_type == 'Out' else 'badge-warning') }}">{{ t.txn_type }}</span>
-              </td>
-              <td>{{ t.quantity }} {{ t.stock_item.unit }}</td>
-              <td class="sd-muted">{{ t.source }}</td>
-              <td class="sd-muted">{{ t.recorder.full_name if t.recorder else '—' }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    {% endif %}
-
-    {% if recent_site_deliveries %}
-    <div class="card sd-card">
-      <div class="sd-card-header">
-        <h3>Recent site deliveries</h3>
-      </div>
-      <div class="sd-table-wrap">
-        <table class="data-table sd-table sd-table-compact">
-          <thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>Project</th><th>By</th></tr></thead>
-          <tbody>
-            {% for t in recent_site_deliveries %}
-            <tr>
-              <td class="sd-muted">{{ t.created_at.strftime('%d %b %H:%M') }}</td>
-              <td>{{ t.stock_item.display_name }}</td>
-              <td>{{ t.quantity }} {{ t.stock_item.unit }}</td>
-              <td>
-                {% if t.project %}<a href="{{ url_for('project_detail', pid=t.project.id) }}">{{ t.project.project_code }}</a>{% else %}—{% endif %}
-              </td>
-              <td class="sd-muted">{{ t.recorder.full_name if t.recorder else '—' }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    {% endif %}
-
-  </div>
-  {% endif %}
-
 </div>
+
+{% if low_stock %}
+<div class="alert alert-warning">
+  <strong>{{ low_stock|length }} item(s) at or below reorder level:</strong>
+  {{ low_stock|map(attribute='display_name')|join(', ') }}
+</div>
+{% endif %}
+
+<!-- ── Stock summary stat cards ─────────────────────────────────────── -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <span class="stat-label">Total items</span>
+    <span class="stat-value">{{ items|length }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Categories</span>
+    <span class="stat-value">{{ categories|length }}</span>
+  </div>
+  <div class="stat-card {{ 'stat-card-warning' if low_stock }}">
+    <span class="stat-label">Low stock</span>
+    <span class="stat-value">{{ low_stock|length }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Total units on hand</span>
+    <span class="stat-value">{{ items|sum(attribute='current_qty')|round(0, 'floor')|int }}</span>
+  </div>
+</div>
+
+<!-- ── Category filter ──────────────────────────────────────────────── -->
+<div class="filter-pills">
+  <a href="{{ url_for('stock_dashboard') }}" class="pill {{ 'active' if not selected_cat }}">All</a>
+  {% for c in categories %}
+  <a href="{{ url_for('stock_dashboard', category=c) }}" class="pill {{ 'active' if selected_cat == c }}">{{ c }}</a>
+  {% endfor %}
+</div>
+
+<!-- ── Current stock by item ────────────────────────────────────────── -->
+<div class="card">
+  <h3>Current stock{% if selected_cat %} — {{ selected_cat }}{% endif %}</h3>
+  <table class="data-table">
+    <thead>
+      <tr><th>Category</th><th>Item</th><th>Qty</th><th>Unit</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for i in items %}
+      <tr class="{{ 'row-low' if i.is_low }}">
+        <td>{{ i.category }}</td>
+        <td>{{ i.display_name }}</td>
+        <td>
+          {{ i.current_qty }}
+          {% if i.is_low %} <span class="badge badge-warning">low</span>{% endif %}
+        </td>
+        <td>{{ i.unit }}</td>
+        <td>
+          {% if current_user.role in ['admin', 'stocks'] %}
+          <a href="{{ url_for('stock_item_ledger', iid=i.id) }}" class="btn btn-sm">Ledger</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="empty-row">No items in this category yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Recent activity ──────────────────────────────────────────────── -->
+{% if recent_txns %}
+<div class="card" style="margin-top: 16px;">
+  <h3>Recent activity</h3>
+  <table class="data-table">
+    <thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Qty</th><th>Source</th><th>By</th></tr></thead>
+    <tbody>
+      {% for t in recent_txns %}
+      <tr>
+        <td>{{ t.created_at.strftime('%d %b %H:%M') }}</td>
+        <td>{{ t.stock_item.display_name }}</td>
+        <td>{{ t.txn_type }}</td>
+        <td>{{ t.quantity }} {{ t.stock_item.unit }}</td>
+        <td>{{ t.source }}</td>
+        <td>{{ t.recorder.full_name if t.recorder else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if recent_site_deliveries %}
+<div class="card" style="margin-top: 16px;">
+  <h3>Recent site deliveries</h3>
+  <table class="data-table">
+    <thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>Project</th><th>By</th></tr></thead>
+    <tbody>
+      {% for t in recent_site_deliveries %}
+      <tr>
+        <td>{{ t.created_at.strftime('%d %b %H:%M') }}</td>
+        <td>{{ t.stock_item.display_name }}</td>
+        <td>{{ t.quantity }} {{ t.stock_item.unit }}</td>
+        <td>{% if t.project %}<a href="{{ url_for('project_detail', pid=t.project.id) }}">{{ t.project.project_code }}</a>{% else %}—{% endif %}</td>
+        <td>{{ t.recorder.full_name if t.recorder else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 
 {% endblock %}
 
 {% block extra_css %}
 <style>
-  :root {
-    --sd-teal: var(--teal, #0f766e);
-    --sd-teal-50: #f0fdfa;
-    --sd-teal-100: #ccfbf1;
-    --sd-border: var(--border, #e5e7eb);
-    --sd-radius: var(--radius, 14px);
-    --sd-ink: #111827;
-    --sd-muted: #6b7280;
-    --sd-bg-page: #f8fafc;
-    --sd-amber: #d97706;
-    --sd-amber-50: #fffbeb;
-    --sd-red: #dc2626;
-    --sd-green: #16a34a;
-  }
-
-  .sd-page {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-  }
-
-  /* ── Header ─────────────────────────────────────────────────── */
-  .sd-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 14px;
-  }
-  .sd-header h2 { margin: 0 0 4px; }
-  .sd-subtitle {
-    margin: 0;
-    font-size: 13.5px;
-    color: var(--sd-muted);
-  }
-  .sd-subtitle-warning { color: var(--sd-amber); font-weight: 600; }
-  .sd-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-
-  /* ── Alert ──────────────────────────────────────────────────── */
-  .sd-alert {
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
-    background: var(--sd-amber-50);
-    border: 1px solid #fde68a;
-    border-radius: var(--sd-radius);
-    padding: 14px 16px;
-  }
-  .sd-alert-icon {
-    width: 20px; height: 20px;
-    flex-shrink: 0;
-    color: var(--sd-amber);
-    margin-top: 2px;
-  }
-  .sd-alert-body strong { color: #92400e; font-size: 14px; }
-  .sd-alert-chips {
-    display: flex; flex-wrap: wrap; gap: 6px;
-    margin-top: 8px;
-  }
-  .chip {
-    font-size: 12px;
-    padding: 3px 10px;
-    border-radius: 999px;
-    font-weight: 500;
-  }
-  .chip-warning {
-    background: #fef3c7;
-    color: #92400e;
-    border: 1px solid #fde68a;
-  }
-
-  /* ── Stat cards ─────────────────────────────────────────────── */
-  .sd-stats {
+  .stat-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 14px;
+    margin: 18px 0 22px;
   }
-  .sd-stat-card {
+  .stat-card {
     background: #fff;
-    border: 1px solid var(--sd-border);
-    border-radius: var(--sd-radius);
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
     padding: 16px 18px;
     display: flex;
-    align-items: center;
-    gap: 14px;
-    transition: box-shadow .15s ease, transform .15s ease;
+    flex-direction: column;
+    gap: 6px;
   }
-  .sd-stat-card:hover {
-    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
-    transform: translateY(-1px);
+  .stat-card-warning {
+    border-color: #f0b429;
+    background: #fffaf0;
   }
-  .sd-stat-card-warning { border-color: #fde68a; background: var(--sd-amber-50); }
-  .sd-stat-icon {
-    width: 40px; height: 40px;
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-  }
-  .sd-stat-icon svg { width: 20px; height: 20px; }
-  .sd-icon-neutral { background: var(--sd-teal-50); color: var(--sd-teal); }
-  .sd-icon-warning { background: #fef3c7; color: var(--sd-amber); }
-  .sd-stat-card > div { display: flex; flex-direction: column-reverse; gap: 2px; }
-  .sd-stat-value {
-    font-size: 24px;
-    font-weight: 700;
-    color: var(--sd-ink);
-    line-height: 1.1;
-    font-variant-numeric: tabular-nums;
-  }
-  .sd-stat-label {
-    font-size: 11.5px;
-    color: var(--sd-muted);
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    font-weight: 600;
-  }
-
-  /* ── Filter pills ───────────────────────────────────────────── */
-  .sd-filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .pill {
-    padding: 6px 14px;
-    border-radius: 999px;
-    border: 1px solid var(--sd-border);
-    background: #fff;
-    color: var(--sd-muted);
-    font-size: 13px;
-    font-weight: 500;
-    text-decoration: none;
-    transition: all .12s ease;
-  }
-  .pill:hover { border-color: var(--sd-teal); color: var(--sd-teal); }
-  .pill.active {
-    background: var(--sd-teal);
-    border-color: var(--sd-teal);
-    color: #fff;
-  }
-
-  /* ── Cards / tables ─────────────────────────────────────────── */
-  .sd-card { padding: 0; overflow: hidden; }
-  .sd-card-header {
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--sd-border);
-  }
-  .sd-card-header h3 { margin: 0; font-size: 15.5px; }
-  .sd-table-wrap { overflow-x: auto; }
-  .sd-table { width: 100%; border-collapse: collapse; }
-  .sd-table thead th {
-    text-align: left;
-    font-size: 11.5px;
+  .stat-label {
+    font-size: 12px;
+    color: #6b7280;
     text-transform: uppercase;
     letter-spacing: .04em;
-    color: var(--sd-muted);
-    font-weight: 600;
-    padding: 10px 20px;
-    background: #fafafa;
-    border-bottom: 1px solid var(--sd-border);
   }
-  .sd-table tbody td {
-    padding: 12px 20px;
-    border-bottom: 1px solid #f1f5f9;
-    font-size: 13.5px;
-    color: var(--sd-ink);
+  .stat-value {
+    font-size: 26px;
+    font-weight: 700;
+    color: #111827;
   }
-  .sd-table tbody tr:last-child td { border-bottom: none; }
-  .sd-table tbody tr:hover td { background: #fafcfc; }
-  .sd-table tbody tr.row-low td { background: #fffaf0; }
-  .sd-table tbody tr.row-low:hover td { background: #fff6e5; }
-
-  .sd-item-name { font-weight: 600; }
-  .sd-cat-tag {
-    font-size: 12px;
-    color: var(--sd-teal);
-    background: var(--sd-teal-50);
-    padding: 3px 9px;
-    border-radius: 6px;
-    font-weight: 500;
-  }
-  .sd-qty { font-variant-numeric: tabular-nums; font-weight: 600; }
-  .sd-unit { font-weight: 400; color: var(--sd-muted); font-size: 12.5px; }
-  .sd-muted { color: var(--sd-muted); }
-  .sd-col-action { text-align: right; white-space: nowrap; }
-  .sd-col-level { width: 160px; }
-
-  .sd-bar-track {
-    width: 100%;
-    height: 6px;
-    background: #eef2f1;
-    border-radius: 999px;
-    overflow: hidden;
-  }
-  .sd-bar-fill { height: 100%; border-radius: 999px; }
-  .sd-bar-ok { background: var(--sd-teal); }
-  .sd-bar-low { background: var(--sd-amber); }
-
-  .sd-table-compact tbody td, .sd-table-compact thead th { padding: 10px 18px; }
-
   .empty-row {
     text-align: center;
     color: #9ca3af;
-    padding: 32px 0;
-  }
-
-  /* ── Activity grid ──────────────────────────────────────────── */
-  .sd-activity-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-    gap: 16px;
-  }
-
-  @media (max-width: 640px) {
-    .sd-header { flex-direction: column; align-items: stretch; }
-    .sd-col-level { display: none; }
+    padding: 24px 0;
   }
 </style>
 {% endblock %}
