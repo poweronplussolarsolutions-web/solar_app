@@ -7,7 +7,7 @@
     {% if current_user.role in ['admin', 'stocks'] %}
     <a href="{{ url_for('manage_stock_items') }}" class="btn btn-outline">Manage catalog</a>
     <a href="{{ url_for('new_stock_item') }}" class="btn btn-outline">+ Add item</a>
-    <a href="{{ url_for('stock_purchase_form') }}" class="btn btn-primary">+ Record purchase</a>
+    <a href="{{ url_for('stock_purchase') }}" class="btn btn-primary">+ Record purchase</a>
     {% endif %}
   </div>
 </div>
