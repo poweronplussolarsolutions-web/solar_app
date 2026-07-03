@@ -1,655 +1,127 @@
 {% extends "base.html" %}
 {% block content %}
 
-{% extends "base.html" %}
-{% block content %}
-
-<div class="dashboard-header">
-
-    <div>
-
-        <h1>📦 Stock Dashboard</h1>
-
-        <p>
-            Monitor inventory, purchases and site deliveries in one place.
-        </p>
-
-    </div>
-
-    {% if current_user.role in ['admin','stocks'] %}
-
-    <div class="header-actions">
-
-        <a href="{{ url_for('manage_stock_items') }}" class="btn secondary">
-            📋 Manage Catalog
-        </a>
-
-        <a href="{{ url_for('new_stock_item') }}" class="btn secondary">
-            ➕ Add Item
-        </a>
-
-        <a href="{{ url_for('stock_purchase') }}" class="btn primary">
-            💰 Record Purchase
-        </a>
-
-    </div>
-
+<div class="page-header">
+  <h2>Stock dashboard</h2>
+  <div style="display:flex; gap:8px;">
+    {% if current_user.role in ['admin', 'stocks'] %}
+    <a href="{{ url_for('manage_stock_items') }}" class="btn btn-outline">Manage catalog</a>
+    <a href="{{ url_for('new_stock_item') }}" class="btn btn-outline">+ Add item</a>
+    <a href="{{ url_for('stock_purchase') }}" class="btn btn-primary">+ Record purchase</a>
     {% endif %}
-
+  </div>
 </div>
 
-
 {% if low_stock %}
-<div class="alert-card">
-
-    <div class="alert-icon">
-        ⚠️
-    </div>
-
-    <div>
-
-        <strong>
-            {{ low_stock|length }} item(s) need attention
-        </strong>
-
-        <br>
-
-        {{ low_stock|map(attribute='display_name')|join(', ') }}
-
-    </div>
-
+<div class="alert alert-warning">
+  <strong>{{ low_stock|length }} item(s) at or below reorder level:</strong>
+  {{ low_stock|map(attribute='display_name')|join(', ') }}
 </div>
 {% endif %}
 
-
-
-<!-- =========================
-      Statistics
-========================== -->
-
-<div class="stats-grid">
-
-    <div class="stat-card">
-
-        <div class="icon blue">
-            📦
-        </div>
-
-        <div>
-
-            <div class="label">
-                Total Items
-            </div>
-
-            <div class="value">
-                {{ items|length }}
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <div class="stat-card">
-
-        <div class="icon purple">
-            📁
-        </div>
-
-        <div>
-
-            <div class="label">
-                Categories
-            </div>
-
-            <div class="value">
-                {{ categories|length }}
-            </div>
-
-        </div>
-
-    </div>
-
-
-
-    <div class="stat-card warning">
-
-        <div class="icon orange">
-            ⚠️
-        </div>
-
-        <div>
-
-            <div class="label">
-                Low Stock
-            </div>
-
-            <div class="value">
-                {{ low_stock|length }}
-            </div>
-
-        </div>
-
-    </div>
-
-
-
-    <div class="stat-card">
-
-        <div class="icon green">
-            📊
-        </div>
-
-        <div>
-
-            <div class="label">
-                Units Available
-            </div>
-
-            <div class="value">
-                {{ items|sum(attribute='current_qty')|round(0,'floor')|int }}
-            </div>
-
-        </div>
-
-    </div>
-
+<!-- ── Stock summary stat cards ─────────────────────────────────────── -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <span class="stat-label">Total items</span>
+    <span class="stat-value">{{ items|length }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Categories</span>
+    <span class="stat-value">{{ categories|length }}</span>
+  </div>
+  <div class="stat-card {{ 'stat-card-warning' if low_stock }}">
+    <span class="stat-label">Low stock</span>
+    <span class="stat-value">{{ low_stock|length }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Total units on hand</span>
+    <span class="stat-value">{{ items|sum(attribute='current_qty')|round(0, 'floor')|int }}</span>
+  </div>
 </div>
 
-
-
-<!-- ==========================
-Search
-=========================== -->
-
-<div class="search-card">
-
-    <input
-
-        type="text"
-
-        id="stockSearch"
-
-        placeholder="🔍 Search by item name or category..."
-
-    >
-
+<!-- ── Category filter ──────────────────────────────────────────────── -->
+<div class="filter-pills">
+  <a href="{{ url_for('stock_dashboard') }}" class="pill {{ 'active' if not selected_cat }}">All</a>
+  {% for c in categories %}
+  <a href="{{ url_for('stock_dashboard', category=c) }}" class="pill {{ 'active' if selected_cat == c }}">{{ c }}</a>
+  {% endfor %}
 </div>
 
-
-
-
-<!-- ==========================
-Category Pills
-=========================== -->
-
-<div class="pill-container">
-
-    <a
-
-        href="{{ url_for('stock_dashboard') }}"
-
-        class="pill {{ 'active' if not selected_cat }}"
-
-    >
-        All
-    </a>
-
-    {% for c in categories %}
-
-    <a
-
-        href="{{ url_for('stock_dashboard',category=c) }}"
-
-        class="pill {{ 'active' if selected_cat==c }}"
-
-    >
-
-        {{ c }}
-
-    </a>
-
-    {% endfor %}
-
-</div>
-
-
-
-
-
-<!-- ==========================
-Current Stock
-=========================== -->
-
+<!-- ── Current stock by item ────────────────────────────────────────── -->
 <div class="card">
-
-    <div class="card-header">
-
-        <h2>
-
-            Current Stock
-
-            {% if selected_cat %}
-
-            - {{ selected_cat }}
-
-            {% endif %}
-
-        </h2>
-
-    </div>
-
-    <div class="table-responsive">
-
-        <table class="modern-table" id="stockTable">
-
-            <thead>
-
-            <tr>
-
-                <th>Category</th>
-
-                <th>Item</th>
-
-                <th>Quantity</th>
-
-                <th>Unit</th>
-
-                <th>Action</th>
-
-            </tr>
-
-            </thead>
-
-            <tbody>
-
-            {% for i in items %}
-
-            <tr>
-
-                <td>
-
-                    {{ i.category }}
-
-                </td>
-
-                <td>
-
-                    <strong>
-
-                        {{ i.display_name }}
-
-                    </strong>
-
-                </td>
-
-                <td>
-
-                    <span
-
-                        class="qty
-
-                        {% if i.current_qty <= i.reorder_level %}
-
-                        danger
-
-                        {% elif i.current_qty < i.reorder_level*2 %}
-
-                        warning
-
-                        {% else %}
-
-                        good
-
-                        {% endif %}
-
-                        "
-
-                    >
-
-                        {{ i.current_qty }}
-
-                    </span>
-
-                    {% if i.is_low %}
-
-                    <span class="badge-low">
-
-                        Low Stock
-
-                    </span>
-
-                    {% endif %}
-
-                </td>
-
-                <td>
-
-                    {{ i.unit }}
-
-                </td>
-
-                <td>
-
-                    {% if current_user.role in ['admin','stocks'] %}
-
-                    <a
-
-                        href="{{ url_for('stock_item_ledger',iid=i.id) }}"
-
-                        class="btn small"
-
-                    >
-
-                        📄 Ledger
-
-                    </a>
-
-                    {% endif %}
-
-                </td>
-
-            </tr>
-
-            {% else %}
-
-            <tr>
-
-                <td colspan="5" class="empty">
-
-                    No stock items found.
-
-                </td>
-
-            </tr>
-
-            {% endfor %}
-
-            </tbody>
-
-        </table>
-
-    </div>
-
+  <h3>Current stock{% if selected_cat %} — {{ selected_cat }}{% endif %}</h3>
+  <table class="data-table">
+    <thead>
+      <tr><th>Category</th><th>Item</th><th>Qty</th><th>Unit</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for i in items %}
+      <tr class="{{ 'row-low' if i.is_low }}">
+        <td>{{ i.category }}</td>
+        <td>{{ i.display_name }}</td>
+        <td>
+          {{ i.current_qty }}
+          {% if i.is_low %} <span class="badge badge-warning">low</span>{% endif %}
+        </td>
+        <td>{{ i.unit }}</td>
+        <td>
+          {% if current_user.role in ['admin', 'stocks'] %}
+          <a href="{{ url_for('stock_item_ledger', iid=i.id) }}" class="btn btn-sm">Ledger</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="empty-row">No items in this category yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 
-<!-- ==========================================================
-Recent Activity + Recent Site Deliveries
-=========================================================== -->
-
-<div class="dashboard-grid">
-
-    <!-- ================= Recent Activity ================= -->
-
-    {% if recent_txns %}
-
-    <div class="card">
-
-        <div class="card-header">
-
-            <h2>📜 Recent Activity</h2>
-
-            <span class="table-count">
-                {{ recent_txns|length }} Transactions
-            </span>
-
-        </div>
-
-        <div class="table-responsive">
-
-            <table class="modern-table">
-
-                <thead>
-
-                <tr>
-
-                    <th>Date</th>
-
-                    <th>Item</th>
-
-                    <th>Type</th>
-
-                    <th>Qty</th>
-
-                    <th>Source</th>
-
-                    <th>Recorded By</th>
-
-                </tr>
-
-                </thead>
-
-                <tbody>
-
-                {% for t in recent_txns %}
-
-                <tr>
-
-                    <td>
-
-                        {{ t.created_at.strftime('%d %b %Y') }}
-
-                        <br>
-
-                        <small>
-
-                            {{ t.created_at.strftime('%I:%M %p') }}
-
-                        </small>
-
-                    </td>
-
-                    <td>
-
-                        <strong>
-
-                            {{ t.stock_item.display_name }}
-
-                        </strong>
-
-                    </td>
-
-                    <td>
-
-                        {% if t.txn_type == "purchase" %}
-
-                            <span class="txn purchase">
-                                Purchase
-                            </span>
-
-                        {% elif t.txn_type == "issue" %}
-
-                            <span class="txn issue">
-                                Issue
-                            </span>
-
-                        {% elif t.txn_type == "return" %}
-
-                            <span class="txn return">
-                                Return
-                            </span>
-
-                        {% elif t.txn_type == "adjustment" %}
-
-                            <span class="txn adjustment">
-                                Adjustment
-                            </span>
-
-                        {% else %}
-
-                            <span class="txn">
-                                {{ t.txn_type }}
-                            </span>
-
-                        {% endif %}
-
-                    </td>
-
-                    <td>
-
-                        <strong>
-
-                            {{ t.quantity }}
-
-                        </strong>
-
-                        {{ t.stock_item.unit }}
-
-                    </td>
-
-                    <td>
-
-                        {{ t.source }}
-
-                    </td>
-
-                    <td>
-
-                        {{ t.recorder.full_name if t.recorder else "—" }}
-
-                    </td>
-
-                </tr>
-
-                {% endfor %}
-
-                </tbody>
-
-            </table>
-
-        </div>
-
-    </div>
-
-    {% endif %}
-
-
-
-    <!-- ================= Recent Deliveries ================= -->
-
-    {% if recent_site_deliveries %}
-
-    <div class="card">
-
-        <div class="card-header">
-
-            <h2>🚚 Recent Site Deliveries</h2>
-
-            <span class="table-count">
-
-                {{ recent_site_deliveries|length }} Deliveries
-
-            </span>
-
-        </div>
-
-        <div class="table-responsive">
-
-            <table class="modern-table">
-
-                <thead>
-
-                <tr>
-
-                    <th>Date</th>
-
-                    <th>Item</th>
-
-                    <th>Quantity</th>
-
-                    <th>Project</th>
-
-                    <th>Delivered By</th>
-
-                </tr>
-
-                </thead>
-
-                <tbody>
-
-                {% for t in recent_site_deliveries %}
-
-                <tr>
-
-                    <td>
-
-                        {{ t.created_at.strftime('%d %b %Y') }}
-
-                        <br>
-
-                        <small>
-
-                            {{ t.created_at.strftime('%I:%M %p') }}
-
-                        </small>
-
-                    </td>
-
-                    <td>
-
-                        <strong>
-
-                            {{ t.stock_item.display_name }}
-
-                        </strong>
-
-                    </td>
-
-                    <td>
-
-                        {{ t.quantity }}
-
-                        {{ t.stock_item.unit }}
-
-                    </td>
-
-                    <td>
-
-                        {% if t.project %}
-
-                        <a
-
-                            href="{{ url_for('project_detail',pid=t.project.id) }}"
-
-                            class="project-link"
-
-                        >
-
-                            #{{ t.project.project_code }}
-
-                        </a>
-
-                        {% else %}
-
-                        —
-
-                        {% endif %}
-
-                    </td>
-
-                    <td>
-
-                        {{ t.recorder.full_name if t.recorder else "—" }}
-
-                    </td>
-
-                </tr>
-
-                {% endfor %}
-
-                </tbody>
-
-            </table>
-
-        </div>
-
-    </div>
-
-    {% endif %}
-
+<!-- ── Recent activity ──────────────────────────────────────────────── -->
+{% if recent_txns %}
+<div class="card" style="margin-top: 16px;">
+  <h3>Recent activity</h3>
+  <table class="data-table">
+    <thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Qty</th><th>Source</th><th>By</th></tr></thead>
+    <tbody>
+      {% for t in recent_txns %}
+      <tr>
+        <td>{{ t.created_at.strftime('%d %b %H:%M') }}</td>
+        <td>{{ t.stock_item.display_name }}</td>
+        <td>{{ t.txn_type }}</td>
+        <td>{{ t.quantity }} {{ t.stock_item.unit }}</td>
+        <td>{{ t.source }}</td>
+        <td>{{ t.recorder.full_name if t.recorder else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
+{% endif %}
+
+{% if recent_site_deliveries %}
+<div class="card" style="margin-top: 16px;">
+  <h3>Recent site deliveries</h3>
+  <table class="data-table">
+    <thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>Project</th><th>By</th></tr></thead>
+    <tbody>
+      {% for t in recent_site_deliveries %}
+      <tr>
+        <td>{{ t.created_at.strftime('%d %b %H:%M') }}</td>
+        <td>{{ t.stock_item.display_name }}</td>
+        <td>{{ t.quantity }} {{ t.stock_item.unit }}</td>
+        <td>{% if t.project %}<a href="{{ url_for('project_detail', pid=t.project.id) }}">{{ t.project.project_code }}</a>{% else %}—{% endif %}</td>
+        <td>{{ t.recorder.full_name if t.recorder else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 
 {% endblock %}
+
+{% block extra_css %}
 <style>
   .stat-grid {
     display: grid;
