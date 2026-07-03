@@ -3308,6 +3308,10 @@ def onsite_progress(pid):
     all_workers=Worker.query.order_by(Worker.name).all()
     all_stock_items = StockItem.query.filter_by(is_active=True).order_by(
         StockItem.category, StockItem.name).all() 
+    delivered_stock_txns = (StockTransaction.query               
+        .filter_by(project_id=pid, source='OnsiteDelivery')
+        .order_by(StockTransaction.created_at.desc())
+        .all())
     if request.method == 'POST':
         
         new_struct  = request.form.get('structure_work_status', progress.structure_work_status)
@@ -3359,7 +3363,7 @@ def onsite_progress(pid):
         db.session.commit()
         flash('Onsite progress updated.', 'success')
 
-    return render_template('onsite_progress.html', proj=proj, progress=progress,all_workers=all_workers,all_stock_items=all_stock_items,today=date.today())
+    return render_template('onsite_progress.html', proj=proj, progress=progress,all_workers=all_workers,all_stock_items=all_stock_items,delivered_stock_txns=delivered_stock_txns,today=date.today())
 
 
 @app.route('/projects/<int:pid>/onsite_log', methods=['POST'])

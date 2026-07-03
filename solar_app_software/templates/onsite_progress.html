@@ -373,28 +373,6 @@
     </table>
 
     {% if not work_complete and progress.materials_ordered and not progress.materials_delivered %}
-    <form method="POST" action="{{ url_for('onsite_progress', pid=proj.id) }}"
-          style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border);
-                 display:flex;align-items:center;gap:10px">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="materials_delivered" value="on">
-      <input type="hidden" name="materials_ordered" value="on">
-      <input type="hidden" name="materials_ordered_date" value="{{ progress.materials_ordered_date or '' }}">
-      <input type="hidden" name="materials_delivered_date" value="{{ today.isoformat() }}">
-      <input type="hidden" name="structure_work_status" value="{{ progress.structure_work_status or 'NotStarted' }}">
-      <input type="hidden" name="structure_start_date" value="{{ progress.structure_start_date or '' }}">
-      <input type="hidden" name="structure_end_date" value="{{ progress.structure_end_date or '' }}">
-      <input type="hidden" name="structure_notes" value="{{ progress.structure_notes or '' }}">
-      <input type="hidden" name="installation_status" value="{{ progress.installation_status or 'NotStarted' }}">
-      <input type="hidden" name="installation_start_date" value="{{ progress.installation_start_date or '' }}">
-      <input type="hidden" name="installation_end_date" value="{{ progress.installation_end_date or '' }}">
-      <input type="hidden" name="installation_notes" value="{{ progress.installation_notes or '' }}">
-      <input type="hidden" name="electrical_status" value="{{ progress.electrical_status or 'NotStarted' }}">
-      <input type="hidden" name="electrical_start_date" value="{{ progress.electrical_start_date or '' }}">
-      <input type="hidden" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}">
-      <input type="hidden" name="electrical_notes" value="{{ progress.electrical_notes or '' }}">
-      <label style="font-size:12px;color:var(--muted)">Delivery date</label>
-      {% if not work_complete and progress.materials_ordered and not progress.materials_delivered %}
 <div style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
   <button type="button" class="btn btn-primary btn-sm" id="deliver-stock-btn">📦 Mark delivered & deduct stock</button>
 </div>
@@ -438,8 +416,6 @@
   </form>
 </div>
 {% endif %}
-    </form>
-    {% endif %}
   </div>
 
   {% if not work_complete %}
@@ -618,7 +594,29 @@
 
     <div style="border-top:0.5px solid var(--border);margin-bottom:10px"></div>
 
-    <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Additional materials</div>
+    <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Additional materials
+      <div style="border-top:0.5px solid var(--border);margin:10px 0"></div>
+
+    <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">
+      Delivered from stock
+      {% if delivered_stock_txns %}
+      <a href="{{ url_for('stock_dashboard') }}" style="font-weight:400;text-transform:none;letter-spacing:normal;float:right;font-size:11px">View stock →</a>
+      {% endif %}
+    </div>
+    {% if delivered_stock_txns %}
+    <div>
+      {% for t in delivered_stock_txns %}
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px">
+        <span>{{ t.stock_item.display_name }}</span>
+        <span style="font-size:12px;color:var(--muted);white-space:nowrap">{{ t.quantity }} {{ t.stock_item.unit }}</span>
+        <span style="font-size:11px;color:var(--hint);white-space:nowrap">{{ t.created_at.strftime('%d %b %Y') }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="font-size:12px;color:var(--hint);padding:4px 0">No stock items deducted for this project yet.</div>
+    {% endif %}
+    </div>
     {% if proj.extra_materials %}
     <div>
       {% for m in proj.extra_materials %}
