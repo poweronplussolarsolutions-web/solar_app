@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h2>Stock catalog</h2>
+  <a href="{{ url_for('stock_dashboard') }}" class="btn btn-outline">View dashboard →</a>
+</div>
+
+<!-- ── Add new item ─────────────────────────────────────────────────── -->
+<div class="card" style="margin-bottom: 24px;">
+  <h3>Add new stock item</h3>
+  <p class="muted">Category, brand and unit auto-suggest from what's already
+     in the catalog — type a new value if it doesn't exist yet, it'll be
+     added automatically. No code changes needed.</p>
+
+  <form method="POST" action="{{ url_for('new_stock_item') }}" class="grid-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+    <div class="form-group">
+      <label>Category *</label>
+      <input list="category-list" name="category" required
+             placeholder="e.g. Panel, Inverter, Accessories, Welding">
+      <datalist id="category-list">
+        {% for c in categories %}<option value="{{ c }}">{% endfor %}
+      </datalist>
+    </div>
+
+    <div class="form-group">
+      <label>Brand</label>
+      <input list="brand-list" name="brand" placeholder="e.g. Waaree, UTL, Microtek, Adani">
+      <datalist id="brand-list">
+        {% for b in brands %}<option value="{{ b }}">{% endfor %}
+      </datalist>
+    </div>
+
+    <div class="form-group">
+      <label>Subtype</label>
+      <input name="subtype" placeholder="e.g. DCR / Ongrid / Lithium">
+    </div>
+
+    <div class="form-group">
+      <label>Model name</label>
+      <input name="model_name" placeholder="e.g. Gamma 1012, Sigma 5048">
+    </div>
+
+    <div class="form-group">
+      <label>Item name *</label>
+      <input name="name" required placeholder="e.g. ACDB, Earth Rod, Welding Rod">
+    </div>
+
+    <div class="form-group">
+      <label>Unit</label>
+      <input list="unit-list" name="unit" value="pcs" placeholder="pcs, kg, roll, set">
+      <datalist id="unit-list">
+        {% for u in units %}<option value="{{ u }}">{% endfor %}
+      </datalist>
+    </div>
+
+    <div class="form-group">
+      <label>Reorder level</label>
+      <input type="number" step="0.01" name="reorder_level" value="0">
+    </div>
+
+    <div class="form-group">
+      <label>Opening quantity</label>
+      <input type="number" step="0.01" name="opening_qty" value="0">
+    </div>
+
+    <button type="submit" class="btn btn-primary">Add item</button>
+  </form>
+</div>
+
+<!-- ── Existing catalog ─────────────────────────────────────────────── -->
+<div class="card">
+  <h3>Catalog ({{ items|selectattr('is_active')|list|length }} active)</h3>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Category</th><th>Brand</th><th>Model</th><th>Item</th>
+        <th>Unit</th><th>Qty</th><th>Reorder at</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for i in items %}
+      <tr class="{{ 'row-inactive' if not i.is_active }} {{ 'row-low' if i.is_low and i.is_active }}">
+        <td>{{ i.category }}</td>
+        <td>{{ i.brand or '—' }}</td>
+        <td>{{ i.model_name or '—' }}</td>
+        <td>{{ i.name }}</td>
+        <td>{{ i.unit }}</td>
+        <td>{{ i.current_qty }}{% if i.is_low and i.is_active %} <span class="badge badge-warning">low</span>{% endif %}</td>
+        <td>{{ i.reorder_level }}</td>
+        <td>
+          <a href="{{ url_for('stock_item_ledger', iid=i.id) }}" class="btn btn-sm">Ledger</a>
+          {% if i.is_active %}
+          <form method="POST" action="{{ url_for('deactivate_stock_item', iid=i.id) }}" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="btn btn-sm btn-danger"
+                    onclick="return confirm('Deactivate {{ i.display_name }}?')">Deactivate</button>
+          </form>
+          {% else %}
+          <form method="POST" action="{{ url_for('restore_stock_item', iid=i.id) }}" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="btn btn-sm">Restore</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

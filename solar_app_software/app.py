@@ -218,7 +218,7 @@ class User(UserMixin, db.Model):
     phone=db.Column(db.String(20),unique=True,nullable=False)
     password   = db.Column(db.String(512), nullable=False)   
     full_name  = db.Column(db.String(120), nullable=False)
-    role       = db.Column(db.Enum('admin','coordinator','documents','payments','onsite','appinstall','office','documents_k'), nullable=False)
+    role       = db.Column(db.Enum('admin','coordinator','documents','payments','onsite','appinstall','office','documents_k','stocks'), nullable=False)
     is_active  = db.Column(db.Boolean, default=True)
     is_deleted  = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -819,7 +819,49 @@ class ExtraMaterial(db.Model):
     project_id     = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
     description    = db.Column(db.String(200))
     quantity_label = db.Column(db.String(50))
-
+class StockItem(db.Model):
+    __tablename__ = 'stock_items'
+    id             = db.Column(db.Integer, primary_key=True)
+    category       = db.Column(db.String(50), nullable=False)   # Panel, Inverter, Battery, Other, Accessories, Welding...
+    brand          = db.Column(db.String(60), nullable=True)    # Waaree, UTL, Microtek, Adani...
+    subtype        = db.Column(db.String(40), nullable=True)    # DCR/Non-DCR, Ongrid/Offgrid/Hybrid, Lithium/Lead Acid...
+    model_name     = db.Column(db.String(60), nullable=True)    # Gamma 1012, Sigma 5048...
+    name           = db.Column(db.String(120), nullable=False)  # ACDB, Earth Rod, Welding Rod...
+    unit           = db.Column(db.String(20), default='pcs')
+    reorder_level  = db.Column(db.Numeric(10, 2), default=0)
+    current_qty    = db.Column(db.Numeric(10, 2), default=0)    # cached — updated on every transaction
+    is_active      = db.Column(db.Boolean, default=True)
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by     = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    creator        = db.relationship('User', foreign_keys=[created_by])
+ 
+    @property
+    def display_name(self):
+        parts = [self.brand, self.model_name, self.name]
+        return ' — '.join(p for p in parts if p)
+ 
+    @property
+    def is_low(self):
+        return float(self.current_qty or 0) <= float(self.reorder_level or 0)
+ 
+ 
+class StockTransaction(db.Model):
+    __tablename__ = 'stock_transactions'
+    id             = db.Column(db.Integer, primary_key=True)
+    stock_item_id  = db.Column(db.Integer, db.ForeignKey('stock_items.id'), nullable=False)
+    txn_type       = db.Column(db.Enum('In', 'Out', 'Adjustment'), nullable=False)
+    quantity       = db.Column(db.Numeric(10, 2), nullable=False)   # always positive; sign implied by txn_type
+    source         = db.Column(db.String(30), default='Manual')     # Manual, PanelItem, ExtraMaterial, Material
+    project_id     = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)
+    reference_id   = db.Column(db.Integer, nullable=True)           # id of the linked PanelItem/ExtraMaterial/Material row
+    notes          = db.Column(db.String(300), nullable=True)
+    balance_after  = db.Column(db.Numeric(10, 2), nullable=False)
+    recorded_by    = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+    stock_item     = db.relationship('StockItem', backref='transactions')
+    project        = db.relationship('Project', foreign_keys=[project_id])
+    recorder       = db.relationship('User', foreign_keys=[recorded_by])
+ 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1053,7 +1095,31 @@ def create_notification(user_id, project_id, message, notif_type='info'):
         user_id=user_id, project_id=project_id,
         message=message[:255], notif_type=notif_type,
     ))
-
+def record_stock_txn(stock_item_id, txn_type, quantity, source='Manual',
+                      project_id=None, reference_id=None, notes=None):
+    """Writes one StockTransaction and updates StockItem.current_qty in the
+    same session. Caller is still responsible for db.session.commit()."""
+    item = StockItem.query.get(stock_item_id)
+    if not item:
+        return None
+    delta = quantity if txn_type == 'In' else -quantity
+    new_balance = float(item.current_qty or 0) + float(delta)
+    db.session.add(StockTransaction(
+        stock_item_id=stock_item_id, txn_type=txn_type, quantity=quantity,
+        source=source, project_id=project_id, reference_id=reference_id,
+        notes=notes, balance_after=new_balance, recorded_by=current_user.id,
+    ))
+    item.current_qty = new_balance
+ 
+    if item.is_low:
+        alert_users = User.query.filter(
+            User.role.in_(['admin', 'stocks']), User.is_active == True
+        ).all()
+        for u in alert_users:
+            create_notification(u.id, project_id,
+                f'Low stock: {item.display_name} — {item.current_qty} {item.unit} left '
+                f'(reorder level {item.reorder_level} {item.unit}).', 'warning')
+    return item
 
 def notify_onsite_team(project_id, message, notif_type='task'):
     for user in User.query.filter_by(role='onsite', is_active=True).all():
@@ -1532,6 +1598,22 @@ def dashboard():
         data['notifications'] = Notification.query.filter_by(
         user_id=current_user.id, is_read=False
     ).order_by(Notification.created_at.desc()).limit(20).all()
+        
+    elif role == 'stocks':
+        data['total_items'] = StockItem.query.filter_by(is_active=True).count()
+        data['low_stock']   = StockItem.query.filter(
+        StockItem.is_active == True,
+        StockItem.current_qty <= StockItem.reorder_level
+    ).all()
+        data['low_count']   = len(data['low_stock'])
+        data['recent_txns'] = (StockTransaction.query
+                           .order_by(StockTransaction.created_at.desc())
+                           .limit(10).all())
+        data['categories']  = sorted({
+        c[0] for c in db.session.query(StockItem.category)
+        .filter_by(is_active=True).distinct()
+    })
+    
     elif role == 'office':
         from sqlalchemy.orm import joinedload
         from sqlalchemy import func
@@ -2940,6 +3022,11 @@ def update_panel_item(pid, item_id):
     item.panel_type = request.form['panel_type']
     item.wattage    = int(request.form.get('wattage') or 0)
     item.quantity   = int(request.form['quantity'])
+    stock_item_id = request.form.get('stock_item_id', type=int)
+    if stock_item_id:
+        record_stock_txn(stock_item_id, 'Out', quantity_used, source='PanelItem',
+                      project_id=pid, reference_id=item.id,
+                      notes=f'Used on {proj.project_code}')
     db.session.commit()
     return redirect(url_for('onsite_progress', pid=pid))
 
@@ -3487,6 +3574,11 @@ def add_panel_item(pid):
         wattage=int(request.form.get('wattage') or 0),
         quantity=int(request.form['quantity']),
     )
+    stock_item_id = request.form.get('stock_item_id', type=int)
+    if stock_item_id:
+        record_stock_txn(stock_item_id, 'Out', quantity_used, source='PanelItem',
+                      project_id=pid, reference_id=item.id,
+                      notes=f'Used on {proj.project_code}')
     db.session.add(item); db.session.commit()
     return redirect(url_for('onsite_progress', pid=pid))
 
@@ -3505,6 +3597,11 @@ def add_extra_material(pid):
         description=request.form['description'],
         quantity_label=request.form.get('quantity_label',''),
     )
+    stock_item_id = request.form.get('stock_item_id', type=int)
+    if stock_item_id:
+        record_stock_txn(stock_item_id, 'Out', quantity_used, source='PanelItem',
+                      project_id=pid, reference_id=item.id,
+                      notes=f'Used on {proj.project_code}')
     db.session.add(mat); db.session.commit()
     return redirect(url_for('onsite_progress', pid=pid))
 
@@ -3524,6 +3621,11 @@ def dispatch_material(pid, mid):
     material.dispatch_status = 'Dispatched'
     material.dispatch_date   = date.today()
     log_action(pid, f'Material dispatched: {material.item_name}', new_val='Dispatched')
+    stock_item_id = request.form.get('stock_item_id', type=int)
+    if stock_item_id:
+        record_stock_txn(stock_item_id, 'Out', quantity_used, source='PanelItem',
+                      project_id=pid, reference_id=item.id,
+                      notes=f'Used on {proj.project_code}')
     db.session.commit()
     flash(f'{material.item_name} marked as dispatched.', 'success')
     return redirect(url_for('project_detail', pid=pid))
@@ -3583,6 +3685,178 @@ def add_material(pid):
     flash(f'{material.item_name} added.', 'success')
     return redirect(url_for('onsite_progress', pid=pid))
 
+#stocks
+
+@app.route('/stock')
+@login_required
+@roles_required('admin', 'stocks', 'onsite')
+def stock_dashboard():
+    selected_cat = request.args.get('category', '')
+    categories = sorted({
+        c[0] for c in db.session.query(StockItem.category)
+        .filter_by(is_active=True).distinct()
+    })
+    q = StockItem.query.filter_by(is_active=True)
+    if selected_cat:
+        q = q.filter_by(category=selected_cat)
+    items = q.order_by(StockItem.category, StockItem.brand, StockItem.name).all()
+    low_stock = [i for i in items if i.is_low]
+    recent_txns = (StockTransaction.query
+                   .order_by(StockTransaction.created_at.desc())
+                   .limit(15).all())
+    return render_template('stock_dashboard.html', items=items, categories=categories,
+                           selected_cat=selected_cat, low_stock=low_stock,
+                           recent_txns=recent_txns)
+ 
+ 
+@app.route('/stock/items')
+@login_required
+@roles_required('admin', 'stocks')
+def manage_stock_items():
+    items = StockItem.query.order_by(
+        StockItem.is_active.desc(), StockItem.category, StockItem.brand).all()
+    categories = sorted({i.category for i in items})
+    brands     = sorted({i.brand for i in items if i.brand})
+    units      = sorted({i.unit for i in items if i.unit})
+    return render_template('stock_items.html', items=items, categories=categories,
+                           brands=brands, units=units)
+ 
+ 
+@app.route('/stock/items/new', methods=['POST'])
+@login_required
+@roles_required('admin', 'stocks')
+@limiter.limit('30 per minute')
+def new_stock_item():
+    category = _clean(request.form.get('category', ''), 50)
+    name     = _clean(request.form.get('name', ''), 120)
+    if not category or not name:
+        flash('Category and item name are required.', 'danger')
+        return redirect(url_for('manage_stock_items'))
+ 
+    # Prevent near-duplicate catalog entries
+    dup = StockItem.query.filter_by(
+        category=category,
+        brand=_clean(request.form.get('brand', ''), 60) or None,
+        model_name=_clean(request.form.get('model_name', ''), 60) or None,
+        name=name,
+    ).first()
+    if dup:
+        flash(f'"{dup.display_name}" already exists in the catalog. '
+              f'Use Adjust Stock to change its quantity instead.', 'warning')
+        return redirect(url_for('manage_stock_items'))
+ 
+    item = StockItem(
+        category      = category,
+        brand         = _clean(request.form.get('brand', ''), 60) or None,
+        subtype       = _clean(request.form.get('subtype', ''), 40) or None,
+        model_name    = _clean(request.form.get('model_name', ''), 60) or None,
+        name          = name,
+        unit          = _clean(request.form.get('unit', ''), 20) or 'pcs',
+        reorder_level = _safe_float(request.form.get('reorder_level', 0)),
+        current_qty   = 0,
+        created_by    = current_user.id,
+    )
+    db.session.add(item)
+    db.session.flush()
+ 
+    opening_qty = _safe_float(request.form.get('opening_qty', 0))
+    if opening_qty > 0:
+        record_stock_txn(item.id, 'In', opening_qty, source='Manual',
+                          notes='Opening stock on item creation')
+ 
+    db.session.commit()
+    flash(f'"{item.display_name}" added to the stock catalog.', 'success')
+    return redirect(url_for('manage_stock_items'))
+ 
+ 
+@app.route('/stock/items/<int:iid>/edit', methods=['POST'])
+@login_required
+@roles_required('admin', 'stocks')
+def edit_stock_item(iid):
+    item = StockItem.query.get_or_404(iid)
+    item.category      = _clean(request.form.get('category', item.category), 50)
+    item.brand         = _clean(request.form.get('brand', ''), 60) or None
+    item.subtype       = _clean(request.form.get('subtype', ''), 40) or None
+    item.model_name    = _clean(request.form.get('model_name', ''), 60) or None
+    item.name          = _clean(request.form.get('name', item.name), 120)
+    item.unit          = _clean(request.form.get('unit', ''), 20) or 'pcs'
+    item.reorder_level = _safe_float(request.form.get('reorder_level', item.reorder_level))
+    db.session.commit()
+    flash(f'"{item.display_name}" updated.', 'success')
+    return redirect(url_for('manage_stock_items'))
+ 
+ 
+@app.route('/stock/items/<int:iid>/deactivate', methods=['POST'])
+@login_required
+@roles_required('admin', 'stocks')
+def deactivate_stock_item(iid):
+    item = StockItem.query.get_or_404(iid)
+    item.is_active = False
+    db.session.commit()
+    flash(f'"{item.display_name}" deactivated (kept for ledger history).', 'warning')
+    return redirect(url_for('manage_stock_items'))
+ 
+ 
+@app.route('/stock/items/<int:iid>/restore', methods=['POST'])
+@login_required
+@roles_required('admin', 'stocks')
+def restore_stock_item(iid):
+    item = StockItem.query.get_or_404(iid)
+    item.is_active = True
+    db.session.commit()
+    flash(f'"{item.display_name}" restored.', 'success')
+    return redirect(url_for('manage_stock_items'))
+ 
+ 
+@app.route('/stock/adjust', methods=['POST'])
+@login_required
+@roles_required('admin', 'stocks', 'onsite')
+@limiter.limit('30 per minute')
+def stock_adjust():
+    item_id  = request.form.get('stock_item_id', type=int)
+    txn_type = request.form.get('txn_type', 'In')
+    qty      = _safe_float(request.form.get('quantity'))
+    notes    = _clean(request.form.get('notes', ''), 300)
+ 
+    if not item_id or qty <= 0:
+        flash('Please select an item and enter a valid quantity.', 'danger')
+        return redirect(url_for('stock_dashboard'))
+ 
+    item = StockItem.query.get_or_404(item_id)
+    if txn_type == 'Out' and qty > float(item.current_qty or 0):
+        flash(f'Cannot remove {qty} {item.unit} — only {item.current_qty} {item.unit} in stock.', 'danger')
+        return redirect(url_for('stock_dashboard'))
+ 
+    record_stock_txn(item_id, txn_type, qty, source='Manual', notes=notes)
+    db.session.commit()
+    flash(f'{txn_type} of {qty} {item.unit} recorded for "{item.display_name}".', 'success')
+    return redirect(url_for('stock_dashboard'))
+ 
+ 
+@app.route('/stock/items/<int:iid>/ledger')
+@login_required
+@roles_required('admin', 'stocks')
+def stock_item_ledger(iid):
+    item = StockItem.query.get_or_404(iid)
+    txns = (StockTransaction.query.filter_by(stock_item_id=iid)
+            .order_by(StockTransaction.created_at.desc()).all())
+    return render_template('stock_ledger.html', item=item, txns=txns)
+ 
+ 
+# ── Autocomplete data for the "add item" form (categories/brands/units
+#    already in use — the dropdown grows automatically as new ones are added) ──
+@app.route('/api/stock_meta')
+@login_required
+@roles_required('admin', 'stocks')
+def api_stock_meta():
+    categories = [c[0] for c in db.session.query(StockItem.category).distinct()]
+    brands     = [b[0] for b in db.session.query(StockItem.brand).filter(StockItem.brand.isnot(None)).distinct()]
+    units      = [u[0] for u in db.session.query(StockItem.unit).filter(StockItem.unit.isnot(None)).distinct()]
+    return jsonify({
+        'categories': sorted(categories),
+        'brands':     sorted(brands),
+        'units':      sorted(units),
+    })
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SUBSIDY

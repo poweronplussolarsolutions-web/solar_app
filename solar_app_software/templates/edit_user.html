@@ -81,6 +81,7 @@
             ('payments',    'Payments Team'),
             ('onsite',      'On-site Management'),
             ('appinstall',  'App Installation Team'),
+            ('stocks',  'Stocks'),
         ] %}
           <option value="{{ val }}" {% if user.role == val %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
