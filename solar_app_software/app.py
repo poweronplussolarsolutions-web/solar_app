@@ -3306,6 +3306,8 @@ def onsite_progress(pid):
     proj     = Project.query.get_or_404(pid)
     progress = proj.onsite_progress or OnsiteProgress(project_id=pid)
     all_workers=Worker.query.order_by(Worker.name).all()
+    all_stock_items = StockItem.query.filter_by(is_active=True).order_by(
+        StockItem.category, StockItem.name).all() 
     if request.method == 'POST':
         
         new_struct  = request.form.get('structure_work_status', progress.structure_work_status)
@@ -3357,7 +3359,7 @@ def onsite_progress(pid):
         db.session.commit()
         flash('Onsite progress updated.', 'success')
 
-    return render_template('onsite_progress.html', proj=proj, progress=progress,all_workers=all_workers,today=date.today())
+    return render_template('onsite_progress.html', proj=proj, progress=progress,all_workers=all_workers,all_stock_items=all_stock_items,today=date.today())
 
 
 @app.route('/projects/<int:pid>/onsite_log', methods=['POST'])
@@ -3622,6 +3624,80 @@ def dispatch_material(pid, mid):
     flash(f'{material.item_name} marked as dispatched.', 'success')
     return redirect(url_for('project_detail', pid=pid))
 
+# ── Onsite: mark materials delivered AND deduct stock in one step ─────────────
+@app.route('/projects/<int:pid>/onsite_progress/deliver_stock', methods=['POST'])
+@login_required
+@roles_required('admin', 'onsite')
+def deliver_stock_to_site(pid):
+    proj     = Project.query.get_or_404(pid)
+    progress = proj.onsite_progress or OnsiteProgress(project_id=pid)
+
+    item_ids = request.form.getlist('stock_item_id')
+    qtys     = request.form.getlist('stock_qty')
+
+    deducted = []
+    for iid, qty_raw in zip(item_ids, qtys):
+        qty = _safe_float(qty_raw)
+        if not iid or qty <= 0:
+            continue
+        item = StockItem.query.get(int(iid))
+        if not item:
+            continue
+        if qty > float(item.current_qty or 0):
+            flash(f'Not enough stock for {item.display_name} — only '
+                  f'{item.current_qty} {item.unit} available.', 'danger')
+            return redirect(url_for('onsite_progress', pid=pid))
+        record_stock_txn(item.id, 'Out', qty, source='OnsiteDelivery',
+                          project_id=pid, notes=f'Delivered on site — {proj.project_code}')
+        deducted.append(f'{item.display_name} ({qty} {item.unit})')
+
+    progress.materials_delivered      = True
+    progress.materials_delivered_date = (
+        date.fromisoformat(request.form['delivered_date'])
+        if request.form.get('delivered_date') else date.today()
+    )
+    if not progress.materials_ordered:
+        progress.materials_ordered      = True
+        progress.materials_ordered_date = progress.materials_ordered_date or progress.materials_delivered_date
+    if not progress.id:
+        db.session.add(progress)
+
+    log_action(pid, 'Materials delivered to site' +
+               (f': {", ".join(deducted)}' if deducted else ' (no stock items selected)'),
+               new_val='Delivered')
+    db.session.flush()
+    auto_advance_stage(proj)
+    db.session.commit()
+    flash('Materials marked as delivered' +
+          (' and deducted from stock.' if deducted else '.'), 'success')
+    return redirect(url_for('onsite_progress', pid=pid))
+
+
+# ── Stocks: manual purchase from a distributor (not tied to a project) ────────
+@app.route('/stock/purchase', methods=['POST'])
+@login_required
+@roles_required('admin', 'stocks','onsite')
+@limiter.limit('30 per minute')
+def stock_purchase():
+    item_id  = request.form.get('stock_item_id', type=int)
+    qty      = _safe_float(request.form.get('quantity'))
+    vendor   = _clean(request.form.get('vendor', ''), 100)
+    invoice  = _clean(request.form.get('invoice_no', ''), 60)
+    notes_in = _clean(request.form.get('notes', ''), 200)
+
+    if not item_id or qty <= 0:
+        flash('Please select an item and enter a valid quantity.', 'danger')
+        return redirect(url_for('stock_dashboard'))
+
+    item = StockItem.query.get_or_404(item_id)
+    parts = [p for p in [f'Vendor: {vendor}' if vendor else '',
+                          f'Invoice: {invoice}' if invoice else '',
+                          notes_in] if p]
+    record_stock_txn(item_id, 'In', qty, source='Purchase', notes=' | '.join(parts) or None)
+    db.session.commit()
+    flash(f'Purchase of {qty} {item.unit} "{item.display_name}" recorded'
+          + (f' from {vendor}.' if vendor else '.'), 'success')
+    return redirect(url_for('stock_dashboard'))
 
 @app.route('/projects/<int:pid>/materials/update/<int:mid>', methods=['POST'])
 @login_required
@@ -3696,9 +3772,13 @@ def stock_dashboard():
     recent_txns = (StockTransaction.query
                    .order_by(StockTransaction.created_at.desc())
                    .limit(15).all())
+    recent_site_deliveries = (StockTransaction.query               # ← new
+                   .filter_by(source='OnsiteDelivery')
+                   .order_by(StockTransaction.created_at.desc())
+                   .limit(10).all())
     return render_template('stock_dashboard.html', items=items, categories=categories,
                            selected_cat=selected_cat, low_stock=low_stock,
-                           recent_txns=recent_txns)
+                           recent_txns=recent_txns,recent_site_deliveries=recent_site_deliveries)
  
  
 @app.route('/stock/items')

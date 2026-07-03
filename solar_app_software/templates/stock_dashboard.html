@@ -24,8 +24,11 @@
 
 <!-- ── Quick adjust ─────────────────────────────────────────────────── -->
 <div class="card" style="margin: 16px 0;">
-  <h3>Record stock in / out</h3>
-  <form method="POST" action="{{ url_for('stock_adjust') }}" class="inline-form">
+  <h3>Record distributor purchase</h3>
+  <p class="muted" style="font-size:12px;margin-top:-8px">
+    Stock bought directly from a supplier — not tied to any project.
+  </p>
+  <form method="POST" action="{{ url_for('stock_purchase') }}" class="inline-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <select name="stock_item_id" required>
       <option value="">Select item…</option>
@@ -33,14 +36,11 @@
       <option value="{{ i.id }}">{{ i.category }} — {{ i.display_name }} ({{ i.current_qty }} {{ i.unit }})</option>
       {% endfor %}
     </select>
-    <select name="txn_type">
-      <option value="In">Stock in (purchase)</option>
-      <option value="Out">Stock out (usage)</option>
-      <option value="Adjustment">Correction</option>
-    </select>
     <input type="number" step="0.01" name="quantity" placeholder="Quantity" required>
+    <input type="text" name="vendor" placeholder="Vendor / distributor name">
+    <input type="text" name="invoice_no" placeholder="Invoice / bill no. (optional)">
     <input type="text" name="notes" placeholder="Note (optional)">
-    <button type="submit" class="btn btn-primary">Save</button>
+    <button type="submit" class="btn btn-primary">Record purchase</button>
   </form>
 </div>
 
@@ -82,6 +82,25 @@
         <td>{{ t.txn_type }}</td>
         <td>{{ t.quantity }} {{ t.stock_item.unit }}</td>
         <td>{{ t.source }}</td>
+        <td>{{ t.recorder.full_name if t.recorder else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% if recent_site_deliveries %}
+<div class="card" style="margin-top: 16px;">
+  <h3>Recent site deliveries</h3>
+  <table class="data-table">
+    <thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>Project</th><th>By</th></tr></thead>
+    <tbody>
+      {% for t in recent_site_deliveries %}
+      <tr>
+        <td>{{ t.created_at.strftime('%d %b %H:%M') }}</td>
+        <td>{{ t.stock_item.display_name }}</td>
+        <td>{{ t.quantity }} {{ t.stock_item.unit }}</td>
+        <td>{% if t.project %}<a href="{{ url_for('project_detail', pid=t.project.id) }}">{{ t.project.project_code }}</a>{% else %}—{% endif %}</td>
         <td>{{ t.recorder.full_name if t.recorder else '—' }}</td>
       </tr>
       {% endfor %}

@@ -394,12 +394,50 @@
       <input type="hidden" name="electrical_end_date" value="{{ progress.electrical_end_date or '' }}">
       <input type="hidden" name="electrical_notes" value="{{ progress.electrical_notes or '' }}">
       <label style="font-size:12px;color:var(--muted)">Delivery date</label>
-      <input type="date" name="materials_delivered_date_override"
-             id="quick-deliver-date"
-             value="{{ today.isoformat() }}"
-             style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border);
-                    border-radius:var(--radius);background:transparent;color:var(--fg)">
-      <button type="submit" class="btn btn-primary btn-sm">✓ Mark delivered</button>
+      {% if not work_complete and progress.materials_ordered and not progress.materials_delivered %}
+<div style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
+  <button type="button" class="btn btn-primary btn-sm" id="deliver-stock-btn">📦 Mark delivered & deduct stock</button>
+</div>
+
+<div id="deliver-stock-form" style="display:none;margin-top:12px;padding:14px;
+     border:0.5px solid var(--border);border-radius:var(--radius);background:var(--bg)">
+  <form method="POST" action="{{ url_for('deliver_stock_to_site', pid=proj.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <label style="margin:0">Delivery date</label>
+      <input type="date" name="delivered_date" value="{{ today.isoformat() }}" style="width:auto"/>
+    </div>
+
+    <div id="stock-rows">
+      <div class="stock-row" style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px;margin-bottom:8px;align-items:flex-end">
+        <div>
+          <label>Stock item</label>
+          <select name="stock_item_id">
+            <option value="">— Not tracked in stock —</option>
+            {% for si in all_stock_items %}
+            <option value="{{ si.id }}">{{ si.category }} — {{ si.display_name }} ({{ si.current_qty }} {{ si.unit }} avail.)</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Qty used</label>
+          <input type="number" step="0.01" name="stock_qty" min="0" placeholder="0"/>
+        </div>
+        <div><button type="button" class="btn btn-sm remove-row-btn">✕</button></div>
+      </div>
+    </div>
+    <button type="button" class="btn btn-sm" id="add-stock-row-btn" style="margin-bottom:12px">+ Add another item</button>
+
+    <div style="display:flex;gap:8px">
+      <button type="submit" class="btn btn-primary btn-sm">✓ Confirm delivery</button>
+      <button type="button" class="btn btn-sm" id="deliver-stock-cancel">Cancel</button>
+    </div>
+    <p style="font-size:11px;color:var(--hint);margin-top:8px">
+      Selecting a stock item automatically deducts it from the catalog. Leave rows blank to just log the delivery without touching stock.
+    </p>
+  </form>
+</div>
+{% endif %}
     </form>
     {% endif %}
   </div>
@@ -1161,6 +1199,39 @@ if (notesCancelBtn) {
   notesCancelBtn.addEventListener('click', function() {
     notesForm.style.display = 'none';
     if (notesEditBtn) notesEditBtn.style.display = 'inline-block';
+  });
+}
+var deliverBtn    = document.getElementById('deliver-stock-btn');
+var deliverForm   = document.getElementById('deliver-stock-form');
+var deliverCancel = document.getElementById('deliver-stock-cancel');
+if (deliverBtn) {
+  deliverBtn.addEventListener('click', function () {
+    deliverForm.style.display = 'block';
+    deliverBtn.style.display  = 'none';
+  });
+}
+if (deliverCancel) {
+  deliverCancel.addEventListener('click', function () {
+    deliverForm.style.display = 'none';
+    if (deliverBtn) deliverBtn.style.display = 'inline-block';
+  });
+}
+function bindRemoveRow(row) {
+  var btn = row.querySelector('.remove-row-btn');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    if (document.querySelectorAll('.stock-row').length > 1) row.remove();
+  });
+}
+document.querySelectorAll('.stock-row').forEach(bindRemoveRow);
+var addRowBtn = document.getElementById('add-stock-row-btn');
+if (addRowBtn) {
+  addRowBtn.addEventListener('click', function () {
+    var rows  = document.getElementById('stock-rows');
+    var clone = rows.firstElementChild.cloneNode(true);
+    clone.querySelectorAll('select, input').forEach(function (el) { el.value = ''; });
+    rows.appendChild(clone);
+    bindRemoveRow(clone);
   });
 }
 </script>
