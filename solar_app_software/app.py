@@ -3022,11 +3022,6 @@ def update_panel_item(pid, item_id):
     item.panel_type = request.form['panel_type']
     item.wattage    = int(request.form.get('wattage') or 0)
     item.quantity   = int(request.form['quantity'])
-    stock_item_id = request.form.get('stock_item_id', type=int)
-    if stock_item_id:
-        record_stock_txn(stock_item_id, 'Out', quantity_used, source='PanelItem',
-                      project_id=pid, reference_id=item.id,
-                      notes=f'Used on {proj.project_code}')
     db.session.commit()
     return redirect(url_for('onsite_progress', pid=pid))
 
@@ -3574,9 +3569,11 @@ def add_panel_item(pid):
         wattage=int(request.form.get('wattage') or 0),
         quantity=int(request.form['quantity']),
     )
+    db.session.add(item)
+    db.session.flush()
     stock_item_id = request.form.get('stock_item_id', type=int)
     if stock_item_id:
-        record_stock_txn(stock_item_id, 'Out', quantity_used, source='PanelItem',
+        record_stock_txn(stock_item_id, 'Out', item.quantity, source='PanelItem',
                       project_id=pid, reference_id=item.id,
                       notes=f'Used on {proj.project_code}')
     db.session.add(item); db.session.commit()
@@ -3597,11 +3594,6 @@ def add_extra_material(pid):
         description=request.form['description'],
         quantity_label=request.form.get('quantity_label',''),
     )
-    stock_item_id = request.form.get('stock_item_id', type=int)
-    if stock_item_id:
-        record_stock_txn(stock_item_id, 'Out', quantity_used, source='PanelItem',
-                      project_id=pid, reference_id=item.id,
-                      notes=f'Used on {proj.project_code}')
     db.session.add(mat); db.session.commit()
     return redirect(url_for('onsite_progress', pid=pid))
 
@@ -3623,9 +3615,9 @@ def dispatch_material(pid, mid):
     log_action(pid, f'Material dispatched: {material.item_name}', new_val='Dispatched')
     stock_item_id = request.form.get('stock_item_id', type=int)
     if stock_item_id:
-        record_stock_txn(stock_item_id, 'Out', quantity_used, source='PanelItem',
-                      project_id=pid, reference_id=item.id,
-                      notes=f'Used on {proj.project_code}')
+        record_stock_txn(stock_item_id, 'Out', float(material.quantity or 0), source='Material',
+                      project_id=pid, reference_id=material.id,
+                      notes=f'Dispatched on {proj.project_code}')
     db.session.commit()
     flash(f'{material.item_name} marked as dispatched.', 'success')
     return redirect(url_for('project_detail', pid=pid))
