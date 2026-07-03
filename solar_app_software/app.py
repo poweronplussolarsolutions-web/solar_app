@@ -667,7 +667,7 @@ class Notification(db.Model):
     __tablename__ = 'notifications'
     id         = db.Column(db.Integer, primary_key=True)
     user_id    = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)
     message    = db.Column(db.String(255), nullable=False)
     notif_type = db.Column(db.String(80), default='info')
     is_read    = db.Column(db.Boolean, default=False)
