@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <h2>Ledger — {{ item.display_name }}</h2>
+  <a href="{{ url_for('manage_stock_items') }}" class="btn btn-outline">← Back to catalog</a>
+</div>
+
+<div class="card" style="margin-bottom: 24px;">
+  <table class="data-table">
+    <tbody>
+      <tr><td><strong>Category</strong></td><td>{{ item.category }}</td></tr>
+      <tr><td><strong>Brand</strong></td><td>{{ item.brand or '—' }}</td></tr>
+      <tr><td><strong>Model</strong></td><td>{{ item.model_name or '—' }}</td></tr>
+      <tr><td><strong>Current quantity</strong></td>
+          <td>{{ item.current_qty }} {{ item.unit }}
+            {% if item.is_low %}<span class="badge badge-warning">low</span>{% endif %}
+          </td></tr>
+      <tr><td><strong>Reorder level</strong></td><td>{{ item.reorder_level }} {{ item.unit }}</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h3>Transaction history ({{ txns|length }})</h3>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Date</th><th>Type</th><th>Quantity</th><th>Balance after</th>
+        <th>Source</th><th>Project</th><th>Notes</th><th>By</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in txns %}
+      <tr>
+        <td>{{ t.created_at.strftime('%d %b %Y %H:%M') }}</td>
+        <td>
+          <span class="badge {{ 'badge-success' if t.txn_type == 'In' else ('badge-danger' if t.txn_type == 'Out' else 'badge-warning') }}">
+            {{ t.txn_type }}
+          </span>
+        </td>
+        <td>{{ t.quantity }} {{ item.unit }}</td>
+        <td>{{ t.balance_after }} {{ item.unit }}</td>
+        <td>{{ t.source }}</td>
+        <td>
+          {% if t.project %}
+          <a href="{{ url_for('project_detail', pid=t.project.id) }}">{{ t.project.project_code }}</a>
+          {% else %}—{% endif %}
+        </td>
+        <td>{{ t.notes or '—' }}</td>
+        <td>{{ t.recorder.full_name if t.recorder else '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="muted">No transactions recorded yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
