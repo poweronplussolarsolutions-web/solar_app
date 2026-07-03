@@ -554,7 +554,7 @@
   </div>
 
   <div id="panels-view">
-    <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Solar panels</div>
+    <!-- <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Solar panels</div>
     {% if proj.panel_items %}
     <div style="margin-bottom:14px">
       {% for p in proj.panel_items %}
@@ -590,12 +590,12 @@
     </div>
     {% else %}
     <div style="font-size:12px;color:var(--hint);padding:4px 0 12px">No panels added yet.</div>
-    {% endif %}
+    {% endif %} -->
 
     <div style="border-top:0.5px solid var(--border);margin-bottom:10px"></div>
 
-    <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Additional materials
-      <div style="border-top:0.5px solid var(--border);margin:10px 0"></div>
+    <!-- <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Additional materials
+      <div style="border-top:0.5px solid var(--border);margin:10px 0"></div> -->
 
     <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">
       Delivered from stock
@@ -617,7 +617,7 @@
     <div style="font-size:12px;color:var(--hint);padding:4px 0">No stock items deducted for this project yet.</div>
     {% endif %}
     </div>
-    {% if proj.extra_materials %}
+    <!-- {% if proj.extra_materials %}
     <div>
       {% for m in proj.extra_materials %}
       <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px">
@@ -636,9 +636,9 @@
     {% else %}
     <div style="font-size:12px;color:var(--hint);padding:4px 0">No additional materials.</div>
     {% endif %}
-  </div>
+  </div> -->
 
-  {% if not work_complete and current_user.role in ['admin','onsite'] %}
+  <!-- {% if not work_complete and current_user.role in ['admin','onsite'] %}
   <div id="panels-form" style="display:{% if not proj.panel_items and not proj.extra_materials %}block{% else %}none{% endif %};margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
 
     {% if proj.panel_items %}
@@ -777,7 +777,7 @@
       <button type="button" class="btn btn-sm" id="panels-cancel-btn">Done</button>
     </div>
   </div>
-  {% endif %}
+  {% endif %} -->
 </div>
 
 {# ══════════════════════════════════════════ #}
