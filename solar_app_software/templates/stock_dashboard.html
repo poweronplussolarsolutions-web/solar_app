@@ -1,10 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
+
 <div class="page-header">
   <h2>Stock dashboard</h2>
-  {% if current_user.role in ['admin', 'stocks'] %}
-  <a href="{{ url_for('manage_stock_items') }}" class="btn btn-outline">Manage catalog →</a>
-  {% endif %}
+  <div style="display:flex; gap:8px;">
+    {% if current_user.role in ['admin', 'stocks'] %}
+    <a href="{{ url_for('manage_stock_items') }}" class="btn btn-outline">Manage catalog</a>
+    <a href="{{ url_for('new_stock_item') }}" class="btn btn-outline">+ Add item</a>
+    <a href="{{ url_for('stock_purchase_form') }}" class="btn btn-primary">+ Record purchase</a>
+    {% endif %}
+  </div>
 </div>
 
 {% if low_stock %}
@@ -14,6 +19,26 @@
 </div>
 {% endif %}
 
+<!-- ── Stock summary stat cards ─────────────────────────────────────── -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <span class="stat-label">Total items</span>
+    <span class="stat-value">{{ items|length }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Categories</span>
+    <span class="stat-value">{{ categories|length }}</span>
+  </div>
+  <div class="stat-card {{ 'stat-card-warning' if low_stock }}">
+    <span class="stat-label">Low stock</span>
+    <span class="stat-value">{{ low_stock|length }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Total units on hand</span>
+    <span class="stat-value">{{ items|sum(attribute='current_qty')|round(0, 'floor')|int }}</span>
+  </div>
+</div>
+
 <!-- ── Category filter ──────────────────────────────────────────────── -->
 <div class="filter-pills">
   <a href="{{ url_for('stock_dashboard') }}" class="pill {{ 'active' if not selected_cat }}">All</a>
@@ -22,30 +47,9 @@
   {% endfor %}
 </div>
 
-<!-- ── Quick adjust ─────────────────────────────────────────────────── -->
-<div class="card" style="margin: 16px 0;">
-  <h3>Record distributor purchase</h3>
-  <p class="muted" style="font-size:12px;margin-top:-8px">
-    Stock bought directly from a supplier — not tied to any project.
-  </p>
-  <form method="POST" action="{{ url_for('stock_purchase') }}" class="inline-form">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-    <select name="stock_item_id" required>
-      <option value="">Select item…</option>
-      {% for i in items %}
-      <option value="{{ i.id }}">{{ i.category }} — {{ i.display_name }} ({{ i.current_qty }} {{ i.unit }})</option>
-      {% endfor %}
-    </select>
-    <input type="number" step="0.01" name="quantity" placeholder="Quantity" required>
-    <input type="text" name="vendor" placeholder="Vendor / distributor name">
-    <input type="text" name="invoice_no" placeholder="Invoice / bill no. (optional)">
-    <input type="text" name="notes" placeholder="Note (optional)">
-    <button type="submit" class="btn btn-primary">Record purchase</button>
-  </form>
-</div>
-
 <!-- ── Current stock by item ────────────────────────────────────────── -->
 <div class="card">
+  <h3>Current stock{% if selected_cat %} — {{ selected_cat }}{% endif %}</h3>
   <table class="data-table">
     <thead>
       <tr><th>Category</th><th>Item</th><th>Qty</th><th>Unit</th><th></th></tr>
@@ -55,7 +59,10 @@
       <tr class="{{ 'row-low' if i.is_low }}">
         <td>{{ i.category }}</td>
         <td>{{ i.display_name }}</td>
-        <td>{{ i.current_qty }}{% if i.is_low %} <span class="badge badge-warning">low</span>{% endif %}</td>
+        <td>
+          {{ i.current_qty }}
+          {% if i.is_low %} <span class="badge badge-warning">low</span>{% endif %}
+        </td>
         <td>{{ i.unit }}</td>
         <td>
           {% if current_user.role in ['admin', 'stocks'] %}
@@ -63,6 +70,8 @@
           {% endif %}
         </td>
       </tr>
+      {% else %}
+      <tr><td colspan="5" class="empty-row">No items in this category yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -89,6 +98,7 @@
   </table>
 </div>
 {% endif %}
+
 {% if recent_site_deliveries %}
 <div class="card" style="margin-top: 16px;">
   <h3>Recent site deliveries</h3>
@@ -108,4 +118,45 @@
   </table>
 </div>
 {% endif %}
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin: 18px 0 22px;
+  }
+  .stat-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .stat-card-warning {
+    border-color: #f0b429;
+    background: #fffaf0;
+  }
+  .stat-label {
+    font-size: 12px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .stat-value {
+    font-size: 26px;
+    font-weight: 700;
+    color: #111827;
+  }
+  .empty-row {
+    text-align: center;
+    color: #9ca3af;
+    padding: 24px 0;
+  }
+</style>
 {% endblock %}

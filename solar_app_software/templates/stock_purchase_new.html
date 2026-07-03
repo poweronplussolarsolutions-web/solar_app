@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header">
+  <h2>Record distributor purchase</h2>
+  <a href="{{ url_for('stock_dashboard') }}" class="btn btn-outline">← Back to dashboard</a>
+</div>
+
+<div class="card" style="max-width: 560px;">
+  <p class="muted" style="margin-top:-4px;">
+    Stock bought directly from a supplier — not tied to any project.
+  </p>
+
+  <form method="POST" action="{{ url_for('stock_purchase') }}" class="grid-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <label>Item *</label>
+      <select name="stock_item_id" required>
+        <option value="">Select item…</option>
+        {% for i in items %}
+        <option value="{{ i.id }}">{{ i.category }} — {{ i.display_name }} ({{ i.current_qty }} {{ i.unit }})</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Quantity *</label>
+      <input type="number" step="0.01" name="quantity" placeholder="Quantity" required>
+    </div>
+
+    <div class="form-group">
+      <label>Vendor / distributor</label>
+      <input type="text" name="vendor" placeholder="Vendor / distributor name">
+    </div>
+
+    <div class="form-group">
+      <label>Invoice / bill no.</label>
+      <input type="text" name="invoice_no" placeholder="Optional">
+    </div>
+
+    <div class="form-group" style="grid-column: 1 / -1;">
+      <label>Note</label>
+      <input type="text" name="notes" placeholder="Optional">
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:6px; grid-column: 1 / -1;">
+      <button type="submit" class="btn btn-primary">Record purchase</button>
+      <a href="{{ url_for('stock_dashboard') }}" class="btn btn-outline">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

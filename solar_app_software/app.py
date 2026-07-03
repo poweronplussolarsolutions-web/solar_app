@@ -3678,11 +3678,15 @@ def deliver_stock_to_site(pid):
 
 
 # ── Stocks: manual purchase from a distributor (not tied to a project) ────────
-@app.route('/stock/purchase', methods=['POST'])
+@app.route('/stock/purchase', methods=['GET', 'POST'])
 @login_required
-@roles_required('admin', 'stocks','onsite')
+@roles_required('admin', 'stocks', 'onsite')
 @limiter.limit('30 per minute')
 def stock_purchase():
+    if request.method == 'GET':
+        items = StockItem.query.filter_by(is_active=True).order_by(StockItem.category, StockItem.name).all()
+        return render_template('stock_purchase_new.html', items=items)
+
     item_id  = request.form.get('stock_item_id', type=int)
     qty      = _safe_float(request.form.get('quantity'))
     vendor   = _clean(request.form.get('vendor', ''), 100)
@@ -3691,7 +3695,7 @@ def stock_purchase():
 
     if not item_id or qty <= 0:
         flash('Please select an item and enter a valid quantity.', 'danger')
-        return redirect(url_for('stock_dashboard'))
+        return redirect(url_for('stock_purchase'))
 
     item = StockItem.query.get_or_404(item_id)
     parts = [p for p in [f'Vendor: {vendor}' if vendor else '',
@@ -3798,17 +3802,24 @@ def manage_stock_items():
                            brands=brands, units=units)
  
  
-@app.route('/stock/items/new', methods=['POST'])
+@app.route('/stock/items/new', methods=['GET', 'POST'])
 @login_required
 @roles_required('admin', 'stocks')
 @limiter.limit('30 per minute')
 def new_stock_item():
+    if request.method == 'GET':
+        categories = [r[0] for r in db.session.query(StockItem.category).distinct() if r[0]]
+        brands     = [r[0] for r in db.session.query(StockItem.brand).distinct() if r[0]]
+        units      = [r[0] for r in db.session.query(StockItem.unit).distinct() if r[0]]
+        return render_template('stock_item_new.html',
+                                categories=categories, brands=brands, units=units)
+
     category = _clean(request.form.get('category', ''), 50)
     name     = _clean(request.form.get('name', ''), 120)
     if not category or not name:
         flash('Category and item name are required.', 'danger')
-        return redirect(url_for('manage_stock_items'))
- 
+        return redirect(url_for('new_stock_item'))
+
     # Prevent near-duplicate catalog entries
     dup = StockItem.query.filter_by(
         category=category,
@@ -3819,8 +3830,8 @@ def new_stock_item():
     if dup:
         flash(f'"{dup.display_name}" already exists in the catalog. '
               f'Use Adjust Stock to change its quantity instead.', 'warning')
-        return redirect(url_for('manage_stock_items'))
- 
+        return redirect(url_for('new_stock_item'))
+
     item = StockItem(
         category      = category,
         brand         = _clean(request.form.get('brand', ''), 60) or None,
@@ -3834,16 +3845,15 @@ def new_stock_item():
     )
     db.session.add(item)
     db.session.flush()
- 
+
     opening_qty = _safe_float(request.form.get('opening_qty', 0))
     if opening_qty > 0:
         record_stock_txn(item.id, 'In', opening_qty, source='Manual',
                           notes='Opening stock on item creation')
- 
+
     db.session.commit()
     flash(f'"{item.display_name}" added to the stock catalog.', 'success')
     return redirect(url_for('manage_stock_items'))
- 
  
 @app.route('/stock/items/<int:iid>/edit', methods=['POST'])
 @login_required

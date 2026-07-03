@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header">
+  <h2>Add stock item</h2>
+  <a href="{{ url_for('stock_dashboard') }}" class="btn btn-outline">← Back to dashboard</a>
+</div>
+
+<div class="card" style="max-width: 640px;">
+  <p class="muted" style="margin-top:-4px;">
+    Category, brand and unit auto-suggest from what's already in the catalog —
+    type a new value if it doesn't exist yet, it'll be added automatically.
+  </p>
+
+  <form method="POST" action="{{ url_for('new_stock_item') }}" class="grid-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+    <div class="form-group">
+      <label>Category *</label>
+      <input list="category-list" name="category" required
+             placeholder="e.g. Panel, Inverter, Accessories, Welding">
+      <datalist id="category-list">
+        {% for c in categories %}<option value="{{ c }}">{% endfor %}
+      </datalist>
+    </div>
+
+    <div class="form-group">
+      <label>Brand</label>
+      <input list="brand-list" name="brand" placeholder="e.g. Waaree, UTL, Microtek, Adani">
+      <datalist id="brand-list">
+        {% for b in brands %}<option value="{{ b }}">{% endfor %}
+      </datalist>
+    </div>
+
+    <div class="form-group">
+      <label>Subtype</label>
+      <input name="subtype" placeholder="e.g. DCR / Ongrid / Lithium">
+    </div>
+
+    <div class="form-group">
+      <label>Model name</label>
+      <input name="model_name" placeholder="e.g. Gamma 1012, Sigma 5048">
+    </div>
+
+    <div class="form-group">
+      <label>Item name *</label>
+      <input name="name" required placeholder="e.g. ACDB, Earth Rod, Welding Rod">
+    </div>
+
+    <div class="form-group">
+      <label>Unit</label>
+      <input list="unit-list" name="unit" value="pcs" placeholder="pcs, kg, roll, set">
+      <datalist id="unit-list">
+        {% for u in units %}<option value="{{ u }}">{% endfor %}
+      </datalist>
+    </div>
+
+    <div class="form-group">
+      <label>Reorder level</label>
+      <input type="number" step="0.01" name="reorder_level" value="0">
+    </div>
+
+    <div class="form-group">
+      <label>Opening quantity</label>
+      <input type="number" step="0.01" name="opening_qty" value="0">
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:6px;">
+      <button type="submit" class="btn btn-primary">Add item</button>
+      <a href="{{ url_for('stock_dashboard') }}" class="btn btn-outline">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}
