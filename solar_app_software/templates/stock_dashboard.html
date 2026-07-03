@@ -3,16 +3,14 @@
 {% block content %}
 <div class="space-y-6">
 
-  <!-- Header -->
+  <!-- Page header -->
   <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
     <div>
       <h2 class="text-2xl font-semibold tracking-tight text-slate-900">Stock dashboard</h2>
-      <p class="mt-1 text-sm text-slate-500">Monitor stock levels, activity, and replenishment in one place.</p>
+      <p class="mt-1 text-sm text-slate-500">Monitor stock levels, category movement, and recent activity.</p>
     </div>
 
-    <div class="flex flex-wrap items-center gap-2">
-      <a href="{{ url_for('stock_dashboard') }}" class="btn-secondary">Reset</a>
-
+    <div class="flex flex-wrap gap-2">
       {% if current_user.role in ['admin', 'stocks'] %}
       <a href="{{ url_for('manage_stock_items') }}" class="btn-secondary">Manage catalog</a>
       <a href="{{ url_for('new_stock_item') }}" class="btn-secondary">+ Add item</a>
@@ -21,15 +19,17 @@
     </div>
   </div>
 
-  <!-- Alert -->
+  <!-- Warning banner -->
   {% if low_stock %}
-  <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+  <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <p class="font-medium">{{ low_stock|length }} item(s) at or below reorder level</p>
-        <p class="mt-1 text-sm">
+        <div class="text-sm font-semibold text-amber-900">
+          {{ low_stock|length }} item(s) at or below reorder level
+        </div>
+        <div class="mt-1 text-sm text-amber-800">
           {{ low_stock|map(attribute='display_name')|join(', ') }}
-        </p>
+        </div>
       </div>
       {% if current_user.role in ['admin', 'stocks'] %}
       <a href="{{ url_for('stock_purchase') }}" class="btn-warning">Create purchase</a>
@@ -38,27 +38,52 @@
   </div>
   {% endif %}
 
-  <!-- KPI cards -->
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-    <div class="kpi-card">
-      <span class="kpi-label">Total items</span>
-      <span class="kpi-value">{{ items|length }}</span>
+  <!-- Stats cards -->
+  <div class="stats-grid">
+    <div class="stat-card stat-card-blue">
+      <div class="stat-top">
+        <div class="stat-icon">📦</div>
+        <span class="stat-badge">Catalog</span>
+      </div>
+      <div class="stat-value">{{ items|length }}</div>
+      <div class="stat-label">Total items</div>
+      <div class="stat-note">All stock items in inventory</div>
     </div>
-    <div class="kpi-card">
-      <span class="kpi-label">Categories</span>
-      <span class="kpi-value">{{ categories|length }}</span>
+
+    <div class="stat-card stat-card-green">
+      <div class="stat-top">
+        <div class="stat-icon">🏷️</div>
+        <span class="stat-badge">Groups</span>
+      </div>
+      <div class="stat-value">{{ categories|length }}</div>
+      <div class="stat-label">Categories</div>
+      <div class="stat-note">Organized item groups</div>
     </div>
-    <div class="kpi-card {% if low_stock %}kpi-card-warn{% endif %}">
-      <span class="kpi-label">Low stock</span>
-      <span class="kpi-value">{{ low_stock|length }}</span>
+
+    <div class="stat-card {% if low_stock %}stat-card-amber{% endif %}">
+      <div class="stat-top">
+        <div class="stat-icon">⚠️</div>
+        <span class="stat-badge">Alert</span>
+      </div>
+      <div class="stat-value">{{ low_stock|length }}</div>
+      <div class="stat-label">Low stock</div>
+      <div class="stat-note">
+        {% if low_stock %}Needs replenishment{% else %}All items healthy{% endif %}
+      </div>
     </div>
-    <div class="kpi-card">
-      <span class="kpi-label">Units on hand</span>
-      <span class="kpi-value">{{ items|sum(attribute='current_qty')|round(0, 'floor')|int }}</span>
+
+    <div class="stat-card stat-card-purple">
+      <div class="stat-top">
+        <div class="stat-icon">🧮</div>
+        <span class="stat-badge">Units</span>
+      </div>
+      <div class="stat-value">{{ items|sum(attribute='current_qty')|round(0, 'floor')|int }}</div>
+      <div class="stat-label">Units on hand</div>
+      <div class="stat-note">Total physical stock</div>
     </div>
   </div>
 
-  <!-- Filters -->
+  <!-- Filter bar -->
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
       <div class="flex flex-1 flex-col gap-3 sm:flex-row">
@@ -87,7 +112,7 @@
     </div>
   </div>
 
-  <!-- Stock table -->
+  <!-- Current stock -->
   <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
     <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
       <h3 class="text-base font-semibold text-slate-900">
@@ -112,24 +137,16 @@
           {% for i in items %}
           <tr class="hover:bg-slate-50 {% if i.is_low %}bg-amber-50/50{% endif %}">
             <td class="px-4 py-3 text-sm text-slate-700">{{ i.category }}</td>
-
             <td class="px-4 py-3">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-medium text-slate-900">{{ i.display_name }}</span>
                 {% if i.is_low %}
-                <span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                  low
-                </span>
+                <span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">low</span>
                 {% endif %}
               </div>
             </td>
-
-            <td class="px-4 py-3 text-sm font-medium text-slate-900">
-              {{ i.current_qty }}
-            </td>
-
+            <td class="px-4 py-3 text-sm font-medium text-slate-900">{{ i.current_qty }}</td>
             <td class="px-4 py-3 text-sm text-slate-700">{{ i.unit }}</td>
-
             <td class="px-4 py-3 text-right">
               {% if current_user.role in ['admin', 'stocks'] %}
               <a href="{{ url_for('stock_item_ledger', iid=i.id) }}" class="btn-mini">Ledger</a>
@@ -148,7 +165,7 @@
     </div>
   </div>
 
-  <!-- Activity blocks -->
+  <!-- Recent sections -->
   {% if recent_txns or recent_site_deliveries %}
   <div class="grid gap-6 lg:grid-cols-2">
     {% if recent_txns %}
@@ -164,6 +181,7 @@
               <th class="px-4 py-3">Item</th>
               <th class="w-24 px-4 py-3">Type</th>
               <th class="w-24 px-4 py-3">Qty</th>
+              <th class="w-24 px-4 py-3">Source</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
@@ -173,6 +191,7 @@
               <td class="px-4 py-3 text-slate-900">{{ t.stock_item.display_name }}</td>
               <td class="px-4 py-3 text-slate-700">{{ t.txn_type }}</td>
               <td class="px-4 py-3 text-slate-700">{{ t.quantity }} {{ t.stock_item.unit }}</td>
+              <td class="px-4 py-3 text-slate-700">{{ t.source }}</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -193,7 +212,8 @@
               <th class="w-28 px-4 py-3">Date</th>
               <th class="px-4 py-3">Item</th>
               <th class="w-24 px-4 py-3">Qty</th>
-              <th class="w-24 px-4 py-3">Project</th>
+              <th class="w-28 px-4 py-3">Project</th>
+              <th class="w-24 px-4 py-3">By</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
@@ -211,6 +231,7 @@
                 —
                 {% endif %}
               </td>
+              <td class="px-4 py-3 text-slate-700">{{ t.recorder.full_name if t.recorder else '—' }}</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -226,38 +247,195 @@
 
 {% block extra_css %}
 <style>
-  .kpi-card {
-    @apply rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md;
+  body {
+    background: #f8fafc;
   }
-  .kpi-card-warn {
-    @apply border-amber-200 bg-amber-50;
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 18px;
   }
-  .kpi-label {
-    @apply block text-xs font-medium uppercase tracking-wide text-slate-500;
+
+  .stat-card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 18px;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   }
-  .kpi-value {
-    @apply mt-2 block text-3xl font-semibold text-slate-900;
+
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+    border-color: #cbd5e1;
   }
-  .pill {
-    @apply inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50;
+
+  .stat-card::after {
+    content: "";
+    position: absolute;
+    right: -20px;
+    bottom: -20px;
+    width: 92px;
+    height: 92px;
+    border-radius: 999px;
+    background: rgba(59, 130, 246, 0.06);
   }
-  .pill-active {
-    @apply border-slate-900 bg-slate-900 text-white hover:bg-slate-900;
+
+  .stat-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
   }
+
+  .stat-icon {
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    font-size: 18px;
+  }
+
+  .stat-badge {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    padding: 6px 10px;
+    border-radius: 999px;
+  }
+
+  .stat-value {
+    font-size: 36px;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #0f172a;
+  }
+
+  .stat-label {
+    margin-top: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #334155;
+  }
+
+  .stat-note {
+    margin-top: 6px;
+    font-size: 13px;
+    color: #64748b;
+  }
+
+  .stat-card-blue { border-top: 4px solid #3b82f6; }
+  .stat-card-green { border-top: 4px solid #10b981; }
+  .stat-card-amber { border-top: 4px solid #f59e0b; background: linear-gradient(180deg, #fffbeb 0%, #fffdf7 100%); }
+  .stat-card-purple { border-top: 4px solid #8b5cf6; }
+
   .input-field {
-    @apply w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10;
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 14px;
+    background: #fff;
+    padding: 0.7rem 1rem;
+    font-size: 0.875rem;
+    color: #0f172a;
+    outline: none;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
   }
-  .btn-primary {
-    @apply inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800;
+
+  .input-field:focus {
+    border-color: #0f172a;
+    box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.08);
   }
-  .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50;
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    padding: 0.55rem 0.9rem;
+    font-size: 0.875rem;
+    color: #334155;
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
   }
-  .btn-warning {
-    @apply inline-flex items-center justify-center rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-amber-700;
+
+  .pill:hover {
+    background: #f8fafc;
   }
+
+  .pill-active {
+    background: #0f172a;
+    border-color: #0f172a;
+    color: #fff;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .btn-warning,
   .btn-mini {
-    @apply inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    padding: 0.72rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+  }
+
+  .btn-primary {
+    background: #0f172a;
+    color: #fff;
+  }
+
+  .btn-primary:hover { background: #1e293b; }
+
+  .btn-secondary {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+  }
+
+  .btn-secondary:hover {
+    background: #f8fafc;
+  }
+
+  .btn-warning {
+    background: #d97706;
+    color: #fff;
+  }
+
+  .btn-warning:hover {
+    background: #b45309;
+  }
+
+  .btn-mini {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    padding: 0.45rem 0.75rem;
+  }
+
+  .btn-mini:hover {
+    background: #f8fafc;
+  }
+
+  @media (max-width: 640px) {
+    .stat-value {
+      font-size: 30px;
+    }
   }
 </style>
 {% endblock %}
