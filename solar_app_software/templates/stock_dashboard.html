@@ -1,162 +1,263 @@
 {% extends "base.html" %}
-{% block content %}
 
-<div class="page-header">
-  <h2>Stock dashboard</h2>
-  <div style="display:flex; gap:8px;">
-    {% if current_user.role in ['admin', 'stocks'] %}
-    <a href="{{ url_for('manage_stock_items') }}" class="btn btn-outline">Manage catalog</a>
-    <a href="{{ url_for('new_stock_item') }}" class="btn btn-outline">+ Add item</a>
-    <a href="{{ url_for('stock_purchase') }}" class="btn btn-primary">+ Record purchase</a>
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header -->
+  <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div>
+      <h2 class="text-2xl font-semibold tracking-tight text-slate-900">Stock dashboard</h2>
+      <p class="mt-1 text-sm text-slate-500">Monitor stock levels, activity, and replenishment in one place.</p>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <a href="{{ url_for('stock_dashboard') }}" class="btn-secondary">Reset</a>
+
+      {% if current_user.role in ['admin', 'stocks'] %}
+      <a href="{{ url_for('manage_stock_items') }}" class="btn-secondary">Manage catalog</a>
+      <a href="{{ url_for('new_stock_item') }}" class="btn-secondary">+ Add item</a>
+      <a href="{{ url_for('stock_purchase') }}" class="btn-primary">+ Record purchase</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Alert -->
+  {% if low_stock %}
+  <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p class="font-medium">{{ low_stock|length }} item(s) at or below reorder level</p>
+        <p class="mt-1 text-sm">
+          {{ low_stock|map(attribute='display_name')|join(', ') }}
+        </p>
+      </div>
+      {% if current_user.role in ['admin', 'stocks'] %}
+      <a href="{{ url_for('stock_purchase') }}" class="btn-warning">Create purchase</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- KPI cards -->
+  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div class="kpi-card">
+      <span class="kpi-label">Total items</span>
+      <span class="kpi-value">{{ items|length }}</span>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Categories</span>
+      <span class="kpi-value">{{ categories|length }}</span>
+    </div>
+    <div class="kpi-card {% if low_stock %}kpi-card-warn{% endif %}">
+      <span class="kpi-label">Low stock</span>
+      <span class="kpi-value">{{ low_stock|length }}</span>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Units on hand</span>
+      <span class="kpi-value">{{ items|sum(attribute='current_qty')|round(0, 'floor')|int }}</span>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div class="flex flex-1 flex-col gap-3 sm:flex-row">
+        <input
+          type="search"
+          name="q"
+          value="{{ request.args.get('q', '') }}"
+          placeholder="Search item, category, or unit..."
+          class="input-field sm:max-w-sm"
+        >
+
+        <select name="category" class="input-field sm:max-w-xs">
+          <option value="">All categories</option>
+          {% for c in categories %}
+          <option value="{{ c }}" {% if selected_cat == c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <a href="{{ url_for('stock_dashboard') }}" class="pill {% if not selected_cat %}pill-active{% endif %}">All</a>
+        {% for c in categories %}
+        <a href="{{ url_for('stock_dashboard', category=c) }}" class="pill {% if selected_cat == c %}pill-active{% endif %}">{{ c }}</a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Stock table -->
+  <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+      <h3 class="text-base font-semibold text-slate-900">
+        Current stock{% if selected_cat %} — {{ selected_cat }}{% endif %}
+      </h3>
+      <span class="text-sm text-slate-500">{{ items|length }} item(s)</span>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="min-w-full table-fixed text-left">
+        <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <tr>
+            <th class="w-32 px-4 py-3">Category</th>
+            <th class="px-4 py-3">Item</th>
+            <th class="w-28 px-4 py-3">Qty</th>
+            <th class="w-24 px-4 py-3">Unit</th>
+            <th class="w-28 px-4 py-3 text-right">Action</th>
+          </tr>
+        </thead>
+
+        <tbody class="divide-y divide-slate-100">
+          {% for i in items %}
+          <tr class="hover:bg-slate-50 {% if i.is_low %}bg-amber-50/50{% endif %}">
+            <td class="px-4 py-3 text-sm text-slate-700">{{ i.category }}</td>
+
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-slate-900">{{ i.display_name }}</span>
+                {% if i.is_low %}
+                <span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                  low
+                </span>
+                {% endif %}
+              </div>
+            </td>
+
+            <td class="px-4 py-3 text-sm font-medium text-slate-900">
+              {{ i.current_qty }}
+            </td>
+
+            <td class="px-4 py-3 text-sm text-slate-700">{{ i.unit }}</td>
+
+            <td class="px-4 py-3 text-right">
+              {% if current_user.role in ['admin', 'stocks'] %}
+              <a href="{{ url_for('stock_item_ledger', iid=i.id) }}" class="btn-mini">Ledger</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5" class="px-4 py-10 text-center text-sm text-slate-500">
+              No items in this category yet.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Activity blocks -->
+  {% if recent_txns or recent_site_deliveries %}
+  <div class="grid gap-6 lg:grid-cols-2">
+    {% if recent_txns %}
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="border-b border-slate-200 px-4 py-3">
+        <h3 class="text-base font-semibold text-slate-900">Recent activity</h3>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full table-fixed text-left text-sm">
+          <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <tr>
+              <th class="w-28 px-4 py-3">Date</th>
+              <th class="px-4 py-3">Item</th>
+              <th class="w-24 px-4 py-3">Type</th>
+              <th class="w-24 px-4 py-3">Qty</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for t in recent_txns %}
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-3 text-slate-600">{{ t.created_at.strftime('%d %b %H:%M') }}</td>
+              <td class="px-4 py-3 text-slate-900">{{ t.stock_item.display_name }}</td>
+              <td class="px-4 py-3 text-slate-700">{{ t.txn_type }}</td>
+              <td class="px-4 py-3 text-slate-700">{{ t.quantity }} {{ t.stock_item.unit }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if recent_site_deliveries %}
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="border-b border-slate-200 px-4 py-3">
+        <h3 class="text-base font-semibold text-slate-900">Recent site deliveries</h3>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full table-fixed text-left text-sm">
+          <thead class="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <tr>
+              <th class="w-28 px-4 py-3">Date</th>
+              <th class="px-4 py-3">Item</th>
+              <th class="w-24 px-4 py-3">Qty</th>
+              <th class="w-24 px-4 py-3">Project</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for t in recent_site_deliveries %}
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-3 text-slate-600">{{ t.created_at.strftime('%d %b %H:%M') }}</td>
+              <td class="px-4 py-3 text-slate-900">{{ t.stock_item.display_name }}</td>
+              <td class="px-4 py-3 text-slate-700">{{ t.quantity }} {{ t.stock_item.unit }}</td>
+              <td class="px-4 py-3 text-slate-700">
+                {% if t.project %}
+                <a href="{{ url_for('project_detail', pid=t.project.id) }}" class="text-blue-600 hover:underline">
+                  {{ t.project.project_code }}
+                </a>
+                {% else %}
+                —
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
     {% endif %}
   </div>
-</div>
+  {% endif %}
 
-{% if low_stock %}
-<div class="alert alert-warning">
-  <strong>{{ low_stock|length }} item(s) at or below reorder level:</strong>
-  {{ low_stock|map(attribute='display_name')|join(', ') }}
 </div>
-{% endif %}
-
-<!-- ── Stock summary stat cards ─────────────────────────────────────── -->
-<div class="stat-grid">
-  <div class="stat-card">
-    <span class="stat-label">Total items</span>
-    <span class="stat-value">{{ items|length }}</span>
-  </div>
-  <div class="stat-card">
-    <span class="stat-label">Categories</span>
-    <span class="stat-value">{{ categories|length }}</span>
-  </div>
-  <div class="stat-card {{ 'stat-card-warning' if low_stock }}">
-    <span class="stat-label">Low stock</span>
-    <span class="stat-value">{{ low_stock|length }}</span>
-  </div>
-  <div class="stat-card">
-    <span class="stat-label">Total units on hand</span>
-    <span class="stat-value">{{ items|sum(attribute='current_qty')|round(0, 'floor')|int }}</span>
-  </div>
-</div>
-
-<!-- ── Category filter ──────────────────────────────────────────────── -->
-<div class="filter-pills">
-  <a href="{{ url_for('stock_dashboard') }}" class="pill {{ 'active' if not selected_cat }}">All</a>
-  {% for c in categories %}
-  <a href="{{ url_for('stock_dashboard', category=c) }}" class="pill {{ 'active' if selected_cat == c }}">{{ c }}</a>
-  {% endfor %}
-</div>
-
-<!-- ── Current stock by item ────────────────────────────────────────── -->
-<div class="card">
-  <h3>Current stock{% if selected_cat %} — {{ selected_cat }}{% endif %}</h3>
-  <table class="data-table">
-    <thead>
-      <tr><th>Category</th><th>Item</th><th>Qty</th><th>Unit</th><th></th></tr>
-    </thead>
-    <tbody>
-      {% for i in items %}
-      <tr class="{{ 'row-low' if i.is_low }}">
-        <td>{{ i.category }}</td>
-        <td>{{ i.display_name }}</td>
-        <td>
-          {{ i.current_qty }}
-          {% if i.is_low %} <span class="badge badge-warning">low</span>{% endif %}
-        </td>
-        <td>{{ i.unit }}</td>
-        <td>
-          {% if current_user.role in ['admin', 'stocks'] %}
-          <a href="{{ url_for('stock_item_ledger', iid=i.id) }}" class="btn btn-sm">Ledger</a>
-          {% endif %}
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="5" class="empty-row">No items in this category yet.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-
-<!-- ── Recent activity ──────────────────────────────────────────────── -->
-{% if recent_txns %}
-<div class="card" style="margin-top: 16px;">
-  <h3>Recent activity</h3>
-  <table class="data-table">
-    <thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Qty</th><th>Source</th><th>By</th></tr></thead>
-    <tbody>
-      {% for t in recent_txns %}
-      <tr>
-        <td>{{ t.created_at.strftime('%d %b %H:%M') }}</td>
-        <td>{{ t.stock_item.display_name }}</td>
-        <td>{{ t.txn_type }}</td>
-        <td>{{ t.quantity }} {{ t.stock_item.unit }}</td>
-        <td>{{ t.source }}</td>
-        <td>{{ t.recorder.full_name if t.recorder else '—' }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-{% if recent_site_deliveries %}
-<div class="card" style="margin-top: 16px;">
-  <h3>Recent site deliveries</h3>
-  <table class="data-table">
-    <thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>Project</th><th>By</th></tr></thead>
-    <tbody>
-      {% for t in recent_site_deliveries %}
-      <tr>
-        <td>{{ t.created_at.strftime('%d %b %H:%M') }}</td>
-        <td>{{ t.stock_item.display_name }}</td>
-        <td>{{ t.quantity }} {{ t.stock_item.unit }}</td>
-        <td>{% if t.project %}<a href="{{ url_for('project_detail', pid=t.project.id) }}">{{ t.project.project_code }}</a>{% else %}—{% endif %}</td>
-        <td>{{ t.recorder.full_name if t.recorder else '—' }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
 {% endblock %}
 
 {% block extra_css %}
 <style>
-  .stat-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 14px;
-    margin: 18px 0 22px;
+  .kpi-card {
+    @apply rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md;
   }
-  .stat-card {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    padding: 16px 18px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+  .kpi-card-warn {
+    @apply border-amber-200 bg-amber-50;
   }
-  .stat-card-warning {
-    border-color: #f0b429;
-    background: #fffaf0;
+  .kpi-label {
+    @apply block text-xs font-medium uppercase tracking-wide text-slate-500;
   }
-  .stat-label {
-    font-size: 12px;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: .04em;
+  .kpi-value {
+    @apply mt-2 block text-3xl font-semibold text-slate-900;
   }
-  .stat-value {
-    font-size: 26px;
-    font-weight: 700;
-    color: #111827;
+  .pill {
+    @apply inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50;
   }
-  .empty-row {
-    text-align: center;
-    color: #9ca3af;
-    padding: 24px 0;
+  .pill-active {
+    @apply border-slate-900 bg-slate-900 text-white hover:bg-slate-900;
+  }
+  .input-field {
+    @apply w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50;
+  }
+  .btn-warning {
+    @apply inline-flex items-center justify-center rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-amber-700;
+  }
+  .btn-mini {
+    @apply inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50;
   }
 </style>
 {% endblock %}
