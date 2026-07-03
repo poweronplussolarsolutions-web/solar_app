@@ -8,9 +8,9 @@
 <!-- ── Add new item ─────────────────────────────────────────────────── -->
 <div class="card" style="margin-bottom: 24px;">
   <h3>Add new stock item</h3>
-  <p class="muted">Category, brand and unit auto-suggest from what's already
+  <!-- <p class="muted">Category, brand and unit auto-suggest from what's already
      in the catalog — type a new value if it doesn't exist yet, it'll be
-     added automatically. No code changes needed.</p>
+     added automatically. No code changes needed.</p> -->
 
   <form method="POST" action="{{ url_for('new_stock_item') }}" class="grid-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
