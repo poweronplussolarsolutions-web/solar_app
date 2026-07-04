@@ -12,7 +12,7 @@
     <table>
       <thead>
         <tr>
-          <th>Category</th><th>Brand</th><th>Model</th><th>Item</th>
+          <th>Category</th><th>Brand</th><th>Description</th>
           <th>Unit</th><th>Qty</th><th>Reorder at</th><th></th>
         </tr>
       </thead>
@@ -21,7 +21,6 @@
         <tr style="{% if not i.is_active %}opacity:.5{% elif i.is_low %}background:var(--amber-50){% endif %}">
           <td style="color:var(--muted)">{{ i.category }}</td>
           <td>{{ i.brand or '—' }}</td>
-          <td>{{ i.model_name or '—' }}</td>
           <td style="font-weight:500">{{ i.name }}</td>
           <td style="color:var(--muted)">{{ i.unit }}</td>
           <td>
