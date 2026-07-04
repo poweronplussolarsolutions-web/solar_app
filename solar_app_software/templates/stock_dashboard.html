@@ -5,7 +5,6 @@
   {% if current_user.role in ['admin', 'stocks'] %}
   <a href="{{ url_for('manage_stock_items') }}" class="btn btn-sm">Manage catalog</a>
   <a href="{{ url_for('new_stock_item') }}" class="btn btn-sm">+ Add item</a>
-  <a href="{{ url_for('stock_purchase') }}" class="btn btn-sm btn-primary">+ Record purchase</a>
   {% endif %}
 {% endblock %}
 
@@ -45,7 +44,7 @@
     <div class="stat-value" style="color:{% if low_stock %}var(--red-600){% else %}var(--green-600){% endif %}">
       {{ low_stock|length }}
     </div>
-    <div class="stat-sub">{% if low_stock %}Needs replenishment{% else %}All healthy{% endif %}</div>
+    <div class="stat-sub">{% if low_stock %}Needs replenishment{% else %}All Good{% endif %}</div>
   </div>
   <!-- <div class="stat-card">
     <div class="stat-label">Units on hand</div>
@@ -71,11 +70,19 @@
 </div>
 
 <div class="card">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-    <div class="card-title" style="margin:0">
-      Current stock{% if selected_cat %} — {{ selected_cat }}{% endif %}
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div class="card-title" style="margin:0">
+        Current stock{% if selected_cat %} — {{ selected_cat }}{% endif %}
+      </div>
+      <span style="font-size:12px;color:var(--muted)">{{ items|length }} item(s)</span>
     </div>
-    <span style="font-size:12px;color:var(--muted)">{{ items|length }} item(s)</span>
+    {% if current_user.role in ['admin', 'stocks'] %}
+    <div style="display:flex;gap:8px">
+      <a href="{{ url_for('stock_purchase') }}" class="btn btn-sm btn-primary">+ Record purchase</a>
+      <a href="{{ url_for('stock_sale') }}" class="btn btn-sm btn-danger">− Record sale</a>
+    </div>
+    {% endif %}
   </div>
   <div class="table-wrap">
     <table>

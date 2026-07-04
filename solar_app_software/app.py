@@ -3706,7 +3706,39 @@ def stock_purchase():
     flash(f'Purchase of {qty} {item.unit} "{item.display_name}" recorded'
           + (f' from {vendor}.' if vendor else '.'), 'success')
     return redirect(url_for('stock_dashboard'))
+# ── Stocks: sale/dispatch to another distributor or buyer (stock out) ─────────
+@app.route('/stock/sale', methods=['GET', 'POST'])
+@login_required
+@roles_required('admin', 'stocks')
+@limiter.limit('30 per minute')
+def stock_sale():
+    if request.method == 'GET':
+        items = StockItem.query.filter_by(is_active=True).order_by(StockItem.category, StockItem.name).all()
+        return render_template('stock_sale_new.html', items=items)
 
+    item_id  = request.form.get('stock_item_id', type=int)
+    qty      = _safe_float(request.form.get('quantity'))
+    buyer    = _clean(request.form.get('buyer', ''), 100)
+    invoice  = _clean(request.form.get('invoice_no', ''), 60)
+    notes_in = _clean(request.form.get('notes', ''), 200)
+
+    if not item_id or qty <= 0:
+        flash('Please select an item and enter a valid quantity.', 'danger')
+        return redirect(url_for('stock_sale'))
+
+    item = StockItem.query.get_or_404(item_id)
+    if qty > float(item.current_qty or 0):
+        flash(f'Cannot sell {qty} {item.unit} — only {item.current_qty} {item.unit} in stock.', 'danger')
+        return redirect(url_for('stock_sale'))
+
+    parts = [p for p in [f'Buyer: {buyer}' if buyer else '',
+                          f'Invoice: {invoice}' if invoice else '',
+                          notes_in] if p]
+    record_stock_txn(item_id, 'Out', qty, source='Sale', notes=' | '.join(parts) or None)
+    db.session.commit()
+    flash(f'Sale of {qty} {item.unit} "{item.display_name}" recorded'
+          + (f' to {buyer}.' if buyer else '.'), 'success')
+    return redirect(url_for('stock_dashboard'))
 @app.route('/projects/<int:pid>/materials/update/<int:mid>', methods=['POST'])
 @login_required
 @roles_required('admin', 'onsite')

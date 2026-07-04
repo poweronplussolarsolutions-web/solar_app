@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block page_title %}Ledger — {{ item.display_name }}{% endblock %}
 {% block topbar_actions %}
-<a href="{{ url_for('manage_stock_items') }}" class="btn btn-sm">← Back to catalog</a>
+<a href="{{ url_for('stock_dashboard') }}" class="btn btn-sm">← Back</a>
+<a href="{{ url_for('manage_stock_items') }}" class="btn btn-sm">Catalog</a>
 {% endblock %}
 
 {% block content %}
