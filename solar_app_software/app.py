@@ -3846,47 +3846,60 @@ def new_stock_item():
         return render_template('stock_item_new.html',
                                 categories=categories, brands=brands, units=units)
 
-    category = _clean(request.form.get('category', ''), 50)
-    name     = _clean(request.form.get('name', ''), 120)
-    if not category or not name:
-        flash('Category and item name are required.', 'danger')
+    category   = _clean(request.form.get('category', ''), 50)
+    brand      = _clean(request.form.get('brand', ''), 60) or None
+    subtype    = _clean(request.form.get('subtype', ''), 40) or None
+    model_name = _clean(request.form.get('model_name', ''), 60) or None
+    unit       = _clean(request.form.get('unit', ''), 20) or 'pcs'
+    reorder_level = _safe_float(request.form.get('reorder_level', 0))
+
+    raw_names = request.form.get('names', '')
+    # dedupe within the pasted list itself, preserve order
+    seen = set()
+    names = []
+    for line in raw_names.splitlines():
+        n = _clean(line, 120)
+        if n and n.lower() not in seen:
+            seen.add(n.lower())
+            names.append(n)
+
+    if not category or not names:
+        flash('Category and at least one item name are required.', 'danger')
         return redirect(url_for('new_stock_item'))
 
-    # Prevent near-duplicate catalog entries
-    dup = StockItem.query.filter_by(
-        category=category,
-        brand=_clean(request.form.get('brand', ''), 60) or None,
-        model_name=_clean(request.form.get('model_name', ''), 60) or None,
-        name=name,
-    ).first()
-    if dup:
-        flash(f'"{dup.display_name}" already exists in the catalog. '
-              f'Use Adjust Stock to change its quantity instead.', 'warning')
-        return redirect(url_for('new_stock_item'))
+    created, skipped = [], []
+    for name in names:
+        dup = StockItem.query.filter_by(
+            category=category, brand=brand, model_name=model_name, name=name,
+        ).first()
+        if dup:
+            skipped.append(dup.display_name)
+            continue
 
-    item = StockItem(
-        category      = category,
-        brand         = _clean(request.form.get('brand', ''), 60) or None,
-        subtype       = _clean(request.form.get('subtype', ''), 40) or None,
-        model_name    = _clean(request.form.get('model_name', ''), 60) or None,
-        name          = name,
-        unit          = _clean(request.form.get('unit', ''), 20) or 'pcs',
-        reorder_level = _safe_float(request.form.get('reorder_level', 0)),
-        current_qty   = 0,
-        created_by    = current_user.id,
-    )
-    db.session.add(item)
-    db.session.flush()
-
-    opening_qty = _safe_float(request.form.get('opening_qty', 0))
-    if opening_qty > 0:
-        record_stock_txn(item.id, 'In', opening_qty, source='Manual',
-                          notes='Opening stock on item creation')
+        item = StockItem(
+            category      = category,
+            brand         = brand,
+            subtype       = subtype,
+            model_name    = model_name,
+            name          = name,
+            unit          = unit,
+            reorder_level = reorder_level,
+            current_qty   = 0,
+            created_by    = current_user.id,
+        )
+        db.session.add(item)
+        created.append(name)
 
     db.session.commit()
-    flash(f'"{item.display_name}" added to the stock catalog.', 'success')
+
+    if created:
+        flash(f'{len(created)} item(s) added to the catalog: {", ".join(created)}.', 'success')
+    if skipped:
+        flash(f'{len(skipped)} item(s) already existed and were skipped: {", ".join(skipped)}.', 'warning')
+    if not created and skipped:
+        return redirect(url_for('new_stock_item'))
+
     return redirect(url_for('manage_stock_items'))
- 
 @app.route('/stock/items/<int:iid>/edit', methods=['POST'])
 @login_required
 @roles_required('admin', 'stocks')

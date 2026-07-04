@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block page_title %}Add Stock Item{% endblock %}
+{% block page_title %}Add Stock Items{% endblock %}
 {% block topbar_actions %}
 <a href="{{ url_for('stock_dashboard') }}" class="btn btn-sm">← Back to dashboard</a>
 {% endblock %}
@@ -9,6 +9,8 @@
   <p style="color:var(--muted);font-size:13px;margin-bottom:16px">
     Category, brand and unit auto-suggest from what's already in the catalog —
     type a new value if it doesn't exist yet, it'll be added automatically.
+    Add item names below (one per line) — they'll be created with 0 quantity.
+    Use <strong>Record purchase</strong> afterwards to bring stock in.
   </p>
 
   <form method="POST" action="{{ url_for('new_stock_item') }}">
@@ -36,9 +38,19 @@
         <input name="subtype" placeholder="e.g. DCR / Ongrid / Lithium">
       </div>
 
+      <div class="form-group">
+        <label>Model</label>
+        <input name="model_name" placeholder="e.g. Gamma 1012">
+      </div>
+
       <div class="form-group full">
-        <label>Description *</label>
-        <input name="name" required placeholder="e.g. ACDB, Earth Rod, Welding Rod, Gamma 1012 Inverter">
+        <label>Item names *</label>
+        <textarea name="names" required rows="6"
+                  placeholder="One item per line, e.g.&#10;ACDB&#10;Earth Rod&#10;Welding Rod"
+                  style="width:100%;resize:vertical;font-family:inherit;padding:8px;border:1px solid var(--border);border-radius:6px"></textarea>
+        <div style="font-size:12px;color:var(--hint);margin-top:4px">
+          Each line becomes a separate catalog item, sharing the category/brand/subtype/model/unit/reorder level set here.
+        </div>
       </div>
 
       <div class="form-group">
@@ -53,15 +65,10 @@
         <label>Reorder level</label>
         <input type="number" step="0.01" name="reorder_level" value="0">
       </div>
-
-      <div class="form-group">
-        <label>Opening quantity</label>
-        <input type="number" step="0.01" name="opening_qty" value="0">
-      </div>
     </div>
 
     <div class="btn-row" style="margin-top:6px">
-      <button type="submit" class="btn btn-primary">Add item</button>
+      <button type="submit" class="btn btn-primary">Add item(s)</button>
       <a href="{{ url_for('stock_dashboard') }}" class="btn">Cancel</a>
     </div>
   </form>
