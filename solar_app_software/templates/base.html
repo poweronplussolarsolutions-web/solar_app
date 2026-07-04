@@ -734,7 +734,7 @@ function closeSidebar() {
     </svg>
     Home
   </a>
-  {% if current_user.role is not in ['stocks'] %}
+  
   <a href="{{ url_for('projects') }}"
      style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
             gap:3px;font-size:10px;color:{% if request.endpoint in ['projects','project_detail'] %}var(--amber-800){% else %}var(--muted){% endif %};
@@ -744,7 +744,6 @@ function closeSidebar() {
     </svg>
     Projects
   </a>
-  {% endif %}
   <button onclick="toggleSidebar()"
           style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
                  gap:3px;font-size:10px;color:var(--muted);background:transparent;border:none;cursor:pointer">
