@@ -47,11 +47,11 @@
     </div>
     <div class="stat-sub">{% if low_stock %}Needs replenishment{% else %}All healthy{% endif %}</div>
   </div>
-  <div class="stat-card">
+  <!-- <div class="stat-card">
     <div class="stat-label">Units on hand</div>
     <div class="stat-value" style="color:var(--purple-600)">{{ items|sum(attribute='current_qty')|round(0,'floor')|int }}</div>
     <div class="stat-sub">Total physical stock</div>
-  </div>
+  </div> -->
 </div>
 
 <div class="card">
