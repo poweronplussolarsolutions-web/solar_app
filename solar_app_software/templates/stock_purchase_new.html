@@ -1,54 +1,53 @@
 {% extends "base.html" %}
+{% block page_title %}Record Purchase{% endblock %}
+{% block topbar_actions %}
+<a href="{{ url_for('stock_dashboard') }}" class="btn btn-sm">← Back to dashboard</a>
+{% endblock %}
+
 {% block content %}
-
-<div class="page-header">
-  <h2>Record distributor purchase</h2>
-  <a href="{{ url_for('stock_dashboard') }}" class="btn btn-outline">← Back to dashboard</a>
-</div>
-
-<div class="card" style="max-width: 560px;">
-  <p class="muted" style="margin-top:-4px;">
-    Stock purchased by a supplier — not tied to any project.
+<div class="card" style="max-width:560px">
+  <p style="color:var(--muted);font-size:13px;margin-bottom:16px">
+    Stock purchased from a supplier — not tied to any project.
   </p>
 
-  <form method="POST" action="{{ url_for('stock_purchase') }}" class="grid-form">
+  <form method="POST" action="{{ url_for('stock_purchase') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Item *</label>
+        <select name="stock_item_id" required>
+          <option value="">Select item…</option>
+          {% for i in items %}
+          <option value="{{ i.id }}">{{ i.category }} — {{ i.display_name }} ({{ i.current_qty }} {{ i.unit }})</option>
+          {% endfor %}
+        </select>
+      </div>
 
-    <div class="form-group" style="grid-column: 1 / -1;">
-      <label>Item *</label>
-      <select name="stock_item_id" required>
-        <option value="">Select item…</option>
-        {% for i in items %}
-        <option value="{{ i.id }}">{{ i.category }} — {{ i.display_name }} ({{ i.current_qty }} {{ i.unit }})</option>
-        {% endfor %}
-      </select>
+      <div class="form-group">
+        <label>Quantity *</label>
+        <input type="number" step="0.01" name="quantity" placeholder="Quantity" required>
+      </div>
+
+      <div class="form-group">
+        <label>Vendor / distributor</label>
+        <input type="text" name="vendor" placeholder="Vendor / distributor name">
+      </div>
+
+      <div class="form-group">
+        <label>Invoice / bill no.</label>
+        <input type="text" name="invoice_no" placeholder="Optional">
+      </div>
+
+      <div class="form-group full">
+        <label>Note</label>
+        <input type="text" name="notes" placeholder="Optional">
+      </div>
     </div>
 
-    <div class="form-group">
-      <label>Quantity *</label>
-      <input type="number" step="0.01" name="quantity" placeholder="Quantity" required>
-    </div>
-
-    <div class="form-group">
-      <label>Vendor / distributor</label>
-      <input type="text" name="vendor" placeholder="Vendor / distributor name">
-    </div>
-
-    <div class="form-group">
-      <label>Invoice / bill no.</label>
-      <input type="text" name="invoice_no" placeholder="Optional">
-    </div>
-
-    <div class="form-group" style="grid-column: 1 / -1;">
-      <label>Note</label>
-      <input type="text" name="notes" placeholder="Optional">
-    </div>
-
-    <div style="display:flex; gap:10px; margin-top:6px; grid-column: 1 / -1;">
+    <div class="btn-row" style="margin-top:6px">
       <button type="submit" class="btn btn-primary">Record purchase</button>
-      <a href="{{ url_for('stock_dashboard') }}" class="btn btn-outline">Cancel</a>
+      <a href="{{ url_for('stock_dashboard') }}" class="btn">Cancel</a>
     </div>
   </form>
 </div>
-
 {% endblock %}
