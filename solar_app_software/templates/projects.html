@@ -79,8 +79,7 @@
   {% if p.coordinator %}
     <span style="font-size:12px">{{ p.coordinator.full_name }}</span>
     {% if p.coordinator.role == 'director' %}
-    <span style="font-size:9px;background:var(--purple-50);color:var(--purple-600);
-                 padding:1px 6px;border-radius:8px;margin-left:4px;font-weight:600">Director</span>
+    
     {% endif %}
   {% elif p.coordinator_name %}
     <span style="font-size:12px">{{ p.coordinator_name }}</span>
