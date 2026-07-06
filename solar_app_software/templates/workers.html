@@ -167,7 +167,7 @@
 </div>
 {% endif %}
 
-{# ══════════════════════════════════════════════════════════════════════════ #}
+<!-- {# ══════════════════════════════════════════════════════════════════════════ #}
 {# PENDING APPROVALS BANNER                                                   #}
 {# ══════════════════════════════════════════════════════════════════════════ #}
 {% set all_pending = [] %}
@@ -230,7 +230,7 @@
     </table>
   </div>
 </div>
-{% endif %}
+{% endif %} -->
 
 {# ══════════════════════════════════════════════════════════════════════════ #}
 {# WORKER OVERVIEW TABLE                                                       #}
@@ -364,7 +364,7 @@
     </div>
   </div>
 
-  {# Balance stats #}
+  <!-- {# Balance stats #}
   <div class="stats-4">
     <div style="background:var(--surface-2,#f7f7f5);border-radius:8px;padding:10px 13px">
       <div style="font-size:11px;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">Current balance</div>
@@ -687,23 +687,23 @@
 
 </div>
 {% endif %}
-{% endfor %}
+{% endfor %} -->
 
 <script>
 function togglePanel(id) {
   var el = document.getElementById(id);
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
-function calcJobAmt(jcId, ratePerDay, agreedAmount) {
-  var daysEl = document.getElementById('days-jc-' + jcId);
-  var amtEl  = document.getElementById('amt-jc-'  + jcId);
-  if (!daysEl || !amtEl) return;
-  var days   = parseFloat(daysEl.value) || 0;
-  var rate   = parseFloat(ratePerDay)   || 0;
-  var agreed = parseFloat(agreedAmount) || 0;
-  if (agreed > 0) { amtEl.value = agreed; }
-  else if (days > 0 && rate > 0) { amtEl.value = Math.round(days * rate); }
-}
+// function calcJobAmt(jcId, ratePerDay, agreedAmount) {
+//   var daysEl = document.getElementById('days-jc-' + jcId);
+//   var amtEl  = document.getElementById('amt-jc-'  + jcId);
+//   if (!daysEl || !amtEl) return;
+//   var days   = parseFloat(daysEl.value) || 0;
+//   var rate   = parseFloat(ratePerDay)   || 0;
+//   var agreed = parseFloat(agreedAmount) || 0;
+//   if (agreed > 0) { amtEl.value = agreed; }
+//   else if (days > 0 && rate > 0) { amtEl.value = Math.round(days * rate); }
+// }
 </script>
 
 {% endblock %}
