@@ -84,9 +84,9 @@
           <th>Name</th>
           <th>Phone</th>
           <th>Skill</th>
-          <th>Rate/Day</th>
+          <!-- <th>Rate/Day</th> -->
           <th>Open Jobs</th>
-          <th>Balance</th>
+          <!-- <th>Balance</th> -->
           <th style="text-align:right">Actions</th>
         </tr>
       </thead>
@@ -102,15 +102,15 @@
             <td>
               {% if w.skill %}<span class="tag">{{ w.skill }}</span>{% else %}—{% endif %}
             </td>
-            <td>₹{{ w.rate_per_day | int }}/day</td>
+            <!-- <td>₹{{ w.rate_per_day | int }}/day</td> -->
             <td>
               <span class="badge badge-{{ 'InProgress' if open_cards else 'Completed' }}" style="font-size:11px">
                 {{ open_cards | length }} open
               </span>
             </td>
-            <td style="font-weight:500;color:{% if balance > 0 %}var(--green-600,#16a34a){% else %}var(--muted){% endif %}">
+            <!-- <td style="font-weight:500;color:{% if balance > 0 %}var(--green-600,#16a34a){% else %}var(--muted){% endif %}">
               ₹{{ '{:,.0f}'.format(balance) }}
-            </td>
+            </td> -->
             <td style="text-align:right">
               <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
                 {% if current_user.role in ['admin', 'onsite'] %}
@@ -152,7 +152,7 @@
           <td>{{ w.name }}</td>
           <td>{{ w.phone or '—' }}</td>
           <td>{{ w.skill or '—' }}</td>
-          <td>₹{{ w.rate_per_day | int }}/day</td>
+          <!-- <td>₹{{ w.rate_per_day | int }}/day</td> -->
           <td style="text-align:right">
             <form method="POST" action="{{ url_for('restore_worker', worker_id=w.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
