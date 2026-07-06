@@ -3631,7 +3631,7 @@ def dispatch_material(pid, mid):
 # ── Onsite: mark materials delivered AND deduct stock in one step ─────────────
 @app.route('/projects/<int:pid>/onsite_progress/deliver_stock', methods=['POST'])
 @login_required
-@roles_required('admin', 'onsite')
+@roles_required('admin', 'onsite','stocks')
 def deliver_stock_to_site(pid):
     proj     = Project.query.get_or_404(pid)
     progress = proj.onsite_progress or OnsiteProgress(project_id=pid)
@@ -3709,7 +3709,7 @@ def stock_purchase():
 # ── Stocks: sale/dispatch to another distributor or buyer (stock out) ─────────
 @app.route('/stock/sale', methods=['GET', 'POST'])
 @login_required
-@roles_required('admin', 'stocks')
+@roles_required('admin', 'stocks','onsite')
 @limiter.limit('30 per minute')
 def stock_sale():
     if request.method == 'GET':
@@ -3823,7 +3823,7 @@ def stock_dashboard():
  
 @app.route('/stock/items')
 @login_required
-@roles_required('admin', 'stocks')
+@roles_required('admin', 'stocks','onsite')
 def manage_stock_items():
     items = StockItem.query.order_by(
         StockItem.is_active.desc(), StockItem.category, StockItem.brand).all()
@@ -3836,7 +3836,7 @@ def manage_stock_items():
  
 @app.route('/stock/items/new', methods=['GET', 'POST'])
 @login_required
-@roles_required('admin', 'stocks')
+@roles_required('admin', 'stocks','onsite')
 @limiter.limit('30 per minute')
 def new_stock_item():
     if request.method == 'GET':
@@ -3902,7 +3902,7 @@ def new_stock_item():
     return redirect(url_for('manage_stock_items'))
 @app.route('/stock/items/<int:iid>/edit', methods=['POST'])
 @login_required
-@roles_required('admin', 'stocks')
+@roles_required('admin', 'stocks','onsite')
 def edit_stock_item(iid):
     item = StockItem.query.get_or_404(iid)
     item.category      = _clean(request.form.get('category', item.category), 50)
@@ -3919,7 +3919,7 @@ def edit_stock_item(iid):
  
 @app.route('/stock/items/<int:iid>/deactivate', methods=['POST'])
 @login_required
-@roles_required('admin', 'stocks')
+@roles_required('admin', 'stocks','onsite')
 def deactivate_stock_item(iid):
     item = StockItem.query.get_or_404(iid)
     item.is_active = False
@@ -3930,7 +3930,7 @@ def deactivate_stock_item(iid):
  
 @app.route('/stock/items/<int:iid>/restore', methods=['POST'])
 @login_required
-@roles_required('admin', 'stocks')
+@roles_required('admin', 'stocks','onsite')
 def restore_stock_item(iid):
     item = StockItem.query.get_or_404(iid)
     item.is_active = True
@@ -3966,7 +3966,7 @@ def stock_adjust():
  
 @app.route('/stock/items/<int:iid>/ledger')
 @login_required
-@roles_required('admin', 'stocks')
+@roles_required('admin', 'stocks','onsite')
 def stock_item_ledger(iid):
     item = StockItem.query.get_or_404(iid)
     txns = (StockTransaction.query.filter_by(stock_item_id=iid)
@@ -3978,7 +3978,7 @@ def stock_item_ledger(iid):
 #    already in use — the dropdown grows automatically as new ones are added) ──
 @app.route('/api/stock_meta')
 @login_required
-@roles_required('admin', 'stocks')
+@roles_required('admin', 'stocks','onsite')
 def api_stock_meta():
     categories = [c[0] for c in db.session.query(StockItem.category).distinct()]
     brands     = [b[0] for b in db.session.query(StockItem.brand).filter(StockItem.brand.isnot(None)).distinct()]
