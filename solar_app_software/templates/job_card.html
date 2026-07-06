@@ -274,7 +274,8 @@
       {% for lbl, val in [
         ('Handling',   proj.doc_staff.full_name if proj.doc_staff else ' '),
         ('C/O',
-  proj.coordinator.full_name if proj.coordinator
+  (proj.coordinator.full_name ~ (' (Director)' if proj.coordinator.role == 'director' else ''))
+  if proj.coordinator
   else (proj.coordinator_name if proj.coordinator_name else ' ')
 ),
         ('Sub C/O',    c.sub_co or ' '),

@@ -181,14 +181,18 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Roof</td><td>{{ 'Clay Tile (Oodu)' if proj.roof_type == 'Clay Tile' else (proj.roof_type or '—') }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Stage</td><td>{{ proj.stage }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Coordinator</td><td>
-        {% if proj.coordinator %}
-          {{ proj.coordinator.full_name }}
-        {% elif proj.coordinator_name %}
-          {{ proj.coordinator_name }}
-        {% else %}
-          —
-        {% endif %}
-      </td></tr>
+  {% if proj.coordinator %}
+    {{ proj.coordinator.full_name }}
+    {% if proj.coordinator.role == 'director' %}
+    <span style="font-size:9px;background:var(--purple-50);color:var(--purple-600);
+                 padding:1px 6px;border-radius:8px;margin-left:4px;font-weight:600">Director</span>
+    {% endif %}
+  {% elif proj.coordinator_name %}
+    {{ proj.coordinator_name }}
+  {% else %}
+    —
+  {% endif %}
+</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Sub C/O</td><td style="font-size:12px">{{ proj.customer.sub_co or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Docs staff</td><td>{{ proj.doc_staff.full_name if proj.doc_staff else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Notes</td><td>{{ proj.notes if proj.notes else '—' }}</td></tr>
@@ -236,18 +240,17 @@ document.addEventListener('DOMContentLoaded', function () {
           ⏸ Put On Hold
         </button>
       {% endif %}
-      {% if current_user.role in ['admin', 'coordinator', 'documents','onsite','office','documents_k'] and proj.status not in ['Cancelled', 'Closed'] %}
-      {% set can_edit = current_user.role == 'admin'
-          or (current_user.role == 'coordinator' and proj.coordinator_id == current_user.id)
-          or (current_user.role == 'onsite')
-          or (current_user.role in['documents','documents_k'] and proj.doc_staff_id == current_user.id)
-          or current_user.role == 'office' %}
-      {% if can_edit %}
-      <a href="{{ url_for('edit_project', pid=proj.id) }}" class="btn btn-sm">
-        ✏ Edit details
-      </a>
-      {% endif %}
-      {% endif %}
+      {% if current_user.role in ['admin', 'coordinator', 'documents','onsite','office','documents_k','director'] and proj.status not in ['Cancelled', 'Closed'] %}
+{% set can_edit = current_user.role == 'admin'
+    or current_user.role == 'director'
+    or (current_user.role == 'coordinator' and proj.coordinator_id == current_user.id)
+    or (current_user.role == 'onsite')
+    or (current_user.role in['documents','documents_k'] and proj.doc_staff_id == current_user.id)
+    or current_user.role == 'office' %}
+{% if can_edit %}
+<a href="{{ url_for('edit_project', pid=proj.id) }}" class="btn btn-sm">✏ Edit details</a>
+{% endif %}
+{% endif %}
     {% endif %}
 
     {# Cancel panel #}

@@ -11,7 +11,7 @@
   {% endif %}
 {% endblock %}
 {% block topbar_actions %}
-  {% if current_user.role in ['coordinator','office','documents_k'] %}
+  {% if current_user.role in ['coordinator','office','documents_k','director'] %}
   <a href="{{ url_for('new_project') }}" class="btn btn-primary">+ New Project</a>
   {% endif %}
 {% endblock %}
@@ -89,14 +89,16 @@
     {% endif %}
   </div>
   <div class="card">
-    <div class="card-title">Quick actions</div>
-    <div style="display:flex;flex-direction:column;gap:8px">
-      <a href="{{ url_for('projects') }}?status=Delayed" class="btn" style="justify-content:center">View delayed projects</a>
-      <a href="{{ url_for('projects') }}?status=InProgress" class="btn" style="justify-content:center">View in-progress</a>
-      <a href="{{ url_for('payments_dashboard') }}" class="btn" style="justify-content:center">Payments overview</a>
-      <a href="{{ url_for('manage_users') }}" class="btn" style="justify-content:center">Manage users</a>
-    </div>
+  <div class="card-title">Quick actions</div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <a href="{{ url_for('projects') }}?status=Delayed" class="btn" style="justify-content:center">View delayed projects</a>
+    <a href="{{ url_for('projects') }}?status=InProgress" class="btn" style="justify-content:center">View in-progress</a>
+    <a href="{{ url_for('payments_dashboard') }}" class="btn" style="justify-content:center">Payments overview</a>
+    {% if current_user.role == 'admin' %}
+    <a href="{{ url_for('manage_users') }}" class="btn" style="justify-content:center">Manage users</a>
+    {% endif %}
   </div>
+</div>
 </div>
 
 <div class="card">
@@ -133,15 +135,19 @@
         <td style="font-size:12px;color:var(--muted)">{{ p.stage }}</td>
         <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
         <td>
-          {% if p.coordinator %}
-            <span style="font-size:12px">{{ p.coordinator.full_name }}</span>
-          {% elif p.coordinator_name %}
-            <span style="font-size:12px">{{ p.coordinator_name }}</span>
-            <span style="font-size:10px;color:var(--hint)"> *</span>
-          {% else %}
-            <span style="font-size:12px;color:var(--hint)">—</span>
-          {% endif %}
-        </td>
+  {% if p.coordinator %}
+    <span style="font-size:12px">{{ p.coordinator.full_name }}</span>
+    {% if p.coordinator.role == 'director' %}
+    <span style="font-size:9px;background:var(--purple-50);color:var(--purple-600);
+                 padding:1px 6px;border-radius:8px;margin-left:4px;font-weight:600">Director</span>
+    {% endif %}
+  {% elif p.coordinator_name %}
+    <span style="font-size:12px">{{ p.coordinator_name }}</span>
+    <span style="font-size:10px;color:var(--hint)"> *</span>
+  {% else %}
+    <span style="font-size:12px;color:var(--hint)">—</span>
+  {% endif %}
+</td>
         <td style="font-size:12px">
           {% if p.doc_staff %}
             {{ p.doc_staff.full_name }}

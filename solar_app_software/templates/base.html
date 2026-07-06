@@ -515,7 +515,7 @@
   </a>
 </li>
 {% endif %}
-{% if current_user.role in ['admin','stocks','onsite'] %}
+{% if current_user.role in ['admin','stocks','onsite','director'] %}
 <a class="nav-link {% if request.endpoint == 'manage_stock_items' %}active{% endif %}" href="{{ url_for('manage_stock_items') }}">
         <span class="dot"></span> Stock Items
       </a>

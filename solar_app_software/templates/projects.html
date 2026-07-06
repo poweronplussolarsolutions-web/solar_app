@@ -2,7 +2,7 @@
 {% block title %}Projects — Solar App{% endblock %}
 {% block page_title %}Projects{% endblock %}
 {% block topbar_actions %}
-  {% if current_user.role in ['admin', 'coordinator','documents','office','documents_k'] %}
+  {% if current_user.role in ['admin', 'coordinator','documents','office','documents_k','director'] %}
   <a href="{{ url_for('new_project') }}" class="btn btn-primary">+ New Project</a>
   {% endif %}
 {% endblock %}
@@ -76,15 +76,19 @@
           {% endif %}
         </td>
         <td>
-          {% if p.coordinator %}
-            <span style="font-size:12px">{{ p.coordinator.full_name }}</span>
-          {% elif p.coordinator_name %}
-            <span style="font-size:12px">{{ p.coordinator_name }}</span>
-            <span style="font-size:10px;color:var(--hint)"> *</span>
-          {% else %}
-            <span style="font-size:12px;color:var(--hint)">—</span>
-          {% endif %}
-        </td>
+  {% if p.coordinator %}
+    <span style="font-size:12px">{{ p.coordinator.full_name }}</span>
+    {% if p.coordinator.role == 'director' %}
+    <span style="font-size:9px;background:var(--purple-50);color:var(--purple-600);
+                 padding:1px 6px;border-radius:8px;margin-left:4px;font-weight:600">Director</span>
+    {% endif %}
+  {% elif p.coordinator_name %}
+    <span style="font-size:12px">{{ p.coordinator_name }}</span>
+    <span style="font-size:10px;color:var(--hint)"> *</span>
+  {% else %}
+    <span style="font-size:12px;color:var(--hint)">—</span>
+  {% endif %}
+</td>
         <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
         <td style="font-size:12px;color:var(--hint)">
   {% if p.status in ('Closed', 'Completed', 'Cancelled') %}
