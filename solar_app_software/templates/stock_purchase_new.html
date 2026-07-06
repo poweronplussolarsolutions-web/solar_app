@@ -18,7 +18,7 @@
         <select name="stock_item_id" required>
           <option value="">Select item…</option>
           {% for i in items %}
-          <option value="{{ i.id }}">{{ i.category }} — {{ i.display_name }} ({{ i.current_qty }} {{ i.unit }})</option>
+          <option value="{{ i.id }}">{{ i.category }}{% if i.subtype %} / {{ i.subtype }}{% endif %} — {{ i.display_name }} ({{ i.current_qty }} {{ i.unit }})</option>
           {% endfor %}
         </select>
       </div>

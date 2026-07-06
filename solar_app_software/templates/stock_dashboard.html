@@ -89,6 +89,7 @@
       <thead>
         <tr>
           <th>Category</th>
+          <th>Subtype</th>
           <th>Item</th>
           <th>Qty</th>
           <th>Unit</th>
@@ -99,6 +100,7 @@
         {% for i in items %}
         <tr style="{% if i.is_low %}background:var(--amber-50){% endif %}">
           <td style="color:var(--muted)">{{ i.category }}</td>
+          <td style="color:var(--muted)">{{ i.subtype or '—' }}</td>
           <td>
             <span style="font-weight:500">{{ i.display_name }}</span>
             {% if i.is_low %}<span class="badge badge-Delayed" style="margin-left:6px">low</span>{% endif %}
@@ -112,7 +114,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--hint)">No items in this category yet.</td></tr>
+        <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--hint)">No items in this category yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -124,12 +126,13 @@
   <div class="card-title">Recent activity</div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Qty</th><th>Source</th></tr></thead>
+      <thead><tr><th>Date</th><th>Item</th><th>Subtype</th><th>Type</th><th>Qty</th><th>Source</th></tr></thead>
       <tbody>
         {% for t in recent_txns %}
         <tr>
           <td style="color:var(--muted);font-size:12px">{{ t.created_at.strftime('%d %b %H:%M') }}</td>
           <td>{{ t.stock_item.display_name }}</td>
+          <td style="color:var(--muted)">{{ t.stock_item.subtype or '—' }}</td>
           <td style="color:var(--muted)">{{ t.txn_type }}</td>
           <td>{{ t.quantity }} {{ t.stock_item.unit }}</td>
           <td style="color:var(--muted)">{{ t.source }}</td>
