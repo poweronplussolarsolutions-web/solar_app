@@ -39,7 +39,7 @@
 {% endif %}
 {% endmacro %}
 {# ── ADMIN ── #}
-{% if current_user.role == 'admin' %}
+{% if current_user.role in ['admin','director'] %}
 <div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
   <div class="stat-card">
     <div class="stat-label">Total projects</div>

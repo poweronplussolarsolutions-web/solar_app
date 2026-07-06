@@ -454,7 +454,7 @@
       <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
         <span class="dot"></span> Dashboard
       </a>
-      {% if current_user.role in ['admin','onsite'] %}
+      {% if current_user.role in ['admin','onsite','director'] %}
       <a class="nav-link {% if request.endpoint == 'onsite_board' %}active{% endif %}" href="{{ url_for('onsite_board') }}">
         <span class="dot"></span> Work status
       </a>
@@ -462,10 +462,10 @@
       <a class="nav-link {% if request.endpoint in ['projects','project_detail'] %}active{% endif %}" href="{{ url_for('projects') }}">
         <span class="dot"></span> Projects
       </a>
-      {% if current_user.role in ['admin', 'documents','office'] %}
+      {% if current_user.role in ['admin', 'documents','office','director'] %}
 <a class="nav-link {% if request.endpoint == 'works_status' %}active{% endif %}" href="{{ url_for('works_status') }}"><span class="dot"></span>Status</a>
 {% endif %}
-      {% if current_user.role in ['coordinator','documents','payments','onsite','appinstall','office','documents_k'] %}
+      {% if current_user.role in ['coordinator','documents','payments','onsite','appinstall','office','documents_k','director'] %}
       <a class="nav-link {% if request.endpoint in 'change_password' %}active{% endif %}" href="{{ url_for('change_password') }}">
         <span class="dot"></span>Change Password</a> 
       {% endif %}
@@ -473,7 +473,7 @@
 <a class="nav-link {% if request.endpoint in 'job_card_page' %}active{% endif %}" href="{{ url_for('job_card_page') }}">
         <span class="dot"></span>Job Card</a>
 {% endif %}
-      {% if current_user.role == 'coordinator' %}
+      {% if current_user.role in ['coordinator','director'] %}
       <a class="nav-link {% if request.endpoint == 'new_project' %}active{% endif %}" href="{{ url_for('new_project') }}">
         <span class="dot"></span> New Project
       </a>

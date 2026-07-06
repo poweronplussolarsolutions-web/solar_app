@@ -218,7 +218,7 @@ class User(UserMixin, db.Model):
     phone=db.Column(db.String(20),unique=True,nullable=False)
     password   = db.Column(db.String(512), nullable=False)   
     full_name  = db.Column(db.String(120), nullable=False)
-    role       = db.Column(db.Enum('admin','coordinator','documents','payments','onsite','appinstall','office','documents_k','stocks'), nullable=False)
+    role       = db.Column(db.Enum('admin','coordinator','documents','payments','onsite','appinstall','office','documents_k','stocks','director'), nullable=False)
     is_active  = db.Column(db.Boolean, default=True)
     is_deleted  = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -1425,7 +1425,7 @@ def dashboard():
     role = current_user.role
     data = {}
 
-    if role == 'admin':
+    if role in ('admin','director'):
         data['total']     = Project.query.count()
         data['inprog']    = Project.query.filter_by(status='InProgress').count()
         data['completed'] = Project.query.filter(Project.status.in_(['Completed','Closed'])).count()
@@ -1718,7 +1718,7 @@ def dashboard():
     return render_template('dashboard.html', data=data)
 @app.route('/onsite')
 @login_required
-@roles_required('admin', 'onsite')
+@roles_required('admin', 'onsite','director')
 def onsite_board():
     from sqlalchemy.orm import joinedload
     projects = (Project.query
@@ -1768,7 +1768,7 @@ def projects():
 
 @app.route('/projects/new', methods=['GET', 'POST'])
 @login_required
-@roles_required('coordinator','admin','documents','office','documents_k')
+@roles_required('coordinator','admin','documents','office','documents_k','director')
 @limiter.limit('30 per minute')
 def new_project():
     coordinators=User.query.filter_by(role='coordinator').order_by(User.full_name).all()
@@ -1867,7 +1867,7 @@ def new_project():
 
 @app.route('/projects/<int:pid>/edit', methods=['GET', 'POST'])
 @login_required
-@roles_required('admin', 'coordinator', 'documents','office','documents_k')
+@roles_required('admin', 'coordinator', 'documents','office','documents_k','director')
 def edit_project(pid):
     proj = Project.query.get_or_404(pid)
 
@@ -2071,7 +2071,7 @@ def edit_project(pid):
 
 @app.route('/projects/<int:pid>/site_visit', methods=['POST'])
 @login_required
-@roles_required('admin', 'coordinator')
+@roles_required('admin', 'coordinator','director')
 def add_site_visit(pid):
     proj = Project.query.get_or_404(pid)
     if proj.status in ('Cancelled', 'OnHold'):
@@ -2096,7 +2096,7 @@ def add_site_visit(pid):
 
 @app.route('/projects/<int:pid>/site_visit/<int:vid>/complete', methods=['POST'])
 @login_required
-@roles_required('admin', 'coordinator')
+@roles_required('admin', 'coordinator','director')
 def complete_site_visit(vid, pid):
     visit              = SiteVisit.query.get_or_404(vid)
     visit.status       = 'Completed'
@@ -2255,7 +2255,7 @@ def update_status(pid):
 
 @app.route('/projects/<int:pid>/cancel', methods=['POST'])
 @login_required
-@roles_required('admin', 'coordinator', 'documents','office','documents_k')
+@roles_required('admin', 'coordinator', 'documents','office','documents_k','director')
 def cancel_project(pid):
     proj = Project.query.get_or_404(pid)
     if current_user.role == 'coordinator' and proj.coordinator_id != current_user.id:
@@ -2310,7 +2310,7 @@ def uncancel_project(pid):
 
 @app.route('/projects/<int:pid>/hold', methods=['POST'])
 @login_required
-@roles_required('admin', 'coordinator', 'documents','office','documents_k')
+@roles_required('admin', 'coordinator', 'documents','office','documents_k','director')
 def hold_project(pid):
     proj = Project.query.get_or_404(pid)
     if current_user.role in ('documents','documents_k') and proj.doc_staff_id != current_user.id:
@@ -2346,7 +2346,7 @@ def hold_project(pid):
 
 @app.route('/projects/<int:pid>/assign_doc_staff', methods=['POST'])
 @login_required
-@roles_required('coordinator')
+@roles_required('coordinator','director')
 def assign_doc_staff(pid):
     proj         = Project.query.get_or_404(pid)
     new_staff_id = request.form.get('doc_staff_id')
@@ -2373,7 +2373,7 @@ def assign_doc_staff(pid):
 
 @app.route('/coordinator/analytics')
 @login_required
-@roles_required('coordinator')
+@roles_required('coordinator','director')
 def coordinator_analytics():
     from collections import Counter
 
@@ -2645,7 +2645,7 @@ def recover_bank_advance(pid):
     return redirect(url_for('project_detail', pid=pid))
 @app.route('/payments')
 @login_required
-@roles_required('admin', 'payments')
+@roles_required('admin', 'payments','director')
 def payments_dashboard():
     page     = request.args.get('page', 1, type=int)
     pay_page = request.args.get('pay_page', 1, type=int)
@@ -2663,7 +2663,7 @@ def payments_dashboard():
 
 @app.route('/payments/pending_approvals')
 @login_required
-@roles_required('admin', 'onsite')
+@roles_required('admin', 'onsite','director')
 def pending_approvals():
     cards = JobCard.query.filter_by(status='PendingApproval').order_by(JobCard.closed_at.desc()).all()
     return render_template('pending_approvals.html', cards=cards)
@@ -2763,7 +2763,7 @@ def documents(pid):
 
 @app.route('/works_status')
 @login_required
-@roles_required('admin', 'documents','office','documents_k')
+@roles_required('admin', 'documents','office','documents_k','director')
 def works_status():
     from sqlalchemy.orm import joinedload
 
@@ -2827,7 +2827,7 @@ def works_status():
 
 @app.route('/service_management')
 @login_required
-@roles_required('admin', 'onsite', 'coordinator')
+@roles_required('admin', 'onsite', 'coordinator','director')
 def service_management():
     from sqlalchemy.orm import joinedload
     refresh_service_statuses()
@@ -3080,7 +3080,7 @@ def kseb(pid):
 
 @app.route('/workers')
 @login_required
-@roles_required('admin', 'onsite', 'payments')
+@roles_required('admin', 'onsite', 'payments','director')
 def workers():
     all_workers = Worker.query.options(
         selectinload(Worker.assignments).joinedload(WorkerAssignment.project),
@@ -3797,7 +3797,7 @@ def add_material(pid):
 
 @app.route('/stock')
 @login_required
-@roles_required('admin', 'stocks', 'onsite')
+@roles_required('admin', 'stocks', 'onsite','director')
 def stock_dashboard():
     selected_cat = request.args.get('category', '')
     categories = sorted({
@@ -3823,7 +3823,7 @@ def stock_dashboard():
  
 @app.route('/stock/items')
 @login_required
-@roles_required('admin', 'stocks','onsite')
+@roles_required('admin', 'stocks','onsite','director')
 def manage_stock_items():
     items = StockItem.query.order_by(
         StockItem.is_active.desc(), StockItem.category, StockItem.brand).all()
@@ -4061,7 +4061,7 @@ def subsidy(pid):
 
 @app.route('/installations')
 @login_required
-@roles_required('admin', 'appinstall', 'documents','office','documents_k')
+@roles_required('admin', 'appinstall', 'documents','office','documents_k','director')
 def installations():
     return render_template('installations.html',
         pending=AppInstallation.query.filter_by(status='Pending').all(),
@@ -4482,7 +4482,7 @@ def change_user_status(user_id):
 
 @app.route('/admin/analytics')
 @login_required
-@roles_required('admin')
+@roles_required('admin','director')
 def admin_analytics():
     from collections import defaultdict, Counter
 
@@ -5050,7 +5050,7 @@ def build_docstaff_monthly_report(staff, all_projects, year, month, output_dir='
 # ── coordinator_reports route ─────────────────────────────────────────────────
 @app.route('/admin/coordinator_reports')
 @login_required
-@roles_required('admin')
+@roles_required('admin','director')
 def coordinator_reports():
     coordinators = User.query.filter_by(role='coordinator', is_active=True).all()
     today = date.today()
@@ -5078,7 +5078,7 @@ def coordinator_reports():
 
 @app.route('/admin/coordinator_reports/download')
 @login_required
-@roles_required('admin')
+@roles_required('admin','director')
 def download_coordinator_report():
     coord_id   = request.args.get('coordinator_id', type=int)
     coord_name = request.args.get('coordinator_name', '').strip()
@@ -5120,7 +5120,7 @@ def _resolve_coord_projects(coord_id, coord_name):
 
 @app.route('/admin/docstaff_reports')
 @login_required
-@roles_required('admin')
+@roles_required('admin','director')
 def docstaff_reports():
     today = date.today()
     return render_template('docstaff_reports.html',
@@ -5133,7 +5133,7 @@ def docstaff_reports():
 
 @app.route('/admin/docstaff_reports/download')
 @login_required
-@roles_required('admin')
+@roles_required('admin','director')
 def download_docstaff_report():
     staff_id = request.args.get('staff_id', type=int)
     year     = request.args.get('year',     type=int)
@@ -5443,7 +5443,7 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
 # ── Coordinator: all-works Excel ─────────────────────────────────────────────
 @app.route('/admin/coordinator_reports/download_all')
 @login_required
-@roles_required('admin')
+@roles_required('admin','director')
 def download_coordinator_report_all():
     coord_id   = request.args.get('coordinator_id', type=int)
     coord_name = request.args.get('coordinator_name', '').strip()
@@ -5462,7 +5462,7 @@ def download_coordinator_report_all():
 # ── Doc staff: all-works Excel ───────────────────────────────────────────────
 @app.route('/admin/docstaff_reports/download_all')
 @login_required
-@roles_required('admin')
+@roles_required('admin','director')
 def download_docstaff_report_all():
     staff_id = request.args.get('staff_id', type=int)
     if not staff_id:
@@ -5482,7 +5482,7 @@ def download_docstaff_report_all():
 # ── Coordinator: JSON preview (shared by monthly + all-works) ─────────────────
 @app.route('/admin/coordinator_reports/preview_data')
 @login_required
-@roles_required('admin')
+@roles_required('admin','director')
 def coordinator_report_preview_data():
     coord_id   = request.args.get('coordinator_id', type=int)
     coord_name = request.args.get('coordinator_name', '').strip()
@@ -5523,7 +5523,7 @@ def coordinator_report_preview_data():
 # ── Doc staff: JSON preview (shared by monthly + all-works) ──────────────────
 app.route('/admin/docstaff_reports/preview_data')
 @login_required
-@roles_required('admin')
+@roles_required('admin','director')
 def docstaff_report_preview_data():
     staff_id = request.args.get('staff_id', type=int)
     month    = request.args.get('month', type=int)
@@ -5568,7 +5568,7 @@ def docstaff_report_preview_data():
 # ── Coordinator: printable HTML ───────────────────────────────────────────────
 @app.route('/admin/coordinator_reports/print')
 @login_required
-@roles_required('admin')
+@roles_required('admin','director')
 def print_coordinator_report():
     coord_id   = request.args.get('coordinator_id', type=int)
     coord_name = request.args.get('coordinator_name', '').strip()
@@ -5608,7 +5608,7 @@ def print_coordinator_report():
 # ── Doc staff: printable HTML ─────────────────────────────────────────────────
 @app.route('/admin/docstaff_reports/print')
 @login_required
-@roles_required('admin')
+@roles_required('admin','director')
 def print_docstaff_report():
     staff_id = request.args.get('staff_id', type=int)
     month    = request.args.get('month', type=int)
@@ -5651,7 +5651,7 @@ from io import BytesIO
 @app.route('/coordinator/my_report')
 @login_required
 def coordinator_my_report():
-    if current_user.role != 'coordinator':
+    if current_user.role not in ('coordinator','director'):
         abort(403)
     now = datetime.now()
     return render_template('coordinator_my_report.html',
@@ -5662,7 +5662,7 @@ def coordinator_my_report():
 @app.route('/coordinator/my_report/preview_data')
 @login_required
 def coordinator_my_report_preview():
-    if current_user.role != 'coordinator':
+    if current_user.role not in ('coordinator','director'):
         abort(403)
     month = request.args.get('month', type=int)
     year  = request.args.get('year',  type=int)
@@ -5697,7 +5697,7 @@ def coordinator_my_report_preview():
 @app.route('/coordinator/my_report/download')
 @login_required
 def coordinator_my_report_download():
-    if current_user.role != 'coordinator':
+    if current_user.role not in ('coordinator','director'):
         abort(403)
     coord = User.query.get_or_404(current_user.id)
     month = request.args.get('month', type=int)
@@ -5715,7 +5715,7 @@ def coordinator_my_report_download():
 @app.route('/coordinator/my_report/download_all')
 @login_required
 def coordinator_my_report_download_all():
-    if current_user.role != 'coordinator':
+    if current_user.role not in ('coordinator','director'):
         abort(403)
     coord    = User.query.get_or_404(current_user.id)
     projects = Project.query.filter_by(coordinator_id=current_user.id).all()
