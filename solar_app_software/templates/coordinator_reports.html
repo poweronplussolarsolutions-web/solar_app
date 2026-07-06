@@ -28,10 +28,10 @@
   </optgroup>
   {% set director_users = coordinators | selectattr('role', 'eq', 'director') | list %}
   {% if director_users %}
-  <optgroup label="Directors">
+  <optgroup>
     {% for c in director_users %}
     <option value="{{ c.id }}" data-name="{{ c.full_name }}" data-type="user">
-      {{ c.full_name }} (Director)
+      {{ c.full_name }} 
     </option>
     {% endfor %}
   </optgroup>
