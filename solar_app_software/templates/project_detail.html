@@ -183,9 +183,7 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Coordinator</td><td>
   {% if proj.coordinator %}
     {{ proj.coordinator.full_name }}
-    {% if proj.coordinator.role == 'director' %}
-          {{proj.coordinator.full_name}}
-    {% endif %}
+    
   {% elif proj.coordinator_name %}
     {{ proj.coordinator_name }}
   {% else %}
