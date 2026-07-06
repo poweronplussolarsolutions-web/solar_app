@@ -5050,9 +5050,12 @@ def build_docstaff_monthly_report(staff, all_projects, year, month, output_dir='
 # ── coordinator_reports route ─────────────────────────────────────────────────
 @app.route('/admin/coordinator_reports')
 @login_required
-@roles_required('admin','director')
+@roles_required('admin', 'director')
 def coordinator_reports():
-    coordinators = User.query.filter_by(role='coordinator', is_active=True).all()
+    coordinators = User.query.filter(
+        User.role.in_(['coordinator', 'director']),
+        User.is_active == True
+    ).order_by(User.full_name).all()
     today = date.today()
 
     # Collect free-text coordinator names (projects with no coordinator_id)
@@ -5062,7 +5065,6 @@ def coordinator_reports():
         .distinct()
         .all()
     )
-    # Case-insensitive dedup, preserve original casing of first occurrence
     seen = {}
     for (name,) in other_names:
         key = name.strip().lower()
@@ -5075,7 +5077,6 @@ def coordinator_reports():
                            other_coord_names=other_coord_names,
                            current_year=today.year,
                            current_month=today.month)
-
 @app.route('/admin/coordinator_reports/download')
 @login_required
 @roles_required('admin','director')

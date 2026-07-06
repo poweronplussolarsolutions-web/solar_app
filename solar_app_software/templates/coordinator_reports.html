@@ -17,26 +17,36 @@
     <div class="form-group full">
       <label>Coordinator *</label>
       <select name="coordinator_id" id="coordSelect" required>
-        <option value="">— Select coordinator —</option>
-        {% if coordinators %}
-        <optgroup label="System Users">
-          {% for c in coordinators %}
-          <option value="{{ c.id }}" data-name="{{ c.full_name }}" data-type="user">
-            {{ c.full_name }}
-          </option>
-          {% endfor %}
-        </optgroup>
-        {% endif %}
-        {% if other_coord_names %}
-        <optgroup label="Other Coordinators">
-          {% for name in other_coord_names %}
-          <option value="__other__" data-name="{{ name }}" data-type="other" data-coord-name="{{ name }}">
-            {{ name }}
-          </option>
-          {% endfor %}
-        </optgroup>
-        {% endif %}
-      </select>
+  <option value="">— Select coordinator —</option>
+  {% if coordinators %}
+  <optgroup label="Coordinators">
+    {% for c in coordinators if c.role == 'coordinator' %}
+    <option value="{{ c.id }}" data-name="{{ c.full_name }}" data-type="user">
+      {{ c.full_name }}
+    </option>
+    {% endfor %}
+  </optgroup>
+  {% set director_users = coordinators | selectattr('role', 'eq', 'director') | list %}
+  {% if director_users %}
+  <optgroup label="Directors">
+    {% for c in director_users %}
+    <option value="{{ c.id }}" data-name="{{ c.full_name }}" data-type="user">
+      {{ c.full_name }} (Director)
+    </option>
+    {% endfor %}
+  </optgroup>
+  {% endif %}
+  {% endif %}
+  {% if other_coord_names %}
+  <optgroup label="Other Coordinators">
+    {% for name in other_coord_names %}
+    <option value="__other__" data-name="{{ name }}" data-type="other" data-coord-name="{{ name }}">
+      {{ name }}
+    </option>
+    {% endfor %}
+  </optgroup>
+  {% endif %}
+</select>
     </div>
 
     <!-- hidden field carries coordinator_name for "other" entries -->
