@@ -5218,7 +5218,7 @@ def build_docstaff_monthly_report(staff, all_projects, year, month, output_dir='
 # ── coordinator_reports route ─────────────────────────────────────────────────
 @app.route('/admin/coordinator_reports')
 @login_required
-@roles_required('admin', 'director')
+@roles_required('admin', 'director','payments')
 def coordinator_reports():
     coordinators = User.query.filter(
         User.role.in_(['coordinator', 'director']),
