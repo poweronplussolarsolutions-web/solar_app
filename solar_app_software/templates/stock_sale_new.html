@@ -28,7 +28,14 @@
       <label>Quantity <span style="color:#dc2626">*</span></label>
       <input name="quantity" type="number" step="0.01" min="0.01" required placeholder="e.g. 10"/>
     </div>
-
+    <div class="form-group">
+      <label>Sale Type <span style="color:#dc2626">*</span></label>
+      <select name="sale_type" required>
+        <option value="">— Select type —</option>
+        <option value="B2B">B2B</option>
+        <option value="B2C">B2C</option>
+      </select>
+    </div>
     <div class="form-group">
       <label>Buyer / Distributor</label>
       <input name="buyer" type="text" maxlength="100" placeholder="e.g. Kerala Solar Traders"/>

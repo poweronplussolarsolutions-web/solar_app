@@ -891,7 +891,8 @@ class StockTransaction(db.Model):
     stock_item_id  = db.Column(db.Integer, db.ForeignKey('stock_items.id'), nullable=False)
     txn_type       = db.Column(db.Enum('In', 'Out', 'Adjustment'), nullable=False)
     quantity       = db.Column(db.Numeric(10, 2), nullable=False)   # always positive; sign implied by txn_type
-    source         = db.Column(db.String(30), default='Manual')     # Manual, PanelItem, ExtraMaterial, Material
+    source         = db.Column(db.String(30), default='Manual')      # Manual, PanelItem, ExtraMaterial, Material
+    sale_type      = db.Column(db.Enum('B2B', 'B2C'), nullable=True)    
     project_id     = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)
     reference_id   = db.Column(db.Integer, nullable=True)           # id of the linked PanelItem/ExtraMaterial/Material row
     notes          = db.Column(db.String(300), nullable=True)
@@ -1215,9 +1216,7 @@ def _reconcile_excess_after_payment_change(proj):
                     f'detected after a payment was edited. Needs settlement.', 'task')
             log_action(proj.id, f'Bank excess detected: ₹{correct_bank_excess:,.0f}', new_val='Pending')
 def record_stock_txn(stock_item_id, txn_type, quantity, source='Manual',
-                      project_id=None, reference_id=None, notes=None):
-    """Writes one StockTransaction and updates StockItem.current_qty in the
-    same session. Caller is still responsible for db.session.commit()."""
+                      project_id=None, reference_id=None, notes=None, sale_type=None):
     item = StockItem.query.get(stock_item_id)
     if not item:
         return None
@@ -1225,10 +1224,12 @@ def record_stock_txn(stock_item_id, txn_type, quantity, source='Manual',
     new_balance = float(item.current_qty or 0) + float(delta)
     db.session.add(StockTransaction(
         stock_item_id=stock_item_id, txn_type=txn_type, quantity=quantity,
-        source=source, project_id=project_id, reference_id=reference_id,
-        notes=notes, balance_after=new_balance, recorded_by=current_user.id,
+        source=source, sale_type=sale_type, project_id=project_id,
+        reference_id=reference_id, notes=notes, balance_after=new_balance,
+        recorded_by=current_user.id,
     ))
     item.current_qty = new_balance
+    
  
     if item.is_low:
         alert_users = User.query.filter(
@@ -1333,6 +1334,8 @@ def login():
         login_user(u)
         # Regenerate session to prevent session fixation
         session.regenerate() if hasattr(session, 'regenerate') else None
+        if u.role == 'stocks':
+            return redirect(url_for('stock_dashboard'))
         return redirect(url_for('dashboard'))
 
     return render_template('login.html',csrf_token=csrf_token)
@@ -1533,6 +1536,8 @@ def reorder_document_stages():
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    if current_user.role == 'stocks':
+        return redirect(url_for('stock_dashboard'))
     cutoff = datetime.utcnow() - timedelta(days=180)
     update_rows  = Project.query.filter(
         Project.status == 'InProgress',
@@ -1718,20 +1723,20 @@ def dashboard():
         user_id=current_user.id, is_read=False
     ).order_by(Notification.created_at.desc()).limit(20).all()
         
-    elif role == 'stocks':
-        data['total_items'] = StockItem.query.filter_by(is_active=True).count()
-        data['low_stock']   = StockItem.query.filter(
-        StockItem.is_active == True,
-        StockItem.current_qty <= StockItem.reorder_level
-    ).all()
-        data['low_count']   = len(data['low_stock'])
-        data['recent_txns'] = (StockTransaction.query
-                           .order_by(StockTransaction.created_at.desc())
-                           .limit(10).all())
-        data['categories']  = sorted({
-        c[0] for c in db.session.query(StockItem.category)
-        .filter_by(is_active=True).distinct()
-    })
+    # elif role == 'stocks':
+    #     data['total_items'] = StockItem.query.filter_by(is_active=True).count()
+    #     data['low_stock']   = StockItem.query.filter(
+    #     StockItem.is_active == True,
+    #     StockItem.current_qty <= StockItem.reorder_level
+    # ).all()
+    #     data['low_count']   = len(data['low_stock'])
+    #     data['recent_txns'] = (StockTransaction.query
+    #                        .order_by(StockTransaction.created_at.desc())
+    #                        .limit(10).all())
+    #     data['categories']  = sorted({
+    #     c[0] for c in db.session.query(StockItem.category)
+    #     .filter_by(is_active=True).distinct()
+    # })
     
     elif role == 'office':
         from sqlalchemy.orm import joinedload
@@ -3884,14 +3889,19 @@ def stock_sale():
         items = StockItem.query.filter_by(is_active=True).order_by(StockItem.category, StockItem.name).all()
         return render_template('stock_sale_new.html', items=items)
 
-    item_id  = request.form.get('stock_item_id', type=int)
-    qty      = _safe_float(request.form.get('quantity'))
-    buyer    = _clean(request.form.get('buyer', ''), 100)
-    invoice  = _clean(request.form.get('invoice_no', ''), 60)
-    notes_in = _clean(request.form.get('notes', ''), 200)
+    item_id   = request.form.get('stock_item_id', type=int)
+    qty       = _safe_float(request.form.get('quantity'))
+    sale_type = request.form.get('sale_type', '')
+    buyer     = _clean(request.form.get('buyer', ''), 100)
+    invoice   = _clean(request.form.get('invoice_no', ''), 60)
+    notes_in  = _clean(request.form.get('notes', ''), 200)
 
     if not item_id or qty <= 0:
         flash('Please select an item and enter a valid quantity.', 'danger')
+        return redirect(url_for('stock_sale'))
+
+    if sale_type not in ('B2B', 'B2C'):
+        flash('Please select a sale type (B2B or B2C).', 'danger')
         return redirect(url_for('stock_sale'))
 
     item = StockItem.query.get_or_404(item_id)
@@ -3902,9 +3912,10 @@ def stock_sale():
     parts = [p for p in [f'Buyer: {buyer}' if buyer else '',
                           f'Invoice: {invoice}' if invoice else '',
                           notes_in] if p]
-    record_stock_txn(item_id, 'Out', qty, source='Sale', notes=' | '.join(parts) or None)
+    record_stock_txn(item_id, 'Out', qty, source='Sale', sale_type=sale_type,
+                      notes=' | '.join(parts) or None)
     db.session.commit()
-    flash(f'Sale of {qty} {item.unit} "{item.display_name}" recorded'
+    flash(f'{sale_type} sale of {qty} {item.unit} "{item.display_name}" recorded'
           + (f' to {buyer}.' if buyer else '.'), 'success')
     return redirect(url_for('stock_dashboard'))
 @app.route('/projects/<int:pid>/materials/update/<int:mid>', methods=['POST'])
