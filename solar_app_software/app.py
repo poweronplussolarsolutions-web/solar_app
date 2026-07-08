@@ -456,7 +456,9 @@ class BankExcessReturn(db.Model):
     excess_amount    = db.Column(db.Numeric(12, 2), nullable=False)
     received_date    = db.Column(db.Date, nullable=True)
     notes            = db.Column(db.String(300), nullable=True)
-    returned         = db.Column(db.Boolean, default=False)
+    returned         = db.Column(db.Boolean, default=False)     # kept for backward compat — True once settled
+    action           = db.Column(db.Enum('Returned','Retained','Adjusted'), nullable=True)   # NEW
+    returned_to      = db.Column(db.Enum('Customer','Bank'), nullable=True)                  # NEW
     returned_date    = db.Column(db.Date, nullable=True)
     returned_method  = db.Column(db.String(50), nullable=True)
     returned_reference = db.Column(db.String(100), nullable=True)
@@ -466,6 +468,44 @@ class BankExcessReturn(db.Model):
     updated_at       = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     project          = db.relationship('Project', backref=db.backref('bank_excess', uselist=False))
     recorder         = db.relationship('User', foreign_keys=[recorded_by])
+
+    @property
+    def action_label(self):
+        return {
+            'Returned': f'Returned to {self.returned_to}' if self.returned_to else 'Returned to Bank',
+            'Retained': 'Retained as company income',
+            'Adjusted': 'Adjusted against other dues',
+        }.get(self.action, 'Returned')
+class PaymentExcess(db.Model):
+    __tablename__ = 'payment_excess'
+    id                   = db.Column(db.Integer, primary_key=True)
+    project_id           = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    amount               = db.Column(db.Numeric(12, 2), nullable=False)
+    source               = db.Column(db.Enum('Customer','Bank'), nullable=False, default='Customer')
+    detected_date        = db.Column(db.Date, default=date.today)
+    notes                = db.Column(db.String(300), nullable=True)
+    status               = db.Column(db.Enum('Pending','Settled'), default='Pending')
+    action               = db.Column(db.Enum('Returned','Retained','Adjusted'), nullable=True)
+    returned_to          = db.Column(db.Enum('Customer','Bank'), nullable=True)
+    settlement_method    = db.Column(db.String(50), nullable=True)
+    settlement_date      = db.Column(db.Date, nullable=True)
+    settlement_reference = db.Column(db.String(100), nullable=True)
+    settlement_notes     = db.Column(db.String(300), nullable=True)
+    recorded_by          = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    settled_by           = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at           = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at           = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    project               = db.relationship('Project', backref='payment_excesses')
+    recorder              = db.relationship('User', foreign_keys=[recorded_by])
+    settler                = db.relationship('User', foreign_keys=[settled_by])
+
+    @property
+    def action_label(self):
+        return {
+            'Returned': f'Returned to {self.returned_to}' if self.returned_to else 'Returned',
+            'Retained': 'Retained as company income',
+            'Adjusted': 'Adjusted against other dues',
+        }.get(self.action, '—')
 class Worker(db.Model):
     __tablename__ = 'workers'
     id           = db.Column(db.Integer, primary_key=True)
@@ -926,10 +966,10 @@ def create_service_schedule(project):
             status         = 'Upcoming',
         ))
 
-    notify_onsite_team(project.id,
-        f'Service schedule created for {project.project_code} — {project.customer.name}. '
-        f'10 panel-cleaning visits over 5 years starting {base.strftime("%d %b %Y")}.', 'info')
-    log_action(project.id, 'Service schedule created (10 visits x 6 months)', new_val='Upcoming')
+    # notify_onsite_team(project.id,
+    #     f'Service schedule created for {project.project_code} — {project.customer.name}. '
+    #     f'10 panel-cleaning visits over 5 years starting {base.strftime("%d %b %Y")}.', 'info')
+    # log_action(project.id, 'Service schedule created (10 visits x 6 months)', new_val='Upcoming')
 def refresh_service_statuses():
    
     today    = date.today()
@@ -1095,6 +1135,85 @@ def create_notification(user_id, project_id, message, notif_type='info'):
         user_id=user_id, project_id=project_id,
         message=message[:255], notif_type=notif_type,
     ))
+def _reconcile_excess_after_payment_change(proj):
+    """Recomputes PaymentExcess (customer-side) and BankExcessReturn (bank-side)
+    after a payment edit/delete. Only touches Pending/unsettled excess records —
+    already-settled excess is left alone (it's historical, money already moved)."""
+
+    receivable = float(proj.total_receivable)
+
+    # ── Customer-side excess (PaymentExcess) ──────────────────────────────
+    customer_total = sum(float(p.amount) for p in proj.payments if p.payment_source == 'Customer')
+    bank_total     = sum(float(p.amount) for p in proj.payments if p.payment_source == 'Bank')
+
+    if proj.project_type == 'Loan':
+        # collected_amount = capped bank + all customer payments
+        effective_collected = min(bank_total, receivable) + customer_total
+    else:
+        effective_collected = customer_total + bank_total
+
+    proj.collected_amount = min(effective_collected, receivable) if receivable > 0 else effective_collected
+
+    pending_pay_excess = [e for e in proj.payment_excesses if e.status == 'Pending']
+    correct_pay_excess = max(0, round(effective_collected - receivable, 2)) if receivable > 0 else 0
+
+    if proj.project_type == 'Loan':
+        # For loan projects, overshoot from Bank is tracked separately via BankExcessReturn,
+        # so PaymentExcess should only reflect Customer-side overshoot beyond what bank already covers.
+        bank_capped   = min(bank_total, receivable)
+        correct_pay_excess = max(0, round((bank_capped + customer_total) - receivable, 2))
+
+    if pending_pay_excess:
+        total_pending = sum(float(e.amount) for e in pending_pay_excess)
+        if correct_pay_excess <= 0.01:
+            # No excess remains — remove stale pending records entirely
+            for e in pending_pay_excess:
+                log_action(proj.id, f'Payment excess of ₹{float(e.amount):,.0f} removed '
+                           '(reconciled after payment edit/delete)', old_val='Pending', new_val='Removed')
+                db.session.delete(e)
+        elif abs(correct_pay_excess - total_pending) > 0.01:
+            # Adjust the most recent pending record to match; drop any extras
+            pending_pay_excess.sort(key=lambda e: e.created_at, reverse=True)
+            keep = pending_pay_excess[0]
+            old_amt = float(keep.amount)
+            keep.amount = correct_pay_excess
+            keep.notes = (keep.notes or '') + f' [Adjusted from ₹{old_amt:,.0f} to ₹{correct_pay_excess:,.0f} after payment edit/delete]'
+            for extra in pending_pay_excess[1:]:
+                db.session.delete(extra)
+            log_action(proj.id, f'Payment excess reconciled: ₹{old_amt:,.0f} → ₹{correct_pay_excess:,.0f}',
+                       old_val=str(old_amt), new_val=str(correct_pay_excess))
+
+    # ── Bank-side excess (BankExcessReturn) — Loan projects only ──────────
+    if proj.project_type == 'Loan':
+        contract_amt = float(proj.total_amount or 0)
+        correct_bank_excess = max(0, round(bank_total - contract_amt, 2))
+        exc = proj.bank_excess
+
+        if exc and exc.returned:
+            pass  # already settled — leave historical record untouched
+        elif exc and not exc.returned:
+            if correct_bank_excess <= 0.01:
+                log_action(proj.id, f'Bank excess of ₹{float(exc.excess_amount):,.0f} removed '
+                           '(reconciled after payment edit/delete)', old_val='Pending', new_val='Removed')
+                db.session.delete(exc)
+            elif abs(correct_bank_excess - float(exc.excess_amount)) > 0.01:
+                old_amt = float(exc.excess_amount)
+                exc.excess_amount = correct_bank_excess
+                exc.notes = (exc.notes or '') + f' [Adjusted from ₹{old_amt:,.0f} to ₹{correct_bank_excess:,.0f} after payment edit/delete]'
+                log_action(proj.id, f'Bank excess reconciled: ₹{old_amt:,.0f} → ₹{correct_bank_excess:,.0f}',
+                           old_val=str(old_amt), new_val=str(correct_bank_excess))
+        elif not exc and correct_bank_excess > 0.01:
+            # A new excess emerged (e.g. an edit increased the bank payment)
+            db.session.add(BankExcessReturn(
+                project_id=proj.id, excess_amount=correct_bank_excess,
+                notes='Auto-detected on payment edit/delete.',
+                recorded_by=current_user.id,
+            ))
+            for u in User.query.filter_by(role='payments', is_active=True).all():
+                create_notification(u.id, proj.id,
+                    f'{proj.project_code} — {proj.customer.name}: Bank excess of ₹{correct_bank_excess:,.0f} '
+                    f'detected after a payment was edited. Needs settlement.', 'task')
+            log_action(proj.id, f'Bank excess detected: ₹{correct_bank_excess:,.0f}', new_val='Pending')
 def record_stock_txn(stock_item_id, txn_type, quantity, source='Manual',
                       project_id=None, reference_id=None, notes=None):
     """Writes one StockTransaction and updates StockItem.current_qty in the
@@ -2196,18 +2315,49 @@ def save_bank_excess(pid):
 @roles_required('admin', 'payments')
 def return_bank_excess(pid):
     exc = BankExcessReturn.query.filter_by(project_id=pid).first_or_404()
-    exc.returned           = True
-    exc.returned_date      = date.fromisoformat(request.form['returned_date']) if request.form.get('returned_date') else date.today()
-    exc.returned_method    = request.form.get('returned_method') or None
-    exc.returned_reference = _clean(request.form.get('returned_reference', ''), 100) or None
-    exc.returned_notes     = _clean(request.form.get('returned_notes', ''), 300) or None
- 
-    log_action(pid, f'Bank excess returned to bank: ₹{float(exc.excess_amount):,.0f}',
-               new_val='Returned')
+    action = request.form.get('action', 'Returned')
+    if action not in ('Returned', 'Retained', 'Adjusted'):
+        flash('Please choose a valid settlement option.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+
+    exc.returned            = True
+    exc.action               = action
+    exc.returned_to          = request.form.get('returned_to') if action == 'Returned' else None
+    exc.returned_date        = date.fromisoformat(request.form['returned_date']) if request.form.get('returned_date') else date.today()
+    exc.returned_method      = request.form.get('returned_method') or None
+    exc.returned_reference   = _clean(request.form.get('returned_reference', ''), 100) or None
+    exc.returned_notes       = _clean(request.form.get('returned_notes', ''), 300) or None
+
+    log_action(pid, f'Bank excess settled: ₹{float(exc.excess_amount):,.0f} — {exc.action_label}',
+               new_val=action)
     db.session.commit()
-    flash(f'Bank excess of ₹{float(exc.excess_amount):,.0f} marked as returned', 'success')
+    flash(f'Bank excess of ₹{float(exc.excess_amount):,.0f} marked as {exc.action_label}.', 'success')
     return redirect(url_for('project_detail', pid=pid))
- 
+@app.route('/payment_excess/<int:eid>/settle', methods=['POST'])
+@login_required
+@roles_required('admin', 'payments')
+def settle_payment_excess(eid):
+    exc = PaymentExcess.query.get_or_404(eid)
+    action = request.form.get('action')
+    if action not in ('Returned', 'Retained', 'Adjusted'):
+        flash('Please choose a valid settlement option.', 'danger')
+        return redirect(url_for('project_detail', pid=exc.project_id))
+
+    exc.action               = action
+    exc.returned_to          = request.form.get('returned_to') if action == 'Returned' else None
+    exc.settlement_method    = request.form.get('settlement_method') or None
+    exc.settlement_date      = date.fromisoformat(request.form['settlement_date']) if request.form.get('settlement_date') else date.today()
+    exc.settlement_reference = _clean(request.form.get('settlement_reference', ''), 100) or None
+    exc.settlement_notes     = _clean(request.form.get('settlement_notes', ''), 300) or None
+    exc.status                = 'Settled'
+    exc.settled_by           = current_user.id
+
+    log_action(exc.project_id,
+        f'Payment excess of ₹{float(exc.amount):,.0f} settled: {exc.action_label}',
+        new_val=exc.action)
+    db.session.commit()
+    flash(f'Excess of ₹{float(exc.amount):,.0f} marked as {exc.action_label}.', 'success')
+    return redirect(url_for('project_detail', pid=exc.project_id))
 
 @app.route('/projects/<int:pid>/expenses/<int:eid>/mark_recovered', methods=['POST'])
 @login_required
@@ -2483,16 +2633,13 @@ def add_payment(pid):
     source = request.form.get('payment_source', 'Customer')
 
     if proj.total_amount and float(proj.total_amount) > 0:
-    # Bank instalments on Loan projects can exceed contract amount (excess tracked separately)
         is_bank_loan = (source == 'Bank' and proj.project_type == 'Loan')
         if not is_bank_loan:
-            if float(proj.collected_amount or 0) >= float(proj.total_amount):
+            if float(proj.collected_amount or 0) >= float(proj.total_receivable):
                 flash('This project is fully paid. No further payments can be recorded.', 'danger')
                 return redirect(url_for('project_detail', pid=pid))
-            remaining = proj.pending_amount
-            if amount > remaining + 0.01:
-                flash(f'Payment of ₹{amount:,.0f} exceeds the remaining balance of ₹{remaining:,.0f}.', 'danger')
-                return redirect(url_for('project_detail', pid=pid))
+            # Overpayment is no longer blocked — any excess beyond total_receivable
+            # is captured below as a PaymentExcess record for settlement.
 
     instalment = None
     if source == 'Bank':
@@ -2512,17 +2659,33 @@ def add_payment(pid):
         notes=_clean(request.form.get('notes', ''), 500),
     )
     db.session.add(pay)
-    if source == 'Bank' and proj.project_type == 'Loan':
-    # Cap collected_amount at total_receivable — excess is tracked via BankExcessReturn
-        proj.collected_amount = min(
-        float(proj.collected_amount or 0) + amount,
-        float(proj.total_receivable)
-    )
+
+    # ── Apply payment, capping collected_amount at total_receivable.
+    #    Anything beyond that becomes a settleable PaymentExcess. ─────────
+    prior_collected = float(proj.collected_amount or 0)
+    receivable      = float(proj.total_receivable)
+    new_total_raw   = prior_collected + amount
+
+    if receivable > 0 and new_total_raw > receivable:
+        proj.collected_amount = receivable
+        excess_amount = round(new_total_raw - receivable, 2)
+        db.session.add(PaymentExcess(
+            project_id=pid, amount=excess_amount, source=source,
+            detected_date=pay.payment_date,
+            notes=f'Auto-detected on {"Bank" if instalment else "Customer"} payment of '
+                  f'₹{amount:,.0f} (ref: {pay.reference_no or "—"}).',
+            recorded_by=current_user.id,
+        ))
+        for u in User.query.filter_by(role='payments', is_active=True).all():
+            create_notification(u.id, pid,
+                f'{proj.project_code} — {proj.customer.name}: Payment of ₹{excess_amount:,.0f} '
+                f'received over the contract amount. Needs settlement.', 'task')
+        log_action(pid, f'Excess payment detected: ₹{excess_amount:,.0f}', new_val='Pending')
     else:
-        proj.collected_amount = float(proj.collected_amount or 0) + amount
+        proj.collected_amount = new_total_raw
+
     log_action(pid, f"{'Bank' if instalment else 'Customer'} payment recorded: ₹{amount:,.0f}", new_val=str(amount))
 
-    # ── Notify onsite team when first bank instalment is received ─────────
     if source == 'Bank' and instalment == 'First':
         notify_onsite_team(pid,
             f'Loan work {proj.project_code} — {proj.customer.name} '
@@ -2546,17 +2709,19 @@ def edit_payment(pid, pay_id):
         flash('Amount must be greater than 0.', 'danger')
         return redirect(url_for('project_detail', pid=pid))
 
-    # Recalculate collected_amount: remove old, add new
-    proj.collected_amount = float(proj.collected_amount or 0) - old_amount + new_amount
-
     pay.amount       = new_amount
     pay.payment_type = request.form.get('payment_type', pay.payment_type)
     pay.payment_date = date.fromisoformat(request.form['payment_date']) if request.form.get('payment_date') else pay.payment_date
     pay.reference_no = _clean(request.form.get('reference_no', ''), 80) or None
     pay.notes        = _clean(request.form.get('notes', ''), 500)
 
+    db.session.flush()  # ensure pay.amount is visible to proj.payments before reconciling
+
     log_action(pid, f'Payment edited: ₹{old_amount:,.0f} → ₹{new_amount:,.0f}',
                old_val=str(old_amount), new_val=str(new_amount))
+
+    _reconcile_excess_after_payment_change(proj)
+    auto_advance_stage(proj)
     db.session.commit()
     flash(f'Payment updated to ₹{new_amount:,.0f}.', 'success')
     return redirect(url_for('project_detail', pid=pid))
@@ -2570,11 +2735,14 @@ def delete_payment(pid, pay_id):
     proj = Project.query.get_or_404(pid)
 
     amount = float(pay.amount)
-    proj.collected_amount = max(0, float(proj.collected_amount or 0) - amount)
+    db.session.delete(pay)
+    db.session.flush()  # ensure pay is gone from proj.payments before reconciling
 
     log_action(pid, f'Payment deleted: ₹{amount:,.0f} ({pay.payment_type})',
                old_val=str(amount), new_val='Deleted')
-    db.session.delete(pay)
+
+    _reconcile_excess_after_payment_change(proj)
+    auto_advance_stage(proj)
     db.session.commit()
     flash(f'Payment of ₹{amount:,.0f} deleted.', 'warning')
     return redirect(url_for('project_detail', pid=pid))
@@ -2741,14 +2909,14 @@ def documents(pid):
                     scheduled_date = sched,
                     status         = 'Upcoming',
                     ))
-                log_action(pid, 'Service schedule created on KSEB connection', new_val='Upcoming')
-                notify_onsite_team(pid,
-                f'Service schedule created for {proj.project_code} — {proj.customer.name}. '
-                f'10 panel-cleaning visits over 5 years starting {base.strftime("%d %b %Y")}.', 'info')
-                if proj.coordinator_id:
-                    create_notification(proj.coordinator_id, pid,
-                    f'{proj.project_code} — {proj.customer.name}: KSEB connected. '
-                    f'Service schedule of 10 visits created.', 'info')
+                # log_action(pid, 'Service schedule created on KSEB connection', new_val='Upcoming')
+                # notify_onsite_team(pid,
+                # f'Service schedule created for {proj.project_code} — {proj.customer.name}. '
+                # f'10 panel-cleaning visits over 5 years starting {base.strftime("%d %b %Y")}.', 'info')
+                # if proj.coordinator_id:
+                #     create_notification(proj.coordinator_id, pid,
+                #     f'{proj.project_code} — {proj.customer.name}: KSEB connected. '
+                #     f'Service schedule of 10 visits created.', 'info')
         if current_user.role == 'admin' and was_complete and proj.doc_staff_id:
             create_notification(proj.doc_staff_id, pid,
                 f'{proj.project_code} - {proj.customer.name}: Admin ({current_user.full_name}) '
@@ -5079,7 +5247,7 @@ def coordinator_reports():
                            current_month=today.month)
 @app.route('/admin/coordinator_reports/download')
 @login_required
-@roles_required('admin','director')
+@roles_required('admin','director','payments')
 def download_coordinator_report():
     coord_id   = request.args.get('coordinator_id', type=int)
     coord_name = request.args.get('coordinator_name', '').strip()
@@ -5444,7 +5612,7 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
 # ── Coordinator: all-works Excel ─────────────────────────────────────────────
 @app.route('/admin/coordinator_reports/download_all')
 @login_required
-@roles_required('admin','director')
+@roles_required('admin','director','payments')
 def download_coordinator_report_all():
     coord_id   = request.args.get('coordinator_id', type=int)
     coord_name = request.args.get('coordinator_name', '').strip()
@@ -5483,7 +5651,7 @@ def download_docstaff_report_all():
 # ── Coordinator: JSON preview (shared by monthly + all-works) ─────────────────
 @app.route('/admin/coordinator_reports/preview_data')
 @login_required
-@roles_required('admin','director')
+@roles_required('admin','director','payments')
 def coordinator_report_preview_data():
     coord_id   = request.args.get('coordinator_id', type=int)
     coord_name = request.args.get('coordinator_name', '').strip()
@@ -5522,7 +5690,7 @@ def coordinator_report_preview_data():
 
 
 # ── Doc staff: JSON preview (shared by monthly + all-works) ──────────────────
-app.route('/admin/docstaff_reports/preview_data')
+@app.route('/admin/docstaff_reports/preview_data')
 @login_required
 @roles_required('admin','director')
 def docstaff_report_preview_data():
@@ -5569,7 +5737,7 @@ def docstaff_report_preview_data():
 # ── Coordinator: printable HTML ───────────────────────────────────────────────
 @app.route('/admin/coordinator_reports/print')
 @login_required
-@roles_required('admin','director')
+@roles_required('admin','director','payments')
 def print_coordinator_report():
     coord_id   = request.args.get('coordinator_id', type=int)
     coord_name = request.args.get('coordinator_name', '').strip()
