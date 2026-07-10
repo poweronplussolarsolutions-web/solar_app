@@ -126,20 +126,30 @@
   <div class="card-title">Recent activity</div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Date</th><th>Item</th><th>Subtype</th><th>Type</th><th>Qty</th><th>Source</th></tr></thead>
-      <tbody>
-        {% for t in recent_txns %}
-        <tr>
-          <td style="color:var(--muted);font-size:12px">{{ t.created_at.strftime('%d %b %H:%M') }}</td>
-          <td>{{ t.stock_item.display_name }}</td>
-          <td style="color:var(--muted)">{{ t.stock_item.subtype or '—' }}</td>
-          <td style="color:var(--muted)">{{ t.txn_type }}</td>
-          <td>{{ t.quantity }} {{ t.stock_item.unit }}</td>
-          <td style="color:var(--muted)">{{ t.source }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <thead><tr><th>Date</th><th>Item</th><th>Subtype</th><th>Type</th><th>Qty</th><th>Source</th><th>Project</th></tr></thead>
+  <tbody>
+    {% for t in recent_txns %}
+    <tr>
+      <td style="color:var(--muted);font-size:12px">{{ t.created_at.strftime('%d %b %H:%M') }}</td>
+      <td>{{ t.stock_item.display_name }}</td>
+      <td style="color:var(--muted)">{{ t.stock_item.subtype or '—' }}</td>
+      <td style="color:var(--muted)">{{ t.txn_type }}</td>
+      <td>{{ t.quantity }} {{ t.stock_item.unit }}</td>
+      <td style="color:var(--muted)">{{ t.source }}</td>
+      <td>
+        {% if t.project %}
+          <a href="{{ url_for('project_detail', pid=t.project.id) }}" style="font-weight:500">
+            {{ t.project.project_code }}
+          </a>
+          <span style="color:var(--muted);font-size:12px"> — {{ t.project.customer.name }}</span>
+        {% else %}
+          <span style="color:var(--hint)">—</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
   </div>
 </div>
 {% endif %}
