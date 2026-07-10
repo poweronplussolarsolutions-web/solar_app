@@ -1895,7 +1895,9 @@ def projects():
 @roles_required('coordinator','admin','documents','office','documents_k','director')
 @limiter.limit('30 per minute')
 def new_project():
-    coordinators=User.query.filter_by(role='coordinator').order_by(User.full_name).all()
+    coordinators = User.query.filter(
+    User.role.in_(['coordinator', 'director'])
+).order_by(User.full_name).all()
     customers       = Customer.query.order_by(Customer.name).all()
     doc_staff       = User.query.filter_by(role='documents', is_active=True).all()
     office = User.query.filter_by(role='office').all()
@@ -2006,7 +2008,10 @@ def edit_project(pid):
         return redirect(url_for('project_detail', pid=pid))
 
     doc_staff    = User.query.filter_by(role='documents',   is_active=True).all()
-    coordinators = User.query.filter_by(role='coordinator', is_active=True).all()
+    coordinators = User.query.filter(
+    User.role.in_(['coordinator', 'director']),
+    User.is_active == True
+).order_by(User.full_name).all()
     office = User.query.filter_by(role='office',is_active=True).all()
     documents_k=User.query.filter_by(role='documents_k',is_active=True).all()
 
