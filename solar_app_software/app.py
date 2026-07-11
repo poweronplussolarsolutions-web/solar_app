@@ -273,6 +273,7 @@ class Project(db.Model):
     customer_id      = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=False)
     inverter_capacity_kw = db.Column(db.Float, nullable=False)
     panel_capacity_kw    = db.Column(db.Float, nullable=False)
+    structure_capacity_kw = db.Column(db.Float, nullable=True)
     project_type     = db.Column(db.Enum('Loan', 'Cash'), nullable=False)
     status           = db.Column(db.Enum('Lead','Created','InProgress','Completed','Delayed','Pending','Closed','OnHold','Cancelled'), default='Lead')
     stage            = db.Column(db.String(100), default='Lead')
@@ -1905,6 +1906,8 @@ def new_project():
     suggested_code  = next_project_code()
 
     if request.method == 'POST':
+        raw_structure = request.form.get('structure_capacity_kw', '').strip()
+        structure_kw  = _safe_float(raw_structure) if raw_structure else None
         code = _clean(request.form.get('project_code', ''), 20)
         if not code:
             auto = next_project_code() or '1781'
@@ -1953,6 +1956,7 @@ def new_project():
     customer_id          = cust_id,
     inverter_capacity_kw = _safe_float(request.form.get('inverter_capacity_kw')),
     panel_capacity_kw    = _safe_float(request.form.get('panel_capacity_kw')),
+    structure_capacity_kw = structure_kw,
     project_type         = request.form['project_type'],
     status               = 'InProgress',
     stage                = 'Documentation',
@@ -2029,6 +2033,8 @@ def edit_project(pid):
 
         proj.inverter_capacity_kw = _safe_float(request.form.get('inverter_capacity_kw'))
         proj.panel_capacity_kw    = _safe_float(request.form.get('panel_capacity_kw'))
+        raw_structure = request.form.get('structure_capacity_kw', '').strip()
+        proj.structure_capacity_kw = _safe_float(raw_structure) if raw_structure else None 
         proj.project_type         = new_type
         proj.project_subtype      = new_subtype
         # proj.loan_subtype         = new_loan_sub

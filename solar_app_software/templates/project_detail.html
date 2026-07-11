@@ -164,7 +164,12 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Village</td><td style="font-size:12px">{{ proj.customer.village or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Taluk</td><td style="font-size:12px">{{ proj.customer.taluk or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">District</td><td style="font-size:12px">{{ proj.customer.district or '—' }}</td></tr>
-      <tr><td style="color:var(--muted);padding:5px 0">System size</td><td>{{ proj.inverter_capacity_kw }} kW , {{ proj.panel_capacity_kw }} kW (panel)</td></tr>
+      <tr>
+  <td style="color:var(--muted);padding:5px 0">System size</td>
+  <td>
+    {{ proj.inverter_capacity_kw }} kW (inverter), {{ proj.panel_capacity_kw }} kW (panel){% if proj.structure_capacity_kw %}, {{ proj.structure_capacity_kw }} kW (structure){% endif %}
+  </td>
+</tr>
       <tr><td style="color:var(--muted);padding:5px 0">Inverter type</td><td>{{ proj.inverter_type or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Type</td><td><span class="badge badge-{{ proj.project_type }}">{{ proj.project_type }}</span></td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Sub Type</td><td style="font-size:12px">{{ proj.project_subtype }}</td></tr>

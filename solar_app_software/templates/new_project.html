@@ -90,6 +90,10 @@
         <input name="panel_capacity_kw" type="number" step="any" min="0.01" required placeholder="e.g. 6"/>
       </div>
       <div class="form-group">
+  <label>Structure capacity (kW) <span style="color:var(--muted);font-weight:400;font-size:11px">(optional — only if different from inverter kW)</span></label>
+  <input name="structure_capacity_kw" type="number" step="any" min="0.01" placeholder="e.g. 5"/>
+</div>
+      <div class="form-group">
         <label>Project type *</label>
         <select name="project_type" id="project_type" required onchange="toggleLoanSubtype()">
           <option value="Cash">Cash</option>
