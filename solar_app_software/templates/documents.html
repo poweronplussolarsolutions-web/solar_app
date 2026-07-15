@@ -354,6 +354,7 @@
     <img src="{{ url_for('serve_geo_photo', pid=proj.id) }}" ...
          onerror="this.closest('div').innerHTML='<div style=\'font-size:12px;color:var(--hint)\'>Photo file missing on server — please re-upload.</div>'"/>
   </a>
+  {% endif %}
 {% if not all_docs_complete or admin_edit %}
 {% set ns_ov = namespace(applicable=0, done=0, partial=0, active=0, jump_id=None) %}
 {% set ns_idx = namespace(i=0) %}
