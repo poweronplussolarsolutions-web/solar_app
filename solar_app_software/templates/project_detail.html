@@ -556,6 +556,63 @@ document.addEventListener('DOMContentLoaded', function () {
     {% endif %}
   </div>
 </div>
+{# ══════════════════════════════════════════════════════
+   SITE PHOTO (before work) & LOCATION
+   ══════════════════════════════════════════════════════ #}
+{% set geo_tag = proj.geo_tag %}
+{% if geo_tag and (geo_tag.site_photo_path or geo_tag.has_gps) %}
+<div class="card" style="margin-bottom:16px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div class="card-title" style="margin:0">
+      Site photo &amp; location
+      <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:6px">— captured before work began</span>
+    </div>
+    {% if current_user.role in ['admin','coordinator','documents','office','documents_k','director'] %}
+    <a href="{{ url_for('edit_project', pid=proj.id) }}" class="btn btn-sm">✏ Edit</a>
+    {% endif %}
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+    {# ── Photo column ── #}
+    <div>
+      <div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Site photo</div>
+      {% if geo_tag.site_photo_path %}
+        <a href="{{ url_for('serve_site_photo', pid=proj.id) }}" target="_blank">
+          <img src="{{ url_for('serve_site_photo', pid=proj.id) }}" alt="Site photo before work"
+               style="width:160px;height:120px;object-fit:cover;border-radius:var(--radius);border:0.5px solid var(--border)"/>
+        </a>
+        <div style="font-size:11px;color:var(--hint);margin-top:6px">
+          {{ geo_tag.site_photo_uploaded_at | date_fmt }}
+          {% if geo_tag.site_photo_uploader %} · {{ geo_tag.site_photo_uploader.full_name }}{% endif %}
+        </div>
+        <div style="margin-top:8px">
+          <a href="{{ url_for('download_site_photo', pid=proj.id) }}" class="btn btn-sm">⬇ Download</a>
+        </div>
+      {% else %}
+        <div style="font-size:12px;color:var(--hint)">No site photo uploaded yet.</div>
+      {% endif %}
+    </div>
+
+    {# ── Location column ── #}
+    <div>
+      <div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Location</div>
+      {% if geo_tag.has_gps %}
+        <span class="badge badge-Completed">📍 Location set</span>
+        <table style="font-size:13px;margin-top:8px">
+          <tr><td style="color:var(--muted);width:90px;padding:3px 0">Latitude</td><td>{{ '%.6f' | format(geo_tag.latitude) }}</td></tr>
+          <tr><td style="color:var(--muted);padding:3px 0">Longitude</td><td>{{ '%.6f' | format(geo_tag.longitude) }}</td></tr>
+        </table>
+        <a href="{{ url_for('service_map') }}?q={{ proj.customer.place or proj.customer.district or '' }}"
+           class="btn btn-sm" style="margin-top:8px">View on service map →</a>
+      {% else %}
+        <div style="font-size:12px;color:var(--hint)">No location set yet.</div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endif %}
 {% set open_excesses = proj.payment_excesses | selectattr('status','eq','Pending') | list %}
 {% if proj.payment_excesses %}
 <div class="card" style="margin-bottom:16px;
