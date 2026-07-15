@@ -903,7 +903,58 @@ class StockTransaction(db.Model):
     stock_item     = db.relationship('StockItem', backref='transactions')
     project        = db.relationship('Project', foreign_keys=[project_id])
     recorder       = db.relationship('User', foreign_keys=[recorded_by])
- 
+class ProjectGeoTag(db.Model):
+    __tablename__ = 'project_geo_tags'
+    id           = db.Column(db.Integer, primary_key=True)
+    project_id   = db.Column(db.Integer, db.ForeignKey('projects.id'), unique=True, nullable=False)
+    photo_path   = db.Column(db.String(255), nullable=False)
+    latitude     = db.Column(db.Float, nullable=True)
+    longitude    = db.Column(db.Float, nullable=True)
+    has_gps      = db.Column(db.Boolean, default=False)
+    address      = db.Column(db.String(300), nullable=True)   # reverse-geocoded, cached
+    uploaded_by  = db.Column(db.Integer, db.ForeignKey('users.id'))
+    uploaded_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    project      = db.relationship('Project', backref=db.backref('geo_tag', uselist=False))
+    uploader     = db.relationship('User', foreign_keys=[uploaded_by])
+class GeocodeCache(db.Model):
+    __tablename__ = 'geocode_cache'
+    id         = db.Column(db.Integer, primary_key=True)
+    query_text = db.Column(db.String(200), unique=True, nullable=False)
+    latitude   = db.Column(db.Float, nullable=True)
+    longitude  = db.Column(db.Float, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+from PIL import Image
+from PIL.ExifTags import TAGS, GPSTAGS
+
+def extract_gps_from_image(filepath):
+    try:
+        img = Image.open(filepath)
+        exif = img._getexif()
+        if not exif:
+            return None, None
+        gps_info = {}
+        for tag, val in exif.items():
+            if TAGS.get(tag) == 'GPSInfo':
+                for t in val:
+                    gps_info[GPSTAGS.get(t, t)] = val[t]
+        if not gps_info.get('GPSLatitude'):
+            return None, None
+
+        def _dms_to_deg(dms, ref):
+            d, m, s = [float(x) for x in dms]
+            deg = d + m / 60 + s / 3600
+            return -deg if ref in ('S', 'W') else deg
+
+        lat = _dms_to_deg(gps_info['GPSLatitude'], gps_info.get('GPSLatitudeRef', 'N'))
+        lng = _dms_to_deg(gps_info['GPSLongitude'], gps_info.get('GPSLongitudeRef', 'E'))
+
+        # sanity check — reject obviously bad GPS chips (roughly bounds India)
+        if not (6 <= lat <= 36 and 68 <= lng <= 98):
+            return None, None
+        return round(lat, 6), round(lng, 6)
+    except Exception:
+        return None, None
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -952,6 +1003,123 @@ def log_action(project_id, action, old_val=None, new_val=None):
         done_by=current_user.id,
     )
     db.session.add(entry)
+
+@app.route('/projects/<int:pid>/geo_tag', methods=['POST'])
+@login_required
+@roles_required('admin', 'onsite')
+def upload_geo_tag(pid):
+    proj = Project.query.get_or_404(pid)
+    op = proj.onsite_progress
+    if not op or op.installation_status != 'Completed':
+        flash('Onsite work must be completed before uploading a site photo.', 'danger')
+        return redirect(url_for('onsite_progress', pid=pid))
+
+    file = request.files.get('geo_photo')
+    if not file or file.filename == '':
+        flash('Please select a photo to upload.', 'danger')
+        return redirect(url_for('onsite_progress', pid=pid))
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ('.jpg', '.jpeg', '.png'):
+        flash('Please upload a JPG or PNG.', 'danger')
+        return redirect(url_for('onsite_progress', pid=pid))
+
+    upload_dir = os.path.join(os.environ.get('GEO_UPLOAD_DIR', 'private_uploads/geo_photos'))
+    os.makedirs(upload_dir, exist_ok=True)
+    fname = f'{proj.project_code}_{int(datetime.utcnow().timestamp())}{ext}'
+    fpath = os.path.join(upload_dir, fname)
+    file.save(fpath)
+
+    lat, lng = extract_gps_from_image(fpath)
+
+    tag = proj.geo_tag or ProjectGeoTag(project_id=pid)
+    tag.photo_path, tag.latitude, tag.longitude = fpath, lat, lng
+    tag.has_gps      = lat is not None
+    tag.uploaded_by  = current_user.id
+    tag.uploaded_at  = datetime.utcnow()
+    if not tag.id:
+        db.session.add(tag)
+
+    log_action(pid, 'Site geo-tag photo uploaded', new_val=f'{lat},{lng}' if lat else 'No GPS in photo')
+    db.session.commit()
+
+    if lat is None:
+        flash('Photo uploaded, but it has no GPS data. Drop a pin manually on the map.', 'warning')
+    else:
+        flash(f'Location captured: {lat}, {lng}', 'success')
+    return redirect(url_for('onsite_progress', pid=pid))
+
+@app.route('/geo_photo/<int:pid>')
+@login_required
+def serve_geo_photo(pid):
+    tag = ProjectGeoTag.query.filter_by(project_id=pid).first_or_404()
+    return send_file(tag.photo_path)
+
+@app.route('/projects/<int:pid>/geo_tag/manual', methods=['POST'])
+@login_required
+@roles_required('admin', 'onsite')
+def set_geo_tag_manual(pid):
+    tag = ProjectGeoTag.query.filter_by(project_id=pid).first_or_404()
+    tag.latitude  = _safe_float(request.form.get('latitude'))
+    tag.longitude = _safe_float(request.form.get('longitude'))
+    tag.has_gps   = True
+    db.session.commit()
+    flash('Location pin updated.', 'success')
+    return redirect(url_for('onsite_progress', pid=pid))
+
+from math import radians, cos, sin, asin, sqrt
+
+def haversine_km(lat1, lng1, lat2, lng2):
+    lat1, lng1, lat2, lng2 = map(radians, [lat1, lng1, lat2, lng2])
+    a = sin((lat2-lat1)/2)**2 + cos(lat1)*cos(lat2)*sin((lng2-lng1)/2)**2
+    return 2 * 6371 * asin(sqrt(a))
+
+import requests
+
+def geocode_place(query):
+    try:
+        r = requests.get('https://nominatim.openstreetmap.org/search',
+            params={'q': query, 'format': 'json', 'limit': 1, 'countrycodes': 'in'},
+            headers={'User-Agent': 'PowerOnPlusSolar/1.0 (contact@yourcompany.in)'}, timeout=5)
+        d = r.json()
+        return (float(d[0]['lat']), float(d[0]['lon'])) if d else (None, None)
+    except Exception:
+        return None, None
+    
+@app.route('/service_map')
+@login_required
+@roles_required('admin', 'onsite', 'coordinator', 'director')
+def service_map():
+    q = _clean(request.args.get('q', ''), 100)
+    radius_km = request.args.get('radius', 15, type=int)
+
+    tags = (ProjectGeoTag.query.join(Project)
+            .filter(ProjectGeoTag.latitude.isnot(None), Project.status != 'Cancelled')
+            .all())
+
+    tags_json = [{
+        'lat':  t.latitude,
+        'lng':  t.longitude,
+        'code': t.project.project_code,
+        'name': t.project.customer.name,
+        'url':  url_for('project_detail', pid=t.project_id),
+    } for t in tags]
+
+    center = (None, None)
+    nearby = []
+    if q:
+        center = geocode_place(q + ', Kerala, India')
+        if center[0]:
+            for t in tags:
+                dist = haversine_km(center[0], center[1], t.latitude, t.longitude)
+                if dist <= radius_km:
+                    nearby.append((t, round(dist, 1)))
+            nearby.sort(key=lambda x: x[1])
+        else:
+            flash(f'Could not locate "{q}".', 'warning')
+
+    return render_template('service_map.html', tags=tags, nearby=nearby,
+        tags_json=tags_json, search_q=q, center=center, radius_km=radius_km)
 def create_service_schedule(project):
     if ServiceRecord.query.filter_by(project_id=project.id).first():
         return
@@ -1048,6 +1216,7 @@ def auto_advance_stage(proj):
             else:
                 proj.stage  = 'Subsidy'  # non-DCR still goes here for warranty/app
                 proj.status = 'InProgress'
+                create_service_schedule(proj)
 
     elif proj.stage == 'Subsidy':
         fully_paid    = proj.total_receivable > 0 and proj.pending_amount <= 0
@@ -2912,27 +3081,7 @@ def documents(pid):
                     f'KSEB connection done for {proj.project_code} — {proj.customer.name} '
                     f'({proj.inverter_capacity_kw} kW). Schedule app installation.', 'task')
 
-    # ── Create service schedule as soon as KSEB connection is done ──
-            if not ServiceRecord.query.filter_by(project_id=pid).first():
-                base = date.today()
-                for visit_num in range(1, 11):
-                    months_ahead = visit_num * 6
-                    year_offset, month_offset = divmod(base.month - 1 + months_ahead, 12)
-                    sched = base.replace(year=base.year + year_offset, month=month_offset + 1)
-                    db.session.add(ServiceRecord(
-                    project_id     = pid,
-                    visit_number   = visit_num,
-                    scheduled_date = sched,
-                    status         = 'Upcoming',
-                    ))
-                # log_action(pid, 'Service schedule created on KSEB connection', new_val='Upcoming')
-                # notify_onsite_team(pid,
-                # f'Service schedule created for {proj.project_code} — {proj.customer.name}. '
-                # f'10 panel-cleaning visits over 5 years starting {base.strftime("%d %b %Y")}.', 'info')
-                # if proj.coordinator_id:
-                #     create_notification(proj.coordinator_id, pid,
-                #     f'{proj.project_code} — {proj.customer.name}: KSEB connected. '
-                #     f'Service schedule of 10 visits created.', 'info')
+    
         if current_user.role == 'admin' and was_complete and proj.doc_staff_id:
             create_notification(proj.doc_staff_id, pid,
                 f'{proj.project_code} - {proj.customer.name}: Admin ({current_user.full_name}) '

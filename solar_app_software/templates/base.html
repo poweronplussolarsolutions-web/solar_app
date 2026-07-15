@@ -515,6 +515,11 @@
     <span class="dot"></span>Service Management
     <span id="service-badge" class="badge bg-danger ms-1" style="display:none"></span>
   </a>
+  <a class="nav-link {{ 'active' if request.endpoint == 'service_map' }}"
+     href="{{ url_for('service_map') }}">
+    <span class="dot"></span>Service Map
+    <span id="service-badge" class="badge bg-danger ms-1" style="display:none"></span>
+  </a>
 </li>
 {% endif %}
 {% if current_user.role in ['admin','stocks','onsite','director'] %}
