@@ -172,9 +172,15 @@
   }).addTo(map);
 
   var markers = {};
+  var defaultIcon = L.divIcon({
+  className: 'custom-pin',
+  html: '<div style="background:#2563eb;width:14px;height:14px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);"></div>',
+  iconSize: [14, 14],
+  iconAnchor: [7, 14]
+});
 
   tagsData.forEach(function (t) {
-    var m = L.marker([t.lat, t.lng]).addTo(map);
+    var m = L.marker([t.lat, t.lng], { icon: defaultIcon }).addTo(map);
     var popupEl = document.createElement('div');
     var codeEl = document.createElement('strong');
     codeEl.textContent = t.code;
@@ -225,5 +231,6 @@
     });
   });
 })();
+
 </script>
 {% endblock %}
