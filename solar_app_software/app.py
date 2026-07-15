@@ -1093,7 +1093,7 @@ def save_geo_location(pid):
 @login_required
 def serve_geo_photo(pid):
     tag = ProjectGeoTag.query.filter_by(project_id=pid).first_or_404()
-    if not tag.photo_path:
+    if not tag.photo_path or not os.path.isfile(tag.photo_path):
         abort(404)
     return send_file(tag.photo_path)
 
@@ -1101,13 +1101,12 @@ def serve_geo_photo(pid):
 @login_required
 def download_geo_photo(pid):
     tag = ProjectGeoTag.query.filter_by(project_id=pid).first_or_404()
-    if not tag.photo_path:
+    if not tag.photo_path or not os.path.isfile(tag.photo_path):
         abort(404)
     proj = tag.project
     ext  = os.path.splitext(tag.photo_path)[1]
     return send_file(tag.photo_path, as_attachment=True,
                       download_name=f'{proj.project_code}_site_photo{ext}')
-
 @app.route('/projects/<int:pid>/geo_tag/manual', methods=['POST'])
 @login_required
 @roles_required('admin', 'onsite')
