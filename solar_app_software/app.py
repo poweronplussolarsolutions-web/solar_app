@@ -1020,13 +1020,16 @@ def log_action(project_id, action, old_val=None, new_val=None):
         done_by=current_user.id,
     )
     db.session.add(entry)
-
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+GEO_UPLOAD_DIR = os.environ.get(
+    'GEO_UPLOAD_DIR',
+    os.path.join(BASE_DIR, 'private_uploads', 'geo_photos')
+)
 @app.route('/projects/<int:pid>/geo_tag', methods=['POST'])
 @login_required
 @roles_required('admin', 'onsite')
 def upload_geo_tag(pid):
     proj = Project.query.get_or_404(pid)
-
     file = request.files.get('geo_photo')
     if not file or file.filename == '':
         flash('Please select a photo to upload.', 'danger')
@@ -1037,10 +1040,9 @@ def upload_geo_tag(pid):
         flash('Please upload a JPG or PNG.', 'danger')
         return redirect(url_for('onsite_progress', pid=pid))
 
-    upload_dir = os.path.join(os.environ.get('GEO_UPLOAD_DIR', 'private_uploads/geo_photos'))
-    os.makedirs(upload_dir, exist_ok=True)
+    os.makedirs(GEO_UPLOAD_DIR, exist_ok=True)
     fname = f'{proj.project_code}_{int(datetime.utcnow().timestamp())}{ext}'
-    fpath = os.path.join(upload_dir, fname)
+    fpath = os.path.join(GEO_UPLOAD_DIR, fname)   # now always absolute
     file.save(fpath)
 
     tag = proj.geo_tag or ProjectGeoTag(project_id=pid)
@@ -1049,7 +1051,6 @@ def upload_geo_tag(pid):
     tag.uploaded_at = datetime.utcnow()
     if not tag.id:
         db.session.add(tag)
-
     log_action(pid, 'Site photo uploaded', new_val=fname)
     db.session.commit()
     flash('Site photo uploaded.', 'success')
