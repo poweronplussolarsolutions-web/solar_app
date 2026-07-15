@@ -1058,6 +1058,10 @@
           <a href="{{ url_for('download_geo_photo', pid=proj.id) }}" class="btn btn-sm">⬇ Download</a>
           {% if current_user.role in ['admin','onsite'] %}
           <button type="button" class="btn btn-sm" id="regeo-btn">Replace</button>
+          <button type="button" class="btn btn-sm geo-delete-btn" title="Remove photo"
+            data-action="{{ url_for('delete_geo_photo', pid=proj.id) }}"
+            data-confirm="Remove this site photo?"
+            style="color:var(--danger);border-color:#fca5a5">✕ Remove</button>
           {% endif %}
         </div>
         {% if current_user.role in ['admin','onsite'] %}
@@ -1363,5 +1367,23 @@ if (locEditBtn) {
     locEditBtn.style.display = 'none';
   });
 }
+document.querySelectorAll('.geo-delete-btn').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var action = this.getAttribute('data-action');
+    var msg    = this.getAttribute('data-confirm') || 'Are you sure?';
+    if (!confirm(msg)) return;
+
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = action;
+    var csrf = document.createElement('input');
+    csrf.type  = 'hidden';
+    csrf.name  = 'csrf_token';
+    csrf.value = document.getElementById('csrf-token-val').value;
+    form.appendChild(csrf);
+    document.body.appendChild(form);
+    form.submit();
+  });
+});
 </script>
 {% endblock %}

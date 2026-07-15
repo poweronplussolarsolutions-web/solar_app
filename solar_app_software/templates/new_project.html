@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="card" style="max-width:720px">
-  <form method="POST" action="{{ url_for('new_project') }}" >
+  <form method="POST" action="{{ url_for('new_project') }}" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <div style="font-size:13px;font-weight:500;margin-bottom:14px;color:var(--muted)">Customer details</div>
@@ -195,7 +195,21 @@
       </div>
 
     </div>
-
+<div style="border-top:0.5px solid var(--border);margin:16px 0 14px;font-size:13px;font-weight:500;padding-top:14px;color:var(--muted)">
+  Site photo &amp; location <span style="color:var(--muted);font-weight:400;font-size:11px">(optional — lets the onsite team scout the site before work begins)</span>
+</div>
+<div class="form-grid">
+  <div class="form-group">
+    <label>Site photo</label>
+    <input type="file" name="geo_photo" accept=".jpg,.jpeg,.png"/>
+    <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">JPG or PNG</span>
+  </div>
+  <div class="form-group">
+    <label>Google Maps link</label>
+    <input type="text" name="maps_url" placeholder="Paste Google Maps share link"/>
+    <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">Long-press pin in Google Maps → Share → Copy link</span>
+  </div>
+</div>
     <div style="display:flex;gap:10px;margin-top:8px">
       <button type="submit" class="btn btn-primary">Create project</button>
       <a href="{{ url_for('projects') }}" class="btn">Cancel</a>

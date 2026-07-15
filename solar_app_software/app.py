@@ -2198,6 +2198,40 @@ def new_project():
         db.session.add(proj)
         db.session.flush()
         log_action(proj.id, 'Project created', new_val='Created')
+        geo_photo    = request.files.get('geo_photo')
+        maps_url_raw = _clean(request.form.get('maps_url', ''), 500)
+        has_photo    = False
+        if (geo_photo and geo_photo.filename) or maps_url_raw:
+            tag = ProjectGeoTag(project_id=proj.id, uploaded_by=current_user.id,
+                                 uploaded_at=datetime.utcnow())
+            if geo_photo and geo_photo.filename:
+                ext = os.path.splitext(geo_photo.filename)[1].lower()
+                if ext in ('.jpg', '.jpeg', '.png'):
+                    os.makedirs(GEO_UPLOAD_DIR, exist_ok=True)
+                    fname = f'{proj.project_code}_{int(datetime.utcnow().timestamp())}{ext}'
+                    fpath = os.path.join(GEO_UPLOAD_DIR, fname)
+                    geo_photo.save(fpath)
+                    tag.photo_path = fpath
+                    has_photo = True
+                else:
+                    flash('Site photo must be JPG or PNG — photo was skipped.', 'warning')
+            if maps_url_raw:
+                tag.maps_url = maps_url_raw
+                lat, lng = parse_gmaps_coords(maps_url_raw)
+                if lat is not None:
+                    tag.latitude, tag.longitude, tag.has_gps = lat, lng, True
+                else:
+                    flash('Maps link saved, but coordinates could not be read from it.', 'warning')
+            db.session.add(tag)
+            log_action(proj.id, 'Site photo/location added at project creation',
+                       new_val='Photo' if has_photo else 'Location only')
+
+        if proj.doc_staff_id:
+            create_notification(
+                proj.doc_staff_id, proj.id,
+                f'You have been assigned to {proj.project_code}-{proj.customer.name} '
+                f'({proj.project_type}, {proj.inverter_capacity_kw} kW).', 'task',
+            )
         if proj.doc_staff_id:
             create_notification(
                 proj.doc_staff_id, proj.id,
@@ -2419,6 +2453,38 @@ def edit_project(pid):
             cd.updated_by = current_user.id
             if not cd.id:
                 db.session.add(cd)
+        # ── Optional site photo / location update ─────────────────────────
+        geo_photo    = request.files.get('geo_photo')
+        maps_url_raw = _clean(request.form.get('maps_url', ''), 500)
+        if (geo_photo and geo_photo.filename) or maps_url_raw:
+            tag = proj.geo_tag or ProjectGeoTag(project_id=pid)
+            if geo_photo and geo_photo.filename:
+                ext = os.path.splitext(geo_photo.filename)[1].lower()
+                if ext in ('.jpg', '.jpeg', '.png'):
+                    if tag.photo_path and os.path.isfile(tag.photo_path):
+                        try:
+                            os.remove(tag.photo_path)
+                        except OSError:
+                            pass
+                    os.makedirs(GEO_UPLOAD_DIR, exist_ok=True)
+                    fname = f'{proj.project_code}_{int(datetime.utcnow().timestamp())}{ext}'
+                    fpath = os.path.join(GEO_UPLOAD_DIR, fname)
+                    geo_photo.save(fpath)
+                    tag.photo_path = fpath
+                else:
+                    flash('Site photo must be JPG or PNG — photo was skipped.', 'warning')
+            if maps_url_raw:
+                tag.maps_url = maps_url_raw
+                lat, lng = parse_gmaps_coords(maps_url_raw)
+                if lat is not None:
+                    tag.latitude, tag.longitude, tag.has_gps = lat, lng, True
+                else:
+                    flash('Maps link saved, but coordinates could not be read from it.', 'warning')
+            tag.uploaded_by = current_user.id
+            tag.uploaded_at = datetime.utcnow()
+            if not tag.id:
+                db.session.add(tag)
+            log_action(pid, 'Site photo/location updated')
         log_action(pid, 'Project edited: ' + (', '.join(changes) if changes else 'details updated'))
         db.session.commit()
         pending = new_amount - float(proj.collected_amount or 0)
@@ -2429,7 +2495,42 @@ def edit_project(pid):
     return render_template('edit_project.html', proj=proj,
                            doc_staff=doc_staff, coordinators=coordinators,office=office,documents_k=documents_k)
 
+@app.route('/projects/<int:pid>/geo_tag/delete_photo', methods=['POST'])
+@login_required
+@roles_required('admin', 'onsite', 'coordinator', 'documents', 'office', 'documents_k', 'director')
+def delete_geo_photo(pid):
+    tag = ProjectGeoTag.query.filter_by(project_id=pid).first()
+    if tag and tag.photo_path:
+        if os.path.isfile(tag.photo_path):
+            try:
+                os.remove(tag.photo_path)
+            except OSError:
+                pass
+        tag.photo_path = None
+        log_action(pid, 'Site photo removed')
+        db.session.commit()
+        flash('Site photo removed.', 'success')
+    else:
+        flash('No site photo to remove.', 'warning')
+    return redirect(request.referrer or url_for('project_detail', pid=pid))
 
+
+@app.route('/projects/<int:pid>/geo_tag/delete_location', methods=['POST'])
+@login_required
+@roles_required('admin', 'onsite', 'coordinator', 'documents', 'office', 'documents_k', 'director')
+def delete_geo_location(pid):
+    tag = ProjectGeoTag.query.filter_by(project_id=pid).first()
+    if tag and tag.has_gps:
+        tag.latitude = None
+        tag.longitude = None
+        tag.has_gps = False
+        tag.maps_url = None
+        log_action(pid, 'Site location removed')
+        db.session.commit()
+        flash('Location removed.', 'success')
+    else:
+        flash('No location to remove.', 'warning')
+    return redirect(url_for('edit_project', pid=pid))
 @app.route('/projects/<int:pid>/site_visit', methods=['POST'])
 @login_required
 @roles_required('admin', 'coordinator','director')
