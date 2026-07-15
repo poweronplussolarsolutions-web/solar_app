@@ -289,21 +289,20 @@
       {% endif %}
 {% set geo_tag = proj.geo_tag %}
 <div style="border-top:0.5px solid var(--border);margin:16px 0 14px;font-size:13px;font-weight:500;padding-top:14px;color:var(--muted)">
-  Site photo &amp; location <span style="color:var(--muted);font-weight:400;font-size:11px">(optional — helps onsite team scout the site)</span>
+  Site photo &amp; location <span style="color:var(--muted);font-weight:400;font-size:11px">(before work — helps onsite team scout the site)</span>
 </div>
 
-{% if geo_tag and (geo_tag.photo_path or geo_tag.has_gps) %}
+{% if geo_tag and (geo_tag.site_photo_path or geo_tag.has_gps) %}
 <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">
-  {% if geo_tag.photo_path %}
+  {% if geo_tag.site_photo_path %}
   <div style="position:relative;width:140px">
-    <img src="{{ url_for('serve_geo_photo', pid=proj.id) }}" alt="Site photo"
+    <img src="{{ url_for('serve_site_photo', pid=proj.id) }}" alt="Pre-work site photo"
          style="width:140px;height:100px;object-fit:cover;border-radius:var(--radius);border:0.5px solid var(--border)"/>
     <button type="button" class="geo-delete-btn" title="Remove photo"
-        data-action="{{ url_for('delete_geo_photo', pid=proj.id) }}"
+        data-action="{{ url_for('delete_site_photo', pid=proj.id) }}"
         data-confirm="Remove site photo?"
         style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);color:#fff;border:none;
                border-radius:50%;width:20px;height:20px;line-height:20px;font-size:12px;cursor:pointer;padding:0">✕</button>
-            
   </div>
   {% endif %}
   {% if geo_tag.has_gps %}
@@ -316,7 +315,6 @@
         data-confirm="Remove saved location?"
         style="position:absolute;top:6px;right:6px;background:transparent;color:var(--red-600,#dc2626);
                border:none;font-size:14px;cursor:pointer;padding:0">✕</button>
-            
   </div>
   {% endif %}
 </div>
@@ -324,7 +322,7 @@
 
 <div class="form-grid">
   <div class="form-group">
-    <label>{% if geo_tag and geo_tag.photo_path %}Replace site photo{% else %}Site photo{% endif %}</label>
+    <label>{% if geo_tag and geo_tag.site_photo_path %}Replace site photo{% else %}Site photo{% endif %}</label>
     <input type="file" name="geo_photo" accept=".jpg,.jpeg,.png"/>
   </div>
   <div class="form-group">
