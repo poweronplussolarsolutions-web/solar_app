@@ -349,13 +349,14 @@
     {% endif %}
   </div>
 </div>
+<div class="mb-10">
 {% if proj.geo_tag and proj.geo_tag.photo_path %}
   {% if file_exists(proj.geo_tag.photo_path) %}
-    <a href="{{ url_for('download_geo_photo', pid=proj.id) }}" class="btn btn-sm mb-10">📷 Download site photo</a>
+    <a href="{{ url_for('download_geo_photo', pid=proj.id) }}" class="btn btn-sm">📷 Download site photo</a>
   {% else %}
     <span style="font-size:12px;color:var(--danger)">⚠ Site photo file missing on server — please re-upload from Onsite Progress.</span>
   {% endif %}
-{% endif %}
+{% endif %}</div>
 {% if not all_docs_complete or admin_edit %}
 {% set ns_ov = namespace(applicable=0, done=0, partial=0, active=0, jump_id=None) %}
 {% set ns_idx = namespace(i=0) %}
