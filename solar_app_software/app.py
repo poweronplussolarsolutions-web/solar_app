@@ -907,11 +907,12 @@ class ProjectGeoTag(db.Model):
     __tablename__ = 'project_geo_tags'
     id           = db.Column(db.Integer, primary_key=True)
     project_id   = db.Column(db.Integer, db.ForeignKey('projects.id'), unique=True, nullable=False)
-    photo_path   = db.Column(db.String(255), nullable=False)
+    photo_path   = db.Column(db.String(255), nullable=True)     
+    maps_url     = db.Column(db.String(500), nullable=True)     
     latitude     = db.Column(db.Float, nullable=True)
     longitude    = db.Column(db.Float, nullable=True)
     has_gps      = db.Column(db.Boolean, default=False)
-    address      = db.Column(db.String(300), nullable=True)   # reverse-geocoded, cached
+    address      = db.Column(db.String(300), nullable=True)
     uploaded_by  = db.Column(db.Integer, db.ForeignKey('users.id'))
     uploaded_at  = db.Column(db.DateTime, default=datetime.utcnow)
     project      = db.relationship('Project', backref=db.backref('geo_tag', uselist=False))
@@ -924,37 +925,53 @@ class GeocodeCache(db.Model):
     longitude  = db.Column(db.Float, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-from PIL import Image
-from PIL.ExifTags import TAGS, GPSTAGS
+from urllib.parse import urlparse
 
-def extract_gps_from_image(filepath):
+ALLOWED_MAPS_HOSTS = ('google.com', 'goo.gl', 'maps.app.goo.gl')
+
+def _is_allowed_maps_host(url):
     try:
-        img = Image.open(filepath)
-        exif = img._getexif()
-        if not exif:
-            return None, None
-        gps_info = {}
-        for tag, val in exif.items():
-            if TAGS.get(tag) == 'GPSInfo':
-                for t in val:
-                    gps_info[GPSTAGS.get(t, t)] = val[t]
-        if not gps_info.get('GPSLatitude'):
-            return None, None
-
-        def _dms_to_deg(dms, ref):
-            d, m, s = [float(x) for x in dms]
-            deg = d + m / 60 + s / 3600
-            return -deg if ref in ('S', 'W') else deg
-
-        lat = _dms_to_deg(gps_info['GPSLatitude'], gps_info.get('GPSLatitudeRef', 'N'))
-        lng = _dms_to_deg(gps_info['GPSLongitude'], gps_info.get('GPSLongitudeRef', 'E'))
-
-        # sanity check — reject obviously bad GPS chips (roughly bounds India)
-        if not (6 <= lat <= 36 and 68 <= lng <= 98):
-            return None, None
-        return round(lat, 6), round(lng, 6)
+        host = urlparse(url).netloc.lower()
     except Exception:
+        return False
+    return any(host == d or host.endswith('.' + d) for d in ALLOWED_MAPS_HOSTS)
+
+def parse_gmaps_coords(url):
+    """Extract (lat, lng) from any common Google Maps link format.
+    Resolves shortened maps.app.goo.gl / goo.gl links first."""
+    if not url:
         return None, None
+    url = url.strip()
+    if not _is_allowed_maps_host(url):
+        return None, None
+
+    # Shortened links need resolving to their real URL before we can regex it
+    if 'goo.gl' in url:
+        try:
+            r = requests.head(url, allow_redirects=True, timeout=5,
+                               headers={'User-Agent': 'Mozilla/5.0'})
+            url = r.url
+        except Exception:
+            try:
+                r = requests.get(url, allow_redirects=True, timeout=5,
+                                  headers={'User-Agent': 'Mozilla/5.0'})
+                url = r.url
+            except Exception:
+                return None, None
+
+    patterns = [
+        r'@(-?\d+\.\d+),(-?\d+\.\d+)',            # .../@11.140829,76.032104,15z
+        r'[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)',        # ?q=11.140829,76.032104
+        r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)',         # place URLs with embedded coords
+        r'/place/(-?\d+\.\d+),\s*(-?\d+\.\d+)',    # /place/11.14,76.03
+    ]
+    for pat in patterns:
+        m = re.search(pat, url)
+        if m:
+            lat, lng = float(m.group(1)), float(m.group(2))
+            if 6 <= lat <= 36 and 68 <= lng <= 98:   # sanity-check within India
+                return round(lat, 6), round(lng, 6)
+    return None, None
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1009,10 +1026,6 @@ def log_action(project_id, action, old_val=None, new_val=None):
 @roles_required('admin', 'onsite')
 def upload_geo_tag(pid):
     proj = Project.query.get_or_404(pid)
-    # op = proj.onsite_progress
-    # if not op or op.installation_status != 'Completed':
-    #     flash('Onsite work must be completed before uploading a site photo.', 'danger')
-    #     return redirect(url_for('onsite_progress', pid=pid))
 
     file = request.files.get('geo_photo')
     if not file or file.filename == '':
@@ -1030,39 +1043,83 @@ def upload_geo_tag(pid):
     fpath = os.path.join(upload_dir, fname)
     file.save(fpath)
 
-    lat, lng = extract_gps_from_image(fpath)
-
     tag = proj.geo_tag or ProjectGeoTag(project_id=pid)
-    tag.photo_path, tag.latitude, tag.longitude = fpath, lat, lng
-    tag.has_gps      = lat is not None
-    tag.uploaded_by  = current_user.id
-    tag.uploaded_at  = datetime.utcnow()
+    tag.photo_path  = fpath
+    tag.uploaded_by = current_user.id
+    tag.uploaded_at = datetime.utcnow()
     if not tag.id:
         db.session.add(tag)
 
-    log_action(pid, 'Site geo-tag photo uploaded', new_val=f'{lat},{lng}' if lat else 'No GPS in photo')
+    log_action(pid, 'Site photo uploaded', new_val=fname)
     db.session.commit()
+    flash('Site photo uploaded.', 'success')
+    return redirect(url_for('onsite_progress', pid=pid))
 
-    if lat is None:
-        flash('Photo uploaded, but it has no GPS data. Drop a pin manually on the map.', 'warning')
-    else:
+@app.route('/projects/<int:pid>/geo_tag/location', methods=['POST'])
+@login_required
+@roles_required('admin', 'onsite')
+def save_geo_location(pid):
+    proj = Project.query.get_or_404(pid)
+    maps_url = _clean(request.form.get('maps_url', ''), 500)
+
+    if not maps_url:
+        flash('Please paste a Google Maps link.', 'danger')
+        return redirect(url_for('onsite_progress', pid=pid))
+
+    lat, lng = parse_gmaps_coords(maps_url)
+
+    tag = proj.geo_tag or ProjectGeoTag(project_id=pid)
+    tag.maps_url    = maps_url
+    tag.uploaded_by = current_user.id
+    tag.uploaded_at = datetime.utcnow()
+    if not tag.id:
+        db.session.add(tag)
+
+    if lat is not None:
+        tag.latitude, tag.longitude, tag.has_gps = lat, lng, True
+        log_action(pid, 'Site location saved from Google Maps link', new_val=f'{lat},{lng}')
+        db.session.commit()
         flash(f'Location captured: {lat}, {lng}', 'success')
+    else:
+        tag.has_gps = False
+        db.session.commit()
+        log_action(pid, 'Google Maps link saved but coordinates could not be parsed')
+        flash('Link saved, but coordinates could not be read from it. Try sharing the location again '
+              '(long-press the pin in Google Maps → Share → Copy link), or set a pin manually below.', 'warning')
+
     return redirect(url_for('onsite_progress', pid=pid))
 
 @app.route('/geo_photo/<int:pid>')
 @login_required
 def serve_geo_photo(pid):
     tag = ProjectGeoTag.query.filter_by(project_id=pid).first_or_404()
+    if not tag.photo_path:
+        abort(404)
     return send_file(tag.photo_path)
+
+@app.route('/geo_photo/<int:pid>/download')
+@login_required
+def download_geo_photo(pid):
+    tag = ProjectGeoTag.query.filter_by(project_id=pid).first_or_404()
+    if not tag.photo_path:
+        abort(404)
+    proj = tag.project
+    ext  = os.path.splitext(tag.photo_path)[1]
+    return send_file(tag.photo_path, as_attachment=True,
+                      download_name=f'{proj.project_code}_site_photo{ext}')
 
 @app.route('/projects/<int:pid>/geo_tag/manual', methods=['POST'])
 @login_required
 @roles_required('admin', 'onsite')
 def set_geo_tag_manual(pid):
-    tag = ProjectGeoTag.query.filter_by(project_id=pid).first_or_404()
+    tag = ProjectGeoTag.query.filter_by(project_id=pid).first()
+    if not tag:
+        tag = ProjectGeoTag(project_id=pid)
+        db.session.add(tag)
     tag.latitude  = _safe_float(request.form.get('latitude'))
     tag.longitude = _safe_float(request.form.get('longitude'))
     tag.has_gps   = True
+    tag.uploaded_by = current_user.id
     db.session.commit()
     flash('Location pin updated.', 'success')
     return redirect(url_for('onsite_progress', pid=pid))

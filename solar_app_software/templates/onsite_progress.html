@@ -1038,88 +1038,108 @@
 {# ══════════════════════════════════════════ #}
 
 <div class="card">
-  <div class="section-label">Site geo-tag photo</div>
+  <div class="section-label">Site photo &amp; location</div>
 
-  {% if proj.geo_tag %}
-    <div style="display:grid;grid-template-columns:140px 1fr;gap:16px;align-items:start">
-      <a href="{{ url_for('serve_geo_photo', pid=proj.id) }}" target="_blank">
-        <img src="{{ url_for('serve_geo_photo', pid=proj.id) }}"
-             style="width:140px;height:140px;object-fit:cover;border-radius:var(--radius);
-                    border:0.5px solid var(--border)"/>
-      </a>
-      <div>
-        {% if proj.geo_tag.has_gps %}
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-            <span class="badge badge-Completed">📍 Location captured</span>
-          </div>
-          <table style="font-size:13px">
-            <tr><td style="color:var(--muted);width:100px;padding:3px 0">Latitude</td>
-                <td>{{ '%.6f' | format(proj.geo_tag.latitude) }}</td></tr>
-            <tr><td style="color:var(--muted);padding:3px 0">Longitude</td>
-                <td>{{ '%.6f' | format(proj.geo_tag.longitude) }}</td></tr>
-            <tr><td style="color:var(--muted);padding:3px 0">Uploaded</td>
-                <td>{{ proj.geo_tag.uploaded_at | date_fmt }}
-                  {% if proj.geo_tag.uploader %} · {{ proj.geo_tag.uploader.full_name }}{% endif %}</td></tr>
-          </table>
-          <a href="{{ url_for('service_map') }}?q={{ proj.customer.place or proj.customer.district or '' }}"
-             class="btn btn-sm" style="margin-top:8px">View on service map →</a>
-        {% else %}
-          <span class="badge badge-Created">⚠ No GPS data in photo</span>
-          <div style="font-size:12px;color:var(--hint);margin:8px 0">
-            The photo didn't contain location data (common with WhatsApp-compressed images).
-            Drop a pin manually below.
-          </div>
-          <button type="button" class="btn btn-sm" id="manual-pin-btn">📌 Set location manually</button>
-          <div id="manual-pin-form" style="display:none;margin-top:10px">
-            <form method="POST" action="{{ url_for('set_geo_tag_manual', pid=proj.id) }}">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <div class="form-grid">
-                <div class="form-group">
-                  <label>Latitude</label>
-                  <input type="number" step="0.000001" name="latitude" placeholder="e.g. 11.140829" required/>
-                </div>
-                <div class="form-group">
-                  <label>Longitude</label>
-                  <input type="number" step="0.000001" name="longitude" placeholder="e.g. 76.032104" required/>
-                </div>
-              </div>
-              <p style="font-size:11px;color:var(--hint)">
-                Tip: open Google Maps, long-press the site location, and copy the coordinates shown.
-              </p>
-              <button type="submit" class="btn btn-primary btn-sm">Save pin</button>
-            </form>
-          </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+    {# ── Photo column ── #}
+    <div>
+      <div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Site photo</div>
+      {% if proj.geo_tag and proj.geo_tag.photo_path %}
+        <a href="{{ url_for('serve_geo_photo', pid=proj.id) }}" target="_blank">
+          <img src="{{ url_for('serve_geo_photo', pid=proj.id) }}"
+               style="width:140px;height:140px;object-fit:cover;border-radius:var(--radius);border:0.5px solid var(--border)"/>
+        </a>
+        <div style="font-size:11px;color:var(--hint);margin-top:6px">
+          {{ proj.geo_tag.uploaded_at | date_fmt }}
+          {% if proj.geo_tag.uploader %} · {{ proj.geo_tag.uploader.full_name }}{% endif %}
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px">
+          <a href="{{ url_for('download_geo_photo', pid=proj.id) }}" class="btn btn-sm">⬇ Download</a>
+          {% if current_user.role in ['admin','onsite'] %}
+          <button type="button" class="btn btn-sm" id="regeo-btn">Replace</button>
+          {% endif %}
+        </div>
+        {% if current_user.role in ['admin','onsite'] %}
+        <div id="regeo-form" style="display:none;margin-top:10px">
+          <form method="POST" action="{{ url_for('upload_geo_tag', pid=proj.id) }}" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="file" name="geo_photo" accept="image/jpeg,image/png" required/>
+            <button type="submit" class="btn btn-primary btn-sm" style="margin-top:8px">Upload</button>
+          </form>
+        </div>
         {% endif %}
-      </div>
-    </div>
-
-    <div style="margin-top:14px;border-top:0.5px solid var(--border);padding-top:12px">
-      <button type="button" class="btn btn-sm" id="regeo-btn">Replace photo</button>
-      <div id="regeo-form" style="display:none;margin-top:10px">
+      {% elif current_user.role in ['admin','onsite'] %}
         <form method="POST" action="{{ url_for('upload_geo_tag', pid=proj.id) }}" enctype="multipart/form-data">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="file" name="geo_photo" accept="image/jpeg,image/png" required/>
-          <button type="submit" class="btn btn-primary btn-sm" style="margin-top:8px">Upload</button>
+          <button type="submit" class="btn btn-primary btn-sm" style="margin-top:8px">📸 Upload photo</button>
         </form>
-      </div>
+      {% else %}
+        <div style="font-size:12px;color:var(--hint)">No photo uploaded yet.</div>
+      {% endif %}
     </div>
 
-  {% else %}
-    <div style="font-size:13px;color:var(--hint);margin-bottom:12px">
-      Onsite work is complete. Upload a geo-tagged site photo 
-    </div>
-    {% if current_user.role in ['admin', 'onsite'] %}
-    <form method="POST" action="{{ url_for('upload_geo_tag', pid=proj.id) }}" enctype="multipart/form-data"
-          style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div style="flex:1;min-width:200px">
-        <label>Site photo</label>
-        <input type="file" name="geo_photo" accept="image/jpeg,image/png" required/>
+    {# ── Location column ── #}
+    <div>
+      <div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--hint);margin-bottom:8px">Service location</div>
+      {% if proj.geo_tag and proj.geo_tag.has_gps %}
+        <span class="badge badge-Completed">📍 Location set</span>
+        <table style="font-size:13px;margin-top:8px">
+          <tr><td style="color:var(--muted);width:90px;padding:3px 0">Latitude</td><td>{{ '%.6f' | format(proj.geo_tag.latitude) }}</td></tr>
+          <tr><td style="color:var(--muted);padding:3px 0">Longitude</td><td>{{ '%.6f' | format(proj.geo_tag.longitude) }}</td></tr>
+        </table>
+        <a href="{{ url_for('service_map') }}?q={{ proj.customer.place or proj.customer.district or '' }}"
+           class="btn btn-sm" style="margin-top:8px">View on service map →</a>
+        {% if current_user.role in ['admin','onsite'] %}
+        <div style="margin-top:10px">
+          <button type="button" class="btn btn-sm" id="loc-edit-btn">Update location</button>
+        </div>
+        {% endif %}
+      {% elif current_user.role in ['admin','onsite'] %}
+        <div style="font-size:12px;color:var(--hint);margin-bottom:8px">
+          No location set yet.
+        </div>
+      {% else %}
+        <div style="font-size:12px;color:var(--hint)">No location set yet.</div>
+      {% endif %}
+
+      {% if current_user.role in ['admin','onsite'] %}
+      <div id="loc-form" style="{% if proj.geo_tag and proj.geo_tag.has_gps %}display:none;{% endif %}margin-top:10px">
+        <form method="POST" action="{{ url_for('save_geo_location', pid=proj.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label>Google Maps link</label>
+          <input type="text" name="maps_url" placeholder="Paste link from Google Maps → Share → Copy link" required/>
+          <p style="font-size:11px;color:var(--hint);margin-top:4px">
+            In Google Maps: long-press the site location → tap the pin → Share → Copy link, then paste it here.
+          </p>
+          <button type="submit" class="btn btn-primary btn-sm" style="margin-top:6px">Save location</button>
+        </form>
+
+        <div style="border-top:0.5px solid var(--border);margin:12px 0"></div>
+
+        <button type="button" class="btn btn-sm" id="manual-pin-btn">📌 Or set coordinates manually</button>
+        <div id="manual-pin-form" style="display:none;margin-top:10px">
+          <form method="POST" action="{{ url_for('set_geo_tag_manual', pid=proj.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Latitude</label>
+                <input type="number" step="0.000001" name="latitude" placeholder="e.g. 11.140829" required/>
+              </div>
+              <div class="form-group">
+                <label>Longitude</label>
+                <input type="number" step="0.000001" name="longitude" placeholder="e.g. 76.032104" required/>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Save pin</button>
+          </form>
+        </div>
       </div>
-      <button type="submit" class="btn btn-primary btn-sm">📸 Upload &amp; extract location</button>
-    </form>
-    {% endif %}
-  {% endif %}
+      {% endif %}
+    </div>
+
+  </div>
 </div>
 
 {# ══════════════════════════════════════════ #}
@@ -1333,6 +1353,14 @@ var regeoForm = document.getElementById('regeo-form');
 if (regeoBtn) {
   regeoBtn.addEventListener('click', function () {
     regeoForm.style.display = regeoForm.style.display === 'none' ? 'block' : 'none';
+  });
+}
+var locEditBtn = document.getElementById('loc-edit-btn');
+var locForm    = document.getElementById('loc-form');
+if (locEditBtn) {
+  locEditBtn.addEventListener('click', function () {
+    locForm.style.display = 'block';
+    locEditBtn.style.display = 'none';
   });
 }
 </script>
