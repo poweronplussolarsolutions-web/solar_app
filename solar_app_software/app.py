@@ -1009,10 +1009,10 @@ def log_action(project_id, action, old_val=None, new_val=None):
 @roles_required('admin', 'onsite')
 def upload_geo_tag(pid):
     proj = Project.query.get_or_404(pid)
-    op = proj.onsite_progress
-    if not op or op.installation_status != 'Completed':
-        flash('Onsite work must be completed before uploading a site photo.', 'danger')
-        return redirect(url_for('onsite_progress', pid=pid))
+    # op = proj.onsite_progress
+    # if not op or op.installation_status != 'Completed':
+    #     flash('Onsite work must be completed before uploading a site photo.', 'danger')
+    #     return redirect(url_for('onsite_progress', pid=pid))
 
     file = request.files.get('geo_photo')
     if not file or file.filename == '':
