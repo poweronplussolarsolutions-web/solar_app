@@ -5050,7 +5050,9 @@ def mark_all_read():
 # ─────────────────────────────────────────────────────────────────────────────
 # TEMPLATE FILTERS
 # ─────────────────────────────────────────────────────────────────────────────
-
+@app.context_processor
+def inject_file_helpers():
+    return dict(file_exists=lambda p: bool(p) and os.path.isfile(p))
 @app.template_filter('inr')
 def inr_filter(value):
     try:
