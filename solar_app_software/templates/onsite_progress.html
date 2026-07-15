@@ -1106,8 +1106,7 @@
 
   {% else %}
     <div style="font-size:13px;color:var(--hint);margin-bottom:12px">
-      Onsite work is complete. Upload a geo-tagged site photo — taken directly with the camera
-      (not forwarded via WhatsApp) so the GPS location embeds automatically.
+      Onsite work is complete. Upload a geo-tagged site photo 
     </div>
     {% if current_user.role in ['admin', 'onsite'] %}
     <form method="POST" action="{{ url_for('upload_geo_tag', pid=proj.id) }}" enctype="multipart/form-data"

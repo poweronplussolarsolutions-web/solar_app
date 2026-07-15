@@ -165,13 +165,13 @@ def set_security_headers(response):
     response.headers['Permissions-Policy']        = 'geolocation=(), microphone=(), camera=()'
     # Tight CSP — adjust 'unsafe-inline' once you move styles/scripts to files
     response.headers['Content-Security-Policy'] = (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
-        "font-src 'self' https://fonts.gstatic.com; "
-        "img-src 'self' data:; "
-        "connect-src 'self';"
-    )
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
+    "font-src 'self' https://fonts.gstatic.com; "
+    "img-src 'self' data: https://*.tile.openstreetmap.org; "
+    "connect-src 'self' https://nominatim.openstreetmap.org;"
+)
     return response
 
 
