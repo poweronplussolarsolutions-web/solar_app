@@ -29,7 +29,7 @@
   border: none;
   background: transparent;
   flex: 1;
-  font-size: 14px;
+  font-size: 15px;
   outline: none;
   color: var(--text);
   padding: 0;
@@ -41,7 +41,7 @@
   border: none;
   border-radius: var(--radius);
   padding: 6px 18px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
@@ -64,7 +64,7 @@
 .jc-suggestion-item {
   padding: 9px 14px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   border-bottom: 0.5px solid var(--border);
   display: flex;
   gap: 10px;
@@ -75,7 +75,7 @@
 .jc-sug-code {
   font-weight: 600;
   font-family: monospace;
-  font-size: 12px;
+  font-size: 13px;
   background: var(--bg);
   border: 0.5px solid var(--border);
   border-radius: 4px;
@@ -84,7 +84,7 @@
   white-space: nowrap;
 }
 .jc-sug-name { flex: 1; color: var(--text); }
-.jc-sug-status { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.jc-sug-status { font-size: 12px; color: var(--muted); white-space: nowrap; }
 
 /* Card */
 .jc-preview {
@@ -101,15 +101,15 @@
   color: #fff;
   padding: 10px 20px;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 15px;
 }
-.jc-serial { font-size: 12px; text-align: right; }
+.jc-serial { font-size: 13px; text-align: right; }
 .jc-serial span { display: block; }
 .jc-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0;
-  font-size: 12px;
+  font-size: 13.5px;
 }
 .jc-section { border-right: 0.5px solid var(--border); }
 .jc-section:nth-child(even) { border-right: none; }
@@ -119,7 +119,7 @@
   border-top: 0.5px solid var(--border);
   padding: 7px 14px;
   font-weight: 600;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -134,7 +134,7 @@
   width: 130px; flex-shrink: 0;
   padding: 5px 10px 5px 14px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   display: flex; align-items: center;
   border-right: 0.5px solid var(--border);
 }
@@ -142,13 +142,13 @@
   padding: 5px 10px;
   flex: 1;
   display: flex; align-items: center;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   word-break: break-word;
 }
 .jc-full { grid-column: 1 / -1; border-right: none; }
 .jc-badge {
-  font-size: 10px; padding: 1px 7px; border-radius: 20px;
+  font-size: 11px; padding: 1px 7px; border-radius: 20px;
   font-weight: 500; white-space: nowrap;
 }
 .jc-badge-green { background: #d4edda; color: #155724; }
@@ -162,8 +162,8 @@
   color: var(--hint);
 }
 .jc-empty svg { opacity: 0.3; margin-bottom: 14px; }
-.jc-empty h3  { font-size: 15px; color: var(--muted); font-weight: 500; margin: 0 0 6px; }
-.jc-empty p   { font-size: 13px; margin: 0; }
+.jc-empty h3  { font-size: 16px; color: var(--muted); font-weight: 500; margin: 0 0 6px; }
+.jc-empty p   { font-size: 14px; margin: 0; }
 
 .jc-download-bar {
   display: flex;
@@ -175,8 +175,8 @@
   flex-wrap: wrap;
   gap: 8px;
 }
-.jc-download-bar h3 { font-size: 13px; font-weight: 600; margin: 0; }
-.jc-download-bar p  { font-size: 12px; color: var(--muted); margin: 0; }
+.jc-download-bar h3 { font-size: 14px; font-weight: 600; margin: 0; }
+.jc-download-bar p  { font-size: 13px; color: var(--muted); margin: 0; }
 
 @media (max-width: 640px) {
   .jc-grid { grid-template-columns: 1fr; }
@@ -204,7 +204,7 @@
     <div class="jc-suggestions" id="jc-suggestions"></div>
   </div>
   {% if query %}
-  <div style="margin-top:8px;font-size:12px;color:var(--muted)">
+  <div style="margin-top:8px;font-size:13px;color:var(--muted)">
     Showing result for <strong>"{{ query }}"</strong>
     <a href="{{ url_for('job_card_page') }}" style="margin-left:8px;color:var(--hint)">✕ Clear</a>
   </div>
@@ -260,9 +260,9 @@
   <div class="jc-header-strip">
     <span>POWER ON +</span>
     <div class="jc-serial">
-      <span style="font-size:10px;font-weight:400;opacity:0.7">JOB CARD DETAILS</span>
-      <span style="font-size:15px">{{ proj.project_code }}</span>
-      <span style="font-size:10px;font-weight:400;opacity:0.7">{{ now }}</span>
+      <span style="font-size:11px;font-weight:400;opacity:0.7">JOB CARD DETAILS</span>
+      <span style="font-size:16px">{{ proj.project_code }}</span>
+      <span style="font-size:11px;font-weight:400;opacity:0.7">{{ now }}</span>
     </div>
   </div>
 
@@ -339,11 +339,11 @@
         <div class="jc-label">{{ label }}</div>
         <div class="jc-val" style="gap:6px">
           {% if is_done %}
-            <span style="font-size:15px;color:#16a34a;line-height:1">✓</span>
-            <span style="font-size:11px;color:#16a34a;font-weight:600">Completed</span>
+            <span style="font-size:16px;color:#16a34a;line-height:1">✓</span>
+            <span style="font-size:12px;color:#16a34a;font-weight:600">Completed</span>
           {% else %}
-            <span style="font-size:15px;color:#9ca3af;line-height:1"></span>
-            <span style="font-size:11px;color:#9ca3af">{{ 'Pending' if doc else ' ' }}</span>
+            <span style="font-size:16px;color:#9ca3af;line-height:1"></span>
+            <span style="font-size:12px;color:#9ca3af">{{ 'Pending' if doc else ' ' }}</span>
           {% endif %}
         </div>
       </div>
@@ -363,11 +363,11 @@
     <div class="jc-label">{{ lbl }}</div>
     <div class="jc-val">
       {% if is_done %}
-        <span style="font-size:15px;color:#16a34a;line-height:1">✓</span>
-        <span style="font-size:11px;color:#16a34a;font-weight:600"> Completed</span>
+        <span style="font-size:16px;color:#16a34a;line-height:1">✓</span>
+        <span style="font-size:12px;color:#16a34a;font-weight:600"> Completed</span>
       {% else %}
-        <span style="font-size:15px;color:#9ca3af;line-height:1"></span>
-        <span style="font-size:11px;color:#9ca3af">{{ 'Pending' if doc else ' ' }}</span>
+        <span style="font-size:16px;color:#9ca3af;line-height:1"></span>
+        <span style="font-size:12px;color:#9ca3af">{{ 'Pending' if doc else ' ' }}</span>
       {% endif %}
     </div>
   </div>
@@ -380,7 +380,7 @@
     <div class="jc-val" style="flex-direction:column;align-items:flex-start;gap:2px">
       <span>{{ op.structure_work_status if op else ' ' }}</span>
       {% if struct_workers %}
-      <span style="font-size:10px;color:var(--muted)">
+      <span style="font-size:11px;color:var(--muted)">
         {{ struct_workers | map(attribute='worker') | map(attribute='name') | join(', ') }}
       </span>
       {% endif %}
@@ -394,7 +394,7 @@
     <div class="jc-val" style="flex-direction:column;align-items:flex-start;gap:2px">
       <span>{{ op.installation_status if op else '—' }}</span>
       {% if install_workers %}
-      <span style="font-size:10px;color:var(--muted)">
+      <span style="font-size:11px;color:var(--muted)">
         {{ install_workers | map(attribute='worker') | map(attribute='name') | join(', ') }}
       </span>
       {% endif %}
@@ -426,18 +426,18 @@
         ] %}
         <div class="jc-row" style="border-right:0.5px solid var(--border)">
           <div class="jc-label">{{ lbl }}</div>
-          <div class="jc-val" style="font-family:monospace;font-size:11px">{{ val }}</div>
+          <div class="jc-val" style="font-family:monospace;font-size:12px">{{ val }}</div>
         </div>
         {% endfor %}
       </div>
       {% if pd.panel_serial_numbers %}
       <div class="jc-row" style="flex-direction:column;padding:8px 14px;gap:6px;min-height:60px">
-  <div style="font-size:11px;color:var(--muted);font-weight:500">Panel Serial Numbers</div>
+  <div style="font-size:12px;color:var(--muted);font-weight:500">Panel Serial Numbers</div>
   {% if pd.panel_serial_numbers %}
   <div style="display:flex;flex-wrap:wrap;gap:4px">
     {% for sn in pd.panel_serial_numbers.splitlines() %}
     {% if sn.strip() %}
-    <span style="font-family:monospace;font-size:10px;background:var(--bg);
+    <span style="font-family:monospace;font-size:11px;background:var(--bg);
                  border:0.5px solid var(--border);border-radius:4px;padding:2px 6px">{{ sn.strip() }}</span>
     {% endif %}
     {% endfor %}
@@ -454,7 +454,7 @@
   {% endfor %}
 </div>
 <div class="jc-row" style="flex-direction:column;padding:8px 14px;gap:6px;min-height:60px">
-  <div style="font-size:11px;color:var(--muted);font-weight:500">Panel Serial Numbers</div>
+  <div style="font-size:12px;color:var(--muted);font-weight:500">Panel Serial Numbers</div>
 </div>
 {% endif %}
     </div>
@@ -475,8 +475,8 @@
         ] %}
         <div style="padding:8px 14px;{% if hl %}background:var(--teal-50,#f0fdfa);{% endif %}
                     border-right:0.5px solid var(--border)">
-          <div style="font-size:10px;color:var(--muted);margin-bottom:2px">{{ lbl }}</div>
-          <div style="font-size:13px;font-weight:{% if hl %}700{% else %}500{% endif %};
+          <div style="font-size:11px;color:var(--muted);margin-bottom:2px">{{ lbl }}</div>
+          <div style="font-size:14px;font-weight:{% if hl %}700{% else %}500{% endif %};
                       color:{% if hl %}var(--teal-800,#134e4a){% else %}var(--text){% endif %}">{{ val }}</div>
         </div>
         {% endfor %}
@@ -484,45 +484,45 @@
       {# Individual payments table #}
       {% if proj.payments %}
       <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
           <thead>
             <tr style="background:var(--bg)">
               <th style="padding:5px 10px 5px 14px;text-align:left;font-weight:600;
-                         color:var(--muted);font-size:10px;border-bottom:0.5px solid var(--border);
+                         color:var(--muted);font-size:11px;border-bottom:0.5px solid var(--border);
                          white-space:nowrap">#</th>
               <th style="padding:5px 10px;text-align:left;font-weight:600;
-                         color:var(--muted);font-size:10px;border-bottom:0.5px solid var(--border);
+                         color:var(--muted);font-size:11px;border-bottom:0.5px solid var(--border);
                          white-space:nowrap">Date</th>
               <th style="padding:5px 10px;text-align:left;font-weight:600;
-                         color:var(--muted);font-size:10px;border-bottom:0.5px solid var(--border);
+                         color:var(--muted);font-size:11px;border-bottom:0.5px solid var(--border);
                          white-space:nowrap">Type</th>
               <th style="padding:5px 10px;text-align:left;font-weight:600;
-                         color:var(--muted);font-size:10px;border-bottom:0.5px solid var(--border);
+                         color:var(--muted);font-size:11px;border-bottom:0.5px solid var(--border);
                          white-space:nowrap">Source</th>
               <th style="padding:5px 10px;text-align:left;font-weight:600;
-                         color:var(--muted);font-size:10px;border-bottom:0.5px solid var(--border);
+                         color:var(--muted);font-size:11px;border-bottom:0.5px solid var(--border);
                          white-space:nowrap">Ref No.</th>
                          <th style="padding:5px 14px 5px 10px;text-align:right;font-weight:600;
-                         color:var(--muted);font-size:10px;border-bottom:0.5px solid var(--border);
+                         color:var(--muted);font-size:11px;border-bottom:0.5px solid var(--border);
                          white-space:nowrap">Amount</th>
             </tr>
           </thead>
           <tbody>
             {% for pay in proj.payments | sort(attribute='payment_date') %}
             <tr style="{% if loop.index is odd %}background:var(--bg){% endif %}">
-              <td style="padding:5px 10px 5px 14px;color:var(--muted);font-size:10px">{{ loop.index }}</td>
+              <td style="padding:5px 10px 5px 14px;color:var(--muted);font-size:11px">{{ loop.index }}</td>
               <td style="padding:5px 10px;white-space:nowrap">{{ pay.payment_date | date_fmt }}</td>
               <td style="padding:5px 10px;white-space:nowrap">
-                <span style="font-size:10px;padding:1px 6px;border-radius:10px;
+                <span style="font-size:11px;padding:1px 6px;border-radius:10px;
                   background:{% if pay.payment_type=='Cash' %}#d4edda{% elif pay.payment_type=='Online' %}#d1ecf1{% elif pay.payment_type=='Cheque' %}#fff3cd{% else %}#e2e3e5{% endif %};
                   color:{% if pay.payment_type=='Cash' %}#155724{% elif pay.payment_type=='Online' %}#0c5460{% elif pay.payment_type=='Cheque' %}#856404{% else %}#383d41{% endif %}">
                   {{ pay.payment_type }}
                 </span>
               </td>
-              <td style="padding:5px 10px;color:var(--muted);font-size:11px">
+              <td style="padding:5px 10px;color:var(--muted);font-size:12px">
                 {{ pay.payment_source }}{% if pay.instalment %} · {{ pay.instalment }}{% endif %}
               </td>
-              <td style="padding:5px 10px;font-family:monospace;font-size:10px;color:var(--muted)">
+              <td style="padding:5px 10px;font-family:monospace;font-size:11px;color:var(--muted)">
                 {{ pay.reference_no or ' ' }}
               </td>
               <td style="padding:5px 14px 5px 10px;text-align:right;font-weight:600;
@@ -533,21 +533,21 @@
           <tfoot>
             <tr style="background:var(--bg);border-top:1.5px solid var(--border)">
               <td colspan="5"
-                  style="padding:7px 10px 7px 14px;font-weight:700;font-size:11px">
+                  style="padding:7px 10px 7px 14px;font-weight:700;font-size:12px">
                 Total Collected ({{ proj.payments | length }} payment{{ 's' if proj.payments | length != 1 }})
               </td>
               <td style="padding:7px 14px 7px 10px;text-align:right;font-weight:700;
-                         font-size:13px;color:var(--green-700,#15803d);white-space:nowrap">
+                         font-size:14px;color:var(--green-700,#15803d);white-space:nowrap">
                 {{ proj.effective_collected | inr }}
               </td>
             </tr>
             <tr style="background:{% if proj.pending_amount > 0 %}#fffbeb{% else %}#f0fdf4{% endif %}">
               <td colspan="5"
-                  style="padding:7px 10px 7px 14px;font-weight:700;font-size:11px">
+                  style="padding:7px 10px 7px 14px;font-weight:700;font-size:12px">
                 Pending Balance
               </td>
               <td style="padding:7px 14px 7px 10px;text-align:right;font-weight:700;
-                         font-size:13px;white-space:nowrap;
+                         font-size:14px;white-space:nowrap;
                          color:{% if proj.pending_amount > 0 %}var(--amber-600,#d97706){% else %}#15803d{% endif %}">
                 {{ proj.pending_amount | inr }}
               </td>
@@ -556,12 +556,12 @@
         </table>
       </div>
       {% else %}
-       <div style="padding:16px 14px;font-size:12px;color:var(--hint);font-style:italic">
+       <div style="padding:16px 14px;font-size:13px;color:var(--hint);font-style:italic">
        
       </div>
       {% endif %}
       <div style="border-top:0.5px solid var(--border);padding:8px 14px">
-        <div style="font-size:10px;color:var(--muted);font-weight:500;margin-bottom:6px">Pending Payments (write-in)</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:500;margin-bottom:6px">Pending Payments (write-in)</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0">
           {% for _ in range(3) %}
           <div class="jc-row" style="border-right:0.5px solid var(--border);min-height:30px">
@@ -581,7 +581,7 @@
     <div style="display:grid;grid-template-columns:1fr 1fr">
       {% for _ in range(4) %}
       <div class="jc-row" style="min-height:36px;border-right:0.5px solid var(--border)">
-        <div class="jc-val" style="color:var(--hint);font-size:10px;font-style:italic">
+        <div class="jc-val" style="color:var(--hint);font-size:11px;font-style:italic">
           _______________________________________________
         </div>
       </div>
@@ -591,7 +591,7 @@
 
   {# Signature #}
   <div style="display:flex;justify-content:flex-end;border-top:0.5px solid var(--border);
-              padding:14px 24px;font-size:12px;color:var(--muted)">
+              padding:14px 24px;font-size:13px;color:var(--muted)">
     Signature: _______________________
   </div>
 
