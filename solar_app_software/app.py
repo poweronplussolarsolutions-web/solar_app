@@ -4683,8 +4683,9 @@ def complete_service(sid):
         flash('This service visit is already marked complete.', 'warning')
         return redirect(url_for('project_service', pid=rec.project_id))
 
-    # ← enforce sequential completion server-side
-    if rec.visit_number > 1:
+    # Sequential completion is enforced for onsite users;
+    # admins can override to backfill historical completions.
+    if rec.visit_number > 1 and current_user.role != 'admin':
         prev = ServiceRecord.query.filter_by(
             project_id=rec.project_id,
             visit_number=rec.visit_number - 1
@@ -4693,16 +4694,26 @@ def complete_service(sid):
             flash('Previous service visit must be completed first.', 'danger')
             return redirect(url_for('project_service', pid=rec.project_id))
 
+    completed_date_str = request.form.get('completed_date', '')
+    rec.completed_date = (date.fromisoformat(completed_date_str)
+                          if completed_date_str else date.today())
+
+    if rec.completed_date > date.today():
+        flash('Completion date cannot be in the future.', 'danger')
+        return redirect(url_for('project_service', pid=rec.project_id))
+
     rec.status         = 'Completed'
-    rec.completed_date = (date.fromisoformat(request.form['completed_date'])
-                          if request.form.get('completed_date') else date.today())
     rec.conducted_by   = current_user.id
     rec.panel_cleaning = 'panel_cleaning' in request.form
     rec.notes          = _clean(request.form.get('notes', ''), 1000)
 
     proj = rec.project
+    backfilled_note = ' (backfilled by admin)' if (
+        current_user.role == 'admin' and rec.completed_date < date.today() - timedelta(days=7)
+    ) else ''
     log_action(rec.project_id,
-        f'Service visit #{rec.visit_number} completed — panel cleaning: {"Yes" if rec.panel_cleaning else "No"}',
+        f'Service visit #{rec.visit_number} completed{backfilled_note} — '
+        f'panel cleaning: {"Yes" if rec.panel_cleaning else "No"}',
         new_val='Completed')
 
     if proj.coordinator_id:
@@ -4713,7 +4724,6 @@ def complete_service(sid):
     db.session.commit()
     flash(f'Service visit #{rec.visit_number} marked complete.', 'success')
     return redirect(url_for('project_service', pid=rec.project_id))
- 
  
 @app.route('/service/<int:sid>/skip', methods=['POST'])
 @login_required
@@ -5285,9 +5295,10 @@ def build_coordinator_monthly_report(coordinator, all_projects, year, month, out
     month_name  = calendar.month_name[month]
     month_start = date(year, month, 1)
     month_end   = date(year, month, calendar.monthrange(year, month)[1])
-    month_projects     = [p for p in all_projects if p.created_at.date() <= month_end and p.status not in ('Cancelled',)]
+    month_projects     = [p for p in all_projects
+                           if month_start <= p.created_at.date() <= month_end
+                           and p.status not in ('Cancelled',)]
     created_this_month = [p for p in all_projects if p.created_at.year == year and p.created_at.month == month]
-
     wb = Workbook()
     ws = wb.active; ws.title = 'Summary'; _page_setup(ws); ws.freeze_panes = 'A6'
 
@@ -5461,9 +5472,10 @@ def build_docstaff_monthly_report(staff, all_projects, year, month, output_dir='
     month_name  = calendar.month_name[month]
     month_start = date(year, month, 1)
     month_end   = date(year, month, calendar.monthrange(year, month)[1])
-    month_projects     = [p for p in all_projects if p.created_at.date() <= month_end and p.status not in ('Cancelled',)]
+    month_projects     = [p for p in all_projects
+                           if month_start <= p.created_at.date() <= month_end
+                           and p.status not in ('Cancelled',)]
     created_this_month = [p for p in all_projects if p.created_at.year == year and p.created_at.month == month]
- 
     wb = Workbook(); ws = wb.active; ws.title = 'Summary'; _page_setup(ws); ws.freeze_panes = 'A6'
  
     for r, (txt, bg_c, fg_c, sz) in enumerate([
@@ -6046,9 +6058,10 @@ def coordinator_report_preview_data():
     label, coordinator, all_projects = _resolve_coord_projects(coord_id, coord_name)
 
     if month and year:
+        month_start = date(year, month, 1)
         month_end = date(year, month, calendar.monthrange(year, month)[1])
         projects  = [p for p in all_projects
-                     if p.created_at.date() <= month_end and p.status != 'Cancelled']
+                     if month_start <= p.created_at.date() <= month_end and p.status != 'Cancelled']
     else:
         projects = [p for p in all_projects if p.status != 'Cancelled']
 
@@ -6086,12 +6099,12 @@ def docstaff_report_preview_data():
     all_projects = Project.query.filter_by(doc_staff_id=staff_id).all()
  
     if month and year:
+        month_start = date(year, month, 1)
         month_end = date(year, month, calendar.monthrange(year, month)[1])
         projects  = [p for p in all_projects
-                     if p.created_at.date() <= month_end and p.status != 'Cancelled']
+                     if month_start <= p.created_at.date() <= month_end and p.status != 'Cancelled']
     else:
         projects = [p for p in all_projects if p.status != 'Cancelled']
- 
     feas_done       = sum(1 for p in projects if _doc_done(p, 'Feasibility Receipt'))
     cd_done         = sum(1 for p in projects if _doc_done(p, 'CD Payment Receipt'))
     conn_done       = sum(1 for p in projects if _doc_done(p, 'KSEB Connection'))
@@ -6133,9 +6146,10 @@ def print_coordinator_report():
     label, coordinator, all_projects = _resolve_coord_projects(coord_id, coord_name)
 
     if month and year:
+        month_start = date(year, month, 1)
         month_end = date(year, month, calendar.monthrange(year, month)[1])
         projects  = [p for p in all_projects
-                     if p.created_at.date() <= month_end and p.status != 'Cancelled']
+                     if month_start <= p.created_at.date() <= month_end and p.status != 'Cancelled']
         period    = f'{calendar.month_name[month]} {year}'
     else:
         projects = [p for p in all_projects if p.status != 'Cancelled']
@@ -6172,9 +6186,10 @@ def print_docstaff_report():
     all_projects = Project.query.filter_by(doc_staff_id=staff_id).all()
  
     if month and year:
+        month_start = date(year, month, 1)
         month_end = date(year, month, calendar.monthrange(year, month)[1])
         projects  = [p for p in all_projects
-                     if p.created_at.date() <= month_end and p.status != 'Cancelled']
+                     if month_start <= p.created_at.date() <= month_end and p.status != 'Cancelled']
         period    = f'{calendar.month_name[month]} {year}'
     else:
         projects = [p for p in all_projects if p.status != 'Cancelled']
@@ -6220,12 +6235,12 @@ def coordinator_my_report_preview():
 
     all_projects = Project.query.filter_by(coordinator_id=current_user.id).all()
     if month and year:
+        month_start = date(year, month, 1)
         month_end = date(year, month, calendar.monthrange(year, month)[1])
         projects  = [p for p in all_projects
-                     if p.created_at.date() <= month_end and p.status != 'Cancelled']
+                     if month_start <= p.created_at.date() <= month_end and p.status != 'Cancelled']
     else:
         projects = [p for p in all_projects if p.status != 'Cancelled']
-
     total_val = sum(float(p.total_amount    or 0) for p in projects)
     collected = sum(float(p.collected_amount or 0) for p in projects)
     active    = [p for p in projects if p.status in ('InProgress','Delayed','Lead','OnHold')]
@@ -6287,9 +6302,10 @@ def coordinator_my_report_print():
     projects = Project.query.filter_by(coordinator_id=current_user.id).all()
 
     if month and year:
+        month_start = date(year, month, 1)
         month_end = date(year, month, calendar.monthrange(year, month)[1])
         projects  = [p for p in projects
-                     if p.created_at.date() <= month_end and p.status != 'Cancelled']
+                     if month_start <= p.created_at.date() <= month_end and p.status != 'Cancelled']
         period    = f'{calendar.month_name[month]} {year}'
     else:
         projects = [p for p in projects if p.status != 'Cancelled']
