@@ -5600,7 +5600,7 @@ def build_docstaff_monthly_report(staff, all_projects, year, month, output_dir='
 # ── coordinator_reports route ─────────────────────────────────────────────────
 @app.route('/admin/coordinator_reports')
 @login_required
-@roles_required('admin', 'director','payments')
+@roles_required('admin', 'director','payments','office')
 def coordinator_reports():
     coordinators = User.query.filter(
         User.role.in_(['coordinator', 'director']),
@@ -5629,7 +5629,7 @@ def coordinator_reports():
                            current_month=today.month)
 @app.route('/admin/coordinator_reports/download')
 @login_required
-@roles_required('admin','director','payments')
+@roles_required('admin','director','payments','office')
 def download_coordinator_report():
     coord_id   = request.args.get('coordinator_id', type=int)
     coord_name = request.args.get('coordinator_name', '').strip()
@@ -5684,7 +5684,7 @@ def docstaff_reports():
 
 @app.route('/admin/docstaff_reports/download')
 @login_required
-@roles_required('admin','director')
+@roles_required('admin','director','office')
 def download_docstaff_report():
     staff_id = request.args.get('staff_id', type=int)
     year     = request.args.get('year',     type=int)
@@ -5994,7 +5994,7 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
 # ── Coordinator: all-works Excel ─────────────────────────────────────────────
 @app.route('/admin/coordinator_reports/download_all')
 @login_required
-@roles_required('admin','director','payments')
+@roles_required('admin','director','payments','office')
 def download_coordinator_report_all():
     coord_id   = request.args.get('coordinator_id', type=int)
     coord_name = request.args.get('coordinator_name', '').strip()
@@ -6013,7 +6013,7 @@ def download_coordinator_report_all():
 # ── Doc staff: all-works Excel ───────────────────────────────────────────────
 @app.route('/admin/docstaff_reports/download_all')
 @login_required
-@roles_required('admin','director')
+@roles_required('admin','director','office')
 def download_docstaff_report_all():
     staff_id = request.args.get('staff_id', type=int)
     if not staff_id:
@@ -6033,7 +6033,7 @@ def download_docstaff_report_all():
 # ── Coordinator: JSON preview (shared by monthly + all-works) ─────────────────
 @app.route('/admin/coordinator_reports/preview_data')
 @login_required
-@roles_required('admin','director','payments')
+@roles_required('admin','director','payments','office')
 def coordinator_report_preview_data():
     coord_id   = request.args.get('coordinator_id', type=int)
     coord_name = request.args.get('coordinator_name', '').strip()
@@ -6074,7 +6074,7 @@ def coordinator_report_preview_data():
 # ── Doc staff: JSON preview (shared by monthly + all-works) ──────────────────
 @app.route('/admin/docstaff_reports/preview_data')
 @login_required
-@roles_required('admin','director')
+@roles_required('admin','director','office')
 def docstaff_report_preview_data():
     staff_id = request.args.get('staff_id', type=int)
     month    = request.args.get('month', type=int)
@@ -6119,7 +6119,7 @@ def docstaff_report_preview_data():
 # ── Coordinator: printable HTML ───────────────────────────────────────────────
 @app.route('/admin/coordinator_reports/print')
 @login_required
-@roles_required('admin','director','payments')
+@roles_required('admin','director','payments','office')
 def print_coordinator_report():
     coord_id   = request.args.get('coordinator_id', type=int)
     coord_name = request.args.get('coordinator_name', '').strip()
@@ -6159,7 +6159,7 @@ def print_coordinator_report():
 # ── Doc staff: printable HTML ─────────────────────────────────────────────────
 @app.route('/admin/docstaff_reports/print')
 @login_required
-@roles_required('admin','director')
+@roles_required('admin','director','office')
 def print_docstaff_report():
     staff_id = request.args.get('staff_id', type=int)
     month    = request.args.get('month', type=int)

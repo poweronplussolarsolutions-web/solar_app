@@ -543,11 +543,11 @@
         <a class="nav-link {% if request.endpoint in 'admin_change_password' %}active{% endif %}" href="{{ url_for('admin_change_password') }}">
         <span class="dot"></span>Change Password</a>  
         {% endif %}
-        {% if current_user.role in ['admin','director','payments'] %}
+        {% if current_user.role in ['admin','director','payments','office'] %}
       <a class="nav-link {% if request.endpoint in 'coordinator_reports' %}active{% endif %}" href="{{ url_for('coordinator_reports') }}">
         <span class="dot"></span>C/O Report</a>
         {% endif %}
-        {% if current_user.role in ['admin','director'] %}
+        {% if current_user.role in ['admin','director','office'] %}
       <a class="nav-link {% if request.endpoint in 'docstaff_reports' %}active{% endif %}" href="{{ url_for('docstaff_reports') }}">
         <span class="dot"></span>Staff Report</a>
       <a class="nav-link {% if request.endpoint in 'job_card_page' %}active{% endif %}" href="{{ url_for('job_card_page') }}">
