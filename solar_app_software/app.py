@@ -1242,6 +1242,50 @@ def create_service_schedule(project):
     #     f'Service schedule created for {project.project_code} — {project.customer.name}. '
     #     f'10 panel-cleaning visits over 5 years starting {base.strftime("%d %b %Y")}.', 'info')
     # log_action(project.id, 'Service schedule created (10 visits x 6 months)', new_val='Upcoming')
+
+def _add_months(base_date, months):
+    """Add N months to a date, safely handling month-end overflow (e.g. Jan 31 + 1mo)."""
+    year_offset, month_offset = divmod(base_date.month - 1 + months, 12)
+    year  = base_date.year + year_offset
+    month = month_offset + 1
+    last_day = calendar.monthrange(year, month)[1]
+    day = min(base_date.day, last_day)
+    return base_date.replace(year=year, month=month, day=day)
+
+
+def _reschedule_future_visits(rec, from_date):
+    """After `rec` is completed on `from_date`, push every later, not-yet-completed/
+    skipped visit for the same project to a fresh 6-month cadence starting from
+    `from_date`, and recompute their status against today's date."""
+    today    = date.today()
+    due_soon = today + timedelta(days=30)
+
+    future = (ServiceRecord.query
+              .filter(ServiceRecord.project_id == rec.project_id,
+                      ServiceRecord.visit_number > rec.visit_number,
+                      ServiceRecord.status.notin_(['Completed', 'Skipped']))
+              .order_by(ServiceRecord.visit_number)
+              .all())
+
+    changes = []
+    for i, fut in enumerate(future, start=1):
+        old_date = fut.scheduled_date
+        new_date = _add_months(from_date, i * 6)
+        if new_date == old_date:
+            continue
+        fut.scheduled_date = new_date
+        if new_date < today:
+            fut.status = 'Overdue'
+        elif new_date <= due_soon:
+            fut.status = 'Due'
+        else:
+            fut.status = 'Upcoming'
+        changes.append(f'#{fut.visit_number}: {old_date} → {new_date}')
+
+    if changes:
+        log_action(rec.project_id,
+            f'Service schedule shifted after visit #{rec.visit_number} completion: '
+            + '; '.join(changes))
 def refresh_service_statuses():
    
     today    = date.today()
@@ -4683,8 +4727,6 @@ def complete_service(sid):
         flash('This service visit is already marked complete.', 'warning')
         return redirect(url_for('project_service', pid=rec.project_id))
 
-    # Sequential completion is enforced for onsite users;
-    # admins can override to backfill historical completions.
     if rec.visit_number > 1 and current_user.role != 'admin':
         prev = ServiceRecord.query.filter_by(
             project_id=rec.project_id,
@@ -4716,6 +4758,9 @@ def complete_service(sid):
         f'panel cleaning: {"Yes" if rec.panel_cleaning else "No"}',
         new_val='Completed')
 
+    # ── NEW: push every later visit onto a fresh 6-month cadence from this completion date
+    _reschedule_future_visits(rec, rec.completed_date)
+
     if proj.coordinator_id:
         create_notification(proj.coordinator_id, rec.project_id,
             f'{proj.project_code} — {proj.customer.name}: Service visit #{rec.visit_number} '
@@ -4724,7 +4769,6 @@ def complete_service(sid):
     db.session.commit()
     flash(f'Service visit #{rec.visit_number} marked complete.', 'success')
     return redirect(url_for('project_service', pid=rec.project_id))
- 
 @app.route('/service/<int:sid>/skip', methods=['POST'])
 @login_required
 @roles_required('admin')
