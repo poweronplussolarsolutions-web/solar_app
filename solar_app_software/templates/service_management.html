@@ -3,13 +3,13 @@
 {% block page_title %}Service Management{% endblock %}
 {% block topbar_actions %}
   <a href="{{ url_for('service_dashboard') }}" class="btn btn-sm">Dashboard</a>
-  {% if current_user.role == 'admin' %}
+  <!-- {% if current_user.role == 'admin' %}
   <form method="POST" action="{{ url_for('clear_all_service_records') }}" style="display:inline"
         onsubmit="return confirm('This will permanently delete ALL service records. Continue?');">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="btn btn-sm btn-danger">Clear all service data</button>
   </form>
-  {% endif %}
+  {% endif %} -->
 {% endblock %}
 
 {% block head %}
