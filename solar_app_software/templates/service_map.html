@@ -112,7 +112,7 @@
       {% elif search_q %}
         No location match
       {% else %}
-        All geo-tagged projects — {{ tags|length }}
+        All payment completed projects — {{ tags|length }}
       {% endif %}
     </div>
 
@@ -128,7 +128,7 @@
         </div>
         {% endfor %}
       {% else %}
-        <div class="empty-panel">No geo-tagged projects within {{ radius_km }} km.</div>
+        <div class="empty-panel">No projects within {{ radius_km }} km.</div>
       {% endif %}
     {% else %}
       {% if tags %}
@@ -144,7 +144,7 @@
         </div>
         {% endfor %}
       {% else %}
-        <div class="empty-panel">No geo-tagged site photos yet.</div>
+        <div class="empty-panel">No projects yet.</div>
       {% endif %}
     {% endif %}
   </div>
