@@ -6338,8 +6338,6 @@ def coordinator_my_report_download_all():
 @app.route('/coordinator/my_report/print')
 @login_required
 def coordinator_my_report_print():
-    if current_user.role != 'coordinator':
-        abort(403)
     coord    = User.query.get_or_404(current_user.id)
     month    = request.args.get('month', type=int)
     year     = request.args.get('year',  type=int)
