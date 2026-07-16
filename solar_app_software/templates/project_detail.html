@@ -565,7 +565,7 @@ document.addEventListener('DOMContentLoaded', function () {
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div class="card-title" style="margin:0">
       Site photo &amp; location
-      <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:6px">— captured before work began</span>
+      <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:6px"></span>
     </div>
     {% if current_user.role in ['admin','coordinator','documents','office','documents_k','director'] %}
     <a href="{{ url_for('edit_project', pid=proj.id) }}" class="btn btn-sm">✏ Edit</a>
