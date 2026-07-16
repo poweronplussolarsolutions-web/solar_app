@@ -1193,8 +1193,11 @@ def service_map():
     radius_km = request.args.get('radius', 15, type=int)
 
     tags = (ProjectGeoTag.query.join(Project)
+            .options(joinedload(ProjectGeoTag.project).joinedload(Project.payments),
+                     joinedload(ProjectGeoTag.project).joinedload(Project.subsidy))
             .filter(ProjectGeoTag.latitude.isnot(None), Project.status != 'Cancelled')
             .all())
+    tags = [t for t in tags if t.project.pending_amount <= 0]
 
     tags_json = [{
         'lat':  t.latitude,
@@ -3372,7 +3375,6 @@ def service_management():
     from sqlalchemy.orm import joinedload
     from sqlalchemy import exists
 
-# Projects that have at least one service record, excluding cancelled
     has_service = (db.session.query(Project.id)
     .join(ServiceRecord, ServiceRecord.project_id == Project.id)
     .filter(Project.status.notin_(['Cancelled']))
@@ -3383,10 +3385,13 @@ def service_management():
     .options(
         joinedload(Project.customer),
         joinedload(Project.coordinator),
+        joinedload(Project.payments),
+        joinedload(Project.subsidy),
     )
     .filter(Project.id.in_(has_service))
     .order_by(Project.updated_at.desc())
     .all())
+    projects = [p for p in projects if p.pending_amount <= 0]
 
     # Attach records sorted by visit number
     proj_data = []
