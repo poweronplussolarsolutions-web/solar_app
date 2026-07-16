@@ -6405,6 +6405,15 @@ def download_job_card(pid):
         download_name=f'JobCard_{proj.project_code}.xlsx',
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
+@app.route('/admin/service_records/clear_all', methods=['POST'])
+@login_required
+@roles_required('admin')
+def clear_all_service_records():
+    count = ServiceRecord.query.delete()
+    db.session.commit()
+    log_action(0, f'All service records cleared by {current_user.full_name}: {count} deleted') if count else None
+    flash(f'{count} service record(s) deleted. Only payment-completed projects will get fresh schedules from now on.', 'warning')
+    return redirect(url_for('service_management'))
 # ─────────────────────────────────────────────────────────────────────────────
 # DB INIT & SEED
 # ─────────────────────────────────────────────────────────────────────────────
