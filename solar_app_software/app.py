@@ -5671,7 +5671,7 @@ def _resolve_coord_projects(coord_id, coord_name):
 
 @app.route('/admin/docstaff_reports')
 @login_required
-@roles_required('admin','director')
+@roles_required('admin','director','office')
 def docstaff_reports():
     today = date.today()
     return render_template('docstaff_reports.html',
