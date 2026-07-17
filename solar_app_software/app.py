@@ -1190,7 +1190,7 @@ def delete_site_photo(pid):
     return redirect(request.referrer or url_for('project_detail', pid=pid))
 @app.route('/service_map')
 @login_required
-@roles_required('admin', 'onsite', 'coordinator', 'director')
+@roles_required('admin', 'onsite', 'coordinator', 'director','service')
 def service_map():
     q = _clean(request.args.get('q', ''), 100)
     radius_km = request.args.get('radius', 15, type=int)
@@ -3414,7 +3414,7 @@ def works_status():
 
 @app.route('/service_management')
 @login_required
-@roles_required('admin', 'onsite', 'coordinator','director')
+@roles_required('admin', 'onsite', 'coordinator','director','service')
 def service_management():
     from sqlalchemy.orm import joinedload
     refresh_service_statuses()
