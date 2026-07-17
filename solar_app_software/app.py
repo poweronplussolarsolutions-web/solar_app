@@ -218,7 +218,7 @@ class User(UserMixin, db.Model):
     phone=db.Column(db.String(20),unique=True,nullable=False)
     password   = db.Column(db.String(512), nullable=False)   
     full_name  = db.Column(db.String(120), nullable=False)
-    role       = db.Column(db.Enum('admin','coordinator','documents','payments','onsite','appinstall','office','documents_k','stocks','director'), nullable=False)
+    role       = db.Column(db.Enum('admin','coordinator','documents','payments','onsite','service','office','documents_k','stocks','director'), nullable=False)
     is_active  = db.Column(db.Boolean, default=True)
     is_deleted  = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -2149,7 +2149,7 @@ def dashboard():
             user_id=current_user.id, notif_type='task', is_read=False).order_by(
             Notification.created_at.desc()).all()
 
-    elif role == 'appinstall':
+    elif role == 'service':
         pending  = AppInstallation.query.filter_by(status='Pending').all()
         scheduled = AppInstallation.query.filter_by(status='Scheduled').all()
         data['installs']        = pending
@@ -3330,7 +3330,7 @@ def documents(pid):
             if not AppInstallation.query.filter_by(project_id=pid).first():
                 db.session.add(AppInstallation(project_id=pid, status='Pending', scheduled_date=date.today()))
                 log_action(pid, 'KSEB connection complete → App Installation queued', new_val='Pending')
-                for u in User.query.filter_by(role='appinstall', is_active=True).all():
+                for u in User.query.filter_by(role='service', is_active=True).all():
                     create_notification(u.id, pid,
                     f'KSEB connection done for {proj.project_code} — {proj.customer.name} '
                     f'({proj.inverter_capacity_kw} kW). Schedule app installation.', 'task')
@@ -3651,7 +3651,7 @@ def kseb(pid):
         if task.connection_done and not AppInstallation.query.filter_by(project_id=pid).first():
             db.session.add(AppInstallation(project_id=pid, status='Pending', scheduled_date=date.today()))
             log_action(pid, 'KSEB connection complete → App Installation queued', new_val='Pending')
-            for u in User.query.filter_by(role='appinstall', is_active=True).all():
+            for u in User.query.filter_by(role='service', is_active=True).all():
                 create_notification(u.id, pid,
                     f'KSEB connection done for {proj.project_code} — {proj.customer.name} '
                     f'({proj.inverter_capacity_kw} kW). Schedule app installation.', 'task')
@@ -4656,14 +4656,14 @@ def subsidy(pid):
 
 @app.route('/installations')
 @login_required
-@roles_required('admin', 'appinstall', 'documents','office','documents_k','director')
+@roles_required('admin', 'service', 'documents','office','documents_k','director')
 def installations():
     return render_template('installations.html',
         pending=AppInstallation.query.filter_by(status='Pending').all(),
         completed=AppInstallation.query.filter_by(status='Completed').all(), today=date.today())
 @app.route('/installations/map')
 @login_required
-@roles_required('admin', 'appinstall', 'documents', 'office', 'documents_k', 'director')
+@roles_required('admin', 'service', 'documents', 'office', 'documents_k', 'director')
 def app_install_map():
     q             = _clean(request.args.get('q', ''), 100)
     radius_km     = request.args.get('radius', 15, type=int)
@@ -4879,7 +4879,7 @@ def api_service_stats():
 
 @app.route('/projects/<int:pid>/installation', methods=['POST'])
 @login_required
-@roles_required('admin', 'appinstall')
+@roles_required('admin', 'service')
 def update_installation(pid):
     proj    = Project.query.get_or_404(pid)
     install = proj.app_install or AppInstallation(project_id=pid)
