@@ -4775,7 +4775,7 @@ def project_service(pid):
                .filter_by(project_id=pid)
                .order_by(ServiceRecord.visit_number).all())
     
-    return render_template('project_service.html', proj=proj, records=records, today=date.today())
+    return render_template('service_management.html', proj=proj, records=records, today=date.today())
  
  
 @app.route('/service/<int:sid>/complete', methods=['POST'])
