@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Installations — Solar App{% endblock %}
 {% block page_title %}App Installations{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('app_install_map') }}" class="btn btn-sm">📍 Map view</a>
+{% endblock %}
 {% block content %}
 
 <style>
@@ -120,7 +123,7 @@
       <thead>
         <tr>
           <th>Project</th><th>Customer</th><th>Phone</th>
-          <th>Location</th><th>Inverter kW</th><th>Panel kW</th><th></th>
+          <th>Address</th><th>Map</th><th>Inverter kW</th><th>Panel kW</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -137,24 +140,19 @@
             {{ i.project.customer.phone or '—' }}
           </td>
 
-          <td data-label="Location" style="font-size:12px;color:var(--muted)">
-            <div>
-              {% if i.project.customer.district %}
-                {{ i.project.customer.district }}
-                {% if i.project.customer.pincode %} — {{ i.project.customer.pincode }}{% endif %}
-              {% endif %}
-              {% if i.project.customer.house_name or i.project.customer.place %}
-                <div style="font-size:11px;color:var(--hint);margin-top:2px;max-width:200px;
-                            white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
-                     title="{{ [i.project.customer.house_name, i.project.customer.place, i.project.customer.post] | select | join(', ') }}">
-                  {{ [i.project.customer.house_name, i.project.customer.place, i.project.customer.post] | select | join(', ') }}
-                </div>
-              {% endif %}
-              {% if not i.project.customer.district and not i.project.customer.house_name and not i.project.customer.place %}
-                <span style="color:var(--hint)">—</span>
-              {% endif %}
-            </div>
-          </td>
+          <td data-label="Address" style="font-size:12px;color:var(--muted)">
+  {{ i.project.customer.full_address or '—' }}
+</td>
+<td data-label="Map" style="font-size:12px">
+  {% set gt = i.project.geo_tag %}
+  {% if gt and gt.has_gps %}
+    <a href="https://www.google.com/maps?q={{ gt.latitude }},{{ gt.longitude }}" target="_blank" rel="noopener" style="color:var(--teal-600)">📍 View</a>
+  {% elif gt and gt.maps_url %}
+    <a href="{{ gt.maps_url }}" target="_blank" rel="noopener" style="color:var(--teal-600)">📍 Link</a>
+  {% else %}
+    <span style="color:var(--hint)">—</span>
+  {% endif %}
+</td>
 
           <td data-label="Inverter kW" style="font-size:12px;color:var(--muted)">
             {{ i.project.inverter_capacity_kw }} kW

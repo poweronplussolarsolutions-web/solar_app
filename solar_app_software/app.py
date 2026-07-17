@@ -264,7 +264,10 @@ class Customer(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     projects   = db.relationship('Project', backref='customer', lazy=True)
     sub_co=db.Column(db.String(120), nullable=True)
-
+    @property
+    def full_address(self):
+        parts = [self.house_name, self.place, self.post, self.village, self.district, self.pincode]
+        return ', '.join(p for p in parts if p) or None
 
 class Project(db.Model):
     __tablename__ = 'projects'
@@ -4658,7 +4661,65 @@ def installations():
     return render_template('installations.html',
         pending=AppInstallation.query.filter_by(status='Pending').all(),
         completed=AppInstallation.query.filter_by(status='Completed').all(), today=date.today())
+@app.route('/installations/map')
+@login_required
+@roles_required('admin', 'appinstall', 'documents', 'office', 'documents_k', 'director')
+def app_install_map():
+    q             = _clean(request.args.get('q', ''), 100)
+    radius_km     = request.args.get('radius', 15, type=int)
+    status_filter = request.args.get('status', 'Pending')
+    if status_filter not in ('Pending', 'Completed', 'All'):
+        status_filter = 'Pending'
 
+    from sqlalchemy.orm import joinedload
+    all_installs = (AppInstallation.query
+        .join(Project)
+        .options(
+            joinedload(AppInstallation.project).joinedload(Project.customer),
+            joinedload(AppInstallation.project).joinedload(Project.geo_tag),
+        )
+        .filter(Project.status != 'Cancelled')
+        .order_by(AppInstallation.id.desc())
+        .all())
+
+    if status_filter == 'Pending':
+        installs = [i for i in all_installs if i.status != 'Completed']
+    elif status_filter == 'Completed':
+        installs = [i for i in all_installs if i.status == 'Completed']
+    else:
+        installs = all_installs
+
+    geo_installs = [i for i in installs if i.project.geo_tag and i.project.geo_tag.has_gps]
+    no_geo       = [i for i in installs if not (i.project.geo_tag and i.project.geo_tag.has_gps)]
+
+    tags_json = [{
+        'lat':     i.project.geo_tag.latitude,
+        'lng':     i.project.geo_tag.longitude,
+        'code':    i.project.project_code,
+        'name':    i.project.customer.name,
+        'address': i.project.customer.full_address or '—',
+        'status':  i.status,
+        'url':     url_for('project_detail', pid=i.project_id),
+    } for i in geo_installs]
+
+    center = (None, None)
+    nearby = []
+    if q:
+        center = geocode_place(q + ', Kerala, India')
+        if center[0]:
+            for i in geo_installs:
+                dist = haversine_km(center[0], center[1],
+                                     i.project.geo_tag.latitude, i.project.geo_tag.longitude)
+                if dist <= radius_km:
+                    nearby.append((i, round(dist, 1)))
+            nearby.sort(key=lambda x: x[1])
+        else:
+            flash(f'Could not locate "{q}".', 'warning')
+
+    return render_template('app_install_map.html',
+        installs=geo_installs, no_geo=no_geo, nearby=nearby,
+        tags_json=tags_json, search_q=q, center=center, radius_km=radius_km,
+        status_filter=status_filter)
 @app.route('/service')
 @login_required
 @roles_required('admin', 'onsite', 'coordinator')
