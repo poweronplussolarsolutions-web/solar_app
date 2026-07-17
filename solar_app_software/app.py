@@ -4815,7 +4815,7 @@ def complete_service(sid):
 
     if rec.status == 'Completed':
         flash('This service visit is already marked complete.', 'warning')
-        return redirect(url_for('project_service', pid=rec.project_id))
+        return redirect(request.referrer or url_for('project_service', pid=rec.project_id))
 
     if rec.visit_number > 1 and current_user.role != 'admin':
         prev = ServiceRecord.query.filter_by(
@@ -4824,7 +4824,7 @@ def complete_service(sid):
         ).first()
         if not prev or prev.status != 'Completed':
             flash('Previous service visit must be completed first.', 'danger')
-            return redirect(url_for('project_service', pid=rec.project_id))
+            return redirect(request.referrer or url_for('project_service', pid=rec.project_id))
 
     completed_date_str = request.form.get('completed_date', '')
     rec.completed_date = (date.fromisoformat(completed_date_str)
@@ -4832,7 +4832,7 @@ def complete_service(sid):
 
     if rec.completed_date > date.today():
         flash('Completion date cannot be in the future.', 'danger')
-        return redirect(url_for('project_service', pid=rec.project_id))
+        return redirect(request.referrer or url_for('project_service', pid=rec.project_id))
 
     rec.status         = 'Completed'
     rec.conducted_by   = current_user.id
@@ -4848,7 +4848,6 @@ def complete_service(sid):
         f'panel cleaning: {"Yes" if rec.panel_cleaning else "No"}',
         new_val='Completed')
 
-    # ── NEW: push every later visit onto a fresh 6-month cadence from this completion date
     _reschedule_future_visits(rec, rec.completed_date)
 
     if proj.coordinator_id:
@@ -4858,13 +4857,15 @@ def complete_service(sid):
 
     db.session.commit()
     flash(f'Service visit #{rec.visit_number} marked complete.', 'success')
-    return redirect(url_for('project_service', pid=rec.project_id))
+    return redirect(request.referrer or url_for('project_service', pid=rec.project_id))
+
+
 @app.route('/service/<int:sid>/skip', methods=['POST'])
 @login_required
 @roles_required('admin')
 def skip_service(sid):
     rec        = ServiceRecord.query.get_or_404(sid)
-    old_status=rec.status
+    old_status = rec.status
     reason     = _clean(request.form.get('reason', ''), 500)
     rec.status = 'Skipped'
     rec.notes  = reason
@@ -4873,9 +4874,9 @@ def skip_service(sid):
         old_val=old_status, new_val='Skipped')
     db.session.commit()
     flash(f'Service visit #{rec.visit_number} skipped.', 'warning')
-    return redirect(url_for('project_service', pid=rec.project_id))
- 
- 
+    return redirect(request.referrer or url_for('project_service', pid=rec.project_id))
+
+
 @app.route('/service/<int:sid>/reschedule', methods=['POST'])
 @login_required
 @roles_required('admin', 'onsite')
@@ -4884,7 +4885,7 @@ def reschedule_service(sid):
     new_date_str  = request.form.get('new_date', '')
     if not new_date_str:
         flash('Please provide a new date.', 'danger')
-        return redirect(url_for('project_service', pid=rec.project_id))
+        return redirect(request.referrer or url_for('project_service', pid=rec.project_id))
     old_date           = rec.scheduled_date
     rec.scheduled_date = date.fromisoformat(new_date_str)
     rec.status         = 'Upcoming'
@@ -4892,8 +4893,7 @@ def reschedule_service(sid):
                old_val=str(old_date), new_val=str(rec.scheduled_date))
     db.session.commit()
     flash(f'Visit #{rec.visit_number} rescheduled to {rec.scheduled_date.strftime("%d %b %Y")}.', 'success')
-    return redirect(url_for('project_service', pid=rec.project_id))
- 
+    return redirect(request.referrer or url_for('project_service', pid=rec.project_id))
  
 @app.route('/api/service_stats')
 @login_required
