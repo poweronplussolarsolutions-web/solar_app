@@ -4774,9 +4774,38 @@ def project_service(pid):
     records = (ServiceRecord.query
                .filter_by(project_id=pid)
                .order_by(ServiceRecord.visit_number).all())
-    
-    return render_template('service_management.html', proj=proj, records=records, today=date.today())
- 
+
+    done    = sum(1 for r in records if r.status == 'Completed')
+    over    = sum(1 for r in records if r.status == 'Overdue')
+    due     = sum(1 for r in records if r.status == 'Due')
+    skipped = sum(1 for r in records if r.status == 'Skipped')
+    total   = len(records)
+    pct     = int(done / total * 100) if total else 0
+    next_v  = next((r for r in records if r.status not in ('Completed', 'Skipped')), None)
+
+    proj_data = [{
+        'project': proj,
+        'records': records,
+        'done':    done,
+        'over':    over,
+        'due':     due,
+        'skipped': skipped,
+        'total':   total,
+        'pct':     pct,
+        'next':    next_v,
+    }]
+
+    stats = {
+        'projects':  1,
+        'overdue':   over,
+        'due':       due,
+        'completed': done,
+        'upcoming':  sum(1 for r in records if r.status == 'Upcoming'),
+        'skipped':   skipped,
+    }
+
+    return render_template('service_management.html',
+                           proj_data=proj_data, stats=stats, today=date.today())
  
 @app.route('/service/<int:sid>/complete', methods=['POST'])
 @login_required
