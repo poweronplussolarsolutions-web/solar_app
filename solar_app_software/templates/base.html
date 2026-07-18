@@ -530,6 +530,11 @@
         <span class="dot"></span> Stock Dashboard
       </a>
 {% endif %}
+{% if current_user.role in ['admin','stocks','director'] %}
+<a class="nav-link {% if request.endpoint in ['product_replacements','product_replacement_category'] %}active{% endif %}" href="{{ url_for('product_replacements') }}">
+        <span class="dot"></span> Product Replacements
+      </a>
+{% endif %}
       {% if current_user.role == 'admin' %}
       <div class="nav-section">Admin</div>
       <a class="nav-link {% if request.endpoint == 'admin_analytics' %}active{% endif %}" href="{{ url_for('admin_analytics') }}">

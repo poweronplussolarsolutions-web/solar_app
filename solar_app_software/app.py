@@ -4373,7 +4373,7 @@ def stock_sale():
     return redirect(url_for('stock_dashboard'))
 @app.route('/product_replacements')
 @login_required
-@roles_required('admin', 'service', 'stocks', 'onsite', 'director')
+@roles_required('admin', 'stocks','director')
 def product_replacements():
     categories = ProductCategory.query.filter_by(is_active=True).order_by(ProductCategory.name).all()
     recent = (ProductReplacement.query
@@ -4384,7 +4384,7 @@ def product_replacements():
 
 @app.route('/product_replacements/category/new', methods=['POST'])
 @login_required
-@roles_required('admin', 'service', 'stocks', 'director')
+@roles_required('admin', 'stocks', 'director')
 def new_product_category():
     name = _clean(request.form.get('name', ''), 120)
     if not name:
@@ -4402,7 +4402,7 @@ def new_product_category():
 
 @app.route('/product_replacements/category/<int:cid>/delete', methods=['POST'])
 @login_required
-@roles_required('admin')
+@roles_required('admin','stocks')
 def delete_product_category(cid):
     cat = ProductCategory.query.get_or_404(cid)
     cat.is_active = False
@@ -4413,7 +4413,7 @@ def delete_product_category(cid):
 
 @app.route('/product_replacements/category/<int:cid>')
 @login_required
-@roles_required('admin', 'service', 'stocks', 'onsite', 'director')
+@roles_required('admin', 'stocks', 'director')
 def product_replacement_category(cid):
     cat = ProductCategory.query.get_or_404(cid)
     search = _clean(request.args.get('q', ''), 100)
@@ -4431,7 +4431,7 @@ def product_replacement_category(cid):
 
 @app.route('/product_replacements/category/<int:cid>/add', methods=['POST'])
 @login_required
-@roles_required('admin', 'service', 'stocks', 'director')
+@roles_required('admin', 'stocks', 'director')
 @limiter.limit('30 per minute')
 def add_product_replacement(cid):
     cat = ProductCategory.query.get_or_404(cid)
@@ -4491,7 +4491,7 @@ def edit_product_replacement(rid):
 
 @app.route('/product_replacements/<int:rid>/delete', methods=['POST'])
 @login_required
-@roles_required('admin')
+@roles_required('admin','stocks')
 def delete_product_replacement(rid):
     rec = ProductReplacement.query.get_or_404(rid)
     cid = rec.category_id
