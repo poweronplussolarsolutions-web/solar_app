@@ -3,7 +3,10 @@
 {% block page_title %}{{ proj.project_code }} — {{ proj.customer.name }}{% endblock %}
 {% block topbar_actions %}
   <span class="badge badge-{{ proj.status }}" style="font-size:13px;padding:5px 12px">{{ proj.status }}</span>
-  <a href="{{ url_for('projects') }}" class="btn btn-sm">← Back</a>
+  <a href="{{ url_for('projects') }}" class="btn btn-sm"
+   onclick="if(document.referrer && document.referrer.indexOf('/projects') !== -1){event.preventDefault();history.back();}">
+  ← Back
+</a>
 {% endblock %}
 
 {% block content %}
