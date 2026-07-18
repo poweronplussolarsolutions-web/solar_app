@@ -2224,9 +2224,10 @@ def onsite_board():
 @app.route('/projects')
 @login_required
 def projects():
-    status_filter = request.args.get('status', '')
-    search        = _clean(request.args.get('q', ''), 100)
-    page          = request.args.get('page', 1, type=int)
+    status_filter   = request.args.get('status', '')
+    search          = _clean(request.args.get('q', ''), 100)
+    consumer_search = _clean(request.args.get('consumer_no', ''), 50)   
+    page            = request.args.get('page', 1, type=int)
     q = (Project.query
          .join(Customer)
          .outerjoin(ConnectionDetails, ConnectionDetails.project_id == Project.id))
@@ -2239,13 +2240,14 @@ def projects():
     if search:
         q = q.filter(
             Customer.name.ilike(f'%{search}%') |
-            Project.project_code.ilike(f'%{search}%') |
-            ConnectionDetails.consumer_number.ilike(f'%{search}%')
+            Project.project_code.ilike(f'%{search}%')
         )
+    if consumer_search:
+        q = q.filter(ConnectionDetails.consumer_number.ilike(f'%{consumer_search}%'))
     pagination = q.order_by(Project.updated_at.desc()).paginate(page=page, per_page=25, error_out=False)
     return render_template('projects.html', projects=pagination.items, pagination=pagination,
-                           status_filter=status_filter, search=search)
-
+                           status_filter=status_filter, search=search,
+                           consumer_search=consumer_search)   
 @app.route('/projects/new', methods=['GET', 'POST'])
 @login_required
 @roles_required('coordinator','admin','documents','office','documents_k','director')

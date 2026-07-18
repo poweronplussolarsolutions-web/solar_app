@@ -11,8 +11,10 @@
 {# Filter form — stack on mobile #}
 <div class="card" style="margin-bottom:16px;padding:14px 20px">
   <form method="GET" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-    <input name="q" value="{{ search }}" placeholder="Search customer, project code, or consumer no…"
+    <input name="q" value="{{ search }}" placeholder="Search customer or project code…"
        style="flex:1;min-width:160px;max-width:280px"/>
+    <input name="consumer_no" value="{{ consumer_search }}" placeholder="Search consumer no…"
+       style="flex:1;min-width:160px;max-width:220px"/>
     <select name="status" style="flex:1;min-width:140px;max-width:180px">
       <option value="">All statuses</option>
       {% for s in ['Created','InProgress','Completed','Delayed','Closed','OnHold','Cancelled'] %}
@@ -30,6 +32,7 @@
       {{ pagination.total }} project{{ 's' if pagination.total != 1 }}
       {% if status_filter %} — {{ status_filter }}{% endif %}
       {% if search %} matching "{{ search }}"{% endif %}
+      {% if consumer_search %} — consumer no. "{{ consumer_search }}"{% endif %}
     </div>
   </div>
   {% if projects %}
@@ -111,13 +114,13 @@
   </div>
   <div style="display:flex;gap:4px;align-items:center">
     {% if pagination.has_prev %}
-    <a href="{{ url_for('projects', page=pagination.prev_num, status=status_filter, q=search) }}"
+    <a href="{{ url_for('projects', page=pagination.prev_num, status=status_filter, q=search, consumer_no=consumer_search) }}"
        class="btn btn-sm">← Prev</a>
     {% endif %}
 
     {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
       {% if p %}
-        <a href="{{ url_for('projects', page=p, status=status_filter, q=search) }}"
+        <a href="{{ url_for('projects', page=p, status=status_filter, q=search, consumer_no=consumer_search) }}"
            class="btn btn-sm"
            style="{% if p == pagination.page %}background:var(--amber-600);color:#fff;{% endif %}">
           {{ p }}
@@ -128,7 +131,7 @@
     {% endfor %}
 
     {% if pagination.has_next %}
-    <a href="{{ url_for('projects', page=pagination.next_num, status=status_filter, q=search) }}"
+    <a href="{{ url_for('projects', page=pagination.next_num, status=status_filter, q=search, consumer_no=consumer_search) }}"
        class="btn btn-sm">Next →</a>
     {% endif %}
   </div>
