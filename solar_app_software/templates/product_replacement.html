@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Product Replacements — Solar App{% endblock %}
+{% block page_title %}Product Replacements{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:16px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div class="card-title" style="margin:0">Product categories</div>
+    {% if current_user.role in ['admin','service','stocks','director'] %}
+    <button class="btn btn-sm btn-primary" onclick="togglePanel('newCatPanel')">+ New Category</button>
+    {% endif %}
+  </div>
+
+  <div id="newCatPanel" style="display:none;margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius);padding:14px;background:var(--bg)">
+    <form method="POST" action="{{ url_for('new_product_category') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-group" style="margin:0;flex:1;min-width:220px">
+          <label style="font-size:12px">Category name</label>
+          <input type="text" name="name" placeholder="e.g. 5kW Inverter, Panel — Waaree 545W" required/>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Create</button>
+        <button type="button" class="btn btn-sm" onclick="togglePanel('newCatPanel')">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  {% if categories %}
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">
+    {% for cat in categories %}
+    <a href="{{ url_for('product_replacement_category', cid=cat.id) }}"
+       style="text-decoration:none;color:inherit;border:0.5px solid var(--border);border-radius:var(--radius);
+              padding:16px;display:block">
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px">{{ cat.name }}</div>
+      <div style="font-size:12px;color:var(--muted)">
+        {{ cat.replacement_count }} replacement{{ 's' if cat.replacement_count != 1 else '' }} logged
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="color:var(--hint);font-size:13px;padding:8px 0">
+    No product categories yet. Create one above to start logging replacements (e.g. "5kW Inverter", "Panel — Waaree 545W").
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-title">Recently logged replacements</div>
+  {% if recent %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Category</th><th>Complaint ID</th><th>Serial No.</th><th>Purchaser</th><th>Date</th><th>Logged by</th></tr>
+      </thead>
+      <tbody>
+        {% for r in recent %}
+        <tr>
+          <td><a href="{{ url_for('product_replacement_category', cid=r.category_id) }}">{{ r.category.name }}</a></td>
+          <td style="font-family:monospace;font-size:12px">{{ r.complaint_id }}</td>
+          <td style="font-family:monospace;font-size:12px">{{ r.serial_number }}</td>
+          <td>{{ r.purchaser_name }}</td>
+          <td style="font-size:12px;color:var(--muted)">{{ r.replacement_date | date_fmt }}</td>
+          <td style="font-size:12px;color:var(--hint)">{{ r.recorder.full_name if r.recorder else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="color:var(--hint);font-size:13px">No replacements logged yet.</div>
+  {% endif %}
+</div>
+
+<script>
+function togglePanel(id) {
+  var el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+</script>
+{% endblock %}

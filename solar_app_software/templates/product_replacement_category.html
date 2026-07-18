@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}{{ cat.name }} — Replacements{% endblock %}
+{% block page_title %}{{ cat.name }}{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('product_replacements') }}" class="btn btn-sm">← All categories</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:16px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+    <div class="card-title" style="margin:0">Replacements under {{ cat.name }}</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <form method="GET" style="display:flex;gap:6px">
+        <input type="text" name="q" value="{{ search }}" placeholder="Search complaint / serial / purchaser"
+               style="font-size:13px"/>
+        <button type="submit" class="btn btn-sm">Search</button>
+      </form>
+      {% if current_user.role in ['admin','service','stocks','director'] %}
+      <button class="btn btn-sm btn-primary" onclick="togglePanel('newRepPanel')">+ Log Replacement</button>
+      {% endif %}
+      {% if current_user.role == 'admin' %}
+      <form method="POST" action="{{ url_for('delete_product_category', cid=cat.id) }}"
+            onsubmit="return confirm('Archive this category? Existing records are kept.')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm btn-danger">Archive category</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div id="newRepPanel" style="display:none;margin-bottom:16px;border:1px solid var(--border);
+       border-radius:var(--radius);padding:16px;background:var(--bg)">
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px">Log a new replacement</div>
+    <form method="POST" action="{{ url_for('add_product_replacement', cid=cat.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Complaint ID</label>
+          <input type="text" name="complaint_id" required placeholder="e.g. CMP-1042"/>
+        </div>
+        <div class="form-group">
+          <label>Serial number (replaced item)</label>
+          <input type="text" name="serial_number" required placeholder="e.g. INV-889231"/>
+        </div>
+        <div class="form-group">
+          <label>New serial number <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="text" name="new_serial_number" placeholder="Serial of unit given as replacement"/>
+        </div>
+        <div class="form-group">
+          <label>Replacement date</label>
+          <input type="date" name="replacement_date" value="{{ today.isoformat() }}" required/>
+        </div>
+        <div class="form-group">
+          <label>Purchaser name</label>
+          <input type="text" name="purchaser_name" required placeholder="Customer name"/>
+        </div>
+        <div class="form-group">
+          <label>Purchaser phone <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="text" name="purchaser_phone" placeholder="10-digit number"/>
+        </div>
+        <div class="form-group">
+          <label>Project / MNRE code <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="text" name="project_code" placeholder="e.g. 1842"/>
+        </div>
+        <div class="form-group full">
+          <label>Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <textarea name="notes" rows="2" placeholder="Reason for replacement, warranty details, etc."></textarea>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button type="submit" class="btn btn-primary btn-sm">Save replacement</button>
+        <button type="button" class="btn btn-sm" onclick="togglePanel('newRepPanel')">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  {% if records %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Complaint ID</th><th>Serial No.</th><th>New Serial</th><th>Date</th>
+          <th>Purchaser</th><th>Phone</th><th>Project</th><th>Notes</th>
+          {% if current_user.role in ['admin','service','stocks','director'] %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in records %}
+        <tr id="rep-row-{{ r.id }}">
+          <td style="font-family:monospace;font-size:12px">{{ r.complaint_id }}</td>
+          <td style="font-family:monospace;font-size:12px">{{ r.serial_number }}</td>
+          <td style="font-family:monospace;font-size:12px;color:var(--muted)">{{ r.new_serial_number or '—' }}</td>
+          <td>{{ r.replacement_date | date_fmt }}</td>
+          <td>{{ r.purchaser_name }}</td>
+          <td style="font-size:12px;color:var(--muted)">{{ r.purchaser_phone or '—' }}</td>
+          <td style="font-size:12px">{{ r.project_code or '—' }}</td>
+          <td style="font-size:12px;color:var(--muted);max-width:220px">{{ r.notes or '—' }}</td>
+          {% if current_user.role in ['admin','service','stocks','director'] %}
+          <td style="white-space:nowrap">
+            <button class="btn btn-sm rep-edit-btn" data-rep="{{ r.id }}">Edit</button>
+            {% if current_user.role == 'admin' %}
+            <form method="POST" action="{{ url_for('delete_product_replacement', rid=r.id) }}"
+                  style="display:inline" onsubmit="return confirm('Delete this replacement record?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+            </form>
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% if current_user.role in ['admin','service','stocks','director'] %}
+        <tr id="rep-edit-{{ r.id }}" style="display:none;background:var(--bg)">
+          <td colspan="9" style="padding:12px 14px">
+            <form method="POST" action="{{ url_for('edit_product_replacement', rid=r.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label style="font-size:12px">Complaint ID</label>
+                  <input type="text" name="complaint_id" value="{{ r.complaint_id }}" required/>
+                </div>
+                <div class="form-group">
+                  <label style="font-size:12px">Serial number</label>
+                  <input type="text" name="serial_number" value="{{ r.serial_number }}" required/>
+                </div>
+                <div class="form-group">
+                  <label style="font-size:12px">New serial number</label>
+                  <input type="text" name="new_serial_number" value="{{ r.new_serial_number or '' }}"/>
+                </div>
+                <div class="form-group">
+                  <label style="font-size:12px">Date</label>
+                  <input type="date" name="replacement_date" value="{{ r.replacement_date.isoformat() }}" required/>
+                </div>
+                <div class="form-group">
+                  <label style="font-size:12px">Purchaser name</label>
+                  <input type="text" name="purchaser_name" value="{{ r.purchaser_name }}" required/>
+                </div>
+                <div class="form-group">
+                  <label style="font-size:12px">Purchaser phone</label>
+                  <input type="text" name="purchaser_phone" value="{{ r.purchaser_phone or '' }}"/>
+                </div>
+                <div class="form-group">
+                  <label style="font-size:12px">Project code</label>
+                  <input type="text" name="project_code" value="{{ r.project_code or '' }}"/>
+                </div>
+                <div class="form-group full">
+                  <label style="font-size:12px">Notes</label>
+                  <textarea name="notes" rows="2">{{ r.notes or '' }}</textarea>
+                </div>
+              </div>
+              <div style="display:flex;gap:6px;margin-top:6px">
+                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                <button type="button" class="btn btn-sm rep-edit-btn" data-rep="{{ r.id }}">Cancel</button>
+              </div>
+            </form>
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="color:var(--hint);font-size:13px;padding:8px 0">No replacements logged for this category yet.</div>
+  {% endif %}
+</div>
+
+<script>
+function togglePanel(id) {
+  var el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.rep-edit-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = this.getAttribute('data-rep');
+      var row = document.getElementById('rep-edit-' + id);
+      if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+    });
+  });
+});
+</script>
+{% endblock %}

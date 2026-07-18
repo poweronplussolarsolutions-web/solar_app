@@ -931,7 +931,39 @@ class GeocodeCache(db.Model):
     latitude   = db.Column(db.Float, nullable=True)
     longitude  = db.Column(db.Float, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+class ProductCategory(db.Model):
+    __tablename__ = 'product_categories'
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(120), unique=True, nullable=False)
+    is_active  = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    creator    = db.relationship('User', foreign_keys=[created_by])
 
+    @property
+    def replacement_count(self):
+        return ProductReplacement.query.filter_by(category_id=self.id).count()
+
+
+class ProductReplacement(db.Model):
+    __tablename__ = 'product_replacements'
+    id                = db.Column(db.Integer, primary_key=True)
+    category_id       = db.Column(db.Integer, db.ForeignKey('product_categories.id'), nullable=False)
+    complaint_id      = db.Column(db.String(60), nullable=False)
+    serial_number     = db.Column(db.String(100), nullable=False)   # serial of the faulty/replaced unit
+    new_serial_number = db.Column(db.String(100), nullable=True)    # serial of the unit given as replacement
+    replacement_date  = db.Column(db.Date, nullable=False, default=date.today)
+    purchaser_name    = db.Column(db.String(120), nullable=False)
+    purchaser_phone   = db.Column(db.String(20), nullable=True)
+    project_code      = db.Column(db.String(20), nullable=True)     # optional free-text MNRE/project ref
+    notes             = db.Column(db.Text, nullable=True)
+    recorded_by       = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at        = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at        = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    category = db.relationship('ProductCategory',
+        backref=db.backref('replacements', lazy=True, order_by='ProductReplacement.replacement_date.desc()'))
+    recorder = db.relationship('User', foreign_keys=[recorded_by])
 from urllib.parse import urlparse
 
 ALLOWED_MAPS_HOSTS = ('google.com', 'goo.gl', 'maps.app.goo.gl')
@@ -2195,7 +2227,9 @@ def projects():
     status_filter = request.args.get('status', '')
     search        = _clean(request.args.get('q', ''), 100)
     page          = request.args.get('page', 1, type=int)
-    q = Project.query.join(Customer)
+    q = (Project.query
+         .join(Customer)
+         .outerjoin(ConnectionDetails, ConnectionDetails.project_id == Project.id))
     if current_user.role == 'coordinator':
         q = q.filter(Project.coordinator_id == current_user.id)
     if current_user.role == 'documents_k':
@@ -2203,11 +2237,14 @@ def projects():
     if status_filter:
         q = q.filter(Project.status == status_filter)
     if search:
-        q = q.filter(Customer.name.ilike(f'%{search}%') | Project.project_code.ilike(f'%{search}%'))
-    pagination    = q.order_by(Project.updated_at.desc()).paginate(page=page, per_page=25, error_out=False)
+        q = q.filter(
+            Customer.name.ilike(f'%{search}%') |
+            Project.project_code.ilike(f'%{search}%') |
+            ConnectionDetails.consumer_number.ilike(f'%{search}%')
+        )
+    pagination = q.order_by(Project.updated_at.desc()).paginate(page=page, per_page=25, error_out=False)
     return render_template('projects.html', projects=pagination.items, pagination=pagination,
                            status_filter=status_filter, search=search)
-
 
 @app.route('/projects/new', methods=['GET', 'POST'])
 @login_required
@@ -4334,6 +4371,134 @@ def stock_sale():
     flash(f'{sale_type} sale of {qty} {item.unit} "{item.display_name}" recorded'
           + (f' to {buyer}.' if buyer else '.'), 'success')
     return redirect(url_for('stock_dashboard'))
+@app.route('/product_replacements')
+@login_required
+@roles_required('admin', 'service', 'stocks', 'onsite', 'director')
+def product_replacements():
+    categories = ProductCategory.query.filter_by(is_active=True).order_by(ProductCategory.name).all()
+    recent = (ProductReplacement.query
+              .order_by(ProductReplacement.created_at.desc())
+              .limit(10).all())
+    return render_template('product_replacements.html', categories=categories, recent=recent)
+
+
+@app.route('/product_replacements/category/new', methods=['POST'])
+@login_required
+@roles_required('admin', 'service', 'stocks', 'director')
+def new_product_category():
+    name = _clean(request.form.get('name', ''), 120)
+    if not name:
+        flash('Category name is required.', 'danger')
+        return redirect(url_for('product_replacements'))
+    if ProductCategory.query.filter(db.func.lower(ProductCategory.name) == name.lower()).first():
+        flash(f'Category "{name}" already exists.', 'warning')
+        return redirect(url_for('product_replacements'))
+    cat = ProductCategory(name=name, created_by=current_user.id)
+    db.session.add(cat)
+    db.session.commit()
+    flash(f'Category "{name}" created.', 'success')
+    return redirect(url_for('product_replacement_category', cid=cat.id))
+
+
+@app.route('/product_replacements/category/<int:cid>/delete', methods=['POST'])
+@login_required
+@roles_required('admin')
+def delete_product_category(cid):
+    cat = ProductCategory.query.get_or_404(cid)
+    cat.is_active = False
+    db.session.commit()
+    flash(f'Category "{cat.name}" archived.', 'warning')
+    return redirect(url_for('product_replacements'))
+
+
+@app.route('/product_replacements/category/<int:cid>')
+@login_required
+@roles_required('admin', 'service', 'stocks', 'onsite', 'director')
+def product_replacement_category(cid):
+    cat = ProductCategory.query.get_or_404(cid)
+    search = _clean(request.args.get('q', ''), 100)
+    q = ProductReplacement.query.filter_by(category_id=cid)
+    if search:
+        q = q.filter(
+            ProductReplacement.serial_number.ilike(f'%{search}%') |
+            ProductReplacement.complaint_id.ilike(f'%{search}%') |
+            ProductReplacement.purchaser_name.ilike(f'%{search}%')
+        )
+    records = q.order_by(ProductReplacement.replacement_date.desc()).all()
+    return render_template('product_replacement_category.html',
+        cat=cat, records=records, search=search, today=date.today())
+
+
+@app.route('/product_replacements/category/<int:cid>/add', methods=['POST'])
+@login_required
+@roles_required('admin', 'service', 'stocks', 'director')
+@limiter.limit('30 per minute')
+def add_product_replacement(cid):
+    cat = ProductCategory.query.get_or_404(cid)
+
+    complaint_id    = _clean(request.form.get('complaint_id', ''), 60)
+    serial_number   = _clean(request.form.get('serial_number', ''), 100)
+    purchaser_name  = _clean(request.form.get('purchaser_name', ''), 120)
+    purchaser_phone = _clean(request.form.get('purchaser_phone', ''), 20) or None
+    project_code    = _clean(request.form.get('project_code', ''), 20) or None
+    new_serial      = _clean(request.form.get('new_serial_number', ''), 100) or None
+    notes           = _clean(request.form.get('notes', ''), 1000) or None
+    rep_date_raw    = request.form.get('replacement_date')
+
+    if not complaint_id or not serial_number or not purchaser_name:
+        flash('Complaint ID, serial number and purchaser name are required.', 'danger')
+        return redirect(url_for('product_replacement_category', cid=cid))
+
+    rec = ProductReplacement(
+        category_id       = cid,
+        complaint_id      = complaint_id,
+        serial_number     = serial_number,
+        replacement_date  = date.fromisoformat(rep_date_raw) if rep_date_raw else date.today(),
+        purchaser_name    = purchaser_name,
+        purchaser_phone   = purchaser_phone,
+        project_code      = project_code,
+        new_serial_number = new_serial,
+        notes             = notes,
+        recorded_by       = current_user.id,
+    )
+    db.session.add(rec)
+    db.session.commit()
+    flash(f'Replacement logged for {serial_number}.', 'success')
+    return redirect(url_for('product_replacement_category', cid=cid))
+
+
+@app.route('/product_replacements/<int:rid>/edit', methods=['POST'])
+@login_required
+@roles_required('admin', 'stocks', 'director')
+def edit_product_replacement(rid):
+    rec = ProductReplacement.query.get_or_404(rid)
+
+    rec.complaint_id      = _clean(request.form.get('complaint_id', rec.complaint_id), 60)
+    rec.serial_number     = _clean(request.form.get('serial_number', rec.serial_number), 100)
+    rec.purchaser_name    = _clean(request.form.get('purchaser_name', rec.purchaser_name), 120)
+    rec.purchaser_phone   = _clean(request.form.get('purchaser_phone', ''), 20) or None
+    rec.project_code      = _clean(request.form.get('project_code', ''), 20) or None
+    rec.new_serial_number = _clean(request.form.get('new_serial_number', ''), 100) or None
+    rec.notes             = _clean(request.form.get('notes', ''), 1000) or None
+    rep_date_raw = request.form.get('replacement_date')
+    if rep_date_raw:
+        rec.replacement_date = date.fromisoformat(rep_date_raw)
+
+    db.session.commit()
+    flash('Replacement record updated.', 'success')
+    return redirect(url_for('product_replacement_category', cid=rec.category_id))
+
+
+@app.route('/product_replacements/<int:rid>/delete', methods=['POST'])
+@login_required
+@roles_required('admin')
+def delete_product_replacement(rid):
+    rec = ProductReplacement.query.get_or_404(rid)
+    cid = rec.category_id
+    db.session.delete(rec)
+    db.session.commit()
+    flash('Replacement record deleted.', 'warning')
+    return redirect(url_for('product_replacement_category', cid=cid))
 @app.route('/projects/<int:pid>/materials/update/<int:mid>', methods=['POST'])
 @login_required
 @roles_required('admin', 'onsite')

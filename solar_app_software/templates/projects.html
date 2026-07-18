@@ -11,8 +11,8 @@
 {# Filter form — stack on mobile #}
 <div class="card" style="margin-bottom:16px;padding:14px 20px">
   <form method="GET" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-    <input name="q" value="{{ search }}" placeholder="Search customer or project code…"
-           style="flex:1;min-width:160px;max-width:280px"/>
+    <input name="q" value="{{ search }}" placeholder="Search customer, project code, or consumer no…"
+       style="flex:1;min-width:160px;max-width:280px"/>
     <select name="status" style="flex:1;min-width:140px;max-width:180px">
       <option value="">All statuses</option>
       {% for s in ['Created','InProgress','Completed','Delayed','Closed','OnHold','Cancelled'] %}
