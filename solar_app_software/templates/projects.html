@@ -50,6 +50,7 @@
         <th>Assigned to</th>
         <th>C/O</th>
         <th>Status</th>
+        <th title="Excess payment pending">⚠</th>
         <th>Days</th>
         <th></th>
       </tr>
@@ -92,6 +93,13 @@
   {% endif %}
 </td>
         <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
+        <td style="text-align:center">
+  {% if p.id in pending_excess_ids %}
+  <span title="Excess payment pending — needs settlement"
+        style="display:inline-block;width:10px;height:10px;background:#dc2626;
+               border-radius:50%;box-shadow:0 0 0 3px #fee2e2"></span>
+  {% endif %}
+</td>
         <td style="font-size:12px;color:var(--hint)">
   {% if p.status in ('Closed', 'Completed', 'Cancelled') %}
     <span title="Project closed — counter stopped">{{ p.days_open }}d ✓</span>

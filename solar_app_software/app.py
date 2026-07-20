@@ -2245,10 +2245,27 @@ def projects():
     if consumer_search:
         q = q.filter(ConnectionDetails.consumer_number.ilike(f'%{consumer_search}%'))
     pagination = q.order_by(Project.updated_at.desc()).paginate(page=page, per_page=25, error_out=False)
-    
+    project_ids_on_page = [p.id for p in pagination.items]
+
+    pending_pay_excess_ids = set(
+    r[0] for r in db.session.query(PaymentExcess.project_id)
+    .filter(PaymentExcess.project_id.in_(project_ids_on_page),
+            PaymentExcess.status == 'Pending')
+    .distinct().all()
+    ) if project_ids_on_page else set()
+
+    pending_bank_excess_ids = set(
+    r[0] for r in db.session.query(BankExcessReturn.project_id)
+    .filter(BankExcessReturn.project_id.in_(project_ids_on_page),
+            BankExcessReturn.returned == False)
+    .distinct().all()
+    ) if project_ids_on_page else set()
+
+    pending_excess_ids = pending_pay_excess_ids | pending_bank_excess_ids
     return render_template('projects.html', projects=pagination.items, pagination=pagination,
-                           status_filter=status_filter, search=search,
-                           consumer_search=consumer_search)   
+                       status_filter=status_filter, search=search,
+                       consumer_search=consumer_search,
+                       pending_excess_ids=pending_excess_ids)   
 @app.route('/projects/new', methods=['GET', 'POST'])
 @login_required
 @roles_required('coordinator','admin','documents','office','documents_k','director')
