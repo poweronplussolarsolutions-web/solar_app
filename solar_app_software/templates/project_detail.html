@@ -2212,5 +2212,9 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 });
+history.pushState({ page: 'project_detail' }, '', location.href);
+window.addEventListener('popstate', function () {
+  window.location.href = "{{ url_for('projects') }}";
+});
 </script>
 {% endblock %}
