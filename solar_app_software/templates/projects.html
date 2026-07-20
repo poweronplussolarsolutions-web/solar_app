@@ -96,12 +96,12 @@
 </td>
         <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
         <td style="white-space:nowrap">
-  {% if p.id in pending_excess_amounts %}
+  {% if p.id in pending_excess_ids %}
   <span title="Excess payment pending — needs settlement"
         style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;
                color:#b91c1c;background:#fff1f1;border:1px solid #fca5a5;
                border-radius:20px;padding:2px 8px;margin-bottom:2px">
-    🔴 {{ pending_excess_amounts[p.id] | inr }}
+    🔴
   </span>
   {% endif %}
   {% if not p.total_amount or p.total_amount <= 0 %}
