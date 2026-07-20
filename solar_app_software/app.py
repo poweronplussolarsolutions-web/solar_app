@@ -2220,7 +2220,7 @@ def onsite_board():
 # ─────────────────────────────────────────────────────────────────────────────
 # PROJECTS
 # ─────────────────────────────────────────────────────────────────────────────
-
+from sqlalchemy import case
 @app.route('/projects')
 @login_required
 def projects():
@@ -2245,6 +2245,7 @@ def projects():
     if consumer_search:
         q = q.filter(ConnectionDetails.consumer_number.ilike(f'%{consumer_search}%'))
     pagination = q.order_by(Project.updated_at.desc()).paginate(page=page, per_page=25, error_out=False)
+    
     return render_template('projects.html', projects=pagination.items, pagination=pagination,
                            status_filter=status_filter, search=search,
                            consumer_search=consumer_search)   
@@ -3384,6 +3385,7 @@ def documents(pid):
         auto_advance_stage(proj)
         db.session.commit()
         flash(f'{doc_type} — {status}.', 'success')
+        return redirect(url_for('documents', pid=pid))
 
     return render_template('documents.html', proj=proj, stages=stages)
 
@@ -3698,6 +3700,7 @@ def kseb(pid):
         auto_advance_stage(proj)
         db.session.commit()
         flash('KSEB tasks updated.', 'success')
+        return redirect(url_for('kseb', pid=pid))
 
     return render_template('kseb.html', proj=proj, task=task)
 
@@ -3990,6 +3993,7 @@ def onsite_progress(pid):
         auto_advance_stage(proj)
         db.session.commit()
         flash('Onsite progress updated.', 'success')
+        return redirect(url_for('onsite_progress', pid=pid))
 
     return render_template('onsite_progress.html', proj=proj, progress=progress,all_workers=all_workers,all_stock_items=all_stock_items,delivered_stock_txns=delivered_stock_txns,today=date.today())
 
@@ -4813,6 +4817,7 @@ def subsidy(pid):
         auto_advance_stage(proj)
         db.session.commit()
         flash('Subsidy record updated.', 'success')
+        return redirect(url_for('project_detail', pid=pid) + '#subsidy')
 
     return render_template('project_detail.html', proj=proj, sub=sub)
 
