@@ -15,7 +15,7 @@
     {% endif %}
   </div>
 
-  {% if current_user.role in ('admin', 'documents','office') %}
+  {% if current_user.role in ('admin', 'documents','office','documents_k') %}
   <!-- Admin / Documents staff: editable customer fields inside the main form -->
   <form method="POST" action="{{ url_for('edit_project', pid=proj.id) }}" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
