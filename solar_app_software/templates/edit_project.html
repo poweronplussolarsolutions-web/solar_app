@@ -183,14 +183,20 @@
       </div>
 
       <div class="form-group">
-        <label>Roof type</label>
-        <select name="roof_type">
-          <option value="">— Select —</option>
-          {% for rt, label in [('Flat','Flat'),('Sheet','Sheet'),('Slope','Slope'),('Tile','Tile'),('Clay Tile','Clay Tile (Oodu)')] %}
-<option value="{{ rt }}" {% if proj.roof_type == rt %}selected{% endif %}>{{ label }}</option>
-{% endfor %}
-        </select>
-      </div>
+  <label>Roof type</label>
+  <select name="roof_type" id="roof_type_select" onchange="toggleOtherRoof()">
+    <option value="">— Select —</option>
+    {% for rt, label in [('Flat','Flat'),('Sheet','Sheet'),('Slope','Slope'),('Tile','Tile'),('Clay Tile','Clay Tile (Oodu)')] %}
+    <option value="{{ rt }}" {% if proj.roof_type == rt %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+    <option value="Other" {% if proj.roof_type == 'Other' %}selected{% endif %}>Other (type manually)…</option>
+  </select>
+</div>
+<div class="form-group" id="other-roof-field" style="display:none">
+  <label>Roof type <span style="color:var(--muted);font-weight:400;font-size:11px">(not in list)</span></label>
+  <input name="roof_type_other" id="roof_type_other" type="text" maxlength="60"
+         value="{{ proj.roof_type_other or '' }}" placeholder="e.g. Asbestos sheet"/>
+</div>
       <div class="form-group">
   <label>Inverter type</label>
   <select name="inverter_type">
@@ -415,5 +421,16 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 });
+
+function toggleOtherRoof() {
+  const sel   = document.getElementById('roof_type_select');
+  const field = document.getElementById('other-roof-field');
+  const input = document.getElementById('roof_type_other');
+  const show  = sel.value === 'Other';
+  field.style.display = show ? 'block' : 'none';
+  input.required = show;
+}
+toggleOtherRoof();
+
 </script>
 {% endblock %}

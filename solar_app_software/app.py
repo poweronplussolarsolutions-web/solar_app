@@ -297,7 +297,8 @@ class Project(db.Model):
     materials        = db.relationship('Material',         backref='project', lazy=True)
     assignments      = db.relationship('WorkerAssignment', backref='project', lazy=True)
     loan_subtype     = db.Column(db.Enum('Assisted','Self'), nullable=True)
-    roof_type=db.Column(db.Enum('Flat','Sheet','Slope','Clay Tile','Tile'),nullable=True)
+    roof_type=db.Column(db.Enum('Flat','Sheet','Slope','Clay Tile','Tile','Other'),nullable=True)
+    roof_type_other=db.Column(db.String(60), nullable=True)
     inverter_type = db.Column(db.Enum('Standard','Hybrid','String'), nullable=True)
     panel_items      = db.relationship('PanelItem', backref='project', lazy=True, cascade='all,delete-orphan')
     extra_materials  = db.relationship('ExtraMaterial', backref='project', lazy=True, cascade='all,delete-orphan')
@@ -384,6 +385,13 @@ class Project(db.Model):
         p.payment_source == 'Bank' and p.instalment == 'First'
         for p in self.payments
     )
+    @property
+    def roof_type_display(self):
+        if self.roof_type == 'Other':
+            return self.roof_type_other or 'Other'
+        if self.roof_type == 'Clay Tile':
+            return 'Clay Tile (Oodu)'
+        return self.roof_type or '—'
 class ConnectionDetails(db.Model):
     __tablename__ = 'connection_details'
     id                       = db.Column(db.Integer, primary_key=True)
@@ -2341,6 +2349,7 @@ def new_project():
     doc_staff_id         = request.form.get('doc_staff_id') or None,
     notes                = notes_val,
     roof_type            = request.form.get('roof_type') or None,
+    roof_type_other      = _clean(request.form.get('roof_type_other', ''), 60) or None,
     inverter_type        = request.form.get('inverter_type') or None,
     coordinator_name     = resolved_coord_name,
         )
@@ -2452,6 +2461,7 @@ def edit_project(pid):
         proj.total_amount         = new_amount
         proj.notes                = _clean(request.form.get('notes', ''), 2000)
         proj.roof_type=request.form.get('roof_type') or None
+        proj.roof_type_other = _clean(request.form.get('roof_type_other', ''), 60) or None
         proj.inverter_type = request.form.get('inverter_type') or None
         changes = []
 
