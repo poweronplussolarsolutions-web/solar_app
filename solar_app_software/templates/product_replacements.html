@@ -33,21 +33,43 @@
   {% if categories %}
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">
     {% for cat in categories %}
-    <a href="{{ url_for('product_replacement_category', cid=cat.id) }}"
-       style="text-decoration:none;color:inherit;border:0.5px solid var(--border);border-radius:var(--radius);
-              padding:16px;display:block">
-      <div style="font-size:14px;font-weight:600;margin-bottom:6px">{{ cat.name }}</div>
+    <div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:16px">
+      <a href="{{ url_for('product_replacement_category', cid=cat.id) }}"
+         style="text-decoration:none;color:inherit;display:block;margin-bottom:6px">
+        <div style="font-size:14px;font-weight:600">{{ cat.name }}</div>
+      </a>
       <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
         {{ cat.replacement_count }} replacement{{ 's' if cat.replacement_count != 1 else '' }} logged
       </div>
-      {% if cat.pending_count > 0 %}
-      <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;
-                   background:#fff3cd;color:#856404">{{ cat.pending_count }} pending</span>
-      {% else %}
-      <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;
-                   background:#d4edda;color:#155724">All cleared</span>
+      <div style="margin-bottom:10px">
+        {% if cat.pending_count > 0 %}
+        <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;
+                     background:#fff3cd;color:#856404">{{ cat.pending_count }} pending</span>
+        {% else %}
+        <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;
+                     background:#d4edda;color:#155724">All cleared</span>
+        {% endif %}
+      </div>
+      {% if current_user.role in ['admin','service','stocks','director'] %}
+      <div style="display:flex;gap:6px">
+        <a href="{{ url_for('product_replacement_category', cid=cat.id) }}" class="btn btn-sm">View</a>
+        <button type="button" class="btn btn-sm cat-edit-btn" data-cat="{{ cat.id }}">Edit</button>
+      </div>
+      <div id="catEditPanel-{{ cat.id }}" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+        <form method="POST" action="{{ url_for('edit_product_category', cid=cat.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div style="display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap">
+            <div class="form-group" style="margin:0;flex:1;min-width:140px">
+              <label style="font-size:12px">Category name</label>
+              <input type="text" name="name" value="{{ cat.name }}" required/>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+            <button type="button" class="btn btn-sm cat-edit-btn" data-cat="{{ cat.id }}">Cancel</button>
+          </div>
+        </form>
+      </div>
       {% endif %}
-    </a>
+    </div>
     {% endfor %}
   </div>
   {% else %}
@@ -133,5 +155,14 @@ function togglePanel(id) {
   var el = document.getElementById(id);
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.cat-edit-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = this.getAttribute('data-cat');
+      var panel = document.getElementById('catEditPanel-' + id);
+      if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    });
+  });
+});
 </script>
 {% endblock %}

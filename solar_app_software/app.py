@@ -4443,7 +4443,27 @@ def new_product_category():
     db.session.commit()
     flash(f'Category "{name}" created.', 'success')
     return redirect(url_for('product_replacement_category', cid=cat.id))
-
+@app.route('/product_replacements/category/<int:cid>/edit', methods=['POST'])
+@login_required
+@roles_required('admin', 'stocks', 'director')
+def edit_product_category(cid):
+    cat = ProductCategory.query.get_or_404(cid)
+    name = _clean(request.form.get('name', ''), 120)
+    if not name:
+        flash('Category name is required.', 'danger')
+        return redirect(request.referrer or url_for('product_replacements'))
+    dup = ProductCategory.query.filter(
+        db.func.lower(ProductCategory.name) == name.lower(),
+        ProductCategory.id != cid
+    ).first()
+    if dup:
+        flash(f'Category "{name}" already exists.', 'warning')
+        return redirect(request.referrer or url_for('product_replacements'))
+    old_name = cat.name
+    cat.name = name
+    db.session.commit()
+    flash(f'Category renamed from "{old_name}" to "{name}".', 'success')
+    return redirect(request.referrer or url_for('product_replacements'))
 
 @app.route('/product_replacements/category/<int:cid>/delete', methods=['POST'])
 @login_required
