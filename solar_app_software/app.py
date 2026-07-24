@@ -4408,11 +4408,16 @@ def stock_sale():
 @login_required
 @roles_required('admin', 'stocks','director')
 def product_replacements():
+    show_archived = request.args.get('archived') == '1'
     categories = ProductCategory.query.filter_by(is_active=True).order_by(ProductCategory.name).all()
+    archived_categories = (ProductCategory.query.filter_by(is_active=False)
+                            .order_by(ProductCategory.name).all()) if show_archived else []
     recent = (ProductReplacement.query
               .order_by(ProductReplacement.created_at.desc())
               .limit(10).all())
-    return render_template('product_replacements.html', categories=categories, recent=recent)
+    return render_template('product_replacements.html',
+        categories=categories, archived_categories=archived_categories,
+        show_archived=show_archived, recent=recent)
 
 
 @app.route('/product_replacements/category/new', methods=['POST'])
@@ -4442,6 +4447,8 @@ def delete_product_category(cid):
     db.session.commit()
     flash(f'Category "{cat.name}" archived.', 'warning')
     return redirect(url_for('product_replacements'))
+
+
 
 
 @app.route('/product_replacements/category/<int:cid>')
@@ -4520,7 +4527,15 @@ def edit_product_replacement(rid):
     db.session.commit()
     flash('Replacement record updated.', 'success')
     return redirect(url_for('product_replacement_category', cid=rec.category_id))
-
+@app.route('/product_replacements/category/<int:cid>/restore', methods=['POST'])
+@login_required
+@roles_required('admin')
+def restore_product_category(cid):
+    cat = ProductCategory.query.get_or_404(cid)
+    cat.is_active = True
+    db.session.commit()
+    flash(f'Category "{cat.name}" restored.', 'success')
+    return redirect(url_for('product_replacements', archived=1))
 
 @app.route('/product_replacements/<int:rid>/delete', methods=['POST'])
 @login_required

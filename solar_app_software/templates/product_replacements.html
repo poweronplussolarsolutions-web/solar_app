@@ -6,9 +6,14 @@
 <div class="card" style="margin-bottom:16px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div class="card-title" style="margin:0">Product categories</div>
-    {% if current_user.role in ['admin','service','stocks','director'] %}
-    <button class="btn btn-sm btn-primary" onclick="togglePanel('newCatPanel')">+ New Category</button>
-    {% endif %}
+    <div style="display:flex;gap:8px;align-items:center">
+      {% if current_user.role in ['admin','service','stocks','director'] %}
+      <a href="{{ url_for('product_replacements', archived=0 if show_archived else 1) }}" class="btn btn-sm">
+        {{ 'Hide archived' if show_archived else 'Show archived' }}
+      </a>
+      <button class="btn btn-sm btn-primary" onclick="togglePanel('newCatPanel')">+ New Category</button>
+      {% endif %}
+    </div>
   </div>
 
   <div id="newCatPanel" style="display:none;margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius);padding:14px;background:var(--bg)">
@@ -41,6 +46,35 @@
   {% else %}
   <div style="color:var(--hint);font-size:13px;padding:8px 0">
     No product categories yet. Create one above to start logging replacements (e.g. "5kW Inverter", "Panel — Waaree 545W").
+  </div>
+  {% endif %}
+
+  {% if show_archived %}
+  <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+    <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:10px">Archived categories</div>
+    {% if archived_categories %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">
+      {% for cat in archived_categories %}
+      <div style="border:0.5px dashed var(--border);border-radius:var(--radius);padding:16px;opacity:0.75">
+        <div style="font-size:14px;font-weight:600;margin-bottom:6px">{{ cat.name }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
+          {{ cat.replacement_count }} replacement{{ 's' if cat.replacement_count != 1 else '' }} logged · archived
+        </div>
+        <div style="display:flex;gap:6px">
+          <a href="{{ url_for('product_replacement_category', cid=cat.id) }}" class="btn btn-sm">View</a>
+          {% if current_user.role == 'admin' %}
+          <form method="POST" action="{{ url_for('restore_product_category', cid=cat.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-primary">Restore</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="color:var(--hint);font-size:13px;padding:8px 0">No archived categories.</div>
+    {% endif %}
   </div>
   {% endif %}
 </div>

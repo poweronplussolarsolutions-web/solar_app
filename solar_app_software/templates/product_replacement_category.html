@@ -6,6 +6,20 @@
 {% endblock %}
 
 {% block content %}
+
+{% if not cat.is_active %}
+<div style="margin-bottom:16px;border:1px solid #d97706;border-radius:var(--radius);padding:10px 14px;
+     background:#fffbeb;color:#92400e;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+  <span>⚠ This category is archived and hidden from the active list.</span>
+  {% if current_user.role == 'admin' %}
+  <form method="POST" action="{{ url_for('restore_product_category', cid=cat.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-sm">Restore category</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="card" style="margin-bottom:16px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
     <div class="card-title" style="margin:0">Replacements under {{ cat.name }}</div>
@@ -18,7 +32,7 @@
       {% if current_user.role in ['admin','service','stocks','director'] %}
       <button class="btn btn-sm btn-primary" onclick="togglePanel('newRepPanel')">+ Log Replacement</button>
       {% endif %}
-      {% if current_user.role == 'admin' %}
+      {% if current_user.role == 'admin' and cat.is_active %}
       <form method="POST" action="{{ url_for('delete_product_category', cid=cat.id) }}"
             onsubmit="return confirm('Archive this category? Existing records are kept.')">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
