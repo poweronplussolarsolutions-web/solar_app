@@ -23,10 +23,15 @@
 <div class="card" style="margin-bottom:16px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
     <div class="card-title" style="margin:0">Replacements under {{ cat.name }}</div>
-    <div style="display:flex;gap:8px;align-items:center">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <form method="GET" style="display:flex;gap:6px">
         <input type="text" name="q" value="{{ search }}" placeholder="Search complaint / serial / purchaser"
                style="font-size:13px"/>
+        <select name="status" onchange="this.form.submit()" style="font-size:13px">
+          <option value="" {{ 'selected' if not status_filter }}>All statuses</option>
+          <option value="Pending" {{ 'selected' if status_filter == 'Pending' }}>Pending only</option>
+          <option value="Cleared" {{ 'selected' if status_filter == 'Cleared' }}>Cleared only</option>
+        </select>
         <button type="submit" class="btn btn-sm">Search</button>
       </form>
       {% if current_user.role in ['admin','service','stocks','director'] %}
@@ -93,7 +98,7 @@
     <table>
       <thead>
         <tr>
-          <th>Complaint ID</th><th>Serial No.</th><th>New Serial</th><th>Date</th>
+          <th>Status</th><th>Complaint ID</th><th>Serial No.</th><th>New Serial</th><th>Date</th>
           <th>Purchaser</th><th>Phone</th><th>Project</th><th>Notes</th>
           {% if current_user.role in ['admin','service','stocks','director'] %}<th></th>{% endif %}
         </tr>
@@ -101,6 +106,15 @@
       <tbody>
         {% for r in records %}
         <tr id="rep-row-{{ r.id }}">
+          <td>
+            {% if r.status == 'Cleared' %}
+            <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;
+                         background:#d4edda;color:#155724">✓ Cleared</span>
+            {% else %}
+            <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;
+                         background:#fff3cd;color:#856404">Pending</span>
+            {% endif %}
+          </td>
           <td style="font-family:monospace;font-size:12px">{{ r.complaint_id }}</td>
           <td style="font-family:monospace;font-size:12px">{{ r.serial_number }}</td>
           <td style="font-family:monospace;font-size:12px;color:var(--muted)">{{ r.new_serial_number or '—' }}</td>
@@ -111,6 +125,18 @@
           <td style="font-size:12px;color:var(--muted);max-width:220px">{{ r.notes or '—' }}</td>
           {% if current_user.role in ['admin','service','stocks','director'] %}
           <td style="white-space:nowrap">
+            {% if r.status == 'Pending' %}
+            <form method="POST" action="{{ url_for('mark_replacement_cleared', rid=r.id) }}" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-primary">Mark Cleared</button>
+            </form>
+            {% else %}
+            <form method="POST" action="{{ url_for('reopen_replacement_case', rid=r.id) }}" style="display:inline"
+                  onsubmit="return confirm('Reopen this case as pending?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm">Reopen</button>
+            </form>
+            {% endif %}
             <button class="btn btn-sm rep-edit-btn" data-rep="{{ r.id }}">Edit</button>
             {% if current_user.role == 'admin' %}
             <form method="POST" action="{{ url_for('delete_product_replacement', rid=r.id) }}"
@@ -124,7 +150,7 @@
         </tr>
         {% if current_user.role in ['admin','service','stocks','director'] %}
         <tr id="rep-edit-{{ r.id }}" style="display:none;background:var(--bg)">
-          <td colspan="9" style="padding:12px 14px">
+          <td colspan="10" style="padding:12px 14px">
             <form method="POST" action="{{ url_for('edit_product_replacement', rid=r.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <div class="form-grid">
@@ -161,6 +187,11 @@
                   <textarea name="notes" rows="2">{{ r.notes or '' }}</textarea>
                 </div>
               </div>
+              {% if r.status == 'Cleared' %}
+              <div style="font-size:12px;color:var(--muted);margin-top:6px">
+                Cleared on {{ r.cleared_date | date_fmt }}{{ ' by ' ~ r.clearer.full_name if r.clearer }}
+              </div>
+              {% endif %}
               <div style="display:flex;gap:6px;margin-top:6px">
                 <button type="submit" class="btn btn-primary btn-sm">Save</button>
                 <button type="button" class="btn btn-sm rep-edit-btn" data-rep="{{ r.id }}">Cancel</button>

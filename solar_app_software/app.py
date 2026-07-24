@@ -965,6 +965,9 @@ class ProductReplacement(db.Model):
     purchaser_phone   = db.Column(db.String(20), nullable=True)
     project_code      = db.Column(db.String(20), nullable=True)     # optional free-text MNRE/project ref
     notes             = db.Column(db.Text, nullable=True)
+    status            = db.Column(db.Enum('Pending','Cleared'), nullable=False, default='Pending')  
+    cleared_date      = db.Column(db.Date, nullable=True)            
+    cleared_by        = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  
     recorded_by       = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_at        = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at        = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -972,6 +975,7 @@ class ProductReplacement(db.Model):
     category = db.relationship('ProductCategory',
         backref=db.backref('replacements', lazy=True, order_by='ProductReplacement.replacement_date.desc()'))
     recorder = db.relationship('User', foreign_keys=[recorded_by])
+    clearer  = db.relationship('User', foreign_keys=[cleared_by])   
 from urllib.parse import urlparse
 
 ALLOWED_MAPS_HOSTS = ('google.com', 'goo.gl', 'maps.app.goo.gl')
@@ -4457,6 +4461,7 @@ def delete_product_category(cid):
 def product_replacement_category(cid):
     cat = ProductCategory.query.get_or_404(cid)
     search = _clean(request.args.get('q', ''), 100)
+    status_filter = request.args.get('status', '')
     q = ProductReplacement.query.filter_by(category_id=cid)
     if search:
         q = q.filter(
@@ -4464,10 +4469,11 @@ def product_replacement_category(cid):
             ProductReplacement.complaint_id.ilike(f'%{search}%') |
             ProductReplacement.purchaser_name.ilike(f'%{search}%')
         )
+    if status_filter in ('Pending', 'Cleared'):
+        q = q.filter(ProductReplacement.status == status_filter)
     records = q.order_by(ProductReplacement.replacement_date.desc()).all()
     return render_template('product_replacement_category.html',
-        cat=cat, records=records, search=search, today=date.today())
-
+        cat=cat, records=records, search=search, status_filter=status_filter, today=date.today())
 
 @app.route('/product_replacements/category/<int:cid>/add', methods=['POST'])
 @login_required
@@ -4526,6 +4532,36 @@ def edit_product_replacement(rid):
 
     db.session.commit()
     flash('Replacement record updated.', 'success')
+    return redirect(url_for('product_replacement_category', cid=rec.category_id))
+@app.route('/product_replacements/<int:rid>/clear', methods=['POST'])
+@login_required
+@roles_required('admin', 'stocks', 'director')
+def mark_replacement_cleared(rid):
+    rec = ProductReplacement.query.get_or_404(rid)
+    if rec.status == 'Cleared':
+        flash('This case is already marked cleared.', 'warning')
+        return redirect(url_for('product_replacement_category', cid=rec.category_id))
+    rec.status       = 'Cleared'
+    rec.cleared_date = date.today()
+    rec.cleared_by   = current_user.id
+    db.session.commit()
+    flash(f'Case for {rec.serial_number} marked as cleared.', 'success')
+    return redirect(url_for('product_replacement_category', cid=rec.category_id))
+
+
+@app.route('/product_replacements/<int:rid>/reopen', methods=['POST'])
+@login_required
+@roles_required('admin', 'stocks', 'director')
+def reopen_replacement_case(rid):
+    rec = ProductReplacement.query.get_or_404(rid)
+    if rec.status == 'Pending':
+        flash('This case is already pending.', 'warning')
+        return redirect(url_for('product_replacement_category', cid=rec.category_id))
+    rec.status       = 'Pending'
+    rec.cleared_date = None
+    rec.cleared_by   = None
+    db.session.commit()
+    flash(f'Case for {rec.serial_number} reopened.', 'warning')
     return redirect(url_for('product_replacement_category', cid=rec.category_id))
 @app.route('/product_replacements/category/<int:cid>/restore', methods=['POST'])
 @login_required
