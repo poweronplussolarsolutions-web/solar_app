@@ -37,9 +37,16 @@
        style="text-decoration:none;color:inherit;border:0.5px solid var(--border);border-radius:var(--radius);
               padding:16px;display:block">
       <div style="font-size:14px;font-weight:600;margin-bottom:6px">{{ cat.name }}</div>
-      <div style="font-size:12px;color:var(--muted)">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
         {{ cat.replacement_count }} replacement{{ 's' if cat.replacement_count != 1 else '' }} logged
       </div>
+      {% if cat.pending_count > 0 %}
+      <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;
+                   background:#fff3cd;color:#856404">{{ cat.pending_count }} pending</span>
+      {% else %}
+      <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;
+                   background:#d4edda;color:#155724">All cleared</span>
+      {% endif %}
     </a>
     {% endfor %}
   </div>
@@ -80,16 +87,31 @@
 </div>
 
 <div class="card">
-  <div class="card-title">Recently logged replacements</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div class="card-title" style="margin:0">Recently logged replacements</div>
+    {% if pending_total > 0 %}
+    <span style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;
+                 background:#fff3cd;color:#856404">{{ pending_total }} pending across all categories</span>
+    {% endif %}
+  </div>
   {% if recent %}
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>Category</th><th>Complaint ID</th><th>Serial No.</th><th>Purchaser</th><th>Date</th><th>Logged by</th></tr>
+        <tr><th>Status</th><th>Category</th><th>Complaint ID</th><th>Serial No.</th><th>Purchaser</th><th>Date</th><th>Logged by</th></tr>
       </thead>
       <tbody>
         {% for r in recent %}
         <tr>
+          <td>
+            {% if r.status == 'Cleared' %}
+            <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;
+                         background:#d4edda;color:#155724">✓ Cleared</span>
+            {% else %}
+            <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;
+                         background:#fff3cd;color:#856404">Pending</span>
+            {% endif %}
+          </td>
           <td><a href="{{ url_for('product_replacement_category', cid=r.category_id) }}">{{ r.category.name }}</a></td>
           <td style="font-family:monospace;font-size:12px">{{ r.complaint_id }}</td>
           <td style="font-family:monospace;font-size:12px">{{ r.serial_number }}</td>
