@@ -4,11 +4,20 @@
 
 {% block content %}
 <div class="card" style="margin-bottom:16px">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
     <div class="card-title" style="margin:0">Product categories</div>
-    <div style="display:flex;gap:8px;align-items:center">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <form method="GET" style="display:flex;gap:6px">
+        {% if show_archived %}<input type="hidden" name="archived" value="1">{% endif %}
+        <input type="text" name="cat_q" value="{{ cat_search }}" placeholder="Search categories"
+               style="font-size:13px"/>
+        <button type="submit" class="btn btn-sm">Search</button>
+        {% if cat_search %}
+        <a href="{{ url_for('product_replacements', archived=1 if show_archived else 0) }}" class="btn btn-sm">Clear</a>
+        {% endif %}
+      </form>
       {% if current_user.role in ['admin','service','stocks','director'] %}
-      <a href="{{ url_for('product_replacements', archived=0 if show_archived else 1) }}" class="btn btn-sm">
+      <a href="{{ url_for('product_replacements', archived=0 if show_archived else 1, cat_q=cat_search) }}" class="btn btn-sm">
         {{ 'Hide archived' if show_archived else 'Show archived' }}
       </a>
       <button class="btn btn-sm btn-primary" onclick="togglePanel('newCatPanel')">+ New Category</button>
@@ -72,6 +81,10 @@
     </div>
     {% endfor %}
   </div>
+  {% elif cat_search %}
+  <div style="color:var(--hint);font-size:13px;padding:8px 0">
+    No categories match "{{ cat_search }}".
+  </div>
   {% else %}
   <div style="color:var(--hint);font-size:13px;padding:8px 0">
     No product categories yet. Create one above to start logging replacements (e.g. "5kW Inverter", "Panel — Waaree 545W").
@@ -102,7 +115,7 @@
       {% endfor %}
     </div>
     {% else %}
-    <div style="color:var(--hint);font-size:13px;padding:8px 0">No archived categories.</div>
+    <div style="color:var(--hint);font-size:13px;padding:8px 0">No archived categories{{ ' match "' ~ cat_search ~ '"' if cat_search else '' }}.</div>
     {% endif %}
   </div>
   {% endif %}

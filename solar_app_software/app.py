@@ -4416,17 +4416,28 @@ def stock_sale():
 @roles_required('admin', 'stocks','director')
 def product_replacements():
     show_archived = request.args.get('archived') == '1'
-    categories = ProductCategory.query.filter_by(is_active=True).order_by(ProductCategory.name).all()
-    archived_categories = (ProductCategory.query.filter_by(is_active=False)
-                            .order_by(ProductCategory.name).all()) if show_archived else []
+    cat_search = _clean(request.args.get('cat_q', ''), 100)
+
+    cat_q = ProductCategory.query.filter_by(is_active=True)
+    if cat_search:
+        cat_q = cat_q.filter(ProductCategory.name.ilike(f'%{cat_search}%'))
+    categories = cat_q.order_by(ProductCategory.name).all()
+
+    archived_categories = []
+    if show_archived:
+        arch_q = ProductCategory.query.filter_by(is_active=False)
+        if cat_search:
+            arch_q = arch_q.filter(ProductCategory.name.ilike(f'%{cat_search}%'))
+        archived_categories = arch_q.order_by(ProductCategory.name).all()
+
     recent = (ProductReplacement.query
               .order_by(ProductReplacement.created_at.desc())
               .limit(10).all())
     pending_total = ProductReplacement.query.filter_by(status='Pending').count()
     return render_template('product_replacements.html',
         categories=categories, archived_categories=archived_categories,
-        show_archived=show_archived, recent=recent, pending_total=pending_total)
-
+        show_archived=show_archived, recent=recent, pending_total=pending_total,
+        cat_search=cat_search)
 @app.route('/product_replacements/category/new', methods=['POST'])
 @login_required
 @roles_required('admin', 'stocks', 'director')
