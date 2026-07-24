@@ -952,6 +952,9 @@ class ProductCategory(db.Model):
     def replacement_count(self):
         return ProductReplacement.query.filter_by(category_id=self.id).count()
 
+    @property
+    def pending_count(self):
+        return ProductReplacement.query.filter_by(category_id=self.id, status='Pending').count()
 
 class ProductReplacement(db.Model):
     __tablename__ = 'product_replacements'
@@ -4419,10 +4422,10 @@ def product_replacements():
     recent = (ProductReplacement.query
               .order_by(ProductReplacement.created_at.desc())
               .limit(10).all())
+    pending_total = ProductReplacement.query.filter_by(status='Pending').count()
     return render_template('product_replacements.html',
         categories=categories, archived_categories=archived_categories,
-        show_archived=show_archived, recent=recent)
-
+        show_archived=show_archived, recent=recent, pending_total=pending_total)
 
 @app.route('/product_replacements/category/new', methods=['POST'])
 @login_required
