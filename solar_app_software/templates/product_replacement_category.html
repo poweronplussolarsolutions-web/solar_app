@@ -25,7 +25,7 @@
     <div class="card-title" style="margin:0">Replacements under {{ cat.name }}</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <form method="GET" style="display:flex;gap:6px">
-        <input type="text" name="q" value="{{ search }}" placeholder="Search complaint / serial / purchaser"
+        <input type="text" name="q" value="{{ search }}" placeholder="Search complaint ID / order ID"
                style="font-size:13px"/>
         <select name="status" onchange="this.form.submit()" style="font-size:13px">
           <option value="" {{ 'selected' if not status_filter }}>All statuses</option>
@@ -97,8 +97,8 @@
           <input type="text" name="purchaser_phone" placeholder="10-digit number"/>
         </div>
         <div class="form-group">
-          <label>Project / MNRE code <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-          <input type="text" name="project_code" placeholder="e.g. 1842"/>
+          <label>Order ID <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="text" name="order_id" placeholder="e.g. ORD-4521"/>
         </div>
         <div class="form-group full">
           <label>Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
@@ -118,7 +118,7 @@
       <thead>
         <tr>
           <th>Status</th><th>Complaint ID</th><th>Serial No.</th><th>New Serial</th><th>Date</th>
-          <th>Purchaser</th><th>Phone</th><th>Project</th><th>Notes</th>
+          <th>Purchaser</th><th>Phone</th><th>Order ID</th><th>Notes</th>
           {% if current_user.role in ['admin','service','stocks','director'] %}<th></th>{% endif %}
         </tr>
       </thead>
@@ -140,7 +140,7 @@
           <td>{{ r.replacement_date | date_fmt }}</td>
           <td>{{ r.purchaser_name }}</td>
           <td style="font-size:12px;color:var(--muted)">{{ r.purchaser_phone or '—' }}</td>
-          <td style="font-size:12px">{{ r.project_code or '—' }}</td>
+          <td style="font-size:12px">{{ r.order_id or '—' }}</td>
           <td style="font-size:12px;color:var(--muted);max-width:220px">{{ r.notes or '—' }}</td>
           {% if current_user.role in ['admin','service','stocks','director'] %}
           <td style="white-space:nowrap">
@@ -198,8 +198,8 @@
                   <input type="text" name="purchaser_phone" value="{{ r.purchaser_phone or '' }}"/>
                 </div>
                 <div class="form-group">
-                  <label style="font-size:12px">Project code</label>
-                  <input type="text" name="project_code" value="{{ r.project_code or '' }}"/>
+                  <label style="font-size:12px">Order ID</label>
+                  <input type="text" name="order_id" value="{{ r.order_id or '' }}"/>
                 </div>
                 <div class="form-group full">
                   <label style="font-size:12px">Notes</label>

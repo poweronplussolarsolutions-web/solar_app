@@ -966,7 +966,7 @@ class ProductReplacement(db.Model):
     replacement_date  = db.Column(db.Date, nullable=False, default=date.today)
     purchaser_name    = db.Column(db.String(120), nullable=False)
     purchaser_phone   = db.Column(db.String(20), nullable=True)
-    project_code      = db.Column(db.String(20), nullable=True)     # optional free-text MNRE/project ref
+    order_id           = db.Column(db.String(20), nullable=True)    # optional free-text order ID
     notes             = db.Column(db.Text, nullable=True)
     status            = db.Column(db.Enum('Pending','Cleared'), nullable=False, default='Pending')  
     cleared_date      = db.Column(db.Date, nullable=True)            
@@ -4499,9 +4499,8 @@ def product_replacement_category(cid):
     q = ProductReplacement.query.filter_by(category_id=cid)
     if search:
         q = q.filter(
-            ProductReplacement.serial_number.ilike(f'%{search}%') |
             ProductReplacement.complaint_id.ilike(f'%{search}%') |
-            ProductReplacement.purchaser_name.ilike(f'%{search}%')
+            ProductReplacement.order_id.ilike(f'%{search}%')
         )
     if status_filter in ('Pending', 'Cleared'):
         q = q.filter(ProductReplacement.status == status_filter)
@@ -4520,7 +4519,7 @@ def add_product_replacement(cid):
     serial_number   = _clean(request.form.get('serial_number', ''), 100)
     purchaser_name  = _clean(request.form.get('purchaser_name', ''), 120)
     purchaser_phone = _clean(request.form.get('purchaser_phone', ''), 20) or None
-    project_code    = _clean(request.form.get('project_code', ''), 20) or None
+    order_id        = _clean(request.form.get('order_id', ''), 20) or None
     new_serial      = _clean(request.form.get('new_serial_number', ''), 100) or None
     notes           = _clean(request.form.get('notes', ''), 1000) or None
     rep_date_raw    = request.form.get('replacement_date')
@@ -4536,7 +4535,7 @@ def add_product_replacement(cid):
         replacement_date  = date.fromisoformat(rep_date_raw) if rep_date_raw else date.today(),
         purchaser_name    = purchaser_name,
         purchaser_phone   = purchaser_phone,
-        project_code      = project_code,
+        order_id           = order_id,
         new_serial_number = new_serial,
         notes             = notes,
         recorded_by       = current_user.id,
@@ -4557,7 +4556,7 @@ def edit_product_replacement(rid):
     rec.serial_number     = _clean(request.form.get('serial_number', rec.serial_number), 100)
     rec.purchaser_name    = _clean(request.form.get('purchaser_name', rec.purchaser_name), 120)
     rec.purchaser_phone   = _clean(request.form.get('purchaser_phone', ''), 20) or None
-    rec.project_code      = _clean(request.form.get('project_code', ''), 20) or None
+    rec.order_id           = _clean(request.form.get('order_id', ''), 20) or None
     rec.new_serial_number = _clean(request.form.get('new_serial_number', ''), 100) or None
     rec.notes             = _clean(request.form.get('notes', ''), 1000) or None
     rep_date_raw = request.form.get('replacement_date')
