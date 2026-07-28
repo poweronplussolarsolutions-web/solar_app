@@ -414,11 +414,19 @@ def build_job_card(project=None, output_path="/tmp/job_card.xlsx"):
         rh(row, 14)
         merge(f"A{row}", f"D{row}", lbl, size=8, bold=True)
         merge(f"E{row}", f"N{row}", data, size=8)
+    # ROW 32 — Panel details notes
+    rh(32, 28)
+    merge("A32", "D32", "Panel Notes:", size=8, bold=True)
+    merge("E32", "N32", safe(pd_.notes if pd_ else ""), size=8, wrap=True)
 
-    # ROW 32-34 — extra blank rows for panel serials
-    for r in range(32, 35):
+    # ROW 33-34 — extra blank rows
+    for r in range(33, 35):
         rh(r, 14)
         merge(f"A{r}", f"N{r}", "", size=8)
+    # # ROW 32-34 — extra blank rows for panel serials
+    # for r in range(32, 35):
+    #     rh(r, 14)
+    #     merge(f"A{r}", f"N{r}", "", size=8)
 
     # ──────────────────────────────────────────────────────────────────────────
     # ROW 35 — Payment Details header
@@ -465,7 +473,13 @@ def build_job_card(project=None, output_path="/tmp/job_card.xlsx"):
     merge("A41", "N41", "Notes / Changes (Payments & Amendments)",
           bold=True, size=8, bg=BG_LIGHT, align="left")
 
-    for _r in range(42, 46):
+    # ROW 42 — Project notes (prefilled)
+    rh(42, 28)
+    merge("A42", "N42",
+          ("Project Notes: " + safe(p.notes)) if (p and p.notes) else "Project Notes:",
+          size=8, wrap=True)
+
+    for _r in range(43, 46):
         rh(_r, 18)
         merge(f"A{_r}", f"N{_r}", "", size=8)
 

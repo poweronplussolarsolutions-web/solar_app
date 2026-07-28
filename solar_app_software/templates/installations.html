@@ -2,12 +2,60 @@
 {% block title %}Installations — Solar App{% endblock %}
 {% block page_title %}App Installations{% endblock %}
 {% block topbar_actions %}
-  <a href="{{ url_for('app_install_map') }}" class="btn btn-sm">📍 Map view</a>
+  <a href="{{ url_for('app_install_map') }}" class="btn btn-sm" aria-label="Open installations map view">📍 Map view</a>
 {% endblock %}
 {% block content %}
 
 <style>
-  /* ── Responsive installation tables ── */
+  /* ── Shared text-size helpers (replaces repeated inline font-size styles) ── */
+  .cell-primary { font-weight: 500; }
+  .cell-secondary { font-size: 13px; }
+  .cell-meta { font-size: 12px; color: var(--muted); }
+
+  /* ── Overdue pending row ── */
+  .row-overdue { background: var(--red-50, #fef2f2); }
+  .badge-overdue {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--red-700, #b91c1c);
+    background: var(--red-100, #fee2e2);
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin-left: 6px;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  /* ── Card weighting: pending draws the eye, completed recedes ── */
+  .card-pending {
+    border-left: 3px solid var(--amber-500, #f59e0b);
+  }
+  .card-completed {
+    opacity: 0.92;
+  }
+  .card-completed .card-title {
+    color: var(--muted);
+  }
+
+  /* ── Truncated address with tooltip ── */
+  .td-address-truncate {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ── Sticky table headers on desktop scroll ── */
+  @media (min-width: 641px) {
+    .pending-table thead th,
+    .completed-table thead th {
+      position: sticky;
+      top: 0;
+      background: var(--surface, #fff);
+      z-index: 1;
+    }
+  }
 
   /* Stack the two cards vertically on narrow screens */
   @media (max-width: 768px) {
@@ -53,6 +101,14 @@
       white-space: nowrap;
       flex-shrink: 0;
       min-width: 80px;
+    }
+
+    /* Address truncation doesn't apply in card view */
+    .td-address-truncate {
+      max-width: none;
+      overflow: visible;
+      text-overflow: clip;
+      white-space: normal;
     }
 
     /* Action cells: full width, stack vertically */
@@ -115,7 +171,7 @@
 
 <div class="two-col">
   <!-- ── Pending ── -->
-  <div class="card">
+  <div class="card card-pending">
     <div class="card-title">Pending installations ({{ pending | length }})</div>
     {% if pending %}
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
@@ -128,48 +184,63 @@
       </thead>
       <tbody>
         {% for i in pending %}
-        <tr>
-          <td data-label="Project" style="font-weight:500">
+        {# days_pending should be computed in the route, e.g.:
+           i.days_pending = (date.today() - i.project.created_at.date()).days
+           Falls back to not showing a badge if not provided. #}
+        <tr{% if i.days_pending and i.days_pending > 14 %} class="row-overdue"{% endif %}>
+          <td data-label="Project" class="cell-primary">
             <a href="{{ url_for('project_detail', pid=i.project_id) }}"
                style="color:var(--amber-600)">{{ i.project.project_code }}</a>
+            {% if i.days_pending and i.days_pending > 14 %}
+            <span class="badge-overdue" title="Pending for {{ i.days_pending }} days">⚠ {{ i.days_pending }}d</span>
+            {% endif %}
           </td>
 
           <td data-label="Customer">{{ i.project.customer.name }}</td>
 
-          <td data-label="Phone" style="font-size:13px">
+          <td data-label="Phone" class="cell-secondary">
             {{ i.project.customer.phone or '—' }}
           </td>
 
-          <td data-label="Address" style="font-size:12px;color:var(--muted)">
-  {{ i.project.customer.full_address or '—' }}
-</td>
-<td data-label="Map" style="font-size:12px">
-  {% set gt = i.project.geo_tag %}
-  {% if gt and gt.has_gps %}
-    <a href="https://www.google.com/maps?q={{ gt.latitude }},{{ gt.longitude }}" target="_blank" rel="noopener" style="color:var(--teal-600)">📍 View</a>
-  {% elif gt and gt.maps_url %}
-    <a href="{{ gt.maps_url }}" target="_blank" rel="noopener" style="color:var(--teal-600)">📍 Link</a>
-  {% else %}
-    <span style="color:var(--hint)">—</span>
-  {% endif %}
-</td>
+          <td data-label="Address" class="cell-meta td-address-truncate"
+              title="{{ i.project.customer.full_address or '' }}">
+            {{ i.project.customer.full_address or '—' }}
+          </td>
 
-          <td data-label="Inverter kW" style="font-size:12px;color:var(--muted)">
+          <td data-label="Map" class="cell-meta">
+            {% set gt = i.project.geo_tag %}
+            {% if gt and gt.has_gps %}
+              <a href="https://www.google.com/maps?q={{ gt.latitude }},{{ gt.longitude }}"
+                 target="_blank" rel="noopener" style="color:var(--teal-600)"
+                 aria-label="View {{ i.project.customer.name }} location on map">📍 View</a>
+            {% elif gt and gt.maps_url %}
+              <a href="{{ gt.maps_url }}" target="_blank" rel="noopener" style="color:var(--teal-600)"
+                 aria-label="Open saved map link for {{ i.project.customer.name }}">📍 Link</a>
+            {% else %}
+              <span style="color:var(--hint)">—</span>
+            {% endif %}
+          </td>
+
+          <td data-label="Inverter kW" class="cell-meta">
             {{ i.project.inverter_capacity_kw }} kW
           </td>
 
-          <td data-label="Panel kW" style="font-size:12px;color:var(--muted)">
+          <td data-label="Panel kW" class="cell-meta">
             {{ i.project.panel_capacity_kw }} kW
           </td>
 
           <td class="td-actions">
-            {% if current_user.role in ['admin','appinstall'] %}
-            <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}" 
-                  style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {# Role check updated to reflect appinstall -> service rename #}
+            {% if current_user.role in ['admin','service'] %}
+            <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}"
+                  style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"
+                  onsubmit="return confirm('Mark this installation as completed?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="status" value="Completed"/>
-              <input type="hidden" name="completed_date" value="{{ today.strftime('%Y-%m-%d') }}"/>
-              <button type="submit" class="btn btn-sm btn-primary">Mark done</button>
+              <input type="date" name="completed_date" value="{{ today.strftime('%Y-%m-%d') }}"
+                     max="{{ today.strftime('%Y-%m-%d') }}" style="font-size:12px;padding:2px 4px"/>
+              <button type="submit" class="btn btn-sm btn-primary"
+                      onclick="this.disabled=true;this.form.submit();">Mark done</button>
             </form>
             {% else %}
             <span style="font-size:12px;color:var(--hint)">—</span>
@@ -186,7 +257,7 @@
   </div>
 
   <!-- ── Completed ── -->
-  <div class="card">
+  <div class="card card-completed">
     <div class="card-title">Completed ({{ completed | length }})</div>
     {% if completed %}
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
@@ -197,12 +268,12 @@
       <tbody>
         {% for i in completed %}
         <tr>
-          <td data-label="Project" style="font-weight:500">{{ i.project.project_code }}</td>
+          <td data-label="Project" class="cell-primary">{{ i.project.project_code }}</td>
           <td data-label="Customer">{{ i.project.customer.name }}</td>
-          <td data-label="Location" style="font-size:12px;color:var(--muted)">
+          <td data-label="Location" class="cell-meta">
             {{ i.project.customer.district or '—' }}
           </td>
-          <td data-label="kW" style="font-size:12px;color:var(--muted)">
+          <td data-label="kW" class="cell-meta">
             {{ i.project.inverter_capacity_kw }} / {{ i.project.panel_capacity_kw }} kW
           </td>
           <td data-label="Completed">{{ i.completed_date | date_fmt }}</td>

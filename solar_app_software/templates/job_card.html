@@ -444,6 +444,12 @@
   </div>
   {% endif %}
 </div>
+{% if pd.notes %}
+      <div class="jc-row" style="flex-direction:column;padding:8px 14px;gap:6px;min-height:50px;border-top:0.5px solid var(--border)">
+        <div style="font-size:12px;color:var(--muted);font-weight:500">Panel Notes</div>
+        <div style="font-size:12px;white-space:pre-wrap">{{ pd.notes }}</div>
+      </div>
+      {% endif %}
       {% endif %}
       {% else %}
 <div style="display:grid;grid-template-columns:1fr 1fr">
@@ -573,7 +579,15 @@
     </div>
     </div>
   </div>
+ {% if proj.notes %}
+  <div style="border-top:0.5px solid var(--border)">
+    <div class="jc-section-title">Project Notes</div>
+    <div style="padding:10px 14px;font-size:13px;white-space:pre-wrap">{{ proj.notes }}</div>
+  </div>
+  {% endif %}
 
+  
+    
   {# Signature #}
   {# Notes / Changes #}
   <div style="border-top:0.5px solid var(--border)">
@@ -588,6 +602,7 @@
       {% endfor %}
     </div>
   </div>
+  
 
   {# Signature #}
   <div style="display:flex;justify-content:flex-end;border-top:0.5px solid var(--border);

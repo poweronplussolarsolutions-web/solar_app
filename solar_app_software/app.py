@@ -4941,9 +4941,15 @@ def subsidy(pid):
 @login_required
 @roles_required('admin', 'service', 'documents','office','documents_k','director')
 def installations():
+    today = date.today()
+    pending = AppInstallation.query.filter_by(status='Pending').all()
+    for i in pending:
+        i.days_pending = (today - i.created_at.date()).days
+
     return render_template('installations.html',
-        pending=AppInstallation.query.filter_by(status='Pending').all(),
-        completed=AppInstallation.query.filter_by(status='Completed').all(), today=date.today())
+        pending=pending,
+        completed=AppInstallation.query.filter_by(status='Completed').all(),
+        today=today)
 @app.route('/installations/map')
 @login_required
 @roles_required('admin', 'service', 'documents', 'office', 'documents_k', 'director')
