@@ -417,13 +417,15 @@
       {% if pd %}
       <div style="display:grid;grid-template-columns:1fr 1fr">
         {% for lbl, val in [
-          ('Panel Brand',         pd.panel_brand or ' '),
-          ('Inverter Brand',      pd.inverter_brand or ' '),
-          ('No. of Panels',       (pd.num_panels|string) if pd.num_panels else ' '),
-          ('Inverter Serial',     pd.inverter_serial_number or ' '),
-          ('Net Meter Serial',    pd.net_meter_serial_number or ' '),
-          ('Energy Meter Serial', pd.energy_meter_serial_number or ' '),
-        ] %}
+  ('Panel Brand',         pd.panel_brand or ' '),
+  ('Inverter Brand',      pd.inverter_brand or ' '),
+  ('No. of Panels',       (pd.num_panels|string) if pd.num_panels else ' '),
+  ('Inverter Serial',     pd.inverter_serial_number or ' '),
+  ('Net Meter Serial',    pd.net_meter_serial_number or ' '),
+  ('Energy Meter Serial', pd.energy_meter_serial_number or ' '),
+  ('App ID',              pd.app_id or ' '),
+  ('App Password',        pd.app_password or ' '),
+] %}
         <div class="jc-row" style="border-right:0.5px solid var(--border)">
           <div class="jc-label">{{ lbl }}</div>
           <div class="jc-val" style="font-family:monospace;font-size:12px">{{ val }}</div>

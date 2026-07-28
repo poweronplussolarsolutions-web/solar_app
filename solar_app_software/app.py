@@ -630,6 +630,8 @@ class PanelDetails(db.Model):
     inverter_serial_number  = db.Column(db.String(100), nullable=True)
     net_meter_serial_number = db.Column(db.String(100), nullable=True)
     energy_meter_serial_number = db.Column(db.String(100), nullable=True)
+    app_id                  = db.Column(db.String(100), nullable=True)   
+    app_password             = db.Column(db.String(100), nullable=True)
     notes                   = db.Column(db.Text,        nullable=True)
     updated_at              = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by              = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
@@ -3637,6 +3639,8 @@ def update_panel_details(pid):
     pd_.net_meter_serial_number    = _clean(request.form.get('net_meter_serial_number', ''), 100) or None
     pd_.energy_meter_serial_number = _clean(request.form.get('energy_meter_serial_number', ''), 100) or None
     pd_.inverter_brand = _clean(request.form.get('inverter_brand', ''), 100) or None
+    pd_.app_id          = _clean(request.form.get('app_id', ''), 100) or None          # ← NEW
+    pd_.app_password    = _clean(request.form.get('app_password', ''), 100) or None    # ← NEW
     pd_.notes                      = _clean(request.form.get('notes', ''), 1000) or None
     pd_.updated_by                 = current_user.id
 

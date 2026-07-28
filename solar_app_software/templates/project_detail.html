@@ -2023,6 +2023,25 @@ document.addEventListener('DOMContentLoaded', function() {
       <tr><td style="color:var(--muted);padding:5px 0">Inverter serial no.</td><td style="font-family:monospace;font-size:12px">{{ pd.inverter_serial_number or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Net meter serial no.</td><td style="font-family:monospace;font-size:12px">{{ pd.net_meter_serial_number or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Energy meter serial no.</td><td style="font-family:monospace;font-size:12px">{{ pd.energy_meter_serial_number or '—' }}</td></tr>
+{% if pd.app_id or pd.app_password %}
+<tr>
+  <td style="color:var(--muted);padding:5px 0">App login</td>
+  <td>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-family:monospace;font-size:12px">ID: {{ pd.app_id or '—' }}</span>
+      <span style="font-family:monospace;font-size:12px" id="pw-mask-{{ pd.id }}">
+        Pass: {{ '•' * (pd.app_password|length) if pd.app_password else '—' }}
+      </span>
+      {% if pd.app_password %}
+      <button type="button" class="btn btn-sm" style="padding:1px 8px;font-size:11px"
+              onclick="togglePw('{{ pd.id }}')">
+        <span id="pw-eye-{{ pd.id }}">👁 Show</span>
+      </button>
+      {% endif %}
+    </div>
+  </td>
+</tr>
+{% endif %}
       {% if pd.panel_serial_numbers %}
       <tr>
         <td style="color:var(--muted);padding:5px 0;vertical-align:top">Panel serial nos.</td>
@@ -2173,6 +2192,21 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 <script>
+
+function togglePw(id) {
+  var el  = document.getElementById('pw-mask-' + id);
+  var eye = document.getElementById('pw-eye-' + id);
+  if (el.dataset.shown === '1') {
+    el.textContent = 'Pass: ' + '•'.repeat(el.dataset.pw.length);
+    eye.textContent = '👁 Show';
+    el.dataset.shown = '0';
+  } else {
+    el.textContent = 'Pass: ' + el.dataset.pw;
+    eye.textContent = 'Hide';
+    el.dataset.shown = '1';
+  }
+}
+
 function validatePanelForm(form) {
   var errEl = form.querySelector('#panel-form-error');
   errEl.style.display = 'none';
