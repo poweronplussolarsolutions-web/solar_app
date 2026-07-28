@@ -260,7 +260,7 @@
           {% endfor %}
         </select>
       </div>
-
+      {% endif %}
       <div class="form-group">
         <label>Coordinator</label>
         <select name="coordinator_id" id="coordinator_id_select" onchange="toggleOtherCoord()">
@@ -281,7 +281,7 @@
           This will be saved as a note — they won't have a login account
         </span>
       </div>
-
+     {% if current_user.role == 'admin' %}
       <div class="form-group">
         <label>Created at
           <span style="font-size:11px;color:var(--warning);font-weight:400">⚠ admin override</span>
