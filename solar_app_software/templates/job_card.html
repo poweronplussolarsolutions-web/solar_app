@@ -581,6 +581,7 @@
     </div>
     </div>
   </div>
+
  {% if proj.notes %}
   <div style="border-top:0.5px solid var(--border)">
     <div class="jc-section-title">Project Notes</div>
@@ -588,9 +589,6 @@
   </div>
   {% endif %}
 
-  
-    
-  {# Signature #}
   {# Notes / Changes #}
   <div style="border-top:0.5px solid var(--border)">
     <div class="jc-section-title">Notes / Changes (Payments &amp; Amendments)</div>
@@ -604,13 +602,13 @@
       {% endfor %}
     </div>
   </div>
-  
 
   {# Signature #}
   <div style="display:flex;justify-content:flex-end;border-top:0.5px solid var(--border);
               padding:14px 24px;font-size:13px;color:var(--muted)">
     Signature: _______________________
   </div>
+</div>
 
 {% else %}
 {# ── Empty state ── #}
