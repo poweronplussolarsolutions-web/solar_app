@@ -2104,10 +2104,20 @@ document.addEventListener('DOMContentLoaded', function() {
                  value="{{ pd.net_meter_serial_number or '' if pd else '' }}" placeholder="NM-XXXX"/>
         </div>
         <div class="form-group">
-          <label>Energy meter serial number</label>
-          <input type="text" name="energy_meter_serial_number"
-                 value="{{ pd.energy_meter_serial_number or '' if pd else '' }}" placeholder="EM-XXXX"/>
-        </div>
+  <label>Energy meter serial number</label>
+  <input type="text" name="energy_meter_serial_number"
+         value="{{ pd.energy_meter_serial_number or '' if pd else '' }}" placeholder="EM-XXXX"/>
+</div>
+<div class="form-group">
+  <label>App ID</label>
+  <input type="text" name="app_id"
+         value="{{ pd.app_id or '' if pd else '' }}" placeholder="Monitoring app login ID"/>
+</div>
+<div class="form-group">
+  <label>App Password</label>
+  <input type="text" name="app_password"
+         value="{{ pd.app_password or '' if pd else '' }}" placeholder="Monitoring app password"/>
+</div>
         <div class="form-group full">
           <label>Panel serial numbers <span style="color:var(--muted);font-weight:400;font-size:11px">— one per line</span></label>
           <textarea name="panel_serial_numbers" rows="4"
