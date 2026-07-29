@@ -2008,7 +2008,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <div class="card" id="panel-details">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div class="card-title" style="margin:0">Panel &amp; meter details</div>
-    {% if current_user.role in ['admin','documents','onsite','office','documents_k'] %}
+    {% if current_user.role in ['admin','documents','onsite','office','documents_k','payments'] %}
     <button class="btn btn-sm" onclick="togglePanel('panelDetailsForm')">
       {% if pd %}✏ Edit{% else %}＋ Add{% endif %}
     </button>
@@ -2068,7 +2068,7 @@ document.addEventListener('DOMContentLoaded', function() {
   {% else %}
   <div style="color:var(--hint);font-size:13px;padding:4px 0 10px">No panel or meter details recorded yet.</div>
   {% endif %}
-  {% if current_user.role in ['admin','documents','onsite','office','documents_k'] %}
+  {% if current_user.role in ['admin','documents','onsite','office','documents_k','payments'] %}
   <div id="panelDetailsForm" style="display:{% if not pd %}block{% else %}none{% endif %};
        margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
     <form method="POST" action="{{ url_for('update_panel_details', pid=proj.id) }}">

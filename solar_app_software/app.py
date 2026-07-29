@@ -3626,7 +3626,7 @@ def update_loan_details(pid):
     return redirect(url_for('documents', pid=pid))
 @app.route('/projects/<int:pid>/panel_details', methods=['POST'])
 @login_required
-@roles_required('admin', 'documents', 'onsite','office','documents_k')
+@roles_required('admin', 'documents', 'onsite','office','documents_k','payments')
 def update_panel_details(pid):
     proj = Project.query.get_or_404(pid)
     pd_  = proj.panel_details or PanelDetails(project_id=pid)
