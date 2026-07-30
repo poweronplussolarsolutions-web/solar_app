@@ -2237,7 +2237,7 @@ def onsite_board():
 # ─────────────────────────────────────────────────────────────────────────────
 # PROJECTS
 # ─────────────────────────────────────────────────────────────────────────────
-from sqlalchemy import case
+from sqlalchemy import case,cast,Integer
 @app.route('/projects')
 @login_required
 def projects():
@@ -2261,7 +2261,12 @@ def projects():
         )
     if consumer_search:
         q = q.filter(ConnectionDetails.consumer_number.ilike(f'%{consumer_search}%'))
-    pagination = q.order_by(Project.updated_at.desc()).paginate(page=page, per_page=25, error_out=False)
+    if current_user.role == 'admin':
+        q = q.order_by(Project.updated_at.desc())
+    else:
+        q = q.order_by(cast(Project.project_code, Integer).desc())
+
+    pagination = q.paginate(page=page, per_page=25, error_out=False)
     project_ids_on_page = [p.id for p in pagination.items]
 
     pending_pay_excess_ids = set(
