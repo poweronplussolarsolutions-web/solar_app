@@ -436,8 +436,11 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="progress-bar" style="width:{{ proj.payment_pct }}%"></div>
       </div>
       <div style="font-size:12px;color:var(--hint)">
-        {{ proj.payment_pct }}% collected · {{ proj.pending_amount | inr }} pending
-      </div>
+  {{ proj.payment_pct }}% collected · {{ proj.pending_amount | inr }} pending
+  {% if proj.total_waived > 0 %}
+    · <span style="color:var(--red-600,#dc2626)">{{ proj.total_waived | inr }} discounted</span>
+  {% endif %}
+</div>
       {% if proj.subsidy and proj.subsidy.received_amount and proj.subsidy.received_amount > 0 %}
       <div style="margin-top:6px;font-size:12px;color:var(--teal-600)">
         Subsidy received: {{ proj.subsidy.company_share | inr }}
@@ -537,6 +540,13 @@ document.addEventListener('DOMContentLoaded', function () {
         <div style="background:var(--teal-50);border-radius:var(--radius);padding:10px 14px">
           <div style="font-size:11px;color:var(--teal-800);margin-bottom:2px">Total receivable</div>
           <div style="font-size:16px;font-weight:600;color:var(--teal-800)">{{ proj.total_receivable | inr }}</div>
+          {% if proj.total_waived > 0 %}
+<div style="background:var(--red-50,#fef2f2);border-radius:var(--radius);padding:10px 14px">
+  <div style="font-size:11px;color:var(--red-700,#b91c1c);margin-bottom:2px">Discounted / Written off</div>
+  <div style="font-size:16px;font-weight:600;color:var(--red-700,#b91c1c)">− {{ proj.total_waived | inr }}</div>
+  <div style="font-size:10px;color:var(--muted);margin-top:2px">{{ proj.waivers | length }} write-off{{ 's' if proj.waivers | length != 1 }}</div>
+</div>
+{% endif %}
           <div style="font-size:10px;color:var(--muted);margin-top:2px">contract + company expenses</div>
         </div>
       </div>
