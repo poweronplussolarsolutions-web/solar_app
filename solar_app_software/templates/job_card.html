@@ -474,21 +474,22 @@
       {# Contract / expense summary row #}
       {% set cd_exp = proj.expenses | selectattr('expense_type','eq','CD Payment') | first | default(none) %}
       {% set nm_exp = proj.expenses | selectattr('expense_type','eq','Meter')      | first | default(none) %}
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;border-bottom:0.5px solid var(--border)">
-        {% for lbl, val, hl in [
-          ('Work Amount',  proj.total_amount | inr,                          false),
-          ('CD Payment',       (cd_exp.amount | inr if cd_exp else ' '),         false),
-          ('Net Meter (NM)',   (nm_exp.amount | inr if nm_exp else ' '),         false),
-          ('Total Receivable', proj.total_receivable | inr,                      true),
-        ] %}
-        <div style="padding:8px 14px;{% if hl %}background:var(--teal-50,#f0fdfa);{% endif %}
-                    border-right:0.5px solid var(--border)">
-          <div style="font-size:11px;color:var(--muted);margin-bottom:2px">{{ lbl }}</div>
-          <div style="font-size:14px;font-weight:{% if hl %}700{% else %}500{% endif %};
-                      color:{% if hl %}var(--teal-800,#134e4a){% else %}var(--text){% endif %}">{{ val }}</div>
-        </div>
-        {% endfor %}
-      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;border-bottom:0.5px solid var(--border)">
+  {% for lbl, val, hl in [
+    ('Work Amount',  proj.total_amount | inr,                          false),
+    ('CD Payment',       (cd_exp.amount | inr if cd_exp else ' '),         false),
+    ('Net Meter (NM)',   (nm_exp.amount | inr if nm_exp else ' '),         false),
+    ('Written Off',      (proj.total_waived | inr if proj.total_waived > 0 else ' '), false),
+    ('Total Receivable', proj.total_receivable | inr,                      true),
+  ] %}
+  <div style="padding:8px 14px;{% if hl %}background:var(--teal-50,#f0fdfa);{% endif %}
+              border-right:0.5px solid var(--border)">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:2px">{{ lbl }}</div>
+    <div style="font-size:14px;font-weight:{% if hl %}700{% else %}500{% endif %};
+                color:{% if hl %}var(--teal-800,#134e4a){% elif lbl == 'Written Off' and proj.total_waived > 0 %}#dc2626{% else %}var(--text){% endif %}">{{ val }}</div>
+  </div>
+  {% endfor %}
+</div>
       {# Individual payments table #}
       {% if proj.payments %}
       <div style="overflow-x:auto">
@@ -539,28 +540,40 @@
             {% endfor %}
           </tbody>
           <tfoot>
-            <tr style="background:var(--bg);border-top:1.5px solid var(--border)">
-              <td colspan="5"
-                  style="padding:7px 10px 7px 14px;font-weight:700;font-size:12px">
-                Total Collected ({{ proj.payments | length }} payment{{ 's' if proj.payments | length != 1 }})
-              </td>
-              <td style="padding:7px 14px 7px 10px;text-align:right;font-weight:700;
-                         font-size:14px;color:var(--green-700,#15803d);white-space:nowrap">
-                {{ proj.effective_collected | inr }}
-              </td>
-            </tr>
-            <tr style="background:{% if proj.pending_amount > 0 %}#fffbeb{% else %}#f0fdf4{% endif %}">
-              <td colspan="5"
-                  style="padding:7px 10px 7px 14px;font-weight:700;font-size:12px">
-                Pending Balance
-              </td>
-              <td style="padding:7px 14px 7px 10px;text-align:right;font-weight:700;
-                         font-size:14px;white-space:nowrap;
-                         color:{% if proj.pending_amount > 0 %}var(--amber-600,#d97706){% else %}#15803d{% endif %}">
-                {{ proj.pending_amount | inr }}
-              </td>
-            </tr>
-          </tfoot>
+  <tr style="background:var(--bg);border-top:1.5px solid var(--border)">
+    <td colspan="5"
+        style="padding:7px 10px 7px 14px;font-weight:700;font-size:12px">
+      Total Collected ({{ proj.payments | length }} payment{{ 's' if proj.payments | length != 1 }})
+    </td>
+    <td style="padding:7px 14px 7px 10px;text-align:right;font-weight:700;
+               font-size:14px;color:var(--green-700,#15803d);white-space:nowrap">
+      {{ proj.effective_collected | inr }}
+    </td>
+  </tr>
+  {% if proj.total_waived > 0 %}
+  <tr style="background:#fef2f2">
+    <td colspan="5"
+        style="padding:7px 10px 7px 14px;font-weight:700;font-size:12px;color:#b91c1c">
+      Written Off / Discounted
+    </td>
+    <td style="padding:7px 14px 7px 10px;text-align:right;font-weight:700;
+               font-size:14px;color:#b91c1c;white-space:nowrap">
+      − {{ proj.total_waived | inr }}
+    </td>
+  </tr>
+  {% endif %}
+  <tr style="background:{% if proj.pending_amount > 0 %}#fffbeb{% else %}#f0fdf4{% endif %}">
+    <td colspan="5"
+        style="padding:7px 10px 7px 14px;font-weight:700;font-size:12px">
+      Pending Balance
+    </td>
+    <td style="padding:7px 14px 7px 10px;text-align:right;font-weight:700;
+               font-size:14px;white-space:nowrap;
+               color:{% if proj.pending_amount > 0 %}var(--amber-600,#d97706){% else %}#15803d{% endif %}">
+      {{ proj.pending_amount | inr }}
+    </td>
+  </tr>
+</tfoot>
         </table>
       </div>
       {% else %}
