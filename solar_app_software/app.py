@@ -323,13 +323,16 @@ class Project(db.Model):
     @property
     def recovered_expense_total(self):
         return sum(float(e.amount) for e in self.company_paid_expenses if e.recovered)
-
+    @property
+    def total_waived(self):
+        return sum(float(w.amount) for w in self.waivers)
     @property
     def pending_amount(self):
         sub_customer_share = 0
         if self.subsidy and self.subsidy.customer_share and self.subsidy.status == 'Received':
             sub_customer_share = float(self.subsidy.customer_share)
-        return max(0, self.total_receivable - self.effective_collected - sub_customer_share)
+        return max(0, self.total_receivable - self.effective_collected
+                   - sub_customer_share - self.total_waived)
 
     @property
     def effective_collected(self):
@@ -488,6 +491,18 @@ class BankExcessReturn(db.Model):
             'Retained': 'Retained as company income',
             'Adjusted': 'Adjusted against other dues',
         }.get(self.action, 'Returned')
+class PaymentWaiver(db.Model):
+    __tablename__ = 'payment_waivers'
+    id           = db.Column(db.Integer, primary_key=True)
+    project_id   = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    amount       = db.Column(db.Numeric(12, 2), nullable=False)
+    reason       = db.Column(db.String(500), nullable=False)
+    waived_date  = db.Column(db.Date, default=date.today)
+    waived_by    = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at   = db.Column(db.DateTime, default=datetime.utcnow)
+
+    project = db.relationship('Project', backref='waivers')
+    waiver  = db.relationship('User', foreign_keys=[waived_by])
 class PaymentExcess(db.Model):
     __tablename__ = 'payment_excess'
     id                   = db.Column(db.Integer, primary_key=True)
@@ -1404,7 +1419,7 @@ def auto_advance_stage(proj):
             bank_total = sum(float(p.amount) for p in proj.payments if p.payment_source == 'Bank')
             customer_total = sum(float(p.amount) for p in proj.payments if p.payment_source == 'Customer')
             effective = min(bank_total, float(proj.total_receivable)) + customer_total
-            fully_paid = proj.total_receivable > 0 and effective >= float(proj.total_receivable)
+            fully_paid = proj.total_receivable > 0 and (effective + proj.total_waived) >= float(proj.total_receivable)
         else:
             fully_paid = proj.total_receivable > 0 and proj.pending_amount <= 0
         if fully_paid:
@@ -3347,7 +3362,58 @@ def payments_dashboard():
         total_collected=total_collected, total_pending=total_value - total_collected,
         total_value=total_value, recent_payments=recent_payments,
         pending_projs=pending_projs, page=page, pay_page=pay_page)
+@app.route('/projects/<int:pid>/waive_balance', methods=['POST'])
+@login_required
+@roles_required('admin', 'payments')
+def waive_balance(pid):
+    proj = Project.query.get_or_404(pid)
+    if proj.stage == 'Lead':
+        flash('Cannot write off balance before payment stage.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
 
+    amount = _safe_float(request.form.get('amount'))
+    reason = _clean(request.form.get('reason', ''), 500)
+
+    if amount <= 0:
+        flash('Please enter a valid write-off amount greater than zero.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+    if not reason:
+        flash('Please provide a reason for the write-off.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+    if amount > proj.pending_amount + 0.01:
+        flash(f'Cannot waive ₹{amount:,.0f} — only ₹{proj.pending_amount:,.0f} is pending.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+
+    db.session.add(PaymentWaiver(
+        project_id=pid, amount=amount, reason=reason,
+        waived_by=current_user.id, waived_date=date.today(),
+    ))
+    log_action(pid, f'Balance written off: ₹{amount:,.0f}. Reason: {reason}', new_val=str(amount))
+
+    for u in User.query.filter_by(role='payments', is_active=True).all():
+        if u.id != current_user.id:
+            create_notification(u.id, pid,
+                f'{proj.project_code} — {proj.customer.name}: ₹{amount:,.0f} written off by '
+                f'{current_user.full_name}. Reason: {reason}', 'info')
+
+    db.session.flush()
+    auto_advance_stage(proj)
+    db.session.commit()
+    flash(f'₹{amount:,.0f} written off. New pending balance: ₹{proj.pending_amount:,.0f}.', 'success')
+    return redirect(url_for('project_detail', pid=pid))
+
+
+@app.route('/projects/<int:pid>/waive_balance/<int:wid>/delete', methods=['POST'])
+@login_required
+@roles_required('admin')
+def delete_waiver(pid, wid):
+    w = PaymentWaiver.query.get_or_404(wid)
+    amount = float(w.amount)
+    db.session.delete(w)
+    log_action(pid, f'Balance write-off reversed: ₹{amount:,.0f}', old_val=str(amount), new_val='Reversed')
+    db.session.commit()
+    flash(f'Write-off of ₹{amount:,.0f} reversed.', 'warning')
+    return redirect(url_for('project_detail', pid=pid))
 
 @app.route('/payments/pending_approvals')
 @login_required

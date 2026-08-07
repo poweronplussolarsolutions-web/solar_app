@@ -450,6 +450,64 @@ document.addEventListener('DOMContentLoaded', function () {
                   border-radius:var(--radius);padding:6px 10px">
         Max next payment: {{ proj.pending_amount | inr }}
       </div>
+      {% if proj.waivers %}
+<div style="margin-top:10px;margin-bottom:6px">
+  {% for w in proj.waivers | sort(attribute='created_at', reverse=True) %}
+  <div style="display:flex;justify-content:space-between;align-items:center;
+              font-size:12px;background:var(--bg);border:1px solid var(--border);
+              border-radius:var(--radius);padding:8px 12px;margin-bottom:6px">
+    <div>
+      <span style="font-weight:500;color:var(--red-600,#dc2626)">−{{ w.amount | inr }}</span>
+      written off {{ w.waived_date | date_fmt }}
+      {% if w.waiver %} by {{ w.waiver.full_name }}{% endif %}
+      <div style="color:var(--hint);margin-top:2px">{{ w.reason }}</div>
+    </div>
+    {% if current_user.role == 'admin' %}
+    <form method="POST" action="{{ url_for('delete_waiver', pid=proj.id, wid=w.id) }}"
+          onsubmit="return confirm('Reverse this write-off?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-sm btn-danger">Reverse</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if proj.pending_amount > 0 and current_user.role in ['admin','payments'] %}
+<button type="button" class="btn btn-sm btn-warning" style="margin-bottom:8px"
+        onclick="togglePanel('waiveBalanceForm')">
+  Write off remaining balance
+</button>
+<div id="waiveBalanceForm" style="display:none;border:1px solid var(--amber-200,#fde68a);
+     border-radius:var(--radius);background:var(--amber-50,#fffbeb);padding:14px;margin-bottom:10px">
+  <div style="font-size:12px;font-weight:600;color:var(--amber-700,#b45309);margin-bottom:10px">
+    Write off pending balance
+  </div>
+  <form method="POST" action="{{ url_for('waive_balance', pid=proj.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Amount (₹)</label>
+        <input type="number" name="amount" step="0.01" min="1"
+               max="{{ proj.pending_amount | float | round(2) }}"
+               value="{{ proj.pending_amount | float | round(2) }}" required/>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">
+          Max: {{ proj.pending_amount | inr }}
+        </div>
+      </div>
+      <div class="form-group full">
+        <label>Reason</label>
+        <input type="text" name="reason" required placeholder="e.g. Rounding balance, goodwill discount…"/>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button type="submit" class="btn btn-warning btn-sm">Confirm write-off</button>
+      <button type="button" class="btn btn-sm" onclick="togglePanel('waiveBalanceForm')">Cancel</button>
+    </div>
+  </form>
+</div>
+{% endif %}
       {% endif %}
       <div class="payment-grid">
         <div style="background:var(--bg);border-radius:var(--radius);padding:10px 14px">
