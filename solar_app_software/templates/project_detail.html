@@ -2068,7 +2068,60 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
 </div>
 {% endif %}
-
+{# ══════════════════════════════════════════════════════
+   SERVICE VISITS SUMMARY
+   ══════════════════════════════════════════════════════ #}
+{% if proj.service_records %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div class="card-title" style="margin:0">Service visits</div>
+    <a href="{{ url_for('project_service', pid=proj.id) }}" class="btn btn-sm">Manage →</a>
+  </div>
+  {% set completed_visits = proj.service_records | selectattr('status','eq','Completed') | sort(attribute='visit_number') | list %}
+  {% if completed_visits %}
+  <div class="table-wrap">
+    <table style="font-size:13px">
+      <thead>
+        <tr>
+          <th>Visit #</th>
+          <th>Completed</th>
+          <th>Panel cleaning</th>
+          <th>By</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rec in completed_visits %}
+        <tr>
+          <td><span class="badge badge-Completed">Visit {{ rec.visit_number }}</span></td>
+          <td>{{ rec.completed_date | date_fmt }}</td>
+          <td>
+            {% if rec.panel_cleaning %}
+              <span style="color:var(--green-600)">☀ Done</span>
+            {% else %}
+              <span style="color:var(--hint)">—</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--muted);font-size:12px">{{ rec.technician.full_name if rec.technician else '—' }}</td>
+          <td style="color:var(--muted);font-size:12px">{{ rec.notes or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="color:var(--hint);font-size:13px;padding:4px 0">No service visits completed yet.</div>
+  {% endif %}
+  {% set next_v = proj.service_records | rejectattr('status','in',['Completed','Skipped']) | sort(attribute='visit_number') | first %}
+  {% if next_v %}
+  <div style="margin-top:10px;font-size:12px;color:var(--hint)">
+    Next visit: <strong>Visit {{ next_v.visit_number }}</strong> scheduled {{ next_v.scheduled_date | date_fmt }}
+  </div>
+  {% else %}
+  <div style="margin-top:10px;font-size:12px;color:var(--green-600)">✓ All service visits done</div>
+  {% endif %}
+</div>
+{% endif %}
 {# ══════════════════════════════════════════════════════
    PANEL & METER DETAILS
    ══════════════════════════════════════════════════════ #}
