@@ -3584,7 +3584,7 @@ def service_management():
         joinedload(Project.subsidy),
     )
     .filter(Project.id.in_(has_service))
-    .order_by(Project.updated_at.desc())
+    .order_by(cast(Project.project_code, Integer))
     .all())
     projects = [p for p in projects if p.pending_amount <= 0 or p.status == 'Closed']
 
