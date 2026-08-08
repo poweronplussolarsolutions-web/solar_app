@@ -1264,7 +1264,7 @@ def service_map():
                      joinedload(ProjectGeoTag.project).joinedload(Project.subsidy))
             .filter(ProjectGeoTag.latitude.isnot(None), Project.status != 'Cancelled')
             .all())
-    tags = [t for t in tags if t.project.pending_amount <= 0]
+    tags = [t for t in tags if t.project.pending_amount <= 0 or t.project.status == 'Closed']
 
     tags_json = [{
         'lat':  t.latitude,
@@ -3586,7 +3586,7 @@ def service_management():
     .filter(Project.id.in_(has_service))
     .order_by(Project.updated_at.desc())
     .all())
-    projects = [p for p in projects if p.pending_amount <= 0]
+    projects = [p for p in projects if p.pending_amount <= 0 or p.status == 'Closed']
 
     # Attach records sorted by visit number
     proj_data = []
