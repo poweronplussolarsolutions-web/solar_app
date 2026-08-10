@@ -1,19 +1,257 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Create Quotation</title><style>
-*{box-sizing:border-box}body{font-family:Arial,sans-serif;background:#f5f7fa;margin:0;color:#18202a}.wrap{max-width:1180px;margin:28px auto;padding:0 18px}.top{display:flex;justify-content:space-between;align-items:center}.card{background:#fff;border-radius:12px;padding:24px;margin-top:18px;box-shadow:0 5px 20px rgba(0,0,0,.06)}h2{font-size:17px;margin:0 0 15px;padding-bottom:9px;border-bottom:1px solid #e5e7eb}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}label{font-size:13px;font-weight:700;display:block}input,select,textarea{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:7px;margin-top:6px;font:inherit}textarea{min-height:75px}.full{grid-column:1/-1}.btn{border:0;background:#0f766e;color:white;padding:11px 16px;border-radius:7px;text-decoration:none;cursor:pointer}.btn.dark{background:#334155}.actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}.bom{width:100%;border-collapse:collapse;margin-top:10px}.bom th,.bom td{border:1px solid #e2e8f0;padding:7px;font-size:12px}.bom input{margin:0;padding:6px}.muted{color:#64748b;font-size:12px}.summary{display:flex;gap:25px;flex-wrap:wrap;background:#f8fafc;padding:12px;border-radius:8px;margin-top:14px}.money{font-size:20px;font-weight:800}@media(max-width:900px){.grid{grid-template-columns:1fr 1fr}}@media(max-width:600px){.grid{grid-template-columns:1fr}}
-</style></head><body><div class="wrap"><div class="top"><div><h1>Create Quotation</h1><div class="muted">Capacity controls the default bill of materials. You can override item make/specification/quantity/price for this quotation.</div></div><a href="{{ url_for('quotations') }}">← Quotation History</a></div>
-<form method="post" class="card" id="quotationForm"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<h2>Customer</h2><div class="grid"><label>Existing Customer<select id="customer_id" name="customer_id"><option value="">— New / enter below —</option>{% for c in customers %}<option value="{{ c.id }}" data-name="{{ c.name|e }}" data-address="{{ (c.full_address or '')|e }}" data-phone="{{ c.phone or '' }}" data-email="{{ c.email or '' }}">{{ c.name }}{% if c.phone %} — {{ c.phone }}{% endif %}</option>{% endfor %}</select></label><label>Customer Name*<input id="customer_name" name="customer_name" required></label><label>Reference No.<input name="reference_no"></label><label>Phone<input id="customer_phone" name="customer_phone"></label><label>Email<input id="customer_email" name="customer_email"></label><label class="full">Address<textarea id="customer_address" name="customer_address"></textarea></label></div>
-<h2>System</h2><div class="grid"><label>System Type<select id="system_type" name="system_type">{% for typ in ['On Grid','Off Grid','Hybrid'] %}<option>{{ typ }}</option>{% endfor %}</select></label><label>Capacity<select id="capacity_kw" name="capacity_kw" required>{% for c in configs %}<option value="{{ c.capacity_kw }}" data-config="{{ c.id }}">{{ c.capacity_kw }} kW — {{ c.system_type }}</option>{% endfor %}</select></label><label>PV Technology<input name="panel_technology" value="TOPCON"></label><label>Panel Brand<input id="panel_brand" name="panel_brand"></label><label>Panel Model<input name="panel_model"></label><label>Panel Watt<input name="panel_watt" type="number" step="0.01"></label><label>Inverter Brand<input id="inverter_brand" name="inverter_brand"></label><label>Inverter Model<input name="inverter_model"></label><label>Coordinator<select name="coordinator_id"><option value="">— Select coordinator —</option>{% for u in coordinators %}<option value="{{ u.id }}">{{ u.full_name }}</option>{% endfor %}</select></label><label>Coordinator name (if not listed)<input name="coordinator_name"></label></div>
-<h2>Capacity-specific Bill of Materials</h2><div id="bomWrap"><div class="muted">Select a capacity to load its BOM.</div></div>
-<h2>Pricing</h2><div class="grid"><label>Material Cost<input id="material_cost" name="material_cost" type="number" step="0.01" value="0"></label><label>Installation Charges<input id="installation_charges" name="installation_charges" type="number" step="0.01" value="0"></label><label>Other Charges<input id="other_charges" name="other_charges" type="number" step="0.01" value="0"></label><label>Discount<input id="discount" name="discount" type="number" step="0.01" value="0"></label><label>GST %<input id="gst_percent" name="gst_percent" type="number" step="0.01" value="0"></label></div><div class="summary"><div>Taxable <div class="money" id="taxable">₹0</div></div><div>GST <div class="money" id="gstAmount">₹0</div></div><div>Total <div class="money" id="grandTotal">₹0</div></div></div>
-<h2>Generation & Savings</h2><div class="grid"><label>Annual Generation (units)<input name="annual_generation" type="number" step="0.01"></label><label>Annual Savings<input name="annual_savings" type="number" step="0.01"></label><label>Lifetime Savings<input name="lifetime_savings" type="number" step="0.01"></label><label>Estimated Savings<input name="estimated_savings" placeholder="85% approx."></label><label>Break Even Year<input name="break_even_year"></label></div>
-<div class="actions"><a class="btn dark" href="{{ url_for('quotations') }}">Cancel</a><button class="btn" type="submit">Generate PDF Preview</button></div></form></div>
+{% extends "base.html" %}
+{% block title %}Create Quotation — Power on Plus{% endblock %}
+{% block page_title %}Create Quotation{% endblock %}
+
+{% block topbar_actions %}
+<a class="btn" href="{{ url_for('quotations') }}">← Quotation History</a>
+{% endblock %}
+
+{% block head %}
+<style>
+  .bom-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+  .bom-table th, .bom-table td { border: 0.5px solid var(--border); padding: 8px; }
+  .bom-table th { background: var(--bg); font-weight: 500; color: var(--muted); font-size: 11px; text-align: left; }
+  .bom-table input { margin: 0; padding: 6px 8px; }
+  .summary-row { display: flex; gap: 24px; flex-wrap: wrap; background: var(--bg); padding: 14px 16px; border-radius: var(--radius); margin-top: 14px; }
+  .summary-item .stat-label { margin-bottom: 4px; }
+  .summary-item .money { font-size: 20px; font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="alert alert-info" style="margin-bottom:20px">
+  Capacity controls the default bill of materials. You can override item make, specification, quantity and price for this quotation only.
+</div>
+
+<form method="post" id="quotationForm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="card">
+    <div class="card-title">Customer</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Existing Customer</label>
+        <select id="customer_id" name="customer_id">
+          <option value="">— New / enter below —</option>
+          {% for c in customers %}
+          <option value="{{ c.id }}" data-name="{{ c.name|e }}" data-address="{{ (c.full_address or '')|e }}" data-phone="{{ c.phone or '' }}" data-email="{{ c.email or '' }}">
+            {{ c.name }}{% if c.phone %} — {{ c.phone }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Customer Name*</label>
+        <input id="customer_name" name="customer_name" required>
+      </div>
+      <div class="form-group">
+        <label>Reference No.</label>
+        <input name="reference_no">
+      </div>
+      <div class="form-group">
+        <label>Phone</label>
+        <input id="customer_phone" name="customer_phone">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input id="customer_email" name="customer_email">
+      </div>
+      <div class="form-group full">
+        <label>Address</label>
+        <textarea id="customer_address" name="customer_address" rows="2"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">System</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>System Type</label>
+        <select id="system_type" name="system_type">
+          {% for typ in ['On Grid','Off Grid','Hybrid'] %}
+          <option>{{ typ }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Capacity</label>
+        <select id="capacity_kw" name="capacity_kw" required>
+          {% for c in configs %}
+          <option value="{{ c.capacity_kw }}" data-config="{{ c.id }}">{{ c.capacity_kw }} kW — {{ c.system_type }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>PV Technology</label>
+        <input name="panel_technology" value="TOPCON">
+      </div>
+      <div class="form-group">
+        <label>Panel Brand</label>
+        <input id="panel_brand" name="panel_brand">
+      </div>
+      <div class="form-group">
+        <label>Panel Model</label>
+        <input name="panel_model">
+      </div>
+      <div class="form-group">
+        <label>Panel Watt</label>
+        <input name="panel_watt" type="number" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Inverter Brand</label>
+        <input id="inverter_brand" name="inverter_brand">
+      </div>
+      <div class="form-group">
+        <label>Inverter Model</label>
+        <input name="inverter_model">
+      </div>
+      <div class="form-group">
+        <label>Coordinator</label>
+        <select name="coordinator_id">
+          <option value="">— Select coordinator —</option>
+          {% for u in coordinators %}
+          <option value="{{ u.id }}">{{ u.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Coordinator name (if not listed)</label>
+        <input name="coordinator_name">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Capacity-specific Bill of Materials</div>
+    <div id="bomWrap"><span class="tag">Select a capacity to load its BOM</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Pricing</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Material Cost</label>
+        <input id="material_cost" name="material_cost" type="number" step="0.01" value="0">
+      </div>
+      <div class="form-group">
+        <label>Installation Charges</label>
+        <input id="installation_charges" name="installation_charges" type="number" step="0.01" value="0">
+      </div>
+      <div class="form-group">
+        <label>Other Charges</label>
+        <input id="other_charges" name="other_charges" type="number" step="0.01" value="0">
+      </div>
+      <div class="form-group">
+        <label>Discount</label>
+        <input id="discount" name="discount" type="number" step="0.01" value="0">
+      </div>
+      <div class="form-group">
+        <label>GST %</label>
+        <input id="gst_percent" name="gst_percent" type="number" step="0.01" value="0">
+      </div>
+    </div>
+    <div class="summary-row">
+      <div class="summary-item"><div class="stat-label">Taxable</div><div class="money" id="taxable">₹0</div></div>
+      <div class="summary-item"><div class="stat-label">GST</div><div class="money" id="gstAmount">₹0</div></div>
+      <div class="summary-item"><div class="stat-label">Total</div><div class="money" id="grandTotal">₹0</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Generation &amp; Savings</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Annual Generation (units)</label>
+        <input name="annual_generation" type="number" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Annual Savings</label>
+        <input name="annual_savings" type="number" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Lifetime Savings</label>
+        <input name="lifetime_savings" type="number" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Estimated Savings</label>
+        <input name="estimated_savings" placeholder="85% approx.">
+      </div>
+      <div class="form-group">
+        <label>Break Even Year</label>
+        <input name="break_even_year">
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row" style="justify-content:flex-end">
+    <a class="btn" href="{{ url_for('quotations') }}">Cancel</a>
+    <button class="btn btn-primary" type="submit">Generate PDF Preview</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block head %}
+{{ super() }}
 <script>
-const customer=document.getElementById('customer_id'); customer.addEventListener('change',()=>{const o=customer.selectedOptions[0];if(!o.value)return;document.getElementById('customer_name').value=o.dataset.name||'';document.getElementById('customer_address').value=o.dataset.address||'';document.getElementById('customer_phone').value=o.dataset.phone||'';document.getElementById('customer_email').value=o.dataset.email||'';});
-function money(n){return '₹'+Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:2});}
-function calc(){let m=+document.getElementById('material_cost').value||0,i=+document.getElementById('installation_charges').value||0,o=+document.getElementById('other_charges').value||0,d=+document.getElementById('discount').value||0,g=+document.getElementById('gst_percent').value||0;let taxable=Math.max(0,m+i+o-d),gst=taxable*g/100;document.getElementById('taxable').textContent=money(taxable);document.getElementById('gstAmount').textContent=money(gst);document.getElementById('grandTotal').textContent=money(taxable+gst);}
-document.querySelectorAll('#material_cost,#installation_charges,#other_charges,#discount,#gst_percent').forEach(x=>x.addEventListener('input',calc));
-async function loadBom(){const opt=document.getElementById('capacity_kw').selectedOptions[0];if(!opt||!opt.dataset.config){document.getElementById('bomWrap').innerHTML='<div class="muted">No configuration available. Add it under Settings.</div>';return;}const r=await fetch('/quotations/config/'+opt.dataset.config+'/items');const j=await r.json();if(!j.ok)return;let h='<table class="bom"><thead><tr><th>#</th><th>Component</th><th>Make</th><th>Specification</th><th>Qty</th><th>Warranty</th><th>Unit Price</th></tr></thead><tbody>';j.config.items.forEach((x,n)=>{h+=`<tr><td>${n+1}</td><td>${x.component}</td><td><input name="item_make_${x.id}" value="${esc(x.brand)}"></td><td><input name="item_spec_${x.id}" value="${esc(x.specification)}"></td><td><input name="item_qty_${x.id}" value="${esc(x.qty)}"></td><td>${esc(x.warranty)}</td><td><input type="number" step="0.01" name="item_price_${x.id}" value="${x.unit_price}"></td></tr>`});h+='</tbody></table>';document.getElementById('bomWrap').innerHTML=h;}
-function esc(v){return String(v??'').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;');}
-document.getElementById('capacity_kw').addEventListener('change',loadBom);document.getElementById('system_type').addEventListener('change',()=>{const type=document.getElementById('system_type').value;const opts=[...document.getElementById('capacity_kw').options];const first=opts.find(o=>o.text.includes(type));if(first)document.getElementById('capacity_kw').value=first.value;loadBom();});loadBom();calc();
-</script></body></html>
+const customer = document.getElementById('customer_id');
+customer.addEventListener('change', () => {
+  const o = customer.selectedOptions[0];
+  if (!o.value) return;
+  document.getElementById('customer_name').value = o.dataset.name || '';
+  document.getElementById('customer_address').value = o.dataset.address || '';
+  document.getElementById('customer_phone').value = o.dataset.phone || '';
+  document.getElementById('customer_email').value = o.dataset.email || '';
+});
+
+function money(n) { return '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 }); }
+
+function calc() {
+  let m = +document.getElementById('material_cost').value || 0,
+      i = +document.getElementById('installation_charges').value || 0,
+      o = +document.getElementById('other_charges').value || 0,
+      d = +document.getElementById('discount').value || 0,
+      g = +document.getElementById('gst_percent').value || 0;
+  let taxable = Math.max(0, m + i + o - d), gst = taxable * g / 100;
+  document.getElementById('taxable').textContent = money(taxable);
+  document.getElementById('gstAmount').textContent = money(gst);
+  document.getElementById('grandTotal').textContent = money(taxable + gst);
+}
+document.querySelectorAll('#material_cost,#installation_charges,#other_charges,#discount,#gst_percent')
+  .forEach(x => x.addEventListener('input', calc));
+
+async function loadBom() {
+  const opt = document.getElementById('capacity_kw').selectedOptions[0];
+  if (!opt || !opt.dataset.config) {
+    document.getElementById('bomWrap').innerHTML = '<span class="tag">No configuration available. Add it under Settings.</span>';
+    return;
+  }
+  const r = await fetch('/quotations/config/' + opt.dataset.config + '/items');
+  const j = await r.json();
+  if (!j.ok) return;
+  let h = '<div class="table-wrap"><table class="bom-table"><thead><tr><th>#</th><th>Component</th><th>Make</th><th>Specification</th><th>Qty</th><th>Warranty</th><th>Unit Price</th></tr></thead><tbody>';
+  j.config.items.forEach((x, n) => {
+    h += `<tr><td>${n + 1}</td><td>${x.component}</td>
+      <td><input name="item_make_${x.id}" value="${esc(x.brand)}"></td>
+      <td><input name="item_spec_${x.id}" value="${esc(x.specification)}"></td>
+      <td><input name="item_qty_${x.id}" value="${esc(x.qty)}"></td>
+      <td>${esc(x.warranty)}</td>
+      <td><input type="number" step="0.01" name="item_price_${x.id}" value="${x.unit_price}"></td></tr>`;
+  });
+  h += '</tbody></table></div>';
+  document.getElementById('bomWrap').innerHTML = h;
+}
+function esc(v) { return String(v ?? '').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+document.getElementById('capacity_kw').addEventListener('change', loadBom);
+document.getElementById('system_type').addEventListener('change', () => {
+  const type = document.getElementById('system_type').value;
+  const opts = [...document.getElementById('capacity_kw').options];
+  const first = opts.find(o => o.text.includes(type));
+  if (first) document.getElementById('capacity_kw').value = first.value;
+  loadBom();
+});
+loadBom();
+calc();
+</script>
+{% endblock %}

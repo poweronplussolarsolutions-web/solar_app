@@ -1,4 +1,69 @@
-<!doctype html>
-<html><head><meta charset="utf-8"><title>Quotations</title><style>
-body{font-family:Arial,sans-serif;background:#f5f7fa;margin:0;color:#18202a}.wrap{max-width:1200px;margin:30px auto;padding:0 18px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.btn{display:inline-block;background:#0f766e;color:#fff;padding:10px 15px;border-radius:7px;text-decoration:none;margin-left:6px}.btn.dark{background:#334155}.card{background:#fff;border-radius:12px;padding:18px;box-shadow:0 5px 20px rgba(0,0,0,.06)}table{width:100%;border-collapse:collapse}th,td{padding:12px;border-bottom:1px solid #e5e7eb;text-align:left}th{font-size:13px;color:#64748b}.empty{text-align:center;padding:35px;color:#64748b}.tag{padding:4px 8px;border-radius:20px;background:#e2e8f0;font-size:12px}
-</style></head><body><div class="wrap"><div class="top"><div><h1>Quotations</h1><div style="color:#64748b">Create, preview and download customer quotations</div></div><div><a class="btn" href="{{ url_for('quotation_create') }}">+ New Quotation</a>{% if current_user.role in ['admin','director'] %}<a class="btn dark" href="{{ url_for('quotation_settings') }}">Settings</a>{% endif %}</div></div><div class="card"><table><thead><tr><th>Quotation</th><th>Customer</th><th>Capacity</th><th>Total</th><th>Date</th><th>Status</th><th></th></tr></thead><tbody>{% for q in quotations %}<tr><td><b>{{ q.quotation_no }}</b><br><small>{{ q.reference_no or '—' }}</small></td><td>{{ q.customer_name }}</td><td>{{ q.capacity_kw }} kW<br><small>{{ q.system_type }}</small></td><td>{{ q.total_investment|inr }}</td><td>{{ q.quotation_date|date_fmt }}</td><td><span class="tag">{{ q.status }}</span></td><td><a href="{{ url_for('quotation_preview', qid=q.id) }}">Preview</a> &nbsp; <a href="{{ url_for('quotation_download', qid=q.id) }}">Download</a></td></tr>{% else %}<tr><td class="empty" colspan="7">No quotations created yet.</td></tr>{% endfor %}</tbody></table></div></div></body></html>
+{% extends "base.html" %}
+{% block title %}Quotations — Power on Plus{% endblock %}
+{% block page_title %}Quotations{% endblock %}
+
+{% block topbar_actions %}
+<a class="btn btn-primary" href="{{ url_for('quotation_create') }}">+ New Quotation</a>
+<a class="btn" href="{{ url_for('quotation_settings') }}">Settings</a>
+{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total Quotations</div>
+    <div class="stat-value">{{ quotations|length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Draft</div>
+    <div class="stat-value">{{ quotations|selectattr('status','equalto','Draft')|list|length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Generated</div>
+    <div class="stat-value">{{ quotations|selectattr('status','equalto','Generated')|list|length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Value</div>
+    <div class="stat-value">{{ (quotations|sum(attribute='total_investment'))|inr }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">All Quotations</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Quotation No.</th>
+          <th>Customer</th>
+          <th>Capacity</th>
+          <th>Total</th>
+          <th>Date</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for q in quotations %}
+        <tr>
+          <td>
+            <strong>{{ q.quotation_no }}</strong>
+            {% if q.reference_no %}<br><span class="tag">{{ q.reference_no }}</span>{% endif %}
+          </td>
+          <td>{{ q.customer_name }}</td>
+          <td>{{ q.capacity_kw }} kW<br><span class="tag">{{ q.system_type }}</span></td>
+          <td>{{ q.total_investment|inr }}</td>
+          <td>{{ q.quotation_date|date_fmt }}</td>
+          <td><span class="badge badge-{{ q.status }}">{{ q.status }}</span></td>
+          <td style="white-space:nowrap">
+            <a class="btn btn-sm" href="{{ url_for('quotation_preview', qid=q.id) }}">Preview</a>
+            <a class="btn btn-sm" href="{{ url_for('quotation_download', qid=q.id) }}">Download</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" style="text-align:center;color:var(--hint);padding:32px">No quotations created yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

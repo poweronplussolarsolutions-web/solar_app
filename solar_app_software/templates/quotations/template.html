@@ -1,1 +1,30 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Quotation Template</title><style>body{font-family:Arial;background:#f5f7fa}.wrap{max-width:800px;margin:50px auto;background:white;padding:30px;border-radius:12px}input,button{padding:11px;margin-top:10px}button{background:#0f766e;color:white;border:0;border-radius:6px}</style></head><body><div class="wrap"><a href="{{ url_for('quotations') }}">← Quotations</a><h1>Quotation PDF Template</h1><p>Current template: <b>{{ template_path }}</b></p><p>Upload the same 9-page template layout to replace it. Field coordinates are calibrated for the supplied Power On Plus template.</p><form method="post" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="file" name="template_pdf" accept="application/pdf" required><br><button>Replace Template</button></form></div></body></html>
+{% extends "base.html" %}
+{% block title %}Quotation PDF Template — Power on Plus{% endblock %}
+{% block page_title %}Quotation PDF Template{% endblock %}
+
+{% block topbar_actions %}
+<a class="btn" href="{{ url_for('quotations') }}">← Quotations</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:640px">
+  <div class="card-title">Current Template</div>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:14px">
+    <strong style="color:var(--text)">{{ template_path }}</strong>
+  </p>
+  <div class="alert alert-info">
+    Upload a PDF with the same 9-page layout to replace it. Field coordinates are calibrated for the supplied Power On Plus template — a different layout will misplace text.
+  </div>
+
+  <form method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group full">
+      <label>Template PDF</label>
+      <input type="file" name="template_pdf" accept="application/pdf" required>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" type="submit">Replace Template</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,1 +1,22 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Quotation Preview</title><style>body{margin:0;font-family:Arial;background:#eef2f7}.bar{height:64px;background:#fff;display:flex;justify-content:space-between;align-items:center;padding:0 18px;box-shadow:0 2px 8px rgba(0,0,0,.08)}.btn{background:#0f766e;color:#fff;text-decoration:none;padding:10px 15px;border-radius:7px;margin-left:7px}.btn.dark{background:#334155}.frame{height:calc(100vh - 64px);padding:10px}.frame iframe{width:100%;height:100%;border:0;background:#ddd}</style></head><body><div class="bar"><div><b>{{ quotation.quotation_no }}</b> &nbsp; {{ quotation.customer_name }} &nbsp; <span>{{ quotation.capacity_kw }} kW</span></div><div><a class="btn dark" href="{{ url_for('quotation_create') }}">New</a><a class="btn" href="{{ url_for('quotation_download', qid=quotation.id) }}">Download PDF</a></div></div><div class="frame"><iframe src="{{ url_for('quotation_pdf', qid=quotation.id) }}"></iframe></div></body></html>
+{% extends "base.html" %}
+{% block title %}{{ quotation.quotation_no }} — Preview{% endblock %}
+{% block page_title %}{{ quotation.quotation_no }} — {{ quotation.customer_name }}{% endblock %}
+
+{% block topbar_actions %}
+<a class="btn" href="{{ url_for('quotation_create') }}">New</a>
+<a class="btn btn-primary" href="{{ url_for('quotation_download', qid=quotation.id) }}">Download PDF</a>
+{% endblock %}
+
+{% block head %}
+<style>
+  #content { padding: 0 !important; }
+  .quote-frame-wrap { height: calc(100vh - 54px); padding: 20px; }
+  .quote-frame-wrap iframe { width: 100%; height: 100%; border: 0.5px solid var(--border); border-radius: var(--radius-lg); background: var(--gray-50); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="quote-frame-wrap">
+  <iframe src="{{ url_for('quotation_pdf', qid=quotation.id) }}"></iframe>
+</div>
+{% endblock %}
