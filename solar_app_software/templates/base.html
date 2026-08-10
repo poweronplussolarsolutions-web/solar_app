@@ -535,6 +535,17 @@
         <span class="dot"></span> Product Replacements
       </a>
 {% endif %}
+{% if current_user.role == 'admin' %}
+<a class="nav-link {% if request.endpoint in ['quotations','quotation_create','quotation_preview'] %}active{% endif %}" href="{{ url_for('quotations') }}">
+  <span class="dot"></span> Quotations
+</a>
+<a class="nav-link {% if request.endpoint == 'quotation_settings' %}active{% endif %}" href="{{ url_for('quotation_settings') }}">
+  <span class="dot"></span> Quotation Settings
+</a>
+<a class="nav-link {% if request.endpoint == 'quotation_template_upload' %}active{% endif %}" href="{{ url_for('quotation_template_upload') }}">
+  <span class="dot"></span> Quotation PDF Template
+</a>
+{% endif %}
       {% if current_user.role == 'admin' %}
       <div class="nav-section">Admin</div>
       <a class="nav-link {% if request.endpoint == 'admin_analytics' %}active{% endif %}" href="{{ url_for('admin_analytics') }}">

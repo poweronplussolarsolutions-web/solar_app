@@ -7207,6 +7207,7 @@ def _q_generate_pdf(q, output_path):
 
 @app.route('/quotations')
 @login_required
+@roles_required('admin')
 def quotations():
     qs = Quotation.query.order_by(Quotation.id.desc()).all()
     return render_template('quotations/index.html', quotations=qs)
@@ -7214,6 +7215,7 @@ def quotations():
 
 @app.route('/quotations/create', methods=['GET','POST'])
 @login_required
+@roles_required('admin')
 def quotation_create():
     configs = QuotationConfiguration.query.filter_by(active=True).order_by(QuotationConfiguration.capacity_kw).all()
     customers = Customer.query.order_by(Customer.name).all()
@@ -7289,6 +7291,7 @@ def quotation_create():
 
 @app.get('/quotations/config/<int:config_id>/items')
 @login_required
+@roles_required('admin')
 def quotation_config_items(config_id):
     cfg = db.session.get(QuotationConfiguration, config_id)
     if not cfg:
@@ -7305,6 +7308,7 @@ def quotation_config_items(config_id):
 
 @app.route('/quotations/<int:qid>/preview')
 @login_required
+@roles_required('admin')
 def quotation_preview(qid):
     q = db.session.get(Quotation, qid)
     if not q:
@@ -7325,6 +7329,7 @@ def quotation_preview(qid):
 
 @app.get('/quotations/<int:qid>/pdf')
 @login_required
+@roles_required('admin')
 def quotation_pdf(qid):
     q = db.session.get(Quotation, qid)
     if not q:
@@ -7339,6 +7344,7 @@ def quotation_pdf(qid):
 
 @app.get('/quotations/<int:qid>/download')
 @login_required
+@roles_required('admin')
 def quotation_download(qid):
     q = db.session.get(Quotation, qid)
     if not q:
@@ -7353,6 +7359,7 @@ def quotation_download(qid):
 
 @app.route('/quotations/settings', methods=['GET','POST'])
 @login_required
+@roles_required('admin')
 @roles_required('admin','director')
 def quotation_settings():
     if request.method == 'POST':
@@ -7390,6 +7397,7 @@ def quotation_settings():
 
 @app.route('/quotations/template', methods=['GET','POST'])
 @login_required
+@roles_required('admin')
 @roles_required('admin','director')
 def quotation_template_upload():
     if request.method == 'POST':
