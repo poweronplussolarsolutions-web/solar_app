@@ -19,9 +19,9 @@ import json
 import uuid
 from decimal import Decimal, InvalidOperation
 try:
-    import fitz  
+    import pymupdf  
 except ImportError:
-    fitz = None
+    pymupdf = None
 from werkzeug.utils import secure_filename
 
 from flask import send_file
@@ -7095,7 +7095,7 @@ def _q_fit_text(page, rect, text, fontsize=11, bold=False, align=0, color=(0,0,0
     """Insert text and reduce font size if the field is too long for the template."""
     if text is None:
         text = ''
-    rect = fitz.Rect(*rect)
+    rect = pymupdf.Rect(*rect)
     size = float(fontsize)
     while size >= 5:
         spare = page.insert_textbox(rect, str(text), fontname='hebo' if bold else 'helv',
@@ -7132,12 +7132,12 @@ def _q_redact_all(page, texts):
 
 
 def _q_generate_pdf(q, output_path):
-    if fitz is None:
+    if pymupdf is None:
         raise RuntimeError('PyMuPDF is not installed. Run: pip install PyMuPDF')
     if not os.path.isfile(QUOTATION_TEMPLATE_PATH):
         raise FileNotFoundError('Quotation template PDF not found.')
 
-    doc = fitz.open(QUOTATION_TEMPLATE_PATH)
+    doc = pymupdf.open(QUOTATION_TEMPLATE_PATH)
     # Known sample values in the supplied template.
     for page in doc:
         _q_redact_all(page, [
@@ -7175,7 +7175,7 @@ def _q_generate_pdf(q, output_path):
 
     # Page 5: redraw the dynamic BOM over the old body.
     p = doc[4]
-    body = fitz.Rect(44, 201, 777, 1120)
+    body = pymupdf.Rect(44, 201, 777, 1120)
     p.add_redact_annot(body, fill=(1,1,1))
     p.apply_redactions()
     # Use the existing table header. Draw rows only; this keeps the template's typography/header.
@@ -7188,7 +7188,7 @@ def _q_generate_pdf(q, output_path):
         vals = [str(idx), item.component or '', item.make or '',
                 item.specification or '', item.qty or '', item.warranty or '']
         for c in range(6):
-            r = fitz.Rect(cols[c], y, cols[c+1], y+row_h)
+            r = pymupdf.Rect(cols[c], y, cols[c+1], y+row_h)
             p.draw_rect(r, color=(0.45,0.45,0.45), fill=(1,1,1), width=0.7, overlay=True)
             _q_fit_text(p, (r.x0+4,r.y0+5,r.x1-4,r.y1-4), vals[c], 7.2, False, 0)
         y += row_h
