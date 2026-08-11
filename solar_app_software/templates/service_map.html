@@ -91,13 +91,18 @@
 <form method="GET" class="search-bar">
   <input type="text" name="q" value="{{ search_q }}"
          placeholder="Search a place — e.g. Kondotty, Manjeri, Feroke…">
+  <select name="urgency">
+    <option value="all"     {% if urgency == 'all' %}selected{% endif %}>All projects</option>
+    <option value="due"     {% if urgency == 'due' %}selected{% endif %}>Due or overdue</option>
+    <option value="overdue" {% if urgency == 'overdue' %}selected{% endif %}>Overdue only</option>
+  </select>
   <select name="radius">
     {% for r in [5, 10, 15, 25, 50] %}
     <option value="{{ r }}" {% if radius_km == r %}selected{% endif %}>{{ r }} km radius</option>
     {% endfor %}
   </select>
   <button type="submit" class="btn btn-primary btn-sm">Search</button>
-  {% if search_q %}
+  {% if search_q or urgency != 'all' %}
   <a href="{{ url_for('service_map') }}" class="btn btn-sm">Clear</a>
   {% endif %}
 </form>
@@ -231,6 +236,39 @@
     });
   });
 })();
+function pinFor(urgency) {
+  var color = urgency === 'Overdue' ? '#dc2626'
+            : urgency === 'Due'     ? '#ea580c'
+            : urgency === 'Upcoming' ? '#2563eb'
+            : '#94a3b8';
+  return L.divIcon({
+    className: 'custom-pin',
+    html: '<div style="background:' + color + ';width:14px;height:14px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);"></div>',
+    iconSize: [14, 14],
+    iconAnchor: [7, 14]
+  });
+}
 
+tagsData.forEach(function (t) {
+  var m = L.marker([t.lat, t.lng], { icon: pinFor(t.urgency) }).addTo(map);
+  var popupEl = document.createElement('div');
+  var codeEl = document.createElement('strong');
+  codeEl.textContent = t.code;
+  var nameEl = document.createElement('div');
+  nameEl.textContent = t.name;
+  var urgEl = document.createElement('div');
+  urgEl.style.fontSize = '11px';
+  urgEl.style.color = t.urgency === 'Overdue' ? '#dc2626' : t.urgency === 'Due' ? '#ea580c' : '#64748b';
+  urgEl.textContent = t.urgency === 'None' ? 'All visits complete' : t.urgency + ' visit';
+  var linkEl = document.createElement('a');
+  linkEl.href = t.url;
+  linkEl.textContent = 'View project →';
+  popupEl.appendChild(codeEl);
+  popupEl.appendChild(nameEl);
+  popupEl.appendChild(urgEl);
+  popupEl.appendChild(linkEl);
+  m.bindPopup(popupEl);
+  markers[t.lat + '_' + t.lng] = m;
+});
 </script>
 {% endblock %}

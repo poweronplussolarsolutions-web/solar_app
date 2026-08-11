@@ -34,6 +34,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DCR_SUBSIDY_AMOUNT = 78000
+SERVICE_BACKFILL_FLAG_DAYS = 30
 
 PROJECT_STAGES = [
     'Lead', 'Site Visit', 'Documentation',
@@ -1256,22 +1257,39 @@ def delete_site_photo(pid):
 @login_required
 @roles_required('admin', 'onsite', 'coordinator', 'director','service')
 def service_map():
-    q = _clean(request.args.get('q', ''), 100)
+    q         = _clean(request.args.get('q', ''), 100)
     radius_km = request.args.get('radius', 15, type=int)
+    urgency   = request.args.get('urgency', 'all')
+    if urgency not in ('all', 'overdue', 'due'):
+        urgency = 'all'
 
     tags = (ProjectGeoTag.query.join(Project)
             .options(joinedload(ProjectGeoTag.project).joinedload(Project.payments),
-                     joinedload(ProjectGeoTag.project).joinedload(Project.subsidy))
+                     joinedload(ProjectGeoTag.project).joinedload(Project.subsidy),
+                     joinedload(ProjectGeoTag.project).joinedload(Project.service_records))
             .filter(ProjectGeoTag.latitude.isnot(None), Project.status != 'Cancelled')
             .all())
     tags = [t for t in tags if t.project.pending_amount <= 0 or t.project.status == 'Closed']
 
+    def _next_visit_status(proj):
+        recs = sorted(proj.service_records, key=lambda r: r.visit_number)
+        nxt  = next((r for r in recs if r.status not in ('Completed', 'Skipped')), None)
+        return nxt.status if nxt else None
+
+    tag_urgency = {t.id: _next_visit_status(t.project) for t in tags}
+
+    if urgency == 'overdue':
+        tags = [t for t in tags if tag_urgency.get(t.id) == 'Overdue']
+    elif urgency == 'due':
+        tags = [t for t in tags if tag_urgency.get(t.id) in ('Overdue', 'Due')]
+
     tags_json = [{
-        'lat':  t.latitude,
-        'lng':  t.longitude,
-        'code': t.project.project_code,
-        'name': t.project.customer.name,
-        'url':  url_for('project_detail', pid=t.project_id),
+        'lat':     t.latitude,
+        'lng':     t.longitude,
+        'code':    t.project.project_code,
+        'name':    t.project.customer.name,
+        'url':     url_for('project_detail', pid=t.project_id),
+        'urgency': tag_urgency.get(t.id) or 'None',
     } for t in tags]
 
     center = (None, None)
@@ -1288,7 +1306,8 @@ def service_map():
             flash(f'Could not locate "{q}".', 'warning')
 
     return render_template('service_map.html', tags=tags, nearby=nearby,
-        tags_json=tags_json, search_q=q, center=center, radius_km=radius_km)
+        tags_json=tags_json, search_q=q, center=center, radius_km=radius_km,
+        urgency=urgency, tag_urgency=tag_urgency)
 def create_service_schedule(project):
     if ServiceRecord.query.filter_by(project_id=project.id).first():
         return
@@ -1318,7 +1337,30 @@ def _add_months(base_date, months):
     last_day = calendar.monthrange(year, month)[1]
     day = min(base_date.day, last_day)
     return base_date.replace(year=year, month=month, day=day)
-
+def _annotate_service_records(records):
+    """Attach a `locked` flag and a display `state` to each ServiceRecord,
+    based on whether the previous visit is completed. Templates should use
+    this instead of recomputing the prev-visit chain themselves — keeping
+    that logic in one place avoids the pill/row/body versions drifting."""
+    annotated = []
+    prev_done = True
+    for rec in records:
+        locked = not prev_done and rec.status not in ('Completed', 'Skipped')
+        if locked:
+            state = 'locked'
+        elif rec.status == 'Completed':
+            state = 'done'
+        elif rec.status == 'Overdue':
+            state = 'overdue'
+        elif rec.status == 'Due':
+            state = 'due'
+        elif rec.status == 'Skipped':
+            state = 'skipped'
+        else:
+            state = 'upcoming'
+        annotated.append({'rec': rec, 'locked': locked, 'state': state})
+        prev_done = rec.status == 'Completed'
+    return annotated
 
 def _reschedule_future_visits(rec, from_date):
     """After `rec` is completed on `from_date`, push every later, not-yet-completed/
@@ -3564,34 +3606,35 @@ def works_status():
 @login_required
 @roles_required('admin', 'onsite', 'coordinator','director','service')
 def service_management():
-    from sqlalchemy.orm import joinedload
     refresh_service_statuses()
 
-    from sqlalchemy.orm import joinedload
-    from sqlalchemy import exists
-
     has_service = (db.session.query(Project.id)
-    .join(ServiceRecord, ServiceRecord.project_id == Project.id)
-    .filter(Project.status.notin_(['Cancelled']))
-    .distinct()
-    .subquery())
+        .join(ServiceRecord, ServiceRecord.project_id == Project.id)
+        .filter(Project.status.notin_(['Cancelled']))
+        .distinct()
+        .subquery())
 
     projects = (Project.query
-    .options(
-        joinedload(Project.customer),
-        joinedload(Project.coordinator),
-        joinedload(Project.payments),
-        joinedload(Project.subsidy),
-    )
-    .filter(Project.id.in_(has_service))
-    .order_by(cast(Project.project_code, Integer))
-    .all())
-    projects = [p for p in projects if p.pending_amount <= 0 or p.status == 'Closed']
+        .options(
+            joinedload(Project.customer),
+            joinedload(Project.coordinator),
+            joinedload(Project.payments),
+            joinedload(Project.subsidy),
+        )
+        .filter(Project.id.in_(has_service))
+        .order_by(cast(Project.project_code, Integer))
+        .all())
 
-    # Attach records sorted by visit number
+    # Exclude OnHold too, not just Cancelled — a held project's service
+    # schedule shouldn't read as "actionable" even if pending_amount is 0.
+    projects = [p for p in projects
+                if p.status not in ('Cancelled', 'OnHold')
+                and (p.pending_amount <= 0 or p.status == 'Closed')]
+
     proj_data = []
     for p in projects:
-        records = sorted(p.service_records, key=lambda r: r.visit_number)
+        records   = sorted(p.service_records, key=lambda r: r.visit_number)
+        annotated = _annotate_service_records(records)
         done    = sum(1 for r in records if r.status == 'Completed')
         over    = sum(1 for r in records if r.status == 'Overdue')
         due     = sum(1 for r in records if r.status == 'Due')
@@ -3599,19 +3642,24 @@ def service_management():
         total   = len(records)
         pct     = int(done / total * 100) if total else 0
         next_v  = next((r for r in records if r.status not in ('Completed', 'Skipped')), None)
+        next_locked = next(
+            (a['locked'] for a in annotated if a['rec'] is next_v), False
+        ) if next_v else False
+
         proj_data.append({
-            'project': p,
-            'records': records,
-            'done':    done,
-            'over':    over,
-            'due':     due,
-            'skipped': skipped,
-            'total':   total,
-            'pct':     pct,
-            'next':    next_v,
+            'project':     p,
+            'records':     records,
+            'annotated':   annotated,
+            'done':        done,
+            'over':        over,
+            'due':         due,
+            'skipped':     skipped,
+            'total':       total,
+            'pct':         pct,
+            'next':        next_v,
+            'next_locked': next_locked,
         })
 
-    # Global stats
     all_records = [r for pd in proj_data for r in pd['records']]
     stats = {
         'projects':  len(proj_data),
@@ -5134,10 +5182,17 @@ def service_dashboard():
 @login_required
 def project_service(pid):
     refresh_service_statuses()
-    proj    = Project.query.get_or_404(pid)
-    records = (ServiceRecord.query
+    proj = Project.query.get_or_404(pid)
+
+    # NEW — this view previously had no status guard at all.
+    if proj.status in ('Cancelled', 'OnHold'):
+        flash('Service schedule is not active for a Cancelled or On Hold project.', 'warning')
+        return redirect(url_for('project_detail', pid=pid))
+
+    records   = (ServiceRecord.query
                .filter_by(project_id=pid)
                .order_by(ServiceRecord.visit_number).all())
+    annotated = _annotate_service_records(records)
 
     done    = sum(1 for r in records if r.status == 'Completed')
     over    = sum(1 for r in records if r.status == 'Overdue')
@@ -5146,17 +5201,22 @@ def project_service(pid):
     total   = len(records)
     pct     = int(done / total * 100) if total else 0
     next_v  = next((r for r in records if r.status not in ('Completed', 'Skipped')), None)
+    next_locked = next(
+        (a['locked'] for a in annotated if a['rec'] is next_v), False
+    ) if next_v else False
 
     proj_data = [{
-        'project': proj,
-        'records': records,
-        'done':    done,
-        'over':    over,
-        'due':     due,
-        'skipped': skipped,
-        'total':   total,
-        'pct':     pct,
-        'next':    next_v,
+        'project':     proj,
+        'records':     records,
+        'annotated':   annotated,
+        'done':        done,
+        'over':        over,
+        'due':         due,
+        'skipped':     skipped,
+        'total':       total,
+        'pct':         pct,
+        'next':        next_v,
+        'next_locked': next_locked,
     }]
 
     stats = {
@@ -5170,7 +5230,6 @@ def project_service(pid):
 
     return render_template('service_management.html',
                            proj_data=proj_data, stats=stats, today=date.today())
- 
 @app.route('/service/<int:sid>/complete', methods=['POST'])
 @login_required
 @roles_required('admin', 'onsite')
@@ -5205,7 +5264,8 @@ def complete_service(sid):
 
     proj = rec.project
     backfilled_note = ' (backfilled by admin)' if (
-        current_user.role == 'admin' and rec.completed_date < date.today() - timedelta(days=7)
+        current_user.role == 'admin'
+        and rec.completed_date < date.today() - timedelta(days=SERVICE_BACKFILL_FLAG_DAYS)
     ) else ''
     log_action(rec.project_id,
         f'Service visit #{rec.visit_number} completed{backfilled_note} — '
@@ -5222,7 +5282,55 @@ def complete_service(sid):
     db.session.commit()
     flash(f'Service visit #{rec.visit_number} marked complete.', 'success')
     return redirect(request.referrer or url_for('project_service', pid=rec.project_id))
+@app.route('/service/bulk_complete', methods=['POST'])
+@login_required
+@roles_required('admin', 'onsite')
+def bulk_complete_service():
+    ids                 = request.form.getlist('service_ids')
+    completed_date_str  = request.form.get('completed_date', '')
+    panel_cleaning      = 'panel_cleaning' in request.form
+    notes               = _clean(request.form.get('notes', ''), 1000)
 
+    if not ids:
+        flash('No visits were selected.', 'warning')
+        return redirect(url_for('service_management'))
+
+    completed_date = date.fromisoformat(completed_date_str) if completed_date_str else date.today()
+    if completed_date > date.today():
+        flash('Completion date cannot be in the future.', 'danger')
+        return redirect(url_for('service_management'))
+
+    done, skipped_locked = 0, 0
+    for sid in ids:
+        rec = ServiceRecord.query.get(int(sid))
+        if not rec or rec.status == 'Completed':
+            continue
+        if rec.visit_number > 1 and current_user.role != 'admin':
+            prev = ServiceRecord.query.filter_by(
+                project_id=rec.project_id, visit_number=rec.visit_number - 1).first()
+            if not prev or prev.status != 'Completed':
+                skipped_locked += 1
+                continue
+
+        rec.status         = 'Completed'
+        rec.completed_date = completed_date
+        rec.conducted_by   = current_user.id
+        rec.panel_cleaning = panel_cleaning
+        if notes:
+            rec.notes = notes
+
+        log_action(rec.project_id,
+            f'Service visit #{rec.visit_number} completed via bulk action — '
+            f'panel cleaning: {"Yes" if panel_cleaning else "No"}', new_val='Completed')
+        _reschedule_future_visits(rec, completed_date)
+        done += 1
+
+    db.session.commit()
+    msg = f'{done} visit(s) marked complete.'
+    if skipped_locked:
+        msg += f' {skipped_locked} skipped — previous visit not yet completed.'
+    flash(msg, 'success' if done else 'warning')
+    return redirect(url_for('service_management'))
 
 @app.route('/service/<int:sid>/skip', methods=['POST'])
 @login_required
@@ -5239,7 +5347,25 @@ def skip_service(sid):
     db.session.commit()
     flash(f'Service visit #{rec.visit_number} skipped.', 'warning')
     return redirect(request.referrer or url_for('project_service', pid=rec.project_id))
+@app.route('/service/<int:sid>/unskip', methods=['POST'])
+@login_required
+@roles_required('admin')
+def unskip_service(sid):
+    rec = ServiceRecord.query.get_or_404(sid)
+    if rec.status != 'Skipped':
+        flash('This visit is not currently skipped.', 'warning')
+        return redirect(request.referrer or url_for('project_service', pid=rec.project_id))
 
+    old_reason = rec.notes
+    rec.status = 'Upcoming' if rec.scheduled_date >= date.today() else 'Overdue'
+    rec.notes  = None
+
+    log_action(rec.project_id,
+        f'Service visit #{rec.visit_number} un-skipped (was skipped: {old_reason or "no reason given"})',
+        old_val='Skipped', new_val=rec.status)
+    db.session.commit()
+    flash(f'Visit #{rec.visit_number} restored to {rec.status}.', 'success')
+    return redirect(request.referrer or url_for('project_service', pid=rec.project_id))
 
 @app.route('/service/<int:sid>/reschedule', methods=['POST'])
 @login_required

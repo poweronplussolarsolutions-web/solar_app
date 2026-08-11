@@ -2,324 +2,352 @@
 {% block title %}Service Management{% endblock %}
 {% block page_title %}Service Management{% endblock %}
 {% block topbar_actions %}
-  <!-- <a href="{{ url_for('service_dashboard') }}" class="btn btn-sm">Dashboard</a> -->
-  <!-- {% if current_user.role == 'admin' %}
-  <form method="POST" action="{{ url_for('clear_all_service_records') }}" style="display:inline"
-        onsubmit="return confirm('This will permanently delete ALL service records. Continue?');">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button type="submit" class="btn btn-sm btn-danger">Clear all service data</button>
-  </form>
-  {% endif %} -->
+  <a href="{{ url_for('service_map') }}" class="btn btn-sm">
+    <i class="ti ti-map-pin"></i> Map view
+  </a>
 {% endblock %}
 
 {% block head %}
 <style>
-  /* ── Stats ── */
+  :root {
+    --sm-done-bg:     #ecfdf5; --sm-done-fg:     #047857; --sm-done-bd: #a7f3d0;
+    --sm-overdue-bg:  #fef2f2; --sm-overdue-fg:  #b91c1c; --sm-overdue-bd: #fca5a5;
+    --sm-due-bg:      #fff7ed; --sm-due-fg:      #c2410c; --sm-due-bd: #fdba74;
+    --sm-upcoming-bg: #eff6ff; --sm-upcoming-fg: #1d4ed8; --sm-upcoming-bd: #bfdbfe;
+    --sm-skipped-bg:  var(--bg); --sm-skipped-fg: var(--hint); --sm-skipped-bd: var(--border);
+    --sm-locked-bg:   var(--bg); --sm-locked-fg:  var(--border); --sm-locked-bd: var(--border);
+  }
+
+  /* ── Page header stat strip ── */
   .sm-stat-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-    gap: 12px;
-    margin-bottom: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+    margin-bottom: 22px;
   }
   .sm-stat {
     background: var(--surface);
     border: 0.5px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px 16px;
-    text-align: center;
+    border-radius: 12px;
+    padding: 16px 18px;
+    position: relative;
+    overflow: hidden;
   }
-  .sm-stat .val {
-    font-size: 24px;
-    font-weight: 600;
-    line-height: 1;
+  .sm-stat::before {
+    content: '';
+    position: absolute; top: 0; left: 0; bottom: 0;
+    width: 3px;
+    background: var(--stat-accent, var(--border));
   }
+  .sm-stat .val { font-size: 26px; font-weight: 600; line-height: 1.1; letter-spacing: -0.01em; }
   .sm-stat .lbl {
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 4px;
-    text-transform: uppercase;
-    letter-spacing: .05em;
+    font-size: 11.5px; color: var(--muted); margin-top: 5px;
+    text-transform: uppercase; letter-spacing: .06em; font-weight: 500;
   }
 
-  /* ── Filters / search ── */
+  /* ── Toolbar ── */
+  .sm-toolbar-wrap {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--bg);
+    padding: 4px 0 14px;
+  }
   .sm-toolbar {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    align-items: center;
-    margin-bottom: 14px;
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    margin-bottom: 12px;
   }
-  .sm-toolbar input,
+  .sm-search-box {
+    flex: 1; min-width: 220px; position: relative;
+  }
+  .sm-search-box i {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    font-size: 15px; color: var(--hint); pointer-events: none;
+  }
+  .sm-toolbar input[type="text"] {
+    width: 100%; font-size: 13.5px; padding: 9px 12px 9px 34px;
+    border: 0.5px solid var(--border); border-radius: 10px;
+    background: var(--surface); color: var(--text);
+  }
   .sm-toolbar select {
-    font-size: 13px;
-    padding: 6px 10px;
-    border: 0.5px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-    color: var(--text);
+    font-size: 13px; padding: 9px 12px;
+    border: 0.5px solid var(--border); border-radius: 10px;
+    background: var(--surface); color: var(--text);
   }
-  .sm-toolbar input { flex: 1; min-width: 180px; }
+
   .filter-pills { display: flex; gap: 6px; flex-wrap: wrap; }
   .fpill {
-    font-size: 12px;
-    padding: 4px 12px;
-    border-radius: 20px;
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12.5px; font-weight: 500;
+    padding: 6px 14px; border-radius: 20px;
     border: 0.5px solid var(--border);
-    background: var(--surface);
-    color: var(--muted);
-    cursor: pointer;
-    transition: all .12s;
+    background: var(--surface); color: var(--muted);
+    cursor: pointer; transition: all .12s;
   }
-  .fpill:hover  { background: var(--bg); }
+  .fpill:hover  { border-color: var(--border-strong, var(--border)); }
   .fpill.active { background: var(--text); color: var(--surface); border-color: var(--text); }
+  .fpill .count {
+    font-size: 11px; font-weight: 600; opacity: .75;
+  }
 
-  /* ── Project accordion card ── */
+  /* ── Bulk action bar ── */
+  .sm-bulkbar {
+    display: none;
+    align-items: center; gap: 12px;
+    background: #1e293b; color: #fff;
+    border-radius: 12px; padding: 10px 16px;
+    margin-bottom: 14px;
+    position: sticky; top: 58px; z-index: 6;
+  }
+  .sm-bulkbar.show { display: flex; }
+  .sm-bulkbar .count-txt { font-size: 13px; font-weight: 500; flex: 1; }
+  .sm-bulkbar button {
+    font-size: 12.5px; font-weight: 500; padding: 7px 14px;
+    border-radius: 8px; border: none; cursor: pointer;
+  }
+  .sm-bulkbar .btn-go { background: #22c55e; color: #fff; }
+  .sm-bulkbar .btn-clear { background: rgba(255,255,255,.12); color: #fff; }
+
+  /* ── Project card ── */
   .sm-card {
     border: 0.5px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: 14px;
     background: var(--surface);
-    margin-bottom: 8px;
+    margin-bottom: 10px;
     overflow: hidden;
-    transition: box-shadow .15s;
+    transition: box-shadow .15s, border-color .15s;
   }
-  .sm-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.07); }
+  .sm-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+  .sm-card.is-selected { border-color: #22c55e; box-shadow: 0 0 0 1px #22c55e; }
 
   .sm-card-head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    cursor: pointer;
-    user-select: none;
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 18px;
+    cursor: pointer; user-select: none;
   }
   .sm-card-head:hover { background: var(--bg); }
 
+  .sm-select-box {
+    width: 18px; height: 18px; flex-shrink: 0;
+    accent-color: #22c55e; cursor: pointer;
+  }
+
   .sm-proj-code {
-    font-size: 13px;
-    font-weight: 600;
-    min-width: 52px;
-    color: var(--primary, #1A3C5E);
+    font-size: 13px; font-weight: 700;
+    min-width: 54px; color: var(--primary, #1A3C5E);
+    letter-spacing: -0.01em;
   }
   .sm-proj-info { flex: 1; min-width: 0; }
-  .sm-proj-name { font-size: 13px; font-weight: 500; }
-  .sm-proj-meta { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .sm-proj-name { font-size: 14px; font-weight: 600; }
+  .sm-proj-meta { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
 
-  /* ── Visit pills row ── */
   .visit-pills { display: flex; gap: 4px; flex-wrap: wrap; }
   .vpill {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    font-size: 11px;
-    font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 25px; height: 25px; border-radius: 50%;
+    font-size: 10.5px; font-weight: 700;
     border: 1.5px solid transparent;
-    cursor: default;
     flex-shrink: 0;
   }
-  .vpill.done     { background: #f0fdf4; border-color: #86efac; color: #16a34a; }
-  .vpill.overdue  { background: #fef2f2; border-color: #fca5a5; color: #dc2626; }
-  .vpill.due      { background: #fff7ed; border-color: #fdba74; color: #ea580c; }
-  .vpill.upcoming { background: #eff6ff; border-color: #93c5fd; color: #2563eb; }
-  .vpill.skipped  { background: var(--bg); border-color: var(--border); color: var(--hint); }
-  .vpill.locked   { background: var(--bg); border-color: var(--border); color: var(--border); opacity: .5; }
+  .vpill.done     { background: var(--sm-done-bg);     border-color: var(--sm-done-bd);     color: var(--sm-done-fg); }
+  .vpill.overdue  { background: var(--sm-overdue-bg);  border-color: var(--sm-overdue-bd);  color: var(--sm-overdue-fg); }
+  .vpill.due      { background: var(--sm-due-bg);      border-color: var(--sm-due-bd);      color: var(--sm-due-fg); }
+  .vpill.upcoming { background: var(--sm-upcoming-bg); border-color: var(--sm-upcoming-bd); color: var(--sm-upcoming-fg); }
+  .vpill.skipped  { background: var(--sm-skipped-bg);  border-color: var(--sm-skipped-bd);  color: var(--sm-skipped-fg); }
+  .vpill.locked   { background: var(--sm-locked-bg);   border-color: var(--sm-locked-bd);   color: var(--sm-locked-fg); opacity: .55; }
 
-  /* ── Progress bar ── */
-  .sm-progress {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 90px;
+  .sm-progress { display: flex; align-items: center; gap: 7px; min-width: 96px; }
+  .sm-pbar { flex: 1; height: 6px; border-radius: 4px; background: var(--bg); overflow: hidden; }
+  .sm-pbar-fill { height: 100%; border-radius: 4px; }
+
+  .sm-next-label { min-width: 84px; text-align: right; }
+  .sm-next-badge {
+    font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px;
+    display: inline-block;
   }
-  .sm-pbar {
-    flex: 1;
-    height: 5px;
-    border-radius: 3px;
-    background: var(--border);
-    overflow: hidden;
-  }
-  .sm-pbar-fill { height: 100%; border-radius: 3px; }
 
   .sm-chevron {
-    font-size: 18px;
-    color: var(--hint);
-    transition: transform .2s;
-    flex-shrink: 0;
+    font-size: 18px; color: var(--hint);
+    transition: transform .2s; flex-shrink: 0;
   }
   .sm-chevron.open { transform: rotate(180deg); }
 
-  /* ── Accordion body ── */
   .sm-card-body { display: none; border-top: 0.5px solid var(--border); }
   .sm-card-body.open { display: block; }
 
-  /* ── Visit rows inside accordion ── */
+  .status-banner {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 18px; font-size: 12px;
+  }
+  .status-banner.warn {
+    background: #fffbeb; border-bottom: 0.5px solid #fde68a; color: #92400e;
+  }
+
   .visit-row {
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
-    padding: 12px 16px;
+    display: flex; gap: 14px; align-items: flex-start;
+    padding: 14px 18px;
     border-bottom: 0.5px solid var(--border);
   }
   .visit-row:last-child { border-bottom: none; }
+  .visit-row:nth-child(even) { background: var(--bg); }
 
   .vrow-num {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: 600;
-    flex-shrink: 0;
-    margin-top: 2px;
+    width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
   }
-  .vrow-num.done     { background: #f0fdf4; color: #16a34a; }
-  .vrow-num.overdue  { background: #fef2f2; color: #dc2626; }
-  .vrow-num.due      { background: #fff7ed; color: #ea580c; }
-  .vrow-num.upcoming { background: #eff6ff; color: #2563eb; }
-  .vrow-num.skipped  { background: var(--bg); color: var(--hint); }
-  .vrow-num.locked   { background: var(--bg); color: var(--border); opacity: .5; }
+  .vrow-num.done     { background: var(--sm-done-bg);     color: var(--sm-done-fg); }
+  .vrow-num.overdue  { background: var(--sm-overdue-bg);  color: var(--sm-overdue-fg); }
+  .vrow-num.due      { background: var(--sm-due-bg);      color: var(--sm-due-fg); }
+  .vrow-num.upcoming { background: var(--sm-upcoming-bg); color: var(--sm-upcoming-fg); }
+  .vrow-num.skipped  { background: var(--sm-skipped-bg);  color: var(--sm-skipped-fg); }
+  .vrow-num.locked   { background: var(--sm-locked-bg);   color: var(--sm-locked-fg); opacity: .55; }
 
   .vrow-info { flex: 1; min-width: 0; }
-  .vrow-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-bottom: 3px;
-  }
-  .vrow-title strong { font-size: 13px; }
+  .vrow-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  .vrow-title strong { font-size: 13.5px; font-weight: 600; }
   .vrow-meta { font-size: 12px; color: var(--muted); }
 
   .vstatus-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 2px 9px;
-    border-radius: 20px;
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 700;
+    padding: 3px 10px; border-radius: 20px;
   }
-  .vstatus-pill.done     { background: #f0fdf4; color: #16a34a; }
-  .vstatus-pill.overdue  { background: #fef2f2; color: #dc2626; }
-  .vstatus-pill.due      { background: #fff7ed; color: #ea580c; }
-  .vstatus-pill.upcoming { background: #eff6ff; color: #2563eb; }
-  .vstatus-pill.skipped  { background: var(--bg); color: var(--hint); }
-  .vstatus-pill.locked   { background: var(--bg); color: var(--hint); }
-
-  .vrow-actions {
-    display: flex;
-    gap: 6px;
-    margin-top: 8px;
-    flex-wrap: wrap;
-  }
-  .vrow-actions .btn { font-size: 12px; padding: 4px 10px; }
+  .vstatus-pill.done     { background: var(--sm-done-bg);     color: var(--sm-done-fg); }
+  .vstatus-pill.overdue  { background: var(--sm-overdue-bg);  color: var(--sm-overdue-fg); }
+  .vstatus-pill.due      { background: var(--sm-due-bg);      color: var(--sm-due-fg); }
+  .vstatus-pill.upcoming { background: var(--sm-upcoming-bg); color: var(--sm-upcoming-fg); }
+  .vstatus-pill.skipped  { background: var(--sm-skipped-bg);  color: var(--sm-skipped-fg); }
+  .vstatus-pill.locked   { background: var(--sm-locked-bg);   color: var(--sm-locked-fg); }
 
   .check-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    font-weight: 500;
-    padding: 2px 9px;
-    border-radius: 20px;
-    background: #f0fdf4;
-    color: #16a34a;
-    border: 1px solid #bbf7d0;
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 20px;
+    background: var(--sm-done-bg); color: var(--sm-done-fg); border: 1px solid var(--sm-done-bd);
   }
   .visit-notes {
-    margin-top: 6px;
-    font-size: 12px;
-    color: var(--hint);
-    font-style: italic;
-    background: var(--bg);
-    border-radius: var(--radius);
-    padding: 5px 10px;
+    margin-top: 7px; font-size: 12px; color: var(--hint); font-style: italic;
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: 8px; padding: 6px 11px;
   }
+  
 
-  /* ── inline form panels ── */
+  .vrow-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .vrow-actions .btn { font-size: 12px; padding: 6px 12px; border-radius: 8px; }
+
   .inline-form {
-    display: none;
-    margin-top: 10px;
-    background: var(--bg);
-    border: 0.5px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px;
+    display: none; margin-top: 12px;
+    background: var(--bg); border: 0.5px solid var(--border);
+    border-radius: 10px; padding: 14px;
   }
   .inline-form.open { display: block; }
   .inline-form .form-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-bottom: 10px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;
   }
   @media (max-width: 480px) {
     .inline-form .form-grid { grid-template-columns: 1fr; }
     .sm-card-head { flex-wrap: wrap; gap: 8px; }
     .visit-pills  { display: none; }
+    .sm-bulkbar { top: 0; }
   }
 
   .empty-state {
-    text-align: center;
-    padding: 48px 24px;
-    color: var(--hint);
-    font-size: 14px;
+    text-align: center; padding: 56px 24px; color: var(--hint); font-size: 14px;
   }
+  .empty-state i { font-size: 32px; display: block; margin-bottom: 10px; opacity: .5; }
 </style>
 {% endblock %}
 
 {% block content %}
 
-{# ── Stat cards ── #}
 <div class="sm-stat-grid">
-  {% for label, val, color in [
+  {% for label, val, accent in [
     ('Projects',   stats.projects,  'var(--text)'),
     ('Overdue',    stats.overdue,   '#dc2626'),
     ('Due soon',   stats.due,       '#ea580c'),
     ('Completed',  stats.completed, '#16a34a'),
     ('Upcoming',   stats.upcoming,  '#2563eb'),
-    ('Skipped',    stats.skipped,   'var(--hint)'),
+    ('Skipped',    stats.skipped,   '#94a3b8'),
   ] %}
-  <div class="sm-stat">
-    <div class="val" style="color:{{ color }}">{{ val }}</div>
+  <div class="sm-stat" style="--stat-accent:{{ accent }}">
+    <div class="val" style="color:{{ accent }}">{{ val }}</div>
     <div class="lbl">{{ label }}</div>
   </div>
   {% endfor %}
 </div>
 
-{# ── Toolbar ── #}
-<div class="sm-toolbar">
-  <input type="text" id="sm-search" placeholder="Search project or customer…" oninput="smRender()">
-  <select id="sm-sort" onchange="smRender()">
-    <option value="overdue">Overdue first</option>
-    <option value="next">Next visit date</option>
-    <option value="code">Project code</option>
-    <option value="pct">Progress ↑</option>
-  </select>
+<div class="sm-toolbar-wrap">
+  <div class="sm-toolbar">
+    <div class="sm-search-box">
+      <i class="ti ti-search"></i>
+      <input type="text" id="sm-search" placeholder="Search project, customer or place…" oninput="smRender()">
+    </div>
+    <select id="sm-sort" onchange="smRender()">
+      <option value="overdue">Overdue first</option>
+      <option value="next">Next visit date</option>
+      <option value="code">Project code</option>
+      <option value="pct">Progress ↑</option>
+    </select>
+  </div>
+
+  <div class="filter-pills">
+    {% for key, label, count in [
+      ('all',     'All',            stats.projects),
+      ('overdue', 'Overdue',        stats.overdue),
+      ('due',     'Due soon',       stats.due),
+      ('pending', 'Has pending',    None),
+      ('done',    'Fully complete', None),
+    ] %}
+    <button class="fpill {% if key == 'all' %}active{% endif %}" id="fp-{{ key }}" onclick="smFilter('{{ key }}')">
+      {{ label }}{% if count is not none %} <span class="count">{{ count }}</span>{% endif %}
+    </button>
+    {% endfor %}
+  </div>
 </div>
 
-<div class="filter-pills" style="margin-bottom:16px">
-  {% for key, label in [
-    ('all',     'All'),
-    ('overdue', 'Overdue'),
-    ('due',     'Due soon'),
-    ('pending', 'Has pending'),
-    ('done',    'Fully complete'),
-  ] %}
-  <button class="fpill {% if key == 'all' %}active{% endif %}"
-          id="fp-{{ key }}"
-          onclick="smFilter('{{ key }}')">
-    {{ label }}
+{% if current_user.role in ['admin', 'onsite'] %}
+<div class="sm-bulkbar" id="sm-bulkbar">
+  <span class="count-txt"><span id="sm-selected-count">0</span> visit(s) selected</span>
+  <button type="button" class="btn-go" onclick="toggleInline('bulk-complete-form')">
+    <i class="ti ti-check"></i> Mark complete
   </button>
-  {% endfor %}
+  <button type="button" class="btn-clear" onclick="smClearSelection()">Clear</button>
 </div>
 
-{# ── Project list ── #}
+<div class="inline-form" id="bulk-complete-form" style="margin-bottom:16px">
+  <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">
+    Bulk-complete selected visits
+  </div>
+  <form method="POST" action="{{ url_for('bulk_complete_service') }}" id="bulk-complete-real-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div id="bulk-hidden-ids"></div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Date of service</label>
+        <input type="date" name="completed_date" value="{{ today.isoformat() }}" max="{{ today.isoformat() }}" required>
+      </div>
+      <div class="form-group" style="display:flex;align-items:flex-end;gap:10px">
+        <label style="display:flex;align-items:center;gap:8px;background:var(--sm-done-bg);border:1px solid var(--sm-done-bd);border-radius:8px;padding:8px 12px;cursor:pointer;flex:1">
+          <input type="checkbox" name="panel_cleaning" value="1" checked>
+          <span style="font-size:13px;font-weight:500;color:var(--sm-done-fg)">Panel cleaning done for all</span>
+        </label>
+      </div>
+      <div class="form-group full">
+        <label>Notes <span style="color:var(--muted);font-weight:400">(applied to all selected, optional)</span></label>
+        <textarea name="notes" rows="2" placeholder="Observations, issues, remarks…"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button type="submit" class="btn btn-primary btn-sm">Confirm bulk complete</button>
+      <button type="button" class="btn btn-sm" onclick="toggleInline('bulk-complete-form')">Cancel</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
 {% if not proj_data %}
-<div class="empty-state">No projects with service schedules yet.</div>
+<div class="empty-state">
+  <i class="ti ti-calendar-off"></i>
+  No projects with service schedules yet.
+</div>
 {% else %}
 
 <div id="sm-list">
@@ -336,138 +364,107 @@
      data-done="{{ 'yes' if pct == 100 else 'no' }}"
      data-name="{{ p.customer.name | lower }}"
      data-code="{{ p.project_code | lower }}"
+     data-place="{{ (p.customer.place or '') | lower }}"
      {% if pd.next %}data-next="{{ pd.next.scheduled_date.isoformat() }}"{% else %}data-next="9999-99-99"{% endif %}>
 
-  {# ── Card header ── #}
   <div class="sm-card-head" data-pid="{{ p.id }}">
 
+    {% if current_user.role in ['admin', 'onsite'] and pd.next and not pd.next_locked %}
+<input type="checkbox" class="sm-select-box" data-sid="{{ pd.next.id }}" data-pid="{{ p.id }}"
+       onclick="event.stopPropagation(); smToggleSelect(this)">
+{% elif current_user.role in ['admin', 'onsite'] %}
+<span style="width:18px;flex-shrink:0"></span>
+{% endif %}
+
     <div class="sm-proj-code">
-      <a href="{{ url_for('project_detail', pid=p.id) }}"
-         onclick="event.stopPropagation()"
+      <a href="{{ url_for('project_detail', pid=p.id) }}" onclick="event.stopPropagation()"
          style="text-decoration:none;color:inherit">{{ p.project_code }}</a>
     </div>
 
     <div class="sm-proj-info">
       <div class="sm-proj-name">{{ p.customer.name }}</div>
       <div class="sm-proj-meta">
-  {{ p.inverter_capacity_kw }} kW · {{ p.project_type }}
-  {% if p.project_subtype %} · {{ p.project_subtype }}{% endif %}
-  {% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}
-  {% set kseb_doc = p.documents | selectattr('doc_type','eq','KSEB Connection') | first | default(none) %}
-  {% if kseb_doc and kseb_doc.status in ['Received','Completed'] %}
-    · <span style="color:#16a34a;font-weight:500">⚡ KSEB Connected</span>
-  {% endif %}
-  {% set stage_badge_color = '#16a34a' if p.status in ['Completed','Closed']
-                              else '#d97706' if p.status == 'Delayed'
-                              else 'var(--muted)' %}
-  · <span style="color:{{ stage_badge_color }}">{{ p.stage }}</span>
-</div>
+        {{ p.inverter_capacity_kw }} kW · {{ p.project_type }}
+        {% if p.customer.place %} · {{ p.customer.place }}{% endif %}
+        {% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}
+        {% set kseb_doc = p.documents | selectattr('doc_type','eq','KSEB Connection') | first | default(none) %}
+        {% if kseb_doc and kseb_doc.status in ['Received','Completed'] %}
+          · <span style="color:#16a34a;font-weight:500">⚡ KSEB Connected</span>
+        {% endif %}
+        {% set stage_badge_color = '#16a34a' if p.status in ['Completed','Closed']
+                                    else '#d97706' if p.status == 'Delayed'
+                                    else 'var(--muted)' %}
+        · <span style="color:{{ stage_badge_color }}">{{ p.stage }}</span>
+      </div>
     </div>
 
-    {# Visit pills #}
     <div class="visit-pills">
-      {% for rec in pd.records %}
-        {% if loop.index0 == 0 %}
-          {% set prev_done = true %}
-        {% else %}
-          {% set prev_done = pd.records[loop.index0 - 1].status == 'Completed' %}
-        {% endif %}
-        {% set locked = not prev_done and rec.status not in ['Completed','Skipped'] %}
-        {% if locked %}
-          {% set pill_cls = 'locked' %}
-        {% elif rec.status == 'Completed' %}
-          {% set pill_cls = 'done' %}
-        {% elif rec.status == 'Overdue' %}
-          {% set pill_cls = 'overdue' %}
-        {% elif rec.status == 'Due' %}
-          {% set pill_cls = 'due' %}
-        {% elif rec.status == 'Skipped' %}
-          {% set pill_cls = 'skipped' %}
-        {% else %}
-          {% set pill_cls = 'upcoming' %}
-        {% endif %}
-        <span class="vpill {{ pill_cls }}"
+      {% for a in pd.annotated %}
+        {% set rec = a.rec %}
+        <span class="vpill {{ a.state }}"
               title="Visit {{ rec.visit_number }} — {{ rec.status }} — {{ rec.scheduled_date | date_fmt }}">
-          {% if rec.status == 'Completed' %}✓
+          {% if rec.status == 'Completed' %}<i class="ti ti-check" style="font-size:12px"></i>
           {% elif rec.status == 'Skipped' %}–
-          {% elif locked %}🔒
+          {% elif a.locked %}<i class="ti ti-lock" style="font-size:11px"></i>
           {% else %}{{ rec.visit_number }}{% endif %}
         </span>
       {% endfor %}
     </div>
 
-    {# Progress #}
     <div class="sm-progress">
       <div class="sm-pbar">
-        <div class="sm-pbar-fill"
-             style="width:{{ pct }}%;background:{{ bar_color }}">
-        </div>
+        <div class="sm-pbar-fill" style="width:{{ pct }}%;background:{{ bar_color }}"></div>
       </div>
-      <span style="font-size:11px;font-weight:600;color:{{ bar_color }}">{{ pct }}%</span>
+      <span style="font-size:11px;font-weight:700;color:{{ bar_color }}">{{ pct }}%</span>
     </div>
 
-    {# Next visit label #}
-    <div style="min-width:80px;text-align:right">
+    <div class="sm-next-label">
       {% if pd.next %}
         {% set diff = (pd.next.scheduled_date - today).days %}
-        <div style="font-size:11px;font-weight:500;
-                    color:{% if diff < 0 %}#dc2626{% elif diff <= 30 %}#ea580c{% else %}var(--hint){% endif %}">
+        <span class="sm-next-badge" style="
+          {% if diff < 0 %}background:var(--sm-overdue-bg);color:var(--sm-overdue-fg)
+          {% elif diff <= 30 %}background:var(--sm-due-bg);color:var(--sm-due-fg)
+          {% else %}background:var(--sm-upcoming-bg);color:var(--sm-upcoming-fg){% endif %}">
           {% if diff < 0 %}{{ diff | abs }}d overdue
           {% elif diff == 0 %}Today
-          {% else %}in {{ diff }}d
-          {% endif %}
-        </div>
-        <div style="font-size:10px;color:var(--hint)">
-          Visit {{ pd.next.visit_number }}
-        </div>
+          {% else %}in {{ diff }}d{% endif %}
+        </span>
+        <div style="font-size:10px;color:var(--hint);margin-top:4px">Visit {{ pd.next.visit_number }}</div>
       {% else %}
-        <div style="font-size:11px;color:#16a34a">✓ All done</div>
+        <span class="sm-next-badge" style="background:var(--sm-done-bg);color:var(--sm-done-fg)">
+          <i class="ti ti-check" style="font-size:11px"></i> All done
+        </span>
       {% endif %}
     </div>
 
     <span class="sm-chevron" id="chev-{{ p.id }}" data-pid="{{ p.id }}">⌄</span>
   </div>
 
-  {# ── Card body ── #}
   <div class="sm-card-body" id="body-{{ p.id }}">
     {% if p.status not in ['Completed', 'Closed'] %}
-<div style="display:flex;align-items:center;gap:10px;
-            background:#fffbeb;border-bottom:0.5px solid #fde68a;
-            padding:10px 16px;font-size:12px;color:#92400e">
-  <span>⏳</span>
-  <div>
-    <strong>Project in progress</strong> — Stage: {{ p.stage }} · Status: {{ p.status }}.
-    Service schedule is active; visits will be tracked as work continues.
-    <a href="{{ url_for('project_detail', pid=p.id) }}"
-       style="color:#92400e;font-weight:600;margin-left:6px">
-      View project →
-    </a>
-  </div>
-</div>
-{% endif %}
-    {% for rec in pd.records %}
-      {% if loop.index0 == 0 %}
-        {% set prev_done = true %}
-      {% else %}
-        {% set prev_done = pd.records[loop.index0 - 1].status == 'Completed' %}
-      {% endif %}
-      {% set locked = not prev_done and rec.status not in ['Completed','Skipped'] %}
+    <div class="status-banner warn">
+      <i class="ti ti-hourglass"></i>
+      <div>
+        <strong>Project in progress</strong> — Stage: {{ p.stage }} · Status: {{ p.status }}.
+        Service schedule is active; visits will be tracked as work continues.
+        <a href="{{ url_for('project_detail', pid=p.id) }}" style="color:inherit;font-weight:600;margin-left:6px">
+          View project →
+        </a>
+      </div>
+    </div>
+    {% endif %}
 
-      {% if rec.status == 'Completed' %}{% set vstate = 'done' %}
-      {% elif rec.status == 'Overdue' %}{% set vstate = 'overdue' %}
-      {% elif rec.status == 'Due' %}{% set vstate = 'due' %}
-      {% elif rec.status == 'Skipped' %}{% set vstate = 'skipped' %}
-      {% elif locked %}{% set vstate = 'locked' %}
-      {% else %}{% set vstate = 'upcoming' %}{% endif %}
+    {% for a in pd.annotated %}
+      {% set rec = a.rec %}
+      {% set locked = a.locked %}
+      {% set vstate = a.state %}
 
       <div class="visit-row">
-
         <div class="vrow-num {{ vstate }}">
-          {% if rec.status == 'Completed' %}✓
+          {% if rec.status == 'Completed' %}<i class="ti ti-check"></i>
           {% elif rec.status == 'Skipped' %}–
-          {% elif locked %}🔒
-          {% else %}{{ rec.visit_number }}
-          {% endif %}
+          {% elif locked %}<i class="ti ti-lock" style="font-size:13px"></i>
+          {% else %}{{ rec.visit_number }}{% endif %}
         </div>
 
         <div class="vrow-info">
@@ -478,16 +475,15 @@
               · {% if rec.visit_number is odd %}Jan–Jun{% else %}Jul–Dec{% endif %}
             </span>
             <span class="vstatus-pill {{ vstate }}">
-              {% if vstate == 'done' %}✓ Completed
-              {% elif vstate == 'overdue' %}⚠ Overdue
-              {% elif vstate == 'due' %}🕐 Due soon
+              {% if vstate == 'done' %}<i class="ti ti-check" style="font-size:10px"></i> Completed
+              {% elif vstate == 'overdue' %}<i class="ti ti-alert-triangle" style="font-size:10px"></i> Overdue
+              {% elif vstate == 'due' %}<i class="ti ti-clock" style="font-size:10px"></i> Due soon
               {% elif vstate == 'skipped' %}– Skipped
-              {% elif vstate == 'locked' %}🔒 Locked
-              {% else %}📅 Upcoming
-              {% endif %}
+              {% elif vstate == 'locked' %}<i class="ti ti-lock" style="font-size:10px"></i> Locked
+              {% else %}<i class="ti ti-calendar" style="font-size:10px"></i> Upcoming{% endif %}
             </span>
             {% if rec.panel_cleaning and rec.status == 'Completed' %}
-            <span class="check-chip">☀ Panel cleaned</span>
+            <span class="check-chip"><i class="ti ti-sun" style="font-size:10px"></i> Panel cleaned</span>
             {% endif %}
           </div>
 
@@ -497,163 +493,154 @@
               · Completed {{ rec.completed_date | date_fmt }}
             {% endif %}
             {% if rec.status == 'Overdue' %}
-              · <span style="color:#dc2626">{{ (today - rec.scheduled_date).days }} days overdue</span>
+              · <span style="color:var(--sm-overdue-fg)">{{ (today - rec.scheduled_date).days }} days overdue</span>
             {% elif rec.status == 'Due' %}
-              · <span style="color:#ea580c">{{ (rec.scheduled_date - today).days }} days away</span>
+              · <span style="color:var(--sm-due-fg)">{{ (rec.scheduled_date - today).days }} days away</span>
             {% elif rec.status == 'Upcoming' and not locked %}
               · {{ (rec.scheduled_date - today).days }} days away
             {% endif %}
-            {% if rec.technician %}
-              · by {{ rec.technician.full_name }}
-            {% endif %}
+            {% if rec.technician %} · by {{ rec.technician.full_name }}{% endif %}
           </div>
+
+          
 
           {% if rec.notes %}
           <div class="visit-notes">{{ rec.notes }}</div>
           {% endif %}
 
-          {# ── Actions (unlocked for everyone; admins can override the lock to backfill) ── #}
-{% if (not locked or current_user.role == 'admin') and rec.status not in ['Completed', 'Skipped'] %}
-  {% if current_user.role in ['admin', 'onsite'] %}
-  <div class="vrow-actions">
-    {% if locked and current_user.role == 'admin' %}
-    <span style="font-size:11px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;
-                 border-radius:20px;padding:2px 10px;margin-right:4px">
-      🔓 Admin override — previous visit not yet completed
-    </span>
-    {% endif %}
-    <button class="btn btn-sm btn-primary"
-            onclick="toggleInline('complete-{{ rec.id }}')">
-      ✓ Mark complete
-    </button>
-    <button class="btn btn-sm"
-            onclick="toggleInline('reschedule-{{ rec.id }}')">
-      📅 Reschedule
-    </button>
-    {% if current_user.role == 'admin' %}
-    <button class="btn btn-sm btn-danger"
-            onclick="toggleInline('skip-{{ rec.id }}')">
-      ✕ Skip
-    </button>
-    {% endif %}
-  </div>
+          {% if rec.status == 'Skipped' and current_user.role == 'admin' %}
+          <div class="vrow-actions">
+            <form method="POST" action="{{ url_for('unskip_service', sid=rec.id) }}" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm"><i class="ti ti-refresh" style="font-size:12px"></i> Un-skip</button>
+            </form>
+          </div>
+          {% endif %}
 
-            {# Complete form #}
+          {% if (not locked or current_user.role == 'admin') and rec.status not in ['Completed', 'Skipped'] %}
+            {% if current_user.role in ['admin', 'onsite'] %}
+            <div class="vrow-actions">
+              {% if locked and current_user.role == 'admin' %}
+              <span style="font-size:11px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;
+                           border-radius:20px;padding:3px 11px;margin-right:4px">
+                <i class="ti ti-lock-open" style="font-size:11px"></i> Admin override — previous visit not yet completed
+              </span>
+              {% endif %}
+              <button class="btn btn-sm btn-primary" onclick="toggleInline('complete-{{ rec.id }}')">
+                <i class="ti ti-check" style="font-size:12px"></i> Mark complete
+              </button>
+              <button class="btn btn-sm" onclick="toggleInline('reschedule-{{ rec.id }}')">
+                <i class="ti ti-calendar-time" style="font-size:12px"></i> Reschedule
+              </button>
+              {% if current_user.role == 'admin' %}
+              <button class="btn btn-sm btn-danger" onclick="toggleInline('skip-{{ rec.id }}')">
+                <i class="ti ti-x" style="font-size:12px"></i> Skip
+              </button>
+              {% endif %}
+            </div>
+
             <div class="inline-form" id="complete-{{ rec.id }}">
-              <div style="font-size:12px;font-weight:600;color:var(--muted);
-                          text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">
+              <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">
                 Mark Visit {{ rec.visit_number }} Complete
               </div>
               <form method="POST" action="{{ url_for('complete_service', sid=rec.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="form-grid">
                   <div class="form-group">
-  <label>Date of service</label>
-  <input type="date" name="completed_date"
-         value="{{ today.isoformat() }}" max="{{ today.isoformat() }}" required>
-  <small style="color:var(--hint);font-size:11px">
-    Backdate this if the visit was completed earlier and just wasn't logged yet.
-  </small>
-</div>
+                    <label>Date of service</label>
+                    <input type="date" name="completed_date" value="{{ today.isoformat() }}" max="{{ today.isoformat() }}" required>
+                    <small style="color:var(--hint);font-size:11px">
+                      Backdate this if the visit was completed earlier and just wasn't logged yet.
+                    </small>
+                  </div>
                   <div class="form-group" style="display:flex;align-items:flex-end;gap:10px">
-                    <label style="display:flex;align-items:center;gap:8px;
-                                  background:#f0fdf4;border:1px solid #bbf7d0;
-                                  border-radius:var(--radius);padding:8px 12px;
+                    <label style="display:flex;align-items:center;gap:8px;background:var(--sm-done-bg);
+                                  border:1px solid var(--sm-done-bd);border-radius:8px;padding:8px 12px;
                                   cursor:pointer;flex:1">
                       <input type="checkbox" name="panel_cleaning" value="1" checked>
-                      <span style="font-size:13px;font-weight:500;color:#15803d">
-                        ☀ Panel cleaning done
+                      <span style="font-size:13px;font-weight:500;color:var(--sm-done-fg)">
+                        <i class="ti ti-sun" style="font-size:12px"></i> Panel cleaning done
                       </span>
                     </label>
                   </div>
                   <div class="form-group full">
                     <label>Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
-                    <textarea name="notes" rows="2"
-                              placeholder="Observations, issues, remarks…"></textarea>
+                    <textarea name="notes" rows="2" placeholder="Observations, issues, remarks…"></textarea>
                   </div>
                 </div>
                 <div style="display:flex;gap:8px">
-                  <button type="submit" class="btn btn-primary btn-sm">✓ Confirm</button>
-                  <button type="button" class="btn btn-sm"
-                          onclick="toggleInline('complete-{{ rec.id }}')">Cancel</button>
+                  <button type="submit" class="btn btn-primary btn-sm">Confirm</button>
+                  <button type="button" class="btn btn-sm" onclick="toggleInline('complete-{{ rec.id }}')">Cancel</button>
                 </div>
               </form>
             </div>
 
-            {# Reschedule form #}
             <div class="inline-form" id="reschedule-{{ rec.id }}">
-              <div style="font-size:12px;font-weight:600;color:var(--muted);
-                          text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">
-                Reschedule Visit {{ rec.visit_number }}
-              </div>
-              <div style="font-size:12px;color:var(--hint);margin-bottom:10px">
-                Currently scheduled: <strong>{{ rec.scheduled_date | date_fmt }}</strong>
-              </div>
-              <form method="POST" action="{{ url_for('reschedule_service', sid=rec.id) }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="form-grid">
-                  <div class="form-group">
-                    <label>New date</label>
-                    <input type="date" name="new_date"
-                           min="{{ today.isoformat() }}" required>
-                  </div>
-                </div>
-                <div style="display:flex;gap:8px">
-                  <button type="submit" class="btn btn-sm btn-primary">Save</button>
-                  <button type="button" class="btn btn-sm"
-                          onclick="toggleInline('reschedule-{{ rec.id }}')">Cancel</button>
-                </div>
-              </form>
-            </div>
+  <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">
+    Reschedule Visit {{ rec.visit_number }}
+  </div>
+  <div style="font-size:12px;color:var(--hint);margin-bottom:10px">
+    Currently scheduled: <strong>{{ rec.scheduled_date | date_fmt }}</strong>
+  </div>
+  <form method="POST" action="{{ url_for('reschedule_service', sid=rec.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>New date</label>
+        <input type="date" name="new_date" min="{{ today.isoformat() }}" required>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button type="submit" class="btn btn-sm btn-primary">Save</button>
+      <button type="button" class="btn btn-sm" onclick="toggleInline('reschedule-{{ rec.id }}')">Cancel</button>
+    </div>
+  </form>
+</div>
 
-            {# Skip form (admin only) #}
             {% if current_user.role == 'admin' %}
             <div class="inline-form" id="skip-{{ rec.id }}">
-              <div style="font-size:12px;font-weight:600;color:#b91c1c;
-                          text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">
+              <div style="font-size:12px;font-weight:600;color:#b91c1c;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">
                 Skip Visit {{ rec.visit_number }}
               </div>
-              <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:var(--radius);
-                          padding:8px 12px;font-size:12px;color:#92400e;margin-bottom:10px">
-                ⚠ This cannot be undone. Provide a reason.
+              <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;
+                          padding:9px 12px;font-size:12px;color:#92400e;margin-bottom:10px">
+                <i class="ti ti-info-circle" style="font-size:12px"></i> This can be undone later via Un-skip. Provide a reason.
               </div>
               <form method="POST" action="{{ url_for('skip_service', sid=rec.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="form-group" style="margin-bottom:10px">
                   <label>Reason for skipping</label>
-                  <textarea name="reason" rows="2" required
-                            placeholder="e.g. Customer request, site inaccessible…"></textarea>
+                  <textarea name="reason" rows="2" required placeholder="e.g. Customer request, site inaccessible…"></textarea>
                 </div>
                 <div style="display:flex;gap:8px">
-                  <button type="submit" class="btn btn-danger btn-sm">✕ Confirm skip</button>
-                  <button type="button" class="btn btn-sm"
-                          onclick="toggleInline('skip-{{ rec.id }}')">Cancel</button>
+                  <button type="submit" class="btn btn-danger btn-sm">Confirm skip</button>
+                  <button type="button" class="btn btn-sm" onclick="toggleInline('skip-{{ rec.id }}')">Cancel</button>
                 </div>
               </form>
             </div>
             {% endif %}
 
-            {% endif %}{# /admin|onsite #}
-          {% endif %}{# /not locked #}
+            {% endif %}
+          {% endif %}
 
-        </div>{# /vrow-info #}
-      </div>{# /visit-row #}
+        </div>
+      </div>
     {% endfor %}
-  </div>{# /sm-card-body #}
+  </div>
 
-</div>{# /sm-card #}
+</div>
 {% endfor %}
 </div>
 
 <div id="sm-empty" style="display:none" class="empty-state">
+  <i class="ti ti-filter-off"></i>
   No projects match your filter.
 </div>
 
 {% endif %}
 
 <script>
-/* ── Toggle accordion via event delegation ── */
-document.getElementById('sm-list').addEventListener('click', function(e) {
+document.getElementById('sm-list') && document.getElementById('sm-list').addEventListener('click', function(e) {
   var head = e.target.closest('.sm-card-head');
   if (!head) return;
   var pid  = head.getAttribute('data-pid');
@@ -665,21 +652,17 @@ document.getElementById('sm-list').addEventListener('click', function(e) {
   if (chev) chev.classList.toggle('open', open);
 });
 
-/* ── Toggle inline form, close siblings ── */
 function toggleInline(id) {
   var el = document.getElementById(id);
   if (!el) return;
   var wasOpen = el.classList.contains('open');
-  var body = el.closest('.sm-card-body');
-  if (body) {
-    body.querySelectorAll('.inline-form.open').forEach(function(f) {
-      f.classList.remove('open');
-    });
-  }
-  if (!wasOpen) el.classList.add('open');
+  var scope = el.closest('.sm-card-body') || document;
+  scope.querySelectorAll('.inline-form.open').forEach(function(f) {
+    if (f !== el) f.classList.remove('open');
+  });
+  el.classList.toggle('open', !wasOpen);
 }
 
-/* ── Filter ── */
 var activeFilter = 'all';
 function smFilter(key) {
   activeFilter = key;
@@ -689,7 +672,6 @@ function smFilter(key) {
   smRender();
 }
 
-/* ── Render (filter + sort + search) ── */
 function smRender() {
   var q   = document.getElementById('sm-search').value.toLowerCase().trim();
   var srt = document.getElementById('sm-sort').value;
@@ -697,14 +679,15 @@ function smRender() {
   var visible = 0;
 
   cards.forEach(function(c) {
-    var name = c.getAttribute('data-name') || '';
-    var code = c.getAttribute('data-code') || '';
-    var over = parseInt(c.getAttribute('data-over') || 0);
-    var due  = parseInt(c.getAttribute('data-due')  || 0);
-    var pct  = parseInt(c.getAttribute('data-pct')  || 0);
-    var done = c.getAttribute('data-done') === 'yes';
+    var name  = c.getAttribute('data-name') || '';
+    var code  = c.getAttribute('data-code') || '';
+    var place = c.getAttribute('data-place') || '';
+    var over  = parseInt(c.getAttribute('data-over') || 0);
+    var due   = parseInt(c.getAttribute('data-due')  || 0);
+    var pct   = parseInt(c.getAttribute('data-pct')  || 0);
+    var done  = c.getAttribute('data-done') === 'yes';
 
-    var matchQ = !q || name.includes(q) || code.includes(q);
+    var matchQ = !q || name.includes(q) || code.includes(q) || place.includes(q);
     var matchF = true;
     if (activeFilter === 'overdue') matchF = over > 0;
     if (activeFilter === 'due')     matchF = due  > 0;
@@ -738,6 +721,59 @@ function smRender() {
 
   var empty = document.getElementById('sm-empty');
   if (empty) empty.style.display = visible === 0 ? '' : 'none';
+}
+
+/* ── Bulk selection ── */
+var smSelected = new Set();
+function smToggleSelect(checkbox, pid) {
+  var sid = checkbox.getAttribute('data-sid');
+  var card = document.getElementById('sm-card-' + pid);
+  if (checkbox.checked) {
+    smSelected.add(sid);
+    if (card) card.classList.add('is-selected');
+  } else {
+    smSelected.delete(sid);
+    if (card) card.classList.remove('is-selected');
+  }
+  smUpdateBulkBar();
+}
+function smClearSelection() {
+  smSelected.clear();
+  document.querySelectorAll('.sm-select-box').forEach(function(cb) { cb.checked = false; });
+  document.querySelectorAll('.sm-card.is-selected').forEach(function(c) { c.classList.remove('is-selected'); });
+  smUpdateBulkBar();
+}
+function smUpdateBulkBar() {
+  var bar = document.getElementById('sm-bulkbar');
+  var countEl = document.getElementById('sm-selected-count');
+  if (!bar || !countEl) return;
+  countEl.textContent = smSelected.size;
+  bar.classList.toggle('show', smSelected.size > 0);
+
+  var hiddenWrap = document.getElementById('bulk-hidden-ids');
+  if (hiddenWrap) {
+    hiddenWrap.innerHTML = '';
+    smSelected.forEach(function(sid) {
+      var inp = document.createElement('input');
+      inp.type = 'hidden';
+      inp.name = 'service_ids';
+      inp.value = sid;
+      hiddenWrap.appendChild(inp);
+    });
+  }
+}
+function smToggleSelect(checkbox) {
+  var sid = checkbox.getAttribute('data-sid');
+  var pid = checkbox.getAttribute('data-pid');
+  var card = document.getElementById('sm-card-' + pid);
+  if (checkbox.checked) {
+    smSelected.add(sid);
+    if (card) card.classList.add('is-selected');
+  } else {
+    smSelected.delete(sid);
+    if (card) card.classList.remove('is-selected');
+  }
+  smUpdateBulkBar();
 }
 </script>
 {% endblock %}
