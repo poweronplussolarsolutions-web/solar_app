@@ -827,12 +827,14 @@
 document.addEventListener('click', function(e) {
   const open = e.target.closest('.notif-open');
   if (open) {
-    fetch('/api/notifications/read/' + open.dataset.nid, { method: 'POST' });
+    fetch('/api/notifications/read/' + open.dataset.nid, { method: 'POST' })
+      .then(() => refreshUnreadBadge());
   }
 
   const dismiss = e.target.closest('.notif-dismiss');
   if (dismiss) {
-    fetch('/api/notifications/read/' + dismiss.dataset.nid, { method: 'POST' });
+    fetch('/api/notifications/read/' + dismiss.dataset.nid, { method: 'POST' })
+      .then(() => refreshUnreadBadge());
     dismiss.closest('.notif-item').remove();
   }
 });

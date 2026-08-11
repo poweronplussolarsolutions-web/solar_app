@@ -1607,12 +1607,16 @@ def send_push_notification(user_id, title, body, url='/dashboard', tag=None):
                 db.session.commit()
         except Exception:
             pass  
-
+@app.route('/api/notifications/unread_count')
+@login_required
+def api_unread_count():
+    count = Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
+    return jsonify({'count': count})
 @app.route('/sw.js')
 def service_worker():
-    resp = make_response(send_from_directory('static', 'sw.js'))
+    resp = make_response(send_from_directory(app.static_folder, 'sw.js'))
     resp.headers['Content-Type'] = 'application/javascript'
-    resp.headers['Service-Worker-Allowed'] = '/'   # lets sw.js control the whole site, not just /static/
+    resp.headers['Service-Worker-Allowed'] = '/'
     return resp
 
 

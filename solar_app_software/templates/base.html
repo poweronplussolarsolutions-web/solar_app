@@ -247,7 +247,7 @@
       background: var(--bg); color: var(--muted); border-radius: 4px;
       border: 0.5px solid var(--border);
     }
-
+    
     /* ── MOBILE ── */
 @media (max-width: 768px) {
   :root { --sidebar-w: 0px; }
@@ -425,7 +425,10 @@
   .stat-value { font-size: 18px; }
   .stat-label { font-size: 11px; }
 }
-
+@keyframes poweron-toast-in {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
   </style>
   {% block head %}{% endblock %}
 </head>
@@ -841,6 +844,51 @@ document.addEventListener('click', async (e) => {
 window.addEventListener('appinstalled', () => {
   document.querySelectorAll('.pwa-install-btn').forEach((b) => (b.style.display = 'none'));
 });
+// ---- Badge count on the app icon (taskbar/dock/notification area) ----
+function updateAppBadge(count) {
+  if ('setAppBadge' in navigator) {
+    if (count > 0) navigator.setAppBadge(count).catch(() => {});
+    else navigator.clearAppBadge().catch(() => {});
+  }
+}
+
+async function refreshUnreadBadge() {
+  try {
+    const res = await fetch('/api/notifications/unread_count');
+    const { count } = await res.json();
+    updateAppBadge(count);
+  } catch (err) { /* ignore */ }
+}
+
+refreshUnreadBadge();
+setInterval(refreshUnreadBadge, 30000);   // keeps badge in sync even without a live push
+
+// ---- In-app toast for when the tab is already focused ----
+function showInAppToast(data) {
+  const toast = document.createElement('div');
+  toast.innerHTML = `
+    <div style="font-weight:600;font-size:13px;margin-bottom:2px">${data.title || 'Power On Plus'}</div>
+    <div style="font-size:12px;color:var(--muted)">${data.body || ''}</div>
+  `;
+  toast.style.cssText = `
+    position:fixed;bottom:20px;right:20px;z-index:9999;
+    background:var(--surface,#fff);border:0.5px solid var(--border,#ddd);
+    border-radius:10px;padding:12px 16px;box-shadow:0 8px 24px rgba(0,0,0,.15);
+    max-width:320px;cursor:pointer;animation:poweron-toast-in .25s ease-out;
+  `;
+  toast.addEventListener('click', () => { window.location.href = data.url || '/dashboard'; });
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 6000);
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'IN_APP_NOTIFICATION') {
+      showInAppToast(event.data.payload);
+      refreshUnreadBadge();
+    }
+  });
+}
 </script>
 </body>
 </html>
