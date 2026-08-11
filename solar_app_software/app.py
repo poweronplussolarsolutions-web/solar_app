@@ -1583,11 +1583,13 @@ def create_notification(user_id, project_id, message, notif_type='info'):
 def send_push_notification(user_id, title, body, url='/dashboard', tag=None):
     subs = PushSubscription.query.filter_by(user_id=user_id).all()
     if not subs:
+        print(f'[PUSH] No subscriptions for user {user_id}')
         return
     payload = _json.dumps({'title': title, 'body': body, 'url': url, 'tag': tag})
     vapid_private_key = os.environ.get('VAPID_PRIVATE_KEY_PATH')
     vapid_claims = {'sub': os.environ.get('VAPID_CLAIM_EMAIL', 'mailto:admin@example.com')}
     if not vapid_private_key:
+        print('[PUSH] VAPID_PRIVATE_KEY_PATH not set — aborting')
         return
     for sub in subs:
         try:
@@ -1600,13 +1602,15 @@ def send_push_notification(user_id, title, body, url='/dashboard', tag=None):
                 vapid_private_key=vapid_private_key,
                 vapid_claims=vapid_claims,
             )
+            print(f'[PUSH] Sent OK to sub {sub.id}')
         except WebPushException as ex:
-            # 404/410 = subscription is dead (browser data cleared, uninstalled, etc.) — remove it
+            print(f'[PUSH] WebPushException: {ex}')
+            if ex.response is not None:
+                print(f'[PUSH] status={ex.response.status_code} body={ex.response.text}')
             if ex.response is not None and ex.response.status_code in (404, 410):
                 db.session.delete(sub)
-                db.session.commit()
-        except Exception:
-            pass  
+        except Exception as ex:
+            print(f'[PUSH] Unexpected error: {repr(ex)}')
 @app.route('/api/notifications/unread_count')
 @login_required
 def api_unread_count():
