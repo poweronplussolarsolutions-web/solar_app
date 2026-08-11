@@ -11,6 +11,7 @@
   {% endif %}
 {% endblock %}
 {% block topbar_actions %}
+  <button type="button" class="btn pwa-install-btn" style="display:none">⬇ Install App</button>
   {% if current_user.role in ['coordinator','office','documents_k','director'] %}
   <a href="{{ url_for('new_project') }}" class="btn btn-primary">+ New Project</a>
   {% endif %}

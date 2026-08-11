@@ -6,6 +6,10 @@
   <title>{% block title %}Power on Plus Solar{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+<meta name="theme-color" content="#1A3C5E">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -773,5 +777,70 @@ function closeSidebar() {
 </div>
 <div id="sidebar-overlay" onclick="closeSidebar()"></div>
 {% endif %}
+<script>
+const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
+
+// ---- Service worker + push subscription ----
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then((reg) => subscribeToPush(reg))
+      .catch((err) => console.warn('SW registration failed', err));
+  });
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
+
+async function subscribeToPush(reg) {
+  if (!('PushManager' in window) || Notification.permission === 'denied') return;
+  try {
+    const perm = Notification.permission === 'granted'
+      ? 'granted' : await Notification.requestPermission();
+    if (perm !== 'granted') return;
+
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const res = await fetch('/api/push/vapid_public_key');
+      const { publicKey } = await res.json();
+      if (!publicKey) return;
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    }
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+      body: JSON.stringify(sub),
+    });
+  } catch (err) {
+    console.warn('Push subscribe failed', err);
+  }
+}
+
+// ---- Install button (all roles) ----
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.querySelectorAll('.pwa-install-btn').forEach((b) => (b.style.display = 'inline-flex'));
+});
+document.addEventListener('click', async (e) => {
+  if (!e.target.closest('.pwa-install-btn')) return;
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  document.querySelectorAll('.pwa-install-btn').forEach((b) => (b.style.display = 'none'));
+});
+window.addEventListener('appinstalled', () => {
+  document.querySelectorAll('.pwa-install-btn').forEach((b) => (b.style.display = 'none'));
+});
+</script>
 </body>
 </html>

@@ -15,7 +15,9 @@ from datetime import datetime, date, timezone, timedelta
 from decimal import Decimal
 import os
 import re
-
+from pywebpush import webpush, WebPushException
+import json as _json
+from flask import send_from_directory
 from flask import send_file
 import tempfile, calendar
 # from solar_app_software.logging_system import (
@@ -171,7 +173,9 @@ def set_security_headers(response):
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
     "font-src 'self' https://fonts.gstatic.com; "
     "img-src 'self' data: https://*.tile.openstreetmap.org; "
-    "connect-src 'self' https://nominatim.openstreetmap.org;"
+    "connect-src 'self' https://nominatim.openstreetmap.org https://fcm.googleapis.com; "
+    "worker-src 'self'; "
+    "manifest-src 'self';"
 )
     return response
 
@@ -996,7 +1000,17 @@ class ProductReplacement(db.Model):
     category = db.relationship('ProductCategory',
         backref=db.backref('replacements', lazy=True, order_by='ProductReplacement.replacement_date.desc()'))
     recorder = db.relationship('User', foreign_keys=[recorded_by])
-    clearer  = db.relationship('User', foreign_keys=[cleared_by])   
+    clearer  = db.relationship('User', foreign_keys=[cleared_by]) 
+class PushSubscription(db.Model):
+    __tablename__ = 'push_subscriptions'
+    id         = db.Column(db.Integer, primary_key=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    endpoint   = db.Column(db.String(500), unique=True, nullable=False)
+    p256dh     = db.Column(db.String(255), nullable=False)
+    auth       = db.Column(db.String(255), nullable=False)
+    user_agent = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user       = db.relationship('User', backref='push_subscriptions') 
 from urllib.parse import urlparse
 
 ALLOWED_MAPS_HOSTS = ('google.com', 'goo.gl', 'maps.app.goo.gl')
@@ -1561,6 +1575,80 @@ def create_notification(user_id, project_id, message, notif_type='info'):
         user_id=user_id, project_id=project_id,
         message=message[:255], notif_type=notif_type,
     ))
+    send_push_notification(
+        user_id, 'Power On Plus',
+        message[:150],
+        url=f'/projects/{project_id}' if project_id else '/dashboard',
+    )
+def send_push_notification(user_id, title, body, url='/dashboard', tag=None):
+    subs = PushSubscription.query.filter_by(user_id=user_id).all()
+    if not subs:
+        return
+    payload = _json.dumps({'title': title, 'body': body, 'url': url, 'tag': tag})
+    vapid_private_key = os.environ.get('VAPID_PRIVATE_KEY_PATH')
+    vapid_claims = {'sub': os.environ.get('VAPID_CLAIM_EMAIL', 'mailto:admin@example.com')}
+    if not vapid_private_key:
+        return
+    for sub in subs:
+        try:
+            webpush(
+                subscription_info={
+                    'endpoint': sub.endpoint,
+                    'keys': {'p256dh': sub.p256dh, 'auth': sub.auth},
+                },
+                data=payload,
+                vapid_private_key=vapid_private_key,
+                vapid_claims=vapid_claims,
+            )
+        except WebPushException as ex:
+            # 404/410 = subscription is dead (browser data cleared, uninstalled, etc.) — remove it
+            if ex.response is not None and ex.response.status_code in (404, 410):
+                db.session.delete(sub)
+                db.session.commit()
+        except Exception:
+            pass  
+
+@app.route('/sw.js')
+def service_worker():
+    resp = make_response(send_from_directory('static', 'sw.js'))
+    resp.headers['Content-Type'] = 'application/javascript'
+    resp.headers['Service-Worker-Allowed'] = '/'   # lets sw.js control the whole site, not just /static/
+    return resp
+
+
+@app.route('/api/push/vapid_public_key')
+@login_required
+def push_public_key():
+    return jsonify({'publicKey': os.environ.get('VAPID_PUBLIC_KEY', '')})
+
+
+@app.route('/api/push/subscribe', methods=['POST'])
+@login_required
+def push_subscribe():
+    data = request.get_json(force=True, silent=True) or {}
+    endpoint = data.get('endpoint')
+    keys = data.get('keys', {})
+    if not endpoint or not keys.get('p256dh') or not keys.get('auth'):
+        return jsonify({'error': 'invalid subscription'}), 400
+    if not PushSubscription.query.filter_by(endpoint=endpoint).first():
+        db.session.add(PushSubscription(
+            user_id=current_user.id, endpoint=endpoint,
+            p256dh=keys['p256dh'], auth=keys['auth'],
+            user_agent=request.headers.get('User-Agent', '')[:255],
+        ))
+        db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/push/unsubscribe', methods=['POST'])
+@login_required
+def push_unsubscribe():
+    data = request.get_json(force=True, silent=True) or {}
+    endpoint = data.get('endpoint')
+    if endpoint:
+        PushSubscription.query.filter_by(endpoint=endpoint, user_id=current_user.id).delete()
+        db.session.commit()
+    return jsonify({'ok': True})
 def _reconcile_excess_after_payment_change(proj):
     """Recomputes PaymentExcess (customer-side) and BankExcessReturn (bank-side)
     after a payment edit/delete. Only touches Pending/unsettled excess records —
