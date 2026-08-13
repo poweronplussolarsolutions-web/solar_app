@@ -1584,10 +1584,10 @@ def send_push_notification(user_id, title, body, url='/dashboard', tag=None):
         print(f'[PUSH] No subscriptions for user {user_id}')
         return
     payload = _json.dumps({'title': title, 'body': body, 'url': url, 'tag': tag})
-    vapid_private_key = os.environ.get('VAPID_PRIVATE_KEY_PATH')
+    vapid_private_key = os.environ.get('VAPID_PRIVATE_KEY') or os.environ.get('VAPID_PRIVATE_KEY_PATH')
     vapid_claims = {'sub': os.environ.get('VAPID_CLAIM_EMAIL', 'mailto:admin@example.com')}
     if not vapid_private_key:
-        print('[PUSH] VAPID_PRIVATE_KEY_PATH not set — aborting')
+        print('[PUSH] VAPID_PRIVATE_KEY not set — aborting')
         return
     for sub in subs:
         try:
@@ -1637,13 +1637,20 @@ def push_subscribe():
     keys = data.get('keys', {})
     if not endpoint or not keys.get('p256dh') or not keys.get('auth'):
         return jsonify({'error': 'invalid subscription'}), 400
-    if not PushSubscription.query.filter_by(endpoint=endpoint).first():
+
+    sub = PushSubscription.query.filter_by(endpoint=endpoint).first()
+    if sub:
+        sub.user_id    = current_user.id
+        sub.p256dh     = keys['p256dh']
+        sub.auth       = keys['auth']
+        sub.user_agent = request.headers.get('User-Agent', '')[:255]
+    else:
         db.session.add(PushSubscription(
             user_id=current_user.id, endpoint=endpoint,
             p256dh=keys['p256dh'], auth=keys['auth'],
             user_agent=request.headers.get('User-Agent', '')[:255],
         ))
-        db.session.commit()
+    db.session.commit()
     return jsonify({'ok': True})
 
 
