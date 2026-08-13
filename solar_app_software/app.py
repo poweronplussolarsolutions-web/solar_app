@@ -1569,16 +1569,24 @@ def _notify_stage_transition(proj, from_stage, to_stage):
         if proj.doc_staff_id:
             create_notification(proj.doc_staff_id, proj.id,
                 f'{code}: Project marked completed.', 'info')
-
+import json
 def create_notification(user_id, project_id, message, notif_type='info'):
-    notification = Notification(
+    print(
+        f'[NOTIFICATION] create_notification called '
+        f'user_id={user_id}, project_id={project_id}, message={message}'
+    )
+
+    db.session.add(Notification(
         user_id=user_id,
         project_id=project_id,
         message=message[:255],
         notif_type=notif_type,
-    )
+    ))
 
-    db.session.add(notification)
+    print(
+        f'[NOTIFICATION] Calling send_push_notification '
+        f'for user_id={user_id}'
+    )
 
     send_push_notification(
         user_id,
@@ -1586,37 +1594,102 @@ def create_notification(user_id, project_id, message, notif_type='info'):
         message[:150],
         url=f'/projects/{project_id}' if project_id else '/dashboard',
     )
+
+    print(
+        f'[NOTIFICATION] create_notification finished '
+        f'for user_id={user_id}'
+    )
 def send_push_notification(user_id, title, body, url='/dashboard', tag=None):
+
+    print(
+        f'[PUSH] send_push_notification called '
+        f'user_id={user_id}, title={title}, body={body}, url={url}'
+    )
+
     subs = PushSubscription.query.filter_by(user_id=user_id).all()
+
+    print(
+        f'[PUSH] Found {len(subs)} subscription(s) '
+        f'for user_id={user_id}'
+    )
+
     if not subs:
         print(f'[PUSH] No subscriptions for user {user_id}')
         return
-    payload = _json.dumps({'title': title, 'body': body, 'url': url, 'tag': tag})
+
+    payload = json.dumps({
+        'title': title,
+        'body': body,
+        'url': url,
+        'tag': tag
+    })
+
+    print(f'[PUSH] Payload: {payload}')
+
     vapid_private_key = os.environ.get('VAPID_PRIVATE_KEY_PATH')
-    vapid_claims = {'sub': os.environ.get('VAPID_CLAIM_EMAIL', 'mailto:admin@example.com')}
+
+    print(
+        f'[PUSH] VAPID_PRIVATE_KEY_PATH set: '
+        f'{bool(vapid_private_key)}'
+    )
+
+    vapid_claims = {
+        'sub': os.environ.get(
+            'VAPID_CLAIM_EMAIL',
+            'mailto:admin@example.com'
+        )
+    }
+
     if not vapid_private_key:
         print('[PUSH] VAPID_PRIVATE_KEY_PATH not set — aborting')
         return
+
     for sub in subs:
+
+        print(f'[PUSH] Sending to subscription {sub.id}')
+
         try:
             webpush(
                 subscription_info={
                     'endpoint': sub.endpoint,
-                    'keys': {'p256dh': sub.p256dh, 'auth': sub.auth},
+                    'keys': {
+                        'p256dh': sub.p256dh,
+                        'auth': sub.auth
+                    },
                 },
                 data=payload,
                 vapid_private_key=vapid_private_key,
                 vapid_claims=vapid_claims,
             )
+
             print(f'[PUSH] Sent OK to sub {sub.id}')
+
         except WebPushException as ex:
-            print(f'[PUSH] WebPushException: {ex}')
+
+            print(
+                f'[PUSH] WebPushException for sub {sub.id}: {ex}'
+            )
+
             if ex.response is not None:
-                print(f'[PUSH] status={ex.response.status_code} body={ex.response.text}')
-            if ex.response is not None and ex.response.status_code in (404, 410):
-                db.session.delete(sub)
+                print(
+                    f'[PUSH] status={ex.response.status_code} '
+                    f'body={ex.response.text}'
+                )
+
+                if ex.response.status_code in (404, 410):
+                    print(
+                        f'[PUSH] Removing expired subscription '
+                        f'{sub.id}'
+                    )
+
+                    db.session.delete(sub)
+
         except Exception as ex:
-            print(f'[PUSH] Unexpected error: {repr(ex)}')
+
+            print(
+                f'[PUSH] Unexpected error for sub {sub.id}: '
+                f'{repr(ex)}'
+            )
 @app.route('/api/notifications/unread_count')
 @login_required
 def api_unread_count():
