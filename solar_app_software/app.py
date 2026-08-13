@@ -125,7 +125,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SESSION_COOKIE_HTTPONLY'] = True          # JS cannot read cookie
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'        # CSRF mitigation
 app.config['SESSION_COOKIE_SECURE']   = os.environ.get('FLASK_ENV') == 'production'
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 app.config['WTF_CSRF_TIME_LIMIT']     = 3600          # CSRF token valid 1 h
 
 db           = SQLAlchemy(app)
@@ -1773,7 +1773,52 @@ def notify_onsite_team(project_id, message, notif_type='task'):
     for user in User.query.filter_by(role='onsite', is_active=True).all():
         create_notification(user.id, project_id, message, notif_type)
 
+@app.route('/onsite_activity')
+@login_required
+@roles_required('admin', 'payments', 'director')
+def onsite_activity():
+    """Read-only day-by-day view of onsite work — for the Payments team."""
+    selected_date = request.args.get('date')
+    try:
+        day = date.fromisoformat(selected_date) if selected_date else date.today()
+    except ValueError:
+        day = date.today()
 
+    # Workers assigned/active on this day
+    assignments_today = (WorkerAssignment.query
+        .options(joinedload(WorkerAssignment.worker),
+                 joinedload(WorkerAssignment.project).joinedload(Project.customer))
+        .filter(
+            WorkerAssignment.start_date <= day,
+            db.or_(WorkerAssignment.end_date == None, WorkerAssignment.end_date >= day),
+            WorkerAssignment.status.in_(['Assigned', 'Active'])
+        ).all())
+
+    # Actual logged activity for the day (what onsite team reported)
+    logs_today = (OnsiteLog.query
+        .options(joinedload(OnsiteLog.project).joinedload(Project.customer),
+                 joinedload(OnsiteLog.logger))
+        .filter(OnsiteLog.log_date == day)
+        .order_by(OnsiteLog.created_at.desc())
+        .all())
+
+    by_project = {}
+    for a in assignments_today:
+        p = a.project
+        by_project.setdefault(p.id, {'project': p, 'workers': [], 'logs': []})
+        by_project[p.id]['workers'].append(a)
+    for l in logs_today:
+        p = l.project
+        by_project.setdefault(p.id, {'project': p, 'workers': [], 'logs': []})
+        by_project[p.id]['logs'].append(l)
+
+    rows = sorted(by_project.values(), key=lambda r: r['project'].project_code)
+
+    return render_template('onsite_activity.html',
+        rows=rows, day=day,
+        prev_day=day - timedelta(days=1),
+        next_day=day + timedelta(days=1),
+        today=date.today())
 def next_project_code():
     numeric = []
     for (code,) in db.session.query(Project.project_code).all():
@@ -1855,11 +1900,9 @@ def login():
         # Success
         u.reset_login_attempts()
         db.session.commit()
-           # user not found
-                              # account locked check
-           # wrong password
-        # log_login_attempt(username, True)                     # before login_user(u)
+                              
         login_user(u)
+        session.permanent = True 
         # Regenerate session to prevent session fixation
         session.regenerate() if hasattr(session, 'regenerate') else None
         if u.role == 'stocks':
@@ -4249,6 +4292,12 @@ def onsite_progress(pid):
         if old_elec    != progress.electrical_status:     changes.append(f'Electrical: {old_elec} → {progress.electrical_status}')
         log_action(pid, ('Onsite: ' + ', '.join(changes)) if changes else 'Onsite dates/notes updated')
 
+        if changes:
+            for u in User.query.filter_by(role='payments', is_active=True).all():
+                create_notification(u.id, pid,
+                    f'{proj.project_code} — {proj.customer.name}: Onsite work update — '
+                    + ', '.join(changes), 'info')
+
         db.session.flush()
         auto_advance_stage(proj)
         db.session.commit()
@@ -4256,7 +4305,6 @@ def onsite_progress(pid):
         return redirect(url_for('onsite_progress', pid=pid))
 
     return render_template('onsite_progress.html', proj=proj, progress=progress,all_workers=all_workers,all_stock_items=all_stock_items,delivered_stock_txns=delivered_stock_txns,today=date.today())
-
 
 @app.route('/projects/<int:pid>/onsite_log', methods=['POST'])
 @login_required

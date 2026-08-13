@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Onsite Activity{% endblock %}
+{% block page_title %}Onsite Activity{% endblock %}
+
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+  <div style="display:flex;align-items:center;gap:10px">
+    <a href="{{ url_for('onsite_activity', date=prev_day.isoformat()) }}"
+       style="padding:6px 12px;border:0.5px solid var(--border);border-radius:var(--radius);text-decoration:none;color:inherit;font-size:13px">← Prev</a>
+    <div style="font-size:15px;font-weight:600">
+      {{ day.strftime('%A, %d %b %Y') }}
+      {% if day == today %}<span style="font-size:11px;color:var(--muted);font-weight:400">(today)</span>{% endif %}
+    </div>
+    <a href="{{ url_for('onsite_activity', date=next_day.isoformat()) }}"
+       style="padding:6px 12px;border:0.5px solid var(--border);border-radius:var(--radius);text-decoration:none;color:inherit;font-size:13px">Next →</a>
+  </div>
+  {% if day != today %}
+  <a href="{{ url_for('onsite_activity') }}" style="font-size:12px;color:var(--muted)">Jump to today</a>
+  {% endif %}
+</div>
+
+{% if not rows %}
+  <div class="card" style="text-align:center;padding:30px;color:var(--muted);font-size:13px">
+    No onsite activity recorded for this day.
+  </div>
+{% else %}
+  <div style="display:flex;flex-direction:column;gap:10px">
+    {% for r in rows %}
+    {% set p = r.project %}
+    <div class="card" style="padding:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+        <div>
+          <a href="{{ url_for('project_detail', pid=p.id) }}" style="font-weight:600;text-decoration:none;color:inherit">
+            {{ p.project_code }} — {{ p.customer.name }}
+          </a>
+          <div style="font-size:12px;color:var(--muted)">
+            {{ p.inverter_capacity_kw }} kW inverter · {{ p.panel_capacity_kw }} kW panel
+            {% if p.coordinator %} · Coordinator: {{ p.coordinator.full_name }}{% endif %}
+          </div>
+        </div>
+        <span style="font-size:11px;padding:2px 8px;border-radius:20px;background:var(--bg);border:0.5px solid var(--border)">
+          {{ p.status }}
+        </span>
+      </div>
+
+      {% if r.workers %}
+      <div style="margin-top:10px;font-size:12px">
+        <div style="font-weight:600;color:var(--muted);margin-bottom:4px">Workers onsite</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          {% for a in r.workers %}
+          <span style="padding:3px 9px;border-radius:20px;background:var(--bg);border:0.5px solid var(--border)">
+            {{ a.worker.name }} — {{ a.work_phase }}
+          </span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if r.logs %}
+      <div style="margin-top:10px;font-size:12px">
+        <div style="font-weight:600;color:var(--muted);margin-bottom:4px">Logged updates</div>
+        {% for l in r.logs %}
+        <div style="padding:6px 0;border-top:0.5px solid var(--border)">
+          <span style="font-weight:500">{{ l.work_phase }}</span> — {{ l.note }}
+          <div style="color:var(--hint);font-size:11px;margin-top:2px">
+            {{ l.logger.full_name if l.logger else '—' }} · {{ l.created_at.strftime('%I:%M %p') }}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

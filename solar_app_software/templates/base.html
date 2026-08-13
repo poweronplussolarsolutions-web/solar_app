@@ -500,6 +500,9 @@
       <a class="nav-link {% if request.endpoint == 'payments_dashboard' %}active{% endif %}" href="{{ url_for('payments_dashboard') }}">
         <span class="dot"></span> Payments
       </a>
+      <a class="nav-link {% if request.endpoint == 'onsite_activity' %}active{% endif %}" href="{{ url_for('onsite_activity') }}">
+        <span class="dot"></span> Onsite Activity
+      </a>
       {% endif %}
 
       {% if current_user.role in ['admin','onsite'] %}
