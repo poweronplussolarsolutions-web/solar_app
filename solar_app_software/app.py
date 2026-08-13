@@ -7153,6 +7153,37 @@ def clear_all_service_records():
     log_action(0, f'All service records cleared by {current_user.full_name}: {count} deleted') if count else None
     flash(f'{count} service record(s) deleted. Only payment-completed projects will get fresh schedules from now on.', 'warning')
     return redirect(url_for('service_management'))
+@app.route('/api/push/test')
+@login_required
+def push_test():
+    subs = PushSubscription.query.filter_by(user_id=current_user.id).all()
+    if not subs:
+        return jsonify({'ok': False, 'reason': 'no subscription in DB for this user'})
+    results = []
+    vapid_private_key = os.environ.get('VAPID_PRIVATE_KEY_PATH')
+    vapid_claims = {'sub': os.environ.get('VAPID_CLAIM_EMAIL', 'mailto:admin@example.com')}
+    if not vapid_private_key:
+        return jsonify({'ok': False, 'reason': 'VAPID_PRIVATE_KEY_PATH not set in environment'})
+    for sub in subs:
+        try:
+            webpush(
+                subscription_info={'endpoint': sub.endpoint,
+                                    'keys': {'p256dh': sub.p256dh, 'auth': sub.auth}},
+                data=_json.dumps({'title': 'Test', 'body': 'Push test', 'url': '/dashboard'}),
+                vapid_private_key=vapid_private_key,
+                vapid_claims=vapid_claims,
+            )
+            results.append({'sub_id': sub.id, 'status': 'sent'})
+        except WebPushException as ex:
+            results.append({
+                'sub_id': sub.id, 'status': 'failed',
+                'error': str(ex),
+                'http_status': ex.response.status_code if ex.response is not None else None,
+                'body': ex.response.text if ex.response is not None else None,
+            })
+        except Exception as ex:
+            results.append({'sub_id': sub.id, 'status': 'unexpected_error', 'error': repr(ex)})
+    return jsonify({'ok': True, 'subscription_count': len(subs), 'results': results})
 # ─────────────────────────────────────────────────────────────────────────────
 # DB INIT & SEED
 # ─────────────────────────────────────────────────────────────────────────────
