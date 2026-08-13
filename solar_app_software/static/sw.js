@@ -1,74 +1,279 @@
-const CACHE_NAME = 'poweronplus-v1';
+const CACHE_NAME = 'poweronplus-v2';
 const OFFLINE_URL = '/dashboard';
 
-self.addEventListener('install', (e) => {
+
+// =====================================================
+// INSTALL
+// =====================================================
+
+self.addEventListener('install', (event) => {
+  console.log('[SW] Installing service worker:', CACHE_NAME);
+
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (e) => {
-  e.waitUntil(
-    caches.keys().then((names) =>
-      Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)))
-    ).then(() => clients.claim())
+
+// =====================================================
+// ACTIVATE
+// =====================================================
+
+self.addEventListener('activate', (event) => {
+  console.log('[SW] Activating service worker:', CACHE_NAME);
+
+  event.waitUntil(
+    caches.keys()
+      .then((names) => {
+        return Promise.all(
+          names
+            .filter((name) => name !== CACHE_NAME)
+            .map((name) => {
+              console.log('[SW] Deleting old cache:', name);
+              return caches.delete(name);
+            })
+        );
+      })
+      .then(() => {
+        console.log('[SW] Claiming clients');
+        return clients.claim();
+      })
   );
 });
 
-// Network-first for navigations, so users always see live project data;
-// falls back to the last cached dashboard shell if fully offline.
-self.addEventListener('fetch', (e) => {
-  if (e.request.mode === 'navigate') {
-    e.respondWith(
-      fetch(e.request)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then((c) => c.put(e.request, copy));
-          return res;
+
+// =====================================================
+// FETCH
+// Only handle GET navigation requests.
+// Do NOT cache POST requests.
+// =====================================================
+
+self.addEventListener('fetch', (event) => {
+
+  // Only process page navigation GET requests
+  if (
+    event.request.mode === 'navigate' &&
+    event.request.method === 'GET'
+  ) {
+
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+
+          // Clone response before using it
+          const copy = response.clone();
+
+          caches.open(CACHE_NAME)
+            .then((cache) => {
+              return cache.put(event.request, copy);
+            })
+            .then(() => {
+              console.log(
+                '[SW] Cached:',
+                event.request.url
+              );
+            })
+            .catch((error) => {
+              console.error(
+                '[SW] Cache put failed:',
+                error
+              );
+            });
+
+          return response;
         })
-        .catch(() => caches.match(e.request).then((c) => c || caches.match(OFFLINE_URL)))
+
+        .catch(() => {
+
+          console.log(
+            '[SW] Network failed, checking cache:',
+            event.request.url
+          );
+
+          return caches.match(event.request)
+            .then((cached) => {
+
+              if (cached) {
+                return cached;
+              }
+
+              return caches.match(OFFLINE_URL);
+            });
+        })
     );
   }
+
+  // IMPORTANT:
+  // POST requests and other requests are NOT intercepted.
 });
 
-self.addEventListener('push', (e) => {
-  let data = { title: 'Power On Plus', body: 'You have a new update.' };
+
+// =====================================================
+// PUSH NOTIFICATION
+// =====================================================
+
+self.addEventListener('push', (event) => {
+
+  console.log('====================================');
+  console.log('[SW] REAL PUSH RECEIVED');
+  console.log('====================================');
+
+  let data = {
+    title: 'Power On Plus',
+    body: 'You have a new update.',
+    url: '/dashboard'
+  };
+
+
+  // ---------------------------------------------------
+  // Read push payload
+  // ---------------------------------------------------
+
   try {
-    if (e.data) data = e.data.json();
-  } catch (err) {
-    if (e.data) data.body = e.data.text();
+
+    if (event.data) {
+
+      const rawData = event.data.text();
+
+      console.log('[SW] Raw push data:', rawData);
+
+      try {
+        data = JSON.parse(rawData);
+
+        console.log(
+          '[SW] Parsed push data:',
+          data
+        );
+
+      } catch (jsonError) {
+
+        console.warn(
+          '[SW] Payload is not JSON'
+        );
+
+        data.body = rawData;
+      }
+    }
+
+  } catch (error) {
+
+    console.error(
+      '[SW] Error reading push data:',
+      error
+    );
   }
 
-  e.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      const focusedClient = list.find((c) => c.focused);
 
-      if (focusedClient) {
-        // App is open and focused, like WhatsApp Web with the window in front —
-        // skip the OS popup and let the page render its own quiet in-app toast.
-        focusedClient.postMessage({ type: 'IN_APP_NOTIFICATION', payload: data });
-        return;
+  // ---------------------------------------------------
+  // Show notification
+  // ---------------------------------------------------
+
+  console.log(
+    '[SW] SHOWING NOTIFICATION:',
+    data
+  );
+
+
+  event.waitUntil(
+
+    self.registration.showNotification(
+
+      data.title || 'Power On Plus',
+
+      {
+        body: data.body || 'You have a new update.',
+
+        icon: '/static/icons/icon-192.png',
+
+        badge: '/static/icons/icon-192.png',
+
+        data: {
+          url: data.url || '/dashboard'
+        },
+
+        tag: data.tag || undefined,
+
+        renotify: !!data.tag
       }
 
-      return self.registration.showNotification(data.title || 'Power On Plus', {
-        body: data.body || '',
-        icon: '/static/icons/icon-192.png',
-        badge: '/static/icons/icon-192.png',
-        data: { url: data.url || '/dashboard' },
-        tag: data.tag || undefined,
-        renotify: !!data.tag,
-      });
+    )
+
+    .then(() => {
+
+      console.log(
+        '[SW] NOTIFICATION DISPLAYED SUCCESSFULLY'
+      );
+
     })
+
+    .catch((error) => {
+
+      console.error(
+        '[SW] showNotification FAILED:',
+        error
+      );
+
+    })
+
   );
+
 });
 
-self.addEventListener('notificationclick', (e) => {
-  e.notification.close();
-  const url = (e.notification.data && e.notification.data.url) || '/dashboard';
-  e.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      for (const client of list) {
-        if (client.url.includes(url) && 'focus' in client) return client.focus();
-      }
-      if (clients.openWindow) return clients.openWindow(url);
-    })
+
+// =====================================================
+// NOTIFICATION CLICK
+// =====================================================
+
+self.addEventListener('notificationclick', (event) => {
+
+  console.log(
+    '[SW] Notification clicked'
   );
+
+  event.notification.close();
+
+
+  const url =
+    (
+      event.notification.data &&
+      event.notification.data.url
+    ) || '/dashboard';
+
+
+  console.log(
+    '[SW] Opening URL:',
+    url
+  );
+
+
+  event.waitUntil(
+
+    clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true
+    })
+
+    .then((clientList) => {
+
+      // Try to focus an existing window
+      for (const client of clientList) {
+
+        if (
+          client.url.includes(url) &&
+          'focus' in client
+        ) {
+
+          return client.focus();
+        }
+      }
+
+
+      // Otherwise open a new window
+      if (clients.openWindow) {
+
+        return clients.openWindow(url);
+      }
+
+    })
+
+  );
+
 });
