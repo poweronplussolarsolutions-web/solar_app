@@ -1524,16 +1524,14 @@ def _notify_stage_transition(proj, from_stage, to_stage):
         if proj.coordinator_id:
             create_notification(proj.coordinator_id, proj.id,
                 f'{code} moved to Onsite Work stage.', 'info')
-        notify_onsite_team(proj.id,
-            f'{code}: Feasibility done. Onsite work can begin.', 'task')
 
     elif to_stage == 'Connection':
         if proj.coordinator_id:
             create_notification(proj.coordinator_id, proj.id,
                 f'{code}: Onsite work complete. KSEB connection step now active.', 'info')
-        if proj.doc_staff_id:
-            create_notification(proj.doc_staff_id, proj.id,
-                f'{code}: Electrical work done. Please update KSEB Connection document.', 'task')
+        # if proj.doc_staff_id:
+        #     create_notification(proj.doc_staff_id, proj.id,
+        #         f'{code}: Electrical work done. Please update KSEB Connection document.', 'task')
 
     elif to_stage == 'Payment':
         if proj.coordinator_id:
@@ -1569,127 +1567,48 @@ def _notify_stage_transition(proj, from_stage, to_stage):
         if proj.doc_staff_id:
             create_notification(proj.doc_staff_id, proj.id,
                 f'{code}: Project marked completed.', 'info')
-import json
+
 def create_notification(user_id, project_id, message, notif_type='info'):
-    print(
-        f'[NOTIFICATION] create_notification called '
-        f'user_id={user_id}, project_id={project_id}, message={message}'
-    )
-
     db.session.add(Notification(
-        user_id=user_id,
-        project_id=project_id,
-        message=message[:255],
-        notif_type=notif_type,
+        user_id=user_id, project_id=project_id,
+        message=message[:255], notif_type=notif_type,
     ))
-
-    print(
-        f'[NOTIFICATION] Calling send_push_notification '
-        f'for user_id={user_id}'
-    )
-
     send_push_notification(
-        user_id,
-        'Power On Plus',
+        user_id, 'Power On Plus',
         message[:150],
         url=f'/projects/{project_id}' if project_id else '/dashboard',
     )
-
-    print(
-        f'[NOTIFICATION] create_notification finished '
-        f'for user_id={user_id}'
-    )
 def send_push_notification(user_id, title, body, url='/dashboard', tag=None):
-
-    print(
-        f'[PUSH] send_push_notification called '
-        f'user_id={user_id}, title={title}, body={body}, url={url}'
-    )
-
     subs = PushSubscription.query.filter_by(user_id=user_id).all()
-
-    print(
-        f'[PUSH] Found {len(subs)} subscription(s) '
-        f'for user_id={user_id}'
-    )
-
     if not subs:
         print(f'[PUSH] No subscriptions for user {user_id}')
         return
-
-    payload = json.dumps({
-        'title': title,
-        'body': body,
-        'url': url,
-        'tag': tag
-    })
-
-    print(f'[PUSH] Payload: {payload}')
-
+    payload = _json.dumps({'title': title, 'body': body, 'url': url, 'tag': tag})
     vapid_private_key = os.environ.get('VAPID_PRIVATE_KEY_PATH')
-
-    print(
-        f'[PUSH] VAPID_PRIVATE_KEY_PATH set: '
-        f'{bool(vapid_private_key)}'
-    )
-
-    vapid_claims = {
-        'sub': os.environ.get(
-            'VAPID_CLAIM_EMAIL',
-            'mailto:admin@example.com'
-        )
-    }
-
+    vapid_claims = {'sub': os.environ.get('VAPID_CLAIM_EMAIL', 'mailto:admin@example.com')}
     if not vapid_private_key:
         print('[PUSH] VAPID_PRIVATE_KEY_PATH not set — aborting')
         return
-
     for sub in subs:
-
-        print(f'[PUSH] Sending to subscription {sub.id}')
-
         try:
             webpush(
                 subscription_info={
                     'endpoint': sub.endpoint,
-                    'keys': {
-                        'p256dh': sub.p256dh,
-                        'auth': sub.auth
-                    },
+                    'keys': {'p256dh': sub.p256dh, 'auth': sub.auth},
                 },
                 data=payload,
                 vapid_private_key=vapid_private_key,
                 vapid_claims=vapid_claims,
             )
-
             print(f'[PUSH] Sent OK to sub {sub.id}')
-
         except WebPushException as ex:
-
-            print(
-                f'[PUSH] WebPushException for sub {sub.id}: {ex}'
-            )
-
+            print(f'[PUSH] WebPushException: {ex}')
             if ex.response is not None:
-                print(
-                    f'[PUSH] status={ex.response.status_code} '
-                    f'body={ex.response.text}'
-                )
-
-                if ex.response.status_code in (404, 410):
-                    print(
-                        f'[PUSH] Removing expired subscription '
-                        f'{sub.id}'
-                    )
-
-                    db.session.delete(sub)
-
+                print(f'[PUSH] status={ex.response.status_code} body={ex.response.text}')
+            if ex.response is not None and ex.response.status_code in (404, 410):
+                db.session.delete(sub)
         except Exception as ex:
-
-            print(
-                f'[PUSH] Unexpected error for sub {sub.id}: '
-                f'{repr(ex)}'
-            )
+            print(f'[PUSH] Unexpected error: {repr(ex)}')
 @app.route('/api/notifications/unread_count')
 @login_required
 def api_unread_count():
@@ -1711,6 +1630,7 @@ def push_public_key():
 
 @app.route('/api/push/subscribe', methods=['POST'])
 @login_required
+@csrf.exempt
 def push_subscribe():
     data = request.get_json(force=True, silent=True) or {}
     endpoint = data.get('endpoint')
@@ -1729,6 +1649,7 @@ def push_subscribe():
 
 @app.route('/api/push/unsubscribe', methods=['POST'])
 @login_required
+@csrf.exempt
 def push_unsubscribe():
     data = request.get_json(force=True, silent=True) or {}
     endpoint = data.get('endpoint')
@@ -7232,37 +7153,7 @@ def clear_all_service_records():
     log_action(0, f'All service records cleared by {current_user.full_name}: {count} deleted') if count else None
     flash(f'{count} service record(s) deleted. Only payment-completed projects will get fresh schedules from now on.', 'warning')
     return redirect(url_for('service_management'))
-@app.route('/api/push/test')
-@login_required
-def push_test():
-    subs = PushSubscription.query.filter_by(user_id=current_user.id).all()
-    if not subs:
-        return jsonify({'ok': False, 'reason': 'no subscription in DB for this user'})
-    results = []
-    vapid_private_key = os.environ.get('VAPID_PRIVATE_KEY_PATH')
-    vapid_claims = {'sub': os.environ.get('VAPID_CLAIM_EMAIL', 'mailto:admin@example.com')}
-    if not vapid_private_key:
-        return jsonify({'ok': False, 'reason': 'VAPID_PRIVATE_KEY_PATH not set in environment'})
-    for sub in subs:
-        try:
-            webpush(
-                subscription_info={'endpoint': sub.endpoint,
-                                    'keys': {'p256dh': sub.p256dh, 'auth': sub.auth}},
-                data=_json.dumps({'title': 'Test', 'body': 'Push test', 'url': '/dashboard'}),
-                vapid_private_key=vapid_private_key,
-                vapid_claims=vapid_claims,
-            )
-            results.append({'sub_id': sub.id, 'status': 'sent'})
-        except WebPushException as ex:
-            results.append({
-                'sub_id': sub.id, 'status': 'failed',
-                'error': str(ex),
-                'http_status': ex.response.status_code if ex.response is not None else None,
-                'body': ex.response.text if ex.response is not None else None,
-            })
-        except Exception as ex:
-            results.append({'sub_id': sub.id, 'status': 'unexpected_error', 'error': repr(ex)})
-    return jsonify({'ok': True, 'subscription_count': len(subs), 'results': results})
+
 # ─────────────────────────────────────────────────────────────────────────────
 # DB INIT & SEED
 # ─────────────────────────────────────────────────────────────────────────────
