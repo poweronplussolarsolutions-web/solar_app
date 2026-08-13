@@ -3,25 +3,49 @@
 {% block page_title %}Onsite Activity{% endblock %}
 
 {% block content %}
-<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap">
   <div style="display:flex;align-items:center;gap:10px">
     <a href="{{ url_for('onsite_activity', date=prev_day.isoformat()) }}"
-       style="padding:6px 12px;border:0.5px solid var(--border);border-radius:var(--radius);text-decoration:none;color:inherit;font-size:13px">← Prev</a>
+       style="padding:6px 12px;border:0.5px solid var(--border);border-radius:var(--radius);text-decoration:none;color:inherit;font-size:13px">
+      ← {{ 'Prev entry' if has_prev else 'Prev' }}
+    </a>
     <div style="font-size:15px;font-weight:600">
       {{ day.strftime('%A, %d %b %Y') }}
       {% if day == today %}<span style="font-size:11px;color:var(--muted);font-weight:400">(today)</span>{% endif %}
     </div>
     <a href="{{ url_for('onsite_activity', date=next_day.isoformat()) }}"
-       style="padding:6px 12px;border:0.5px solid var(--border);border-radius:var(--radius);text-decoration:none;color:inherit;font-size:13px">Next →</a>
+       style="padding:6px 12px;border:0.5px solid var(--border);border-radius:var(--radius);text-decoration:none;color:inherit;font-size:13px">
+      {{ 'Next entry' if has_next else 'Next' }} →
+    </a>
   </div>
   {% if day != today %}
   <a href="{{ url_for('onsite_activity') }}" style="font-size:12px;color:var(--muted)">Jump to today</a>
   {% endif %}
 </div>
 
+{% if recent_log_dates %}
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+  {% for d in recent_log_dates %}
+  <a href="{{ url_for('onsite_activity', date=d.isoformat()) }}"
+     style="font-size:11px;padding:3px 10px;border-radius:20px;text-decoration:none;
+            {% if d == day %}background:var(--fg,#111);color:var(--bg,#fff);border:0.5px solid transparent;
+            {% else %}background:var(--bg);color:inherit;border:0.5px solid var(--border);{% endif %}">
+    {{ d.strftime('%d %b') }}
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% if not rows %}
   <div class="card" style="text-align:center;padding:30px;color:var(--muted);font-size:13px">
-    No onsite activity recorded for this day.
+    {% if day == today %}
+      No onsite activity for today yet.
+    {% else %}
+      No onsite activity recorded for {{ day.strftime('%d %b %Y') }}.
+    {% endif %}
+    {% if recent_log_dates %}
+      <div style="margin-top:8px">Try one of the dates above — those have recorded activity.</div>
+    {% endif %}
   </div>
 {% else %}
   <div style="display:flex;flex-direction:column;gap:10px">
@@ -43,9 +67,24 @@
         </span>
       </div>
 
+      {% if r.phase_events %}
+      <div style="margin-top:10px;font-size:12px">
+        <div style="font-weight:600;color:var(--muted);margin-bottom:4px">Phase updates</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          {% for e in r.phase_events %}
+          <span style="padding:3px 9px;border-radius:20px;
+                       {% if e.event == 'Completed' %}background:#d1fae5;color:#065f46;border:0.5px solid #6ee7b7;
+                       {% else %}background:#dbeafe;color:#1e40af;border:0.5px solid #93c5fd;{% endif %}">
+            {{ e.phase }} — {{ e.event }}
+          </span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
       {% if r.workers %}
       <div style="margin-top:10px;font-size:12px">
-        <div style="font-weight:600;color:var(--muted);margin-bottom:4px">Workers onsite</div>
+        <div style="font-weight:600;color:var(--muted);margin-bottom:4px">Workers currently assigned</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">
           {% for a in r.workers %}
           <span style="padding:3px 9px;border-radius:20px;background:var(--bg);border:0.5px solid var(--border)">

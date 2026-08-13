@@ -1784,17 +1784,7 @@ def onsite_activity():
     except ValueError:
         day = date.today()
 
-    # Workers assigned/active on this day
-    assignments_today = (WorkerAssignment.query
-        .options(joinedload(WorkerAssignment.worker),
-                 joinedload(WorkerAssignment.project).joinedload(Project.customer))
-        .filter(
-            WorkerAssignment.start_date <= day,
-            db.or_(WorkerAssignment.end_date == None, WorkerAssignment.end_date >= day),
-            WorkerAssignment.status.in_(['Assigned', 'Active'])
-        ).all())
-
-    # Actual logged activity for the day (what onsite team reported)
+    # ── Logged notes for the day ────────────────────────────────────────
     logs_today = (OnsiteLog.query
         .options(joinedload(OnsiteLog.project).joinedload(Project.customer),
                  joinedload(OnsiteLog.logger))
@@ -1802,22 +1792,91 @@ def onsite_activity():
         .order_by(OnsiteLog.created_at.desc())
         .all())
 
+    # ── Phase start/completion events for the day ───────────────────────
+    # These come from OnsiteProgress's own start/end date fields, which is
+    # what actually gets set when structure/installation/electrical work
+    # is marked started or completed — not from OnsiteLog.
+    phase_progress = (OnsiteProgress.query
+        .options(joinedload(OnsiteProgress.project).joinedload(Project.customer))
+        .filter(db.or_(
+            OnsiteProgress.structure_start_date == day,
+            OnsiteProgress.structure_end_date == day,
+            OnsiteProgress.installation_start_date == day,
+            OnsiteProgress.installation_end_date == day,
+            OnsiteProgress.electrical_start_date == day,
+            OnsiteProgress.electrical_end_date == day,
+        ))
+        .all())
+
+    phase_events = {}  # project_id -> list of event dicts
+    for op in phase_progress:
+        events = []
+        if op.structure_end_date == day and op.structure_work_status == 'Completed':
+            events.append({'phase': 'Structure', 'event': 'Completed'})
+        elif op.structure_start_date == day:
+            events.append({'phase': 'Structure', 'event': 'Started'})
+        if op.installation_end_date == day and op.installation_status == 'Completed':
+            events.append({'phase': 'Installation', 'event': 'Completed'})
+        elif op.installation_start_date == day:
+            events.append({'phase': 'Installation', 'event': 'Started'})
+        if op.electrical_end_date == day and op.electrical_status == 'Completed':
+            events.append({'phase': 'Electrical', 'event': 'Completed'})
+        elif op.electrical_start_date == day:
+            events.append({'phase': 'Electrical', 'event': 'Started'})
+        if events:
+            phase_events[op.project_id] = {'project': op.project, 'events': events}
+
+    # ── Worker assignments — only meaningful as "today's" snapshot ─────
+    assignments_today = []
+    if day == date.today():
+        assignments_today = (WorkerAssignment.query
+            .options(joinedload(WorkerAssignment.worker),
+                     joinedload(WorkerAssignment.project).joinedload(Project.customer))
+            .filter(
+                db.or_(WorkerAssignment.start_date == None, WorkerAssignment.start_date <= day),
+                db.or_(WorkerAssignment.end_date == None, WorkerAssignment.end_date >= day),
+                WorkerAssignment.status.in_(['Assigned', 'Active'])
+            ).all())
+
+    # ── Merge everything by project ─────────────────────────────────────
     by_project = {}
     for a in assignments_today:
         p = a.project
-        by_project.setdefault(p.id, {'project': p, 'workers': [], 'logs': []})
+        by_project.setdefault(p.id, {'project': p, 'workers': [], 'logs': [], 'phase_events': []})
         by_project[p.id]['workers'].append(a)
     for l in logs_today:
         p = l.project
-        by_project.setdefault(p.id, {'project': p, 'workers': [], 'logs': []})
+        by_project.setdefault(p.id, {'project': p, 'workers': [], 'logs': [], 'phase_events': []})
         by_project[p.id]['logs'].append(l)
+    for pid_, data in phase_events.items():
+        by_project.setdefault(pid_, {'project': data['project'], 'workers': [], 'logs': [], 'phase_events': []})
+        by_project[pid_]['phase_events'].extend(data['events'])
 
     rows = sorted(by_project.values(), key=lambda r: r['project'].project_code)
 
+    # ── Nearest prev/next dates with any activity (log or phase event) ──
+    all_dates = set()
+    for (d,) in db.session.query(OnsiteLog.log_date).distinct():
+        if d: all_dates.add(d)
+    for col in (OnsiteProgress.structure_start_date, OnsiteProgress.structure_end_date,
+                OnsiteProgress.installation_start_date, OnsiteProgress.installation_end_date,
+                OnsiteProgress.electrical_start_date, OnsiteProgress.electrical_end_date):
+        for (d,) in db.session.query(col).filter(col.isnot(None)).distinct():
+            if d: all_dates.add(d)
+
+    earlier = sorted([d for d in all_dates if d < day], reverse=True)
+    later   = sorted([d for d in all_dates if d > day])
+    prev_log_date = earlier[0] if earlier else None
+    next_log_date = later[0] if later else None
+    recent_log_dates = sorted(all_dates, reverse=True)[:10]
+
     return render_template('onsite_activity.html',
         rows=rows, day=day,
-        prev_day=day - timedelta(days=1),
-        next_day=day + timedelta(days=1),
+        prev_day=prev_log_date or (day - timedelta(days=1)),
+        next_day=next_log_date or (day + timedelta(days=1)),
+        has_prev=prev_log_date is not None,
+        has_next=next_log_date is not None,
+        recent_log_dates=recent_log_dates,
         today=date.today())
 def next_project_code():
     numeric = []
