@@ -495,7 +495,7 @@
     </a>
       {% endif %}
 
-      {% if current_user.role in ['admin','payments'] %}
+      {% if current_user.role in ['admin','payments','director'] %}
       <div class="nav-section">Finance</div>
       <a class="nav-link {% if request.endpoint == 'payments_dashboard' %}active{% endif %}" href="{{ url_for('payments_dashboard') }}">
         <span class="dot"></span> Payments
