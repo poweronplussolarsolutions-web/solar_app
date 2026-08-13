@@ -3,38 +3,37 @@
 {% block page_title %}Onsite Activity{% endblock %}
 
 {% block content %}
-<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap">
-  <div style="display:flex;align-items:center;gap:10px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <a href="{{ url_for('onsite_activity', date=prev_day.isoformat()) }}"
        style="padding:6px 12px;border:0.5px solid var(--border);border-radius:var(--radius);text-decoration:none;color:inherit;font-size:13px">
       ← {{ 'Prev entry' if has_prev else 'Prev' }}
     </a>
-    <div style="font-size:15px;font-weight:600">
-      {{ day.strftime('%A, %d %b %Y') }}
-      {% if day == today %}<span style="font-size:11px;color:var(--muted);font-weight:400">(today)</span>{% endif %}
-    </div>
+
+    <input type="date" id="onsiteDatePicker" value="{{ day.isoformat() }}"
+       data-base-url="{{ url_for('onsite_activity') }}"
+       style="padding:5px 10px;border:0.5px solid var(--border);border-radius:var(--radius);
+              font-size:13px;background:var(--surface);color:inherit;font-family:inherit">
+
+<script>
+document.getElementById('onsiteDatePicker').addEventListener('change', function () {
+  window.location.href = this.dataset.baseUrl + '?date=' + this.value;
+});
+</script>
     <a href="{{ url_for('onsite_activity', date=next_day.isoformat()) }}"
        style="padding:6px 12px;border:0.5px solid var(--border);border-radius:var(--radius);text-decoration:none;color:inherit;font-size:13px">
       {{ 'Next entry' if has_next else 'Next' }} →
     </a>
+
+    <div style="font-size:13px;color:var(--muted)">
+      {{ day.strftime('%A, %d %b %Y') }}
+      {% if day == today %}<span style="font-size:11px;font-weight:400">(today)</span>{% endif %}
+    </div>
   </div>
   {% if day != today %}
   <a href="{{ url_for('onsite_activity') }}" style="font-size:12px;color:var(--muted)">Jump to today</a>
   {% endif %}
 </div>
-
-{% if recent_activity_dates %}
-<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
-  {% for d in recent_activity_dates %}
-  <a href="{{ url_for('onsite_activity', date=d.isoformat()) }}"
-     style="font-size:11px;padding:3px 10px;border-radius:20px;text-decoration:none;
-            {% if d == day %}background:var(--fg,#111);color:var(--bg,#fff);border:0.5px solid transparent;
-            {% else %}background:var(--bg);color:inherit;border:0.5px solid var(--border);{% endif %}">
-    {{ d.strftime('%d %b') }}
-  </a>
-  {% endfor %}
-</div>
-{% endif %}
 
 {% if not rows %}
   <div class="card" style="text-align:center;padding:30px;color:var(--muted);font-size:13px">
@@ -43,8 +42,8 @@
     {% else %}
       No onsite work recorded for {{ day.strftime('%d %b %Y') }}.
     {% endif %}
-    {% if recent_activity_dates %}
-      <div style="margin-top:8px">Try one of the dates above — those have recorded activity.</div>
+    {% if has_prev or has_next %}
+      <div style="margin-top:8px">Use the Prev/Next buttons above to jump to the nearest date with recorded activity.</div>
     {% endif %}
   </div>
 {% else %}
