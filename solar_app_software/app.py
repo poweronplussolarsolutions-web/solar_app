@@ -1571,12 +1571,18 @@ def _notify_stage_transition(proj, from_stage, to_stage):
                 f'{code}: Project marked completed.', 'info')
 
 def create_notification(user_id, project_id, message, notif_type='info'):
-    db.session.add(Notification(
-        user_id=user_id, project_id=project_id,
-        message=message[:255], notif_type=notif_type,
-    ))
+    notification = Notification(
+        user_id=user_id,
+        project_id=project_id,
+        message=message[:255],
+        notif_type=notif_type,
+    )
+
+    db.session.add(notification)
+
     send_push_notification(
-        user_id, 'Power On Plus',
+        user_id,
+        'Power On Plus',
         message[:150],
         url=f'/projects/{project_id}' if project_id else '/dashboard',
     )
