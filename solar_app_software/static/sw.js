@@ -30,36 +30,33 @@ self.addEventListener('fetch', (e) => {
 });
 
 self.addEventListener('push', (e) => {
-  let data = {
-    title: 'Power On Plus',
-    body: 'You have a new update.',
-    url: '/dashboard'
-  };
-
+  let data = { title: 'Power On Plus', body: 'You have a new update.' };
   try {
-    if (e.data) {
-      data = e.data.json();
-    }
+    if (e.data) data = e.data.json();
   } catch (err) {
-    if (e.data) {
-      data.body = e.data.text();
-    }
+    if (e.data) data.body = e.data.text();
   }
 
   e.waitUntil(
-    self.registration.showNotification(
-      data.title || 'Power On Plus',
-      {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const focusedClient = list.find((c) => c.focused);
+
+      if (focusedClient) {
+        // App is open and focused, like WhatsApp Web with the window in front —
+        // skip the OS popup and let the page render its own quiet in-app toast.
+        focusedClient.postMessage({ type: 'IN_APP_NOTIFICATION', payload: data });
+        return;
+      }
+
+      return self.registration.showNotification(data.title || 'Power On Plus', {
         body: data.body || '',
         icon: '/static/icons/icon-192.png',
         badge: '/static/icons/icon-192.png',
-        data: {
-          url: data.url || '/dashboard'
-        },
+        data: { url: data.url || '/dashboard' },
         tag: data.tag || undefined,
-        renotify: !!data.tag
-      }
-    )
+        renotify: !!data.tag,
+      });
+    })
   );
 });
 
