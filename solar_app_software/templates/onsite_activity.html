@@ -23,9 +23,9 @@
   {% endif %}
 </div>
 
-{% if recent_log_dates %}
+{% if recent_activity_dates %}
 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
-  {% for d in recent_log_dates %}
+  {% for d in recent_activity_dates %}
   <a href="{{ url_for('onsite_activity', date=d.isoformat()) }}"
      style="font-size:11px;padding:3px 10px;border-radius:20px;text-decoration:none;
             {% if d == day %}background:var(--fg,#111);color:var(--bg,#fff);border:0.5px solid transparent;
@@ -39,11 +39,11 @@
 {% if not rows %}
   <div class="card" style="text-align:center;padding:30px;color:var(--muted);font-size:13px">
     {% if day == today %}
-      No onsite activity for today yet.
+      No onsite work recorded for today yet.
     {% else %}
-      No onsite activity recorded for {{ day.strftime('%d %b %Y') }}.
+      No onsite work recorded for {{ day.strftime('%d %b %Y') }}.
     {% endif %}
-    {% if recent_log_dates %}
+    {% if recent_activity_dates %}
       <div style="margin-top:8px">Try one of the dates above — those have recorded activity.</div>
     {% endif %}
   </div>
@@ -69,26 +69,12 @@
 
       {% if r.phase_events %}
       <div style="margin-top:10px;font-size:12px">
-        <div style="font-weight:600;color:var(--muted);margin-bottom:4px">Phase updates</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">
           {% for e in r.phase_events %}
-          <span style="padding:3px 9px;border-radius:20px;
+          <span style="padding:3px 9px;border-radius:20px;font-weight:500;
                        {% if e.event == 'Completed' %}background:#d1fae5;color:#065f46;border:0.5px solid #6ee7b7;
                        {% else %}background:#dbeafe;color:#1e40af;border:0.5px solid #93c5fd;{% endif %}">
-            {{ e.phase }} — {{ e.event }}
-          </span>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-
-      {% if r.workers %}
-      <div style="margin-top:10px;font-size:12px">
-        <div style="font-weight:600;color:var(--muted);margin-bottom:4px">Workers currently assigned</div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px">
-          {% for a in r.workers %}
-          <span style="padding:3px 9px;border-radius:20px;background:var(--bg);border:0.5px solid var(--border)">
-            {{ a.worker.name }} — {{ a.work_phase }}
+            {{ e.phase }} {{ e.event }}
           </span>
           {% endfor %}
         </div>
@@ -97,7 +83,7 @@
 
       {% if r.logs %}
       <div style="margin-top:10px;font-size:12px">
-        <div style="font-weight:600;color:var(--muted);margin-bottom:4px">Logged updates</div>
+        <div style="font-weight:600;color:var(--muted);margin-bottom:4px">Notes</div>
         {% for l in r.logs %}
         <div style="padding:6px 0;border-top:0.5px solid var(--border)">
           <span style="font-weight:500">{{ l.work_phase }}</span> — {{ l.note }}
