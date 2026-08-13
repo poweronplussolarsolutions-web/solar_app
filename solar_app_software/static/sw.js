@@ -20,8 +20,12 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(
       fetch(e.request)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then((c) => c.put(e.request, copy));
+          if (e.request.method === 'GET' && res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE_NAME)
+              .then((c) => c.put(e.request, copy))
+              .catch(() => {}); // never let a cache-write failure break navigation
+          }
           return res;
         })
         .catch(() => caches.match(e.request).then((c) => c || caches.match(OFFLINE_URL)))
