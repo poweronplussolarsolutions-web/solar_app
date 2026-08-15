@@ -2510,7 +2510,7 @@ def projects():
     else:
         q = q.order_by(cast(Project.project_code, Integer).desc())
 
-    pagination = q.paginate(page=page, per_page=25, error_out=False)
+    pagination = q.paginate(page=page, per_page=50, error_out=False)
     project_ids_on_page = [p.id for p in pagination.items]
 
     pending_pay_excess_ids = set(
