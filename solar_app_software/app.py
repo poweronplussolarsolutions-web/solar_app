@@ -308,6 +308,7 @@ class Project(db.Model):
     panel_items      = db.relationship('PanelItem', backref='project', lazy=True, cascade='all,delete-orphan')
     extra_materials  = db.relationship('ExtraMaterial', backref='project', lazy=True, cascade='all,delete-orphan')
     coordinator_name = db.Column(db.String(120), nullable=True)
+    
 
     @property
     def contract_amount(self):
@@ -2702,6 +2703,14 @@ def edit_project(pid):
         old_inverter_type = proj.inverter_type
         old_loan_sub = proj.loan_subtype
         old_amount   = float(proj.total_amount or 0)
+        old_inverter_capacity_kw  = proj.inverter_capacity_kw
+        old_panel_capacity_kw     = proj.panel_capacity_kw
+        old_structure_capacity_kw = proj.structure_capacity_kw
+        old_type     = proj.project_type
+        old_subtype  = proj.project_subtype
+        old_inverter_type = proj.inverter_type
+        old_loan_sub = proj.loan_subtype
+        old_amount   = float(proj.total_amount or 0)
 
         new_type     = request.form['project_type']
         new_subtype  = request.form.get('project_subtype') or None
@@ -2721,6 +2730,29 @@ def edit_project(pid):
         proj.roof_type_other = _clean(request.form.get('roof_type_other', ''), 60) or None
         proj.inverter_type = request.form.get('inverter_type') or None
         changes = []
+        capacity_changes = []
+        if old_inverter_capacity_kw != proj.inverter_capacity_kw:
+            capacity_changes.append(
+                f'Inverter capacity: {old_inverter_capacity_kw or 0} kW → {proj.inverter_capacity_kw or 0} kW'
+            )
+        if old_panel_capacity_kw != proj.panel_capacity_kw:
+            capacity_changes.append(
+            f'Panel capacity: {old_panel_capacity_kw or 0} kW → {proj.panel_capacity_kw or 0} kW'
+            )
+        if old_structure_capacity_kw != proj.structure_capacity_kw:
+            capacity_changes.append(
+            f'Structure capacity: {old_structure_capacity_kw or 0} kW → {proj.structure_capacity_kw or 0} kW'
+            )
+
+        if capacity_changes:
+            onsite_users = User.query.filter_by(role='onsite', is_active=True).all()
+            for u in onsite_users:
+                create_notification(
+            u.id, pid,
+            f'{proj.project_code} — {proj.customer.name}: Capacity details updated '
+            f'by {current_user.full_name}. {", ".join(capacity_changes)}.',
+            'info'
+        )
 
         if current_user.role == 'admin':
             new_created_at = request.form.get('created_at_override')
