@@ -2790,6 +2790,9 @@ def edit_project(pid):
             if new_status and new_status != proj.status:
                 changes.append(f'Status: {proj.status} → {new_status}')
                 proj.status = new_status
+                # ── NEW: create service schedule if it just became Completed/Closed ──
+                if proj.status in ('Completed', 'Closed'):
+                    create_service_schedule(proj)
             if 'coordinator_id' in request.form:
                 raw_coord_id     = request.form.get('coordinator_id') or None
                 coord_name_other = _clean(request.form.get('coordinator_name_other', ''), 120)
@@ -3192,7 +3195,13 @@ def update_status(pid):
             if current_user.role != 'admin':
                 flash('Project cannot be marked Completed until App Installation is done.', 'danger')
                 proj.status = old_status
+
     log_action(pid, 'Status updated', old_val=old_status, new_val=proj.status)
+
+    # ── NEW: create service schedule if project just became Completed/Closed ──
+    if proj.status in ('Completed', 'Closed') and proj.status != old_status:
+        create_service_schedule(proj)
+
     db.session.commit()
     flash('Project status updated.', 'success')
     return redirect(url_for('project_detail', pid=pid))
