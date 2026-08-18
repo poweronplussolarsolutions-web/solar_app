@@ -2508,7 +2508,7 @@ def onsite_board():
         .order_by(Project.updated_at.desc())
         .all())
 
-    return render_template('onsite_dashboard.html', projects=projects)
+    return render_template('onsite_dashboard.html', data={'projects': projects})
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PROJECTS
