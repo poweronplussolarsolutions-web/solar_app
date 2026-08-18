@@ -2488,9 +2488,11 @@ def dashboard():
     return render_template('dashboard.html', data=data)
 @app.route('/onsite')
 @login_required
-@roles_required('admin', 'onsite','director')
+@roles_required('admin', 'onsite', 'director')
 def onsite_board():
+
     from sqlalchemy.orm import joinedload
+
     projects = (Project.query
         .options(
             joinedload(Project.onsite_progress),
@@ -2499,10 +2501,14 @@ def onsite_board():
             joinedload(Project.payments),
             joinedload(Project.coordinator),
         )
-        .filter(Project.status.in_(['InProgress','Delayed','Lead','Created']),
-                Project.work_category != 'Outside')          # ← add this
+        .filter(
+            Project.status.in_(['InProgress', 'Delayed', 'Lead', 'Created']),
+            Project.work_category != 'Outside'
+        )
         .order_by(Project.updated_at.desc())
         .all())
+
+    return render_template('onsite_board.html', projects=projects)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PROJECTS

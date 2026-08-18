@@ -135,10 +135,10 @@ document.addEventListener('DOMContentLoaded', function () {
   {% set cd_check = proj.connection_details %}
   {% if not cd_check or not cd_check.connection_type %}{% set _ = missing.append('Connection type') %}{% endif %}
   {% if not cd_check or not cd_check.consumer_number %}{% set _ = missing.append('Consumer number') %}{% endif %}
-  {% if proj.project_type == 'Loan' and (not proj.loan_detail or not proj.loan_detail.bank_name) %}
+  {% if proj.work_category != 'Outside' and proj.project_type == 'Loan' and (not proj.loan_detail or not proj.loan_detail.bank_name) %}
     {% set _ = missing.append('Loan bank details') %}
   {% endif %}
-  {% if not proj.panel_details %}{% set _ = missing.append('Panel & meter details') %}{% endif %}
+  {% if proj.work_category != 'Outside' and not proj.panel_details %}{% set _ = missing.append('Panel & meter details') %}{% endif %}
   {% if missing %}
   <div style="display:flex;align-items:flex-start;gap:10px;
               padding:12px 16px;margin-bottom:16px;border-radius:var(--radius);
@@ -167,26 +167,37 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Village</td><td style="font-size:12px">{{ proj.customer.village or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Taluk</td><td style="font-size:12px">{{ proj.customer.taluk or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">District</td><td style="font-size:12px">{{ proj.customer.district or '—' }}</td></tr>
+
+      {% if proj.work_category != 'Outside' %}
       <tr>
-  <td style="color:var(--muted);padding:5px 0">System size</td>
-  <td>
-    {{ proj.inverter_capacity_kw }} kW (inverter), {{ proj.panel_capacity_kw }} kW (panel){% if proj.structure_capacity_kw %}, {{ proj.structure_capacity_kw }} kW (structure){% endif %}
-  </td>
-</tr>
+        <td style="color:var(--muted);padding:5px 0">System size</td>
+        <td>
+          {{ proj.inverter_capacity_kw }} kW (inverter), {{ proj.panel_capacity_kw }} kW (panel){% if proj.structure_capacity_kw %}, {{ proj.structure_capacity_kw }} kW (structure){% endif %}
+        </td>
+      </tr>
       <tr><td style="color:var(--muted);padding:5px 0">Inverter type</td><td>{{ proj.inverter_type or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Type</td><td><span class="badge badge-{{ proj.project_type }}">{{ proj.project_type }}</span></td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Sub Type</td><td style="font-size:12px">{{ proj.project_subtype }}</td></tr>
+      {% else %}
+      <tr><td style="color:var(--muted);padding:5px 0">Work category</td><td><span class="badge">Outside Work</span></td></tr>
+      {% endif %}
+
       {% set cd = proj.connection_details %}
       <tr><td style="color:var(--muted);padding:5px 0">Connection type</td><td>{{ cd.connection_type if cd and cd.connection_type else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Category</td><td>{{ cd.category if cd and cd.category else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Consumer no.</td><td>{{ cd.consumer_number if cd and cd.consumer_number else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">KSEB section</td><td>{{ proj.connection_details.kseb_section if proj.connection_details else '—' }}</td></tr>
-      {% if proj.project_type == 'Loan' %}
+
+      {% if proj.work_category != 'Outside' and proj.project_type == 'Loan' %}
       {% set ld = proj.loan_detail %}
       <tr><td style="color:var(--muted);padding:5px 0">Bank</td><td>{{ ld.bank_name if ld and ld.bank_name else '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Loan amount</td><td>{{ ld.loan_amount | inr if ld and ld.loan_amount else '—' }}</td></tr>
       {% endif %}
+
+      {% if proj.work_category != 'Outside' %}
       <tr><td style="color:var(--muted);padding:5px 0">Roof</td><td>{{ proj.roof_type_display }}</td></tr>
+      {% endif %}
+
       <tr><td style="color:var(--muted);padding:5px 0">Stage</td><td>{{ proj.stage }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Coordinator</td><td>
   {% if proj.coordinator %}
@@ -430,6 +441,18 @@ document.addEventListener('DOMContentLoaded', function () {
     {# ── Payment summary card ── #}
     <div class="card" style="margin-top:0">
       <div class="card-title">Payment summary</div>
+
+      {% if proj.work_category == 'Outside' %}
+      {# ═══ OUTSIDE WORK: simple running total, no contract/pending math ═══ #}
+      {% set outside_total = proj.payments | sum(attribute='amount') %}
+      <div style="font-size:22px;font-weight:500;margin-bottom:4px">{{ outside_total | inr }}</div>
+      <div style="font-size:12px;color:var(--muted)">total received — no fixed contract amount for outside work</div>
+      <div style="font-size:12px;color:var(--hint);margin-top:6px">
+        {{ proj.payments | length }} payment{{ 's' if proj.payments | length != 1 }} logged
+      </div>
+
+      {% else %}
+      {# ═══ INSTALLATION WORK: existing full payment summary ═══ #}
       <div style="font-size:22px;font-weight:500;margin-bottom:4px">{{ proj.effective_collected | inr }}</div>
       <div style="font-size:12px;color:var(--muted)">of {{ proj.total_receivable | inr }}</div>
       <div class="progress-wrap" style="margin:10px 0">
@@ -604,6 +627,7 @@ document.addEventListener('DOMContentLoaded', function () {
           {% endif %}
         {% endfor %}
       {% endif %}
+      {% endif %}{# end work_category == 'Outside' / else #}
     </div>{# end payment summary card #}
   </div>{# end right column div #}
 </div>{# end two-col #}
@@ -613,14 +637,14 @@ document.addEventListener('DOMContentLoaded', function () {
   <div style="display:flex;gap:8px;flex-wrap:wrap">
     <a href="#payments" class="btn btn-sm">Payments</a>
     <a href="#documents" class="btn btn-sm">Documents</a>
-    {% if proj.project_subtype == 'DCR' %}
+    {% if proj.project_subtype == 'DCR' and proj.work_category != 'Outside' %}
     <a href="#subsidy" class="btn btn-sm">Subsidy</a>
     {% endif %}
     {% if current_user.role in ['admin','office'] or
          (current_user.role in ['documents','documents_k'] and proj.doc_staff_id == current_user.id) %}
     <a href="{{ url_for('documents', pid=proj.id) }}" class="btn btn-sm">Doc Timeline</a>
     {% endif %}
-    {% if current_user.role in ['admin', 'onsite'] %}
+    {% if current_user.role in ['admin', 'onsite'] and proj.work_category != 'Outside' %}
     <a href="{{ url_for('onsite_progress', pid=proj.id) }}" class="btn btn-outline-warning btn-sm">
       Onsite Progress
     </a>
@@ -631,7 +655,7 @@ document.addEventListener('DOMContentLoaded', function () {
    SITE PHOTO (before work) & LOCATION
    ══════════════════════════════════════════════════════ #}
 {% set geo_tag = proj.geo_tag %}
-{% if geo_tag and (geo_tag.site_photo_path or geo_tag.has_gps) %}
+{% if proj.work_category != 'Outside' and geo_tag and (geo_tag.site_photo_path or geo_tag.has_gps) %}
 <div class="card" style="margin-bottom:16px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div class="card-title" style="margin:0">
@@ -685,7 +709,7 @@ document.addEventListener('DOMContentLoaded', function () {
 </div>
 {% endif %}
 {% set open_excesses = proj.payment_excesses | selectattr('status','eq','Pending') | list %}
-{% if proj.payment_excesses %}
+{% if proj.work_category != 'Outside' and proj.payment_excesses %}
 <div class="card" style="margin-bottom:16px;
      border-color:{% if not open_excesses %}var(--green-200,#bbf7d0){% else %}var(--amber-200,#fde68a){% endif %};
      background:{% if not open_excesses %}var(--green-50,#f0fdf4){% else %}var(--amber-50,#fffbeb){% endif %}">
@@ -811,8 +835,129 @@ document.addEventListener('DOMContentLoaded', function() {
 <div class="card" id="payments">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div class="card-title" style="margin:0">Payment history</div>
+    {% if proj.work_category != 'Outside' %}
     <span class="badge badge-{{ proj.project_type }}">{{ proj.project_type }} project</span>
+    {% endif %}
   </div>
+
+  {% if proj.work_category == 'Outside' %}
+  {# ══════════════════ OUTSIDE WORK: simple flat payment log ══════════════════ #}
+
+  {% if proj.payments %}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Amount</th><th>Type</th><th>Ref No.</th><th>Notes</th>
+        {% if current_user.role in ['admin','payments'] %}<th></th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for pay in proj.payments | sort(attribute='payment_date', reverse=True) %}
+      <tr id="pay-row-{{ pay.id }}">
+        <td>{{ pay.payment_date | date_fmt }}</td>
+        <td style="font-weight:500">{{ pay.amount | inr }}</td>
+        <td><span class="tag">{{ pay.payment_type }}</span></td>
+        <td style="font-size:12px;color:var(--muted)">{{ pay.reference_no or '—' }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ pay.notes or '—' }}</td>
+        {% if current_user.role in ['admin','payments'] %}
+        <td style="white-space:nowrap">
+          <button class="btn btn-sm pay-edit-btn" data-pay="{{ pay.id }}">Edit</button>
+          <form method="POST" action="{{ url_for('delete_payment', pid=proj.id, pay_id=pay.id) }}"
+                style="display:inline" onsubmit="return confirm('Delete this payment?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% if current_user.role in ['admin','payments'] %}
+      <tr id="pay-edit-{{ pay.id }}" style="display:none;background:var(--bg)">
+        <td colspan="6" style="padding:12px 14px">
+          <form method="POST" action="{{ url_for('edit_payment', pid=proj.id, pay_id=pay.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:flex-end">
+              <div>
+                <label style="font-size:12px">Amount (₹)</label>
+                <input type="number" name="amount" step="0.01" min="1"
+                       value="{{ pay.amount | float | round(2) }}" required/>
+              </div>
+              <div>
+                <label style="font-size:12px">Type</label>
+                <select name="payment_type">
+                  {% for t in ['Cash','Bank','Cheque','Online'] %}
+                  <option {% if pay.payment_type == t %}selected{% endif %}>{{ t }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label style="font-size:12px">Date</label>
+                <input type="date" name="payment_date"
+                       value="{{ pay.payment_date.isoformat() }}" required/>
+              </div>
+              <div>
+                <label style="font-size:12px">Reference no.</label>
+                <input type="text" name="reference_no" value="{{ pay.reference_no or '' }}"/>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                <button type="button" class="btn btn-sm pay-edit-btn" data-pay="{{ pay.id }}">Cancel</button>
+              </div>
+            </div>
+            <div style="margin-top:8px">
+              <label style="font-size:12px">Notes</label>
+              <input type="text" name="notes" value="{{ pay.notes or '' }}"
+                     style="width:100%" placeholder="Optional"/>
+            </div>
+          </form>
+        </td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="color:var(--hint);font-size:13px;padding:8px 0">No payments recorded yet.</div>
+  {% endif %}
+
+  {% if current_user.role in ['admin','payments'] %}
+  <div style="margin-top:16px;border-top:0.5px solid var(--border);padding-top:16px">
+    <div style="font-size:13px;font-weight:500;margin-bottom:10px">Record payment received</div>
+    <form method="POST" action="{{ url_for('add_payment', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="payment_source" value="Customer"/>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Amount (₹)</label>
+          <input type="number" name="amount" step="0.01" min="1" required placeholder="0"/>
+        </div>
+        <div class="form-group">
+          <label>Payment type</label>
+          <select name="payment_type">
+            <option>Cash</option><option>Bank</option><option>Cheque</option><option>Online</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Payment date</label>
+          <input type="date" name="payment_date" required/>
+        </div>
+        <div class="form-group">
+          <label>Reference No.</label>
+          <input type="text" name="reference_no" placeholder="Optional"/>
+        </div>
+        <div class="form-group full">
+          <label>Notes</label>
+          <input type="text" name="notes" placeholder="Optional"/>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary">Save payment</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% else %}
+  {# ══════════════════ INSTALLATION WORK: existing full flow ══════════════════ #}
 
   {% set payment_complete = (
       proj.total_receivable and proj.total_receivable > 0
@@ -1673,6 +1818,7 @@ document.addEventListener('DOMContentLoaded', function() {
   {% endif %}
 
   {% endif %}{# end if proj.project_type == 'Loan' / else #}
+  {% endif %}{# end work_category == 'Outside' / else #}
 </div>{# end payments card #}
 
 {# ══════════════════════════════════════════════════════
@@ -1704,6 +1850,21 @@ document.addEventListener('DOMContentLoaded', function() {
   {% set doc_map_pd = {} %}
   {% for d in proj.documents %}{% if doc_map_pd.update({d.doc_type: d}) %}{% endif %}{% endfor %}
   {% set ns_pd = namespace(exp=0, dn=0) %}
+  {% if proj.work_category == 'Outside' %}
+    {% for stage in [
+      {'condition':'always','docs':['ID Proof','Pass Book','Electricity Bill']},
+      {'condition':'outside','docs':['Outside Work Completed']},
+    ] %}
+      {% if stage.condition == 'always' or stage.condition == 'outside' %}
+        {% for doc_name in stage.docs %}
+          {% set ns_pd.exp = ns_pd.exp + 1 %}
+          {% if doc_name in doc_map_pd and doc_map_pd[doc_name].status in ['Received','Sent','Completed'] %}
+            {% set ns_pd.dn = ns_pd.dn + 1 %}
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+    {% endfor %}
+  {% else %}
   {% for stage in [
     {'condition':'always','docs':['ID Proof','Pass Book','Electricity Bill']},
     {'condition':'loan',  'docs':['GEO Tag Photo','Bank Stamp Paper','Bank File']},
@@ -1724,6 +1885,7 @@ document.addEventListener('DOMContentLoaded', function() {
       {% endfor %}
     {% endif %}
   {% endfor %}
+  {% endif %}
   {% set docs_locked = (ns_pd.exp > 0 and ns_pd.dn == ns_pd.exp) %}
   <div style="margin-top:12px">
     {% if docs_locked %}
@@ -1742,7 +1904,7 @@ document.addEventListener('DOMContentLoaded', function() {
 {# ══════════════════════════════════════════════════════
    SUBSIDY (DCR projects only)
    ══════════════════════════════════════════════════════ #}
-{% if proj.project_subtype == 'DCR' %}
+{% if proj.work_category != 'Outside' and proj.project_subtype == 'DCR' %}
 {% set sub = proj.subsidy %}
 {% set sub_status = sub.status if sub else 'NotStarted' %}
 <div class="card" id="subsidy">
@@ -2014,7 +2176,7 @@ document.addEventListener('DOMContentLoaded', function() {
 {% set onsite_complete = op and op.materials_ordered and op.materials_delivered
     and op.structure_work_status == 'Completed'
     and op.installation_status == 'Completed' %}
-{% if proj.onsite_progress %}
+{% if proj.work_category != 'Outside' and proj.onsite_progress %}
 {% set op = proj.onsite_progress %}
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
@@ -2071,7 +2233,7 @@ document.addEventListener('DOMContentLoaded', function() {
 {# ══════════════════════════════════════════════════════
    SERVICE VISITS SUMMARY
    ══════════════════════════════════════════════════════ #}
-{% if proj.service_records %}
+{% if proj.work_category != 'Outside' and proj.service_records %}
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div class="card-title" style="margin:0">Service visits</div>
@@ -2125,6 +2287,7 @@ document.addEventListener('DOMContentLoaded', function() {
 {# ══════════════════════════════════════════════════════
    PANEL & METER DETAILS
    ══════════════════════════════════════════════════════ #}
+{% if proj.work_category != 'Outside' %}
 {% set pd = proj.panel_details %}
 <div class="card" id="panel-details">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
@@ -2257,6 +2420,7 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   {% endif %}
 </div>
+{% endif %}{# end panel & meter details work_category check #}
 
 {# ══════════════════════════════════════════════════════
    ACTIVITY LOG
