@@ -58,9 +58,14 @@ def get_document_stages():
     return DocumentStage.query.filter_by(is_active=True).order_by(DocumentStage.sort_order).all()
 
 
-def get_expected_docs(project_type, project_subtype=None, loan_subtype=None):
+def get_expected_docs(project_type, project_subtype=None, loan_subtype=None, work_category='Installation'):
     docs = []
     for stage in get_document_stages():
+        if work_category == 'Outside':
+            if stage.condition in ('always', 'outside'):
+                docs.extend(stage.doc_list)
+            continue
+        
         if stage.condition == 'always':
             docs.extend(stage.doc_list)
         elif stage.condition == 'loan' and project_type == 'Loan':
@@ -72,13 +77,13 @@ def get_expected_docs(project_type, project_subtype=None, loan_subtype=None):
     return docs
 
 
+
+
 def get_doc_completion(project):
-    expected   = get_expected_docs(project.project_type, project.project_subtype, project.loan_subtype)
-    recorded   = {d.doc_type: d for d in project.documents}
-    done_count = sum(
-        1 for doc_name in expected
-        if doc_name in recorded and recorded[doc_name].status in ['Received', 'Sent', 'Completed']
-    )
+    expected = get_expected_docs(project.project_type, project.project_subtype,
+                                  project.loan_subtype, project.work_category)
+    recorded = {d.doc_type: d for d in project.documents}
+    done_count = sum(1 for n in expected if n in recorded and recorded[n].status in ('Received','Sent','Completed'))
     return done_count, len(expected)
 
 
@@ -308,7 +313,7 @@ class Project(db.Model):
     panel_items      = db.relationship('PanelItem', backref='project', lazy=True, cascade='all,delete-orphan')
     extra_materials  = db.relationship('ExtraMaterial', backref='project', lazy=True, cascade='all,delete-orphan')
     coordinator_name = db.Column(db.String(120), nullable=True)
-    
+    work_category = db.Column(db.Enum('Installation','Outside'), nullable=False, default='Installation')
 
     @property
     def contract_amount(self):
@@ -1279,11 +1284,13 @@ def service_map():
         urgency = 'all'
 
     tags = (ProjectGeoTag.query.join(Project)
-            .options(joinedload(ProjectGeoTag.project).joinedload(Project.payments),
-                     joinedload(ProjectGeoTag.project).joinedload(Project.subsidy),
-                     joinedload(ProjectGeoTag.project).joinedload(Project.service_records))
-            .filter(ProjectGeoTag.latitude.isnot(None), Project.status != 'Cancelled')
-            .all())
+        .options(joinedload(ProjectGeoTag.project).joinedload(Project.payments),
+                 joinedload(ProjectGeoTag.project).joinedload(Project.subsidy),
+                 joinedload(ProjectGeoTag.project).joinedload(Project.service_records))
+        .filter(ProjectGeoTag.latitude.isnot(None),
+                Project.status != 'Cancelled',
+                Project.work_category != 'Outside')            
+        .all())
     tags = [t for t in tags if t.project.pending_amount <= 0 or t.project.status == 'Closed']
 
     def _next_visit_status(proj):
@@ -1436,6 +1443,9 @@ def refresh_service_statuses():
 def auto_advance_stage(proj):
     if proj.status in ('Cancelled', 'OnHold', 'Completed', 'Closed'):
         return
+    if proj.work_category == 'Outside':
+        _auto_advance_outside_stage(proj)
+        return
 
     db.session.expire(proj, ['documents', 'site_visits', 'onsite_progress',
                               'app_install', 'subsidy', 'assignments'])
@@ -1512,7 +1522,30 @@ def auto_advance_stage(proj):
                    old_val=old_status, new_val=proj.status)
         _notify_stage_transition(proj, old_stage, proj.stage)
 
+def _auto_advance_outside_stage(proj):
+    db.session.expire(proj, ['documents'])
+    old_stage, old_status = proj.stage, proj.status
+    doc_map = {d.doc_type: d for d in proj.documents}
 
+    def doc_done(*names):
+        return all(doc_map.get(n) and doc_map[n].status in ('Received','Sent','Completed') for n in names)
+
+    if proj.stage in ('Lead', 'Site Visit'):
+        proj.stage, proj.status = 'Documentation', 'InProgress'
+
+    elif proj.stage == 'Documentation':
+        
+        if doc_done('Outside Work Completed'):
+            proj.stage, proj.status = 'Payment', 'InProgress'
+
+    elif proj.stage == 'Payment':
+        pass  
+              
+
+    if proj.stage != old_stage or proj.status != old_status:
+        proj.staged_changed_at = datetime.utcnow()
+        log_action(proj.id, f'Auto-advanced (Outside): {old_stage} → {proj.stage}',
+                   old_val=old_status, new_val=proj.status)
 def _notify_stage_transition(proj, from_stage, to_stage):
     code = f'{proj.project_code} — {proj.customer.name}'
 
@@ -2434,7 +2467,8 @@ def dashboard():
                 joinedload(Project.payments),       
                 joinedload(Project.coordinator),       
             )
-            .filter(Project.status.in_(['InProgress','Delayed','Lead','Created']))
+            .filter(Project.status.in_(['InProgress','Delayed','Lead','Created']),
+                Project.work_category != 'Outside')
             .order_by(Project.updated_at.desc())
             .all())
         data['workers'] = Worker.query.filter_by(is_active=True).all()
@@ -2465,18 +2499,10 @@ def onsite_board():
             joinedload(Project.payments),
             joinedload(Project.coordinator),
         )
-        .filter(Project.status.in_(['InProgress','Delayed','Lead','Created']))
+        .filter(Project.status.in_(['InProgress','Delayed','Lead','Created']),
+                Project.work_category != 'Outside')          # ← add this
         .order_by(Project.updated_at.desc())
         .all())
-    workers = Worker.query.filter_by(is_active=True).all()
-    tasks   = Notification.query.filter_by(
-        user_id=current_user.id, notif_type='task', is_read=False).order_by(
-        Notification.created_at.desc()).all()
-    data = {'projects': projects, 'workers': workers, 'tasks': tasks}
-    response = make_response(render_template('onsite_dashboard.html', data=data))
-    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-    response.headers['Pragma'] = 'no-cache'
-    return response
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PROJECTS
@@ -2791,7 +2817,7 @@ def edit_project(pid):
                 changes.append(f'Status: {proj.status} → {new_status}')
                 proj.status = new_status
                 # ── NEW: create service schedule if it just became Completed/Closed ──
-                if proj.status in ('Completed', 'Closed'):
+                if proj.status in ('Completed', 'Closed') and proj.work_category != 'Outside':
                     create_service_schedule(proj)
             if 'coordinator_id' in request.form:
                 raw_coord_id     = request.form.get('coordinator_id') or None
@@ -3198,8 +3224,8 @@ def update_status(pid):
 
     log_action(pid, 'Status updated', old_val=old_status, new_val=proj.status)
 
-    # ── NEW: create service schedule if project just became Completed/Closed ──
-    if proj.status in ('Completed', 'Closed') and proj.status != old_status:
+    
+    if proj.status in ('Completed', 'Closed') and proj.status != old_status and proj.work_category != 'Outside':
         create_service_schedule(proj)
 
     db.session.commit()
@@ -3842,22 +3868,22 @@ def service_management():
         .subquery())
 
     projects = (Project.query
-        .options(
-            joinedload(Project.customer),
-            joinedload(Project.coordinator),
-            joinedload(Project.payments),
-            joinedload(Project.subsidy),
-        )
-        .filter(Project.id.in_(has_service))
-        .order_by(cast(Project.project_code, Integer))
-        .all())
+    .options(
+        joinedload(Project.customer),
+        joinedload(Project.coordinator),
+        joinedload(Project.payments),
+        joinedload(Project.subsidy),
+    )
+    .filter(Project.id.in_(has_service))
+    .order_by(cast(Project.project_code, Integer))
+    .all())
 
     # Exclude OnHold too, not just Cancelled — a held project's service
     # schedule shouldn't read as "actionable" even if pending_amount is 0.
     projects = [p for p in projects
-                if p.status not in ('Cancelled', 'OnHold')
-                and (p.pending_amount <= 0 or p.status == 'Closed')]
-
+            if p.status not in ('Cancelled', 'OnHold')
+            and p.work_category != 'Outside'                  
+            and (p.pending_amount <= 0 or p.status == 'Closed')]
     proj_data = []
     for p in projects:
         records   = sorted(p.service_records, key=lambda r: r.visit_number)
@@ -5317,14 +5343,12 @@ def app_install_map():
 
     from sqlalchemy.orm import joinedload
     all_installs = (AppInstallation.query
-        .join(Project)
-        .options(
-            joinedload(AppInstallation.project).joinedload(Project.customer),
-            joinedload(AppInstallation.project).joinedload(Project.geo_tag),
-        )
-        .filter(Project.status != 'Cancelled')
-        .order_by(AppInstallation.id.desc())
-        .all())
+    .join(Project)
+    .options(...)
+    .filter(Project.status != 'Cancelled',
+            Project.work_category != 'Outside')                
+    .order_by(AppInstallation.id.desc())
+    .all())
 
     if status_filter == 'Pending':
         installs = [i for i in all_installs if i.status != 'Completed']
@@ -5420,7 +5444,9 @@ def project_service(pid):
     if proj.status in ('Cancelled', 'OnHold'):
         flash('Service schedule is not active for a Cancelled or On Hold project.', 'warning')
         return redirect(url_for('project_detail', pid=pid))
-
+    if proj.work_category == 'Outside':                       
+        flash('Outside-work projects do not have a service schedule.', 'warning')
+        return redirect(url_for('project_detail', pid=pid))
     records   = (ServiceRecord.query
                .filter_by(project_id=pid)
                .order_by(ServiceRecord.visit_number).all())

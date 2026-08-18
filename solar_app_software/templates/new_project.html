@@ -101,6 +101,13 @@
         </select>
       </div>
       <div class="form-group">
+  <label>Work category *</label>
+  <select name="work_category" id="work_category_select" onchange="toggleOutsideWork()">
+    <option value="Installation" selected>Installation (Cash/Loan)</option>
+    <option value="Outside">Outside Work (paperwork only)</option>
+  </select>
+</div>
+      <div class="form-group">
         <label>Project subtype</label>
         <select name="project_subtype">
           <option value="DCR">DCR (with subsidy)</option>
@@ -251,6 +258,17 @@ function toggleOtherRoof() {
   if (!show) input.value = '';
 }
 toggleOtherRoof();
-
+function toggleOutsideWork() {
+  const isOutside = document.getElementById('work_category_select').value === 'Outside';
+  ['inverter_capacity_kw','panel_capacity_kw','structure_capacity_kw','total_amount',
+   'project_type','project_subtype','inverter_type','roof_type']
+    .forEach(name => {
+      const el = document.querySelector(`[name="${name}"]`);
+      if (!el) return;
+      el.closest('.form-group').style.display = isOutside ? 'none' : '';
+      el.required = false;
+    });
+}
+toggleOutsideWork();
 </script>
 {% endblock %}
