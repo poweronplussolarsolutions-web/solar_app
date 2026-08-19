@@ -6,8 +6,9 @@
   <span class="badge" style="font-size:13px;padding:5px 12px;background:#f3e8ff;color:#6b21a8;border:1px solid #d8b4fe">
      Outside Work
   </span>
-  {% endif %}
+  {% else %}
   <span class="badge badge-{{ proj.status }}" style="font-size:13px;padding:5px 12px">{{ proj.status }}</span>
+  {% endif %}
   <a href="{{ url_for('projects') }}" class="btn btn-sm"
    onclick="if(document.referrer && document.referrer.indexOf('/projects') !== -1){event.preventDefault();history.back();}">
   ← Back
@@ -204,7 +205,9 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Roof</td><td>{{ proj.roof_type_display }}</td></tr>
       {% endif %}
 
+            {% if proj.work_category != 'Outside' %}
       <tr><td style="color:var(--muted);padding:5px 0">Stage</td><td>{{ proj.stage }}</td></tr>
+      {% endif %}
       <tr><td style="color:var(--muted);padding:5px 0">Coordinator</td><td>
   {% if proj.coordinator %}
     {{ proj.coordinator.full_name }}
@@ -324,36 +327,38 @@ document.addEventListener('DOMContentLoaded', function () {
     </script>
 
     {# Stage & status card #}
-    <div class="card">
-      <div class="card-title">Stage &amp; status</div>
-      <div style="display:flex;align-items:center;gap:12px">
-        <span style="font-size:15px;font-weight:500">{{ proj.stage }}</span>
-        <span class="badge badge-{{ proj.status }}">{{ proj.status }}</span>
-      </div>
-      <div style="font-size:12px;color:var(--muted);margin-top:6px">
-        Stage advances automatically as work is completed.
-      </div>
-      {% if current_user.role == 'admin' %}
-      <details style="margin-top:10px">
-        <summary style="font-size:12px;color:var(--hint);cursor:pointer">Admin override</summary>
-        <form method="POST" action="{{ url_for('update_status', pid=proj.id) }}"
-              style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <select name="stage">
-            {% for s in ['Lead','Site Visit','Documentation','Onsite Work','Connection','Subsidy','Payment'] %}
-            <option value="{{ s }}" {% if proj.stage == s %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-          </select>
-          <select name="status">
-            {% for s in ['Created','InProgress','Delayed','Completed','Closed'] %}
-            <option value="{{ s }}" {% if proj.status == s %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-          </select>
-          <button type="submit" class="btn btn-sm">Override</button>
-        </form>
-      </details>
-      {% endif %}
-    </div>
+{% if proj.work_category != 'Outside' %}
+<div class="card">
+  <div class="card-title">Stage &amp; status</div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span style="font-size:15px;font-weight:500">{{ proj.stage }}</span>
+    <span class="badge badge-{{ proj.status }}">{{ proj.status }}</span>
+  </div>
+  <div style="font-size:12px;color:var(--muted);margin-top:6px">
+    Stage advances automatically as work is completed.
+  </div>
+  {% if current_user.role == 'admin' %}
+  <details style="margin-top:10px">
+    <summary style="font-size:12px;color:var(--hint);cursor:pointer">Admin override</summary>
+    <form method="POST" action="{{ url_for('update_status', pid=proj.id) }}"
+          style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <select name="stage">
+        {% for s in ['Lead','Site Visit','Documentation','Onsite Work','Connection','Subsidy','Payment'] %}
+        <option value="{{ s }}" {% if proj.stage == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+      <select name="status">
+        {% for s in ['Created','InProgress','Delayed','Completed','Closed'] %}
+        <option value="{{ s }}" {% if proj.status == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-sm">Override</button>
+    </form>
+  </details>
+  {% endif %}
+</div>
+{% endif %}
 
     {# ── SITE VISITS ── #}
     {% if current_user.role in ['admin', 'coordinator'] and proj.status not in ['Cancelled'] %}
