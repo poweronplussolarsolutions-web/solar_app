@@ -448,16 +448,12 @@ document.addEventListener('DOMContentLoaded', function () {
     <div class="card" style="margin-top:0">
       <div class="card-title">
         Payment summary
-        {% if proj.work_category == 'Outside' %}
-        <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:6px">— Outside Work, no fixed contract</span>
-        {% endif %}
       </div>
 
       {% if proj.work_category == 'Outside' %}
       {# ═══ OUTSIDE WORK: simple running total, no contract/pending math ═══ #}
       {% set outside_total = proj.payments | sum(attribute='amount') %}
       <div style="font-size:22px;font-weight:500;margin-bottom:4px">{{ outside_total | inr }}</div>
-      <div style="font-size:12px;color:var(--muted)">total received — no fixed contract amount for outside work</div>
       <div style="font-size:12px;color:var(--hint);margin-top:6px">
         {{ proj.payments | length }} payment{{ 's' if proj.payments | length != 1 }} logged
       </div>
