@@ -561,6 +561,8 @@
         {% if current_user.role in ['admin','director','payments','office'] %}
       <a class="nav-link {% if request.endpoint in 'coordinator_reports' %}active{% endif %}" href="{{ url_for('coordinator_reports') }}">
         <span class="dot"></span>C/O Report</a>
+        <a class="nav-link {% if request.endpoint in 'all_works_report' %}active{% endif %}" href="{{ url_for('all_works_report') }}">
+        <span class="dot"></span>All Report</a>
         {% endif %}
         {% if current_user.role in ['admin','director','office'] %}
       <a class="nav-link {% if request.endpoint in 'docstaff_reports' %}active{% endif %}" href="{{ url_for('docstaff_reports') }}">
