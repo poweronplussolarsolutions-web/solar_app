@@ -6736,63 +6736,57 @@ def build_allworks_coordinator_report(coordinator, projects, output_dir='/tmp'):
 
     # Column headers
     ws.row_dimensions[5].height = 20
-    headers = ['MNRE No.', 'Customer', 'Type', 'Subtype', 'Place', 'Status',
-           'Contract (₹)', 'Collected (₹)', 'Pending (₹)', 'Doc Staff', 'Created']
+    headers = ['MNRE No.', 'Customer', 'Place', 'Type', 'Subtype', 'Category', 'Status',
+                'Contract (₹)', 'Collected (₹)', 'Pending (₹)',
+                'Coordinator', 'Doc Staff', 'Created']
     for col, h in enumerate(headers, 1):
         _style_header_cell(ws.cell(5, col), h)
 
-    # Data
     sorted_projects = sorted(projects, key=lambda x: x.created_at, reverse=True)
     row = 6
     for i, p in enumerate(sorted_projects):
-        bg     = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
         s_bg, s_fg = STATUS_COLORS.get(p.status, ('FFFFFF', '000000'))
-        pend   = float(p.total_amount or 0) - float(p.collected_amount or 0)
+        pend = float(p.total_amount or 0) - float(p.collected_amount or 0)
         ws.row_dimensions[row].height = 17
-        vals = [p.project_code, p.customer.name, p.project_type, p.project_subtype or '—',
-            p.customer.place or '—',
-            p.status,
-            float(p.total_amount or 0), float(p.collected_amount or 0), pend,
-            p.doc_staff.full_name if p.doc_staff else '—',
-            p.created_at.strftime('%d %b %Y')]
-        fmts   = [None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0', None, None]
-        aligns = ['center', 'left', 'center', 'center', 'left', 'center',
-          'right', 'right', 'right', 'left', 'center']
+        coord_name = p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—')
+        vals = [p.project_code, p.customer.name, p.customer.place or '—',
+                p.project_type, p.project_subtype or '—', p.work_category, p.status,
+                float(p.total_amount or 0), float(p.collected_amount or 0), pend,
+                coord_name, p.doc_staff.full_name if p.doc_staff else '—',
+                p.created_at.strftime('%d %b %Y')]
+        fmts   = [None, None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0', None, None, None]
+        aligns = ['center', 'left', 'left', 'center', 'center', 'center', 'center',
+                  'right', 'right', 'right', 'left', 'left', 'center']
         for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
             _style_data_cell(ws.cell(row, col), val,
-                             bg=s_bg if col == 6 else bg,
-                             fg=s_fg if col == 6 else '000000',
-                             align=aln, number_fmt=fmt)
+                              bg=s_bg if col == 7 else bg,
+                              fg=s_fg if col == 7 else '000000',
+                              align=aln, number_fmt=fmt)
         row += 1
 
-    # Totals
-    total_val  = sum(float(p.total_amount    or 0) for p in sorted_projects)
+    total_val  = sum(float(p.total_amount or 0) for p in sorted_projects)
     total_coll = sum(float(p.collected_amount or 0) for p in sorted_projects)
     ws.row_dimensions[row].height = 20
-    for col in range(1, 12):
+    for col in range(1, len(headers) + 1):
         cell = ws.cell(row, col)
         if col == 1:
             _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
         elif col == 2:
-            _style_data_cell(cell, f'{len(sorted_projects)} projects',
-                             bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
-        elif col == 7:
-            _style_data_cell(cell, total_val,  bg=C_TOTAL_BG, fg=C_TOTAL_FG,
-                             bold=True, align='right', number_fmt='₹#,##0')
+            _style_data_cell(cell, f'{len(sorted_projects)} projects', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
         elif col == 8:
-            _style_data_cell(cell, total_coll, bg=C_TOTAL_BG, fg=C_TOTAL_FG,
-                             bold=True, align='right', number_fmt='₹#,##0')
+            _style_data_cell(cell, total_val, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
         elif col == 9:
-            _style_data_cell(cell, total_val - total_coll, bg=C_TOTAL_BG, fg=C_TOTAL_FG,
-                             bold=True, align='right', number_fmt='₹#,##0')
+            _style_data_cell(cell, total_coll, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
+        elif col == 10:
+            _style_data_cell(cell, total_val - total_coll, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
         else:
             cell.fill = _fill(C_TOTAL_BG)
             cell.border = _border()
 
-    col_widths = [12, 24, 8, 10, 16, 12, 14, 14, 14, 18, 13]
+    col_widths = [12, 24, 16, 8, 10, 12, 12, 14, 14, 14, 20, 20, 13]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
-
     path = os.path.join(output_dir, f'AllWorks_{coordinator.username}.xlsx')
     wb.save(path)
     return path
@@ -6897,7 +6891,97 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
     path = os.path.join(output_dir, f'AllWorks_Docs_{staff.username}.xlsx')
     wb.save(path)
     return path
+def build_allworks_full_report(projects, project_type_filter='All', work_category_filter='All', output_dir='/tmp'):
+    """System-wide all-works sheet — every project, optionally filtered by Cash/Loan and Installation/Outside."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'All Works'
+    _page_setup(ws)
+    ws.freeze_panes = 'A6'
 
+    filter_bits = []
+    if project_type_filter != 'All':
+        filter_bits.append(project_type_filter)
+    if work_category_filter != 'All':
+        filter_bits.append(work_category_filter)
+    subtitle = f'All Works — {" · ".join(filter_bits)}' if filter_bits else 'All Works — System Wide'
+
+    titles = [
+        ('Power On Plus Solar Solutions', C_HEADER_BG, C_HEADER_FG, 14, False, True),
+        (subtitle,                        C_SUBHDR_BG, C_HEADER_FG, 11, False, True),
+        (f'Generated: {date.today().strftime("%d %b %Y")}', C_ALT_BG, '444444', 10, True, True),
+        ('', 'FFFFFF', '000000', 8, False, False),
+    ]
+    for r, (txt, bg_c, fg_c, sz, italic, center) in enumerate(titles, 1):
+        ws.merge_cells(f'A{r}:L{r}')
+        c = ws[f'A{r}']
+        c.value = txt or None
+        c.font  = _font(bold=(not italic and bool(txt)), color=fg_c, size=sz, italic=italic)
+        c.fill  = _fill(bg_c)
+        if center:
+            c.alignment = _center()
+    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[2].height = 22
+    ws.row_dimensions[3].height = 18
+    ws.row_dimensions[4].height = 8
+
+    ws.row_dimensions[5].height = 20
+    headers = ['MNRE No.', 'Customer', 'Place', 'Type', 'Subtype', 'Status',
+                'Contract (₹)', 'Collected (₹)', 'Pending (₹)',
+                'Coordinator', 'Doc Staff', 'Created']
+    for col, h in enumerate(headers, 1):
+        _style_header_cell(ws.cell(5, col), h)
+
+    sorted_projects = sorted(projects, key=lambda x: x.created_at, reverse=True)
+    row = 6
+    for i, p in enumerate(sorted_projects):
+        bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        s_bg, s_fg = STATUS_COLORS.get(p.status, ('FFFFFF', '000000'))
+        pend = float(p.total_amount or 0) - float(p.collected_amount or 0)
+        ws.row_dimensions[row].height = 17
+        coord_name = p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—')
+        vals = [p.project_code, p.customer.name, p.customer.place or '—',
+                p.project_type, p.project_subtype or '—', p.status,
+                float(p.total_amount or 0), float(p.collected_amount or 0), pend,
+                coord_name, p.doc_staff.full_name if p.doc_staff else '—',
+                p.created_at.strftime('%d %b %Y')]
+        fmts   = [None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0', None, None, None]
+        aligns = ['center', 'left', 'left', 'center', 'center', 'center',
+                  'right', 'right', 'right', 'left', 'left', 'center']
+        for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
+            _style_data_cell(ws.cell(row, col), val,
+                              bg=s_bg if col == 6 else bg,
+                              fg=s_fg if col == 6 else '000000',
+                              align=aln, number_fmt=fmt)
+        row += 1
+
+    total_val  = sum(float(p.total_amount or 0) for p in sorted_projects)
+    total_coll = sum(float(p.collected_amount or 0) for p in sorted_projects)
+    ws.row_dimensions[row].height = 20
+    for col in range(1, len(headers) + 1):
+        cell = ws.cell(row, col)
+        if col == 1:
+            _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 2:
+            _style_data_cell(cell, f'{len(sorted_projects)} projects', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
+        elif col == 7:
+            _style_data_cell(cell, total_val, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
+        elif col == 8:
+            _style_data_cell(cell, total_coll, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
+        elif col == 9:
+            _style_data_cell(cell, total_val - total_coll, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
+        else:
+            cell.fill = _fill(C_TOTAL_BG)
+            cell.border = _border()
+
+    col_widths = [12, 24, 16, 8, 10, 12, 14, 14, 14, 20, 20, 13]
+    for i, w in enumerate(col_widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    fname = f'AllWorks_System_{project_type_filter}.xlsx' if project_type_filter != 'All' else 'AllWorks_System.xlsx'
+    path = os.path.join(output_dir, fname)
+    wb.save(path)
+    return path
 
 # ─────────────────────────────────────────────────────────────────────────────
 # NEW ROUTES — paste after the existing download_docstaff_report route
@@ -6920,8 +7004,91 @@ def download_coordinator_report_all():
     return send_file(path, as_attachment=True,
         download_name=f'AllWorks_{coordinator.username}.xlsx',
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+def _get_all_works_projects(project_type_filter, work_category_filter='All'):
+    q = Project.query.filter(Project.status != 'Cancelled')
+    if project_type_filter in ('Cash', 'Loan'):
+        q = q.filter(Project.project_type == project_type_filter)
+    if work_category_filter in ('Installation', 'Outside'):
+        q = q.filter(Project.work_category == work_category_filter)
+    return q.order_by(Project.created_at.desc()).all()
+
+@app.route('/admin/all_works')
+@login_required
+@roles_required('admin', 'director', 'payments', 'office')
+def all_works_report():
+    return render_template('all_works_report.html')
 
 
+@app.route('/admin/all_works/preview_data')
+@login_required
+@roles_required('admin', 'director', 'payments', 'office')
+def all_works_preview_data():
+    project_type_filter   = request.args.get('project_type', 'All')
+    work_category_filter  = request.args.get('work_category', 'All')
+    projects = _get_all_works_projects(project_type_filter, work_category_filter)
+
+    total_val = sum(float(p.total_amount or 0) for p in projects)
+    collected = sum(float(p.collected_amount or 0) for p in projects)
+    active    = [p for p in projects if p.status in ('InProgress', 'Delayed', 'Lead', 'OnHold')]
+    completed = [p for p in projects if p.status in ('Completed', 'Closed')]
+    cash_count = sum(1 for p in projects if p.project_type == 'Cash')
+    loan_count = sum(1 for p in projects if p.project_type == 'Loan')
+    outside_count = sum(1 for p in projects if p.work_category == 'Outside')
+
+    def _to_dict(p):
+        bg, fg = STATUS_COLORS_HTML.get(p.status, ('#fff', '#000'))
+        return {
+            'code':          p.project_code,
+            'customer':      p.customer.name,
+            'place':         p.customer.place or '—',
+            'type':          p.project_type,
+            'subtype':       p.project_subtype or '—',
+            'work_category': p.work_category,
+            'status':        p.status,
+            'status_bg':     bg,
+            'status_fg':     fg,
+            'contract':      _inr_fmt(p.total_amount),
+            'collected':     _inr_fmt(p.collected_amount),
+            'pending':       _inr_fmt(float(p.total_amount or 0) - float(p.collected_amount or 0)),
+            'coordinator':   p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—'),
+            'doc_staff':     p.doc_staff.full_name if p.doc_staff else '—',
+            'created':       p.created_at.strftime('%d %b %Y'),
+        }
+
+    return jsonify({
+        'kpis': {
+            'Total':     len(projects),
+            'Cash':      cash_count,
+            'Loan':      loan_count,
+            'Outside':   outside_count,
+            'Active':    len(active),
+            'Completed': len(completed),
+            'Value':     _inr_fmt(total_val),
+            'Collected': _inr_fmt(collected),
+            'Pending':   _inr_fmt(total_val - collected),
+        },
+        'projects': [_to_dict(p) for p in projects],
+    })
+
+
+@app.route('/admin/all_works/download')
+@login_required
+@roles_required('admin', 'director', 'payments', 'office')
+def all_works_download():
+    project_type_filter  = request.args.get('project_type', 'All')
+    work_category_filter = request.args.get('work_category', 'All')
+    projects = _get_all_works_projects(project_type_filter, work_category_filter)
+    path = build_allworks_full_report(projects, project_type_filter, work_category_filter, tempfile.gettempdir())
+
+    parts = ['AllWorks']
+    if project_type_filter != 'All':
+        parts.append(project_type_filter)
+    if work_category_filter != 'All':
+        parts.append(work_category_filter)
+    fname = '_'.join(parts) + '.xlsx'
+
+    return send_file(path, as_attachment=True, download_name=fname,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 # ── Doc staff: all-works Excel ───────────────────────────────────────────────
 @app.route('/admin/docstaff_reports/download_all')
 @login_required
