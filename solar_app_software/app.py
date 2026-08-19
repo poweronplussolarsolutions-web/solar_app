@@ -7004,12 +7004,19 @@ def download_coordinator_report_all():
     return send_file(path, as_attachment=True,
         download_name=f'AllWorks_{coordinator.username}.xlsx',
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-def _get_all_works_projects(project_type_filter, work_category_filter='All'):
+def _get_all_works_projects(project_type_filter, work_category_filter='All', status_filter='All'):
     q = Project.query.filter(Project.status != 'Cancelled')
     if project_type_filter in ('Cash', 'Loan'):
         q = q.filter(Project.project_type == project_type_filter)
     if work_category_filter in ('Installation', 'Outside'):
         q = q.filter(Project.work_category == work_category_filter)
+    if status_filter != 'All':
+        if status_filter == 'Active':
+            q = q.filter(Project.status.in_(['InProgress', 'Lead', 'Created']))
+        elif status_filter == 'Completed':
+            q = q.filter(Project.status.in_(['Completed', 'Closed']))
+        else:
+            q = q.filter(Project.status == status_filter)
     return q.order_by(Project.created_at.desc()).all()
 
 @app.route('/admin/all_works')
@@ -7018,19 +7025,20 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All'):
 def all_works_report():
     return render_template('all_works_report.html')
 
-
 @app.route('/admin/all_works/preview_data')
 @login_required
 @roles_required('admin', 'director', 'payments', 'office')
 def all_works_preview_data():
     project_type_filter   = request.args.get('project_type', 'All')
     work_category_filter  = request.args.get('work_category', 'All')
-    projects = _get_all_works_projects(project_type_filter, work_category_filter)
+    status_filter          = request.args.get('status', 'All')
+    projects = _get_all_works_projects(project_type_filter, work_category_filter, status_filter)
 
     total_val = sum(float(p.total_amount or 0) for p in projects)
     collected = sum(float(p.collected_amount or 0) for p in projects)
     active    = [p for p in projects if p.status in ('InProgress', 'Delayed', 'Lead', 'OnHold')]
     completed = [p for p in projects if p.status in ('Completed', 'Closed')]
+    delayed   = [p for p in projects if p.status == 'Delayed']
     cash_count = sum(1 for p in projects if p.project_type == 'Cash')
     loan_count = sum(1 for p in projects if p.project_type == 'Loan')
     outside_count = sum(1 for p in projects if p.work_category == 'Outside')
@@ -7062,6 +7070,7 @@ def all_works_preview_data():
             'Loan':      loan_count,
             'Outside':   outside_count,
             'Active':    len(active),
+            'Delayed':   len(delayed),
             'Completed': len(completed),
             'Value':     _inr_fmt(total_val),
             'Collected': _inr_fmt(collected),
@@ -7077,7 +7086,8 @@ def all_works_preview_data():
 def all_works_download():
     project_type_filter  = request.args.get('project_type', 'All')
     work_category_filter = request.args.get('work_category', 'All')
-    projects = _get_all_works_projects(project_type_filter, work_category_filter)
+    status_filter          = request.args.get('status', 'All')
+    projects = _get_all_works_projects(project_type_filter, work_category_filter, status_filter)
     path = build_allworks_full_report(projects, project_type_filter, work_category_filter, tempfile.gettempdir())
 
     parts = ['AllWorks']
@@ -7085,6 +7095,8 @@ def all_works_download():
         parts.append(project_type_filter)
     if work_category_filter != 'All':
         parts.append(work_category_filter)
+    if status_filter != 'All':
+        parts.append(status_filter)
     fname = '_'.join(parts) + '.xlsx'
 
     return send_file(path, as_attachment=True, download_name=fname,

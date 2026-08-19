@@ -3,10 +3,97 @@
 {% block page_title %}All Works — System Wide{% endblock %}
 
 {% block content %}
+<style>
+.aw-filter-bar {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 18px;
+}
+.aw-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 150px;
+}
+.aw-filter-group label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.aw-filter-group select {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--text);
+}
+.aw-filter-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  align-items: center;
+}
+.aw-active-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: -6px 0 14px;
+}
+.aw-chip {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--accent-bg, #eef2ff);
+  color: var(--accent, #4338ca);
+  font-weight: 500;
+}
+.aw-kpi-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.aw-kpi {
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 10px 14px;
+  min-width: 90px;
+  border: 0.5px solid var(--border);
+}
+.aw-kpi-label { font-size: 11px; color: var(--hint); }
+.aw-kpi-value { font-size: 16px; font-weight: 700; color: var(--text); }
+.aw-table-wrap { overflow-x: auto; }
+.aw-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.aw-table th {
+  padding: 7px 8px; text-align: left; background: var(--muted, #555);
+  color: #fff; font-size: 11px; white-space: nowrap; position: sticky; top: 0;
+}
+.aw-table td {
+  padding: 6px 8px; font-size: 12px; border-bottom: 1px solid var(--border);
+}
+.aw-row {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.aw-row:hover { background: var(--accent-bg, #eef2ff) !important; }
+.aw-status-pill {
+  padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600;
+}
+</style>
+
 <div class="card">
 
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
-    <div class="form-group" style="margin:0;min-width:160px">
+  <div class="aw-filter-bar">
+    <div class="aw-filter-group">
       <label>Project Type</label>
       <select id="typeFilter" onchange="loadData()">
         <option value="All">All (Cash + Loan)</option>
@@ -14,114 +101,160 @@
         <option value="Loan">Loan only</option>
       </select>
     </div>
-    <div class="form-group" style="margin:0;min-width:160px">
+    <div class="aw-filter-group">
       <label>Work Category</label>
       <select id="categoryFilter" onchange="loadData()">
         <option value="All">All</option>
-        <option value="Installation">Power On+ Works</option>
-        <option value="Outside">Outside Works</option>
+        <option value="Installation">Installation only</option>
+        <option value="Outside">Outside only</option>
       </select>
     </div>
-    <button type="button" class="btn btn-primary" style="margin-top:20px" onclick="downloadExcel()">
-      ↓ Download Excel
-    </button>
-    <span id="loadingTag" style="font-size:12px;color:var(--hint);margin-top:24px"></span>
+    <div class="aw-filter-group">
+      <label>Project Status</label>
+      <select id="statusFilter" onchange="loadData()">
+        <option value="All">All statuses</option>
+        <option value="Active">Active (Lead/InProgress)</option>
+        <option value="InProgress">In Progress</option>
+        <option value="Delayed">Delayed</option>
+        <option value="Completed">Completed / Closed</option>
+        <option value="OnHold">On Hold</option>
+        <option value="Lead">Lead</option>
+      </select>
+    </div>
+    <div class="aw-filter-actions">
+      <button type="button" class="btn btn-secondary" onclick="resetFilters()">Reset</button>
+      <button type="button" class="btn btn-primary" onclick="downloadExcel()">↓ Download Excel</button>
+    </div>
   </div>
 
-  <div id="kpiRow" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px"></div>
+  <div id="activeChips" class="aw-active-chips"></div>
 
-  <div style="overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse;font-size:12px" id="worksTable">
+  <div id="kpiRow" class="aw-kpi-row"></div>
+
+  <div class="aw-table-wrap">
+    <table class="aw-table" id="worksTable">
       <thead>
         <tr>
-          <th style="padding:6px 8px;text-align:left;background:var(--muted,#555);color:#fff;font-size:11px;white-space:nowrap">MNRE No.</th>
-          <th style="padding:6px 8px;text-align:left;background:var(--muted,#555);color:#fff;font-size:11px;white-space:nowrap">Customer</th>
-          <th style="padding:6px 8px;text-align:left;background:var(--muted,#555);color:#fff;font-size:11px;white-space:nowrap">Place</th>
-          <th style="padding:6px 8px;text-align:center;background:var(--muted,#555);color:#fff;font-size:11px;white-space:nowrap">Type</th>
-          <th style="padding:6px 8px;text-align:center;background:var(--muted,#555);color:#fff;font-size:11px;white-space:nowrap">Subtype</th>
-                    <th style="padding:6px 8px;text-align:center;background:var(--muted,#555);color:#fff;font-size:11px;white-space:nowrap">Category</th>
-          <th style="padding:6px 8px;text-align:center;background:var(--muted,#555);color:#fff;font-size:11px;white-space:nowrap">Status</th>
-          <th style="padding:6px 8px;text-align:right;background:var(--muted,#555);color:#fff;font-size:11px;white-space:nowrap">Contract</th>
-          <th style="padding:6px 8px;text-align:right;background:var(--muted,#555);color:#fff;font-size:11px;white-space:nowrap">Collected</th>
-          <th style="padding:6px 8px;text-align:right;background:var(--muted,#555);color:#fff;font-size:11px;white-space:nowrap">Pending</th>
-          <th style="padding:6px 8px;text-align:left;background:var(--muted,#555);color:#fff;font-size:11px;white-space:nowrap">Coordinator</th>
-          <th style="padding:6px 8px;text-align:left;background:var(--muted,#555);color:#fff;font-size:11px;white-space:nowrap">Doc Staff</th>
-          <th style="padding:6px 8px;text-align:center;background:var(--muted,#555);color:#fff;font-size:11px;white-space:nowrap">Created</th>
+          <th>MNRE No.</th>
+          <th>Customer</th>
+          <th>Place</th>
+          <th>Type</th>
+          <th>Subtype</th>
+          <th>Category</th>
+          <th>Status</th>
+          <th style="text-align:right">Contract</th>
+          <th style="text-align:right">Collected</th>
+          <th style="text-align:right">Pending</th>
+          <th>Coordinator</th>
+          <th>Doc Staff</th>
+          <th>Created</th>
         </tr>
       </thead>
       <tbody id="worksBody">
-        <tr><td colspan="12" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>
+        <tr><td colspan="13" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>
       </tbody>
     </table>
+  </div>
+
+  <div style="font-size:12px;color:var(--hint);margin-top:12px">
+    Click any row to open its job card.
   </div>
 
 </div>
 
 <script>
-function currentFilter() {
-  return document.getElementById('typeFilter').value;
+function currentFilters() {
+  return {
+    project_type:   document.getElementById('typeFilter').value,
+    work_category:  document.getElementById('categoryFilter').value,
+    status:         document.getElementById('statusFilter').value,
+  };
+}
+
+function buildQS(filters) {
+  return new URLSearchParams(filters).toString();
+}
+
+function resetFilters() {
+  document.getElementById('typeFilter').value = 'All';
+  document.getElementById('categoryFilter').value = 'All';
+  document.getElementById('statusFilter').value = 'All';
+  loadData();
 }
 
 function downloadExcel() {
-  window.location = `/admin/all_works/download?project_type=${currentFilter()}`;
-}
-function currentTypeFilter() {
-  return document.getElementById('typeFilter').value;
-}
-function currentCategoryFilter() {
-  return document.getElementById('categoryFilter').value;
-}
-function buildQS() {
-  return `project_type=${currentTypeFilter()}&work_category=${currentCategoryFilter()}`;
+  window.location = `/admin/all_works/download?${buildQS(currentFilters())}`;
 }
 
-function downloadExcel() {
-  window.location = `/admin/all_works/download?${buildQS()}`;
+function renderChips(filters) {
+  const chips = document.getElementById('activeChips');
+  const labels = {
+    project_type:  { Cash: 'Cash', Loan: 'Loan' },
+    work_category: { Installation: 'Installation', Outside: 'Outside' },
+    status:        { Active: 'Active', InProgress: 'In Progress', Delayed: 'Delayed',
+                      Completed: 'Completed/Closed', OnHold: 'On Hold', Lead: 'Lead' },
+  };
+  let html = '';
+  for (const [key, val] of Object.entries(filters)) {
+    if (val !== 'All' && labels[key] && labels[key][val]) {
+      html += `<span class="aw-chip">${labels[key][val]}</span>`;
+    }
+  }
+  chips.innerHTML = html;
 }
+
 function loadData() {
-  document.getElementById('loadingTag').textContent = 'Loading…';
-  fetch(`/admin/all_works/preview_data?${buildQS()}`)
+  const filters = currentFilters();
+  renderChips(filters);
+  document.getElementById('worksBody').innerHTML =
+    '<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>';
+
+  fetch(`/admin/all_works/preview_data?${buildQS(filters)}`)
     .then(r => r.json())
     .then(data => {
       renderKpis(data.kpis);
       renderTable(data.projects);
-      document.getElementById('loadingTag').textContent = '';
     })
     .catch(() => {
-      document.getElementById('loadingTag').textContent = 'Failed to load.';
+      document.getElementById('worksBody').innerHTML =
+        '<tr><td colspan="13" style="text-align:center;padding:30px;color:red">Failed to load.</td></tr>';
     });
 }
 
 function renderKpis(kpis) {
   const row = document.getElementById('kpiRow');
   row.innerHTML = Object.entries(kpis).map(([k, v]) => `
-    <div style="background:var(--surface,#f5f5f5);border-radius:6px;padding:10px 14px;min-width:90px">
-      <div style="font-size:11px;color:var(--hint)">${k}</div>
-      <div style="font-size:15px;font-weight:700;color:var(--text,#222)">${v}</div>
+    <div class="aw-kpi">
+      <div class="aw-kpi-label">${k}</div>
+      <div class="aw-kpi-value">${v}</div>
     </div>`).join('');
 }
 
 function renderTable(projects) {
-  const td  = s => `<td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border)">${s ?? '—'}</td>`;
-  const tdc = s => `<td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border);text-align:center">${s ?? '—'}</td>`;
-  const tdr = s => `<td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border);text-align:right">${s ?? '—'}</td>`;
+  const td  = s => `<td>${s ?? '—'}</td>`;
+  const tdc = s => `<td style="text-align:center">${s ?? '—'}</td>`;
+  const tdr = s => `<td style="text-align:right">${s ?? '—'}</td>`;
 
   const body = document.getElementById('worksBody');
   if (!projects.length) {
-    body.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:30px;color:var(--hint)">No projects found.</td></tr>';
+    body.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--hint)">No projects match these filters.</td></tr>';
     return;
   }
 
-    body.innerHTML = projects.map((p, i) => {
+  body.innerHTML = projects.map((p, i) => {
     const bg = i % 2 === 0 ? 'var(--surface,#f9f9f9)' : '#fff';
-    return `<tr style="background:${bg}">
+    return `<tr class="aw-row" style="background:${bg}" onclick="openJobCard('${p.code}')" title="Open job card for ${p.code}">
       ${tdc(p.code)}${td(p.customer)}${td(p.place)}${tdc(p.type)}${tdc(p.subtype)}${tdc(p.work_category)}
-      <td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border);text-align:center">
-        <span style="padding:2px 6px;border-radius:10px;font-size:10px;background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
+      <td style="text-align:center">
+        <span class="aw-status-pill" style="background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
       </td>
       ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
     </tr>`;
   }).join('');
+}
+
+function openJobCard(code) {
+  window.location = `/job_card?q=${encodeURIComponent(code)}`;
 }
 
 document.addEventListener('DOMContentLoaded', loadData);
