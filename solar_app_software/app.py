@@ -2531,7 +2531,7 @@ def projects():
     if current_user.role == 'documents_k':
         q = q.filter(Project.doc_staff_id == current_user.id)
     if status_filter:
-        q = q.filter(Project.status == status_filter)
+        q = q.filter(Project.status == status_filter, Project.work_category != 'Outside')
     if search:
         q = q.filter(
             Customer.name.ilike(f'%{search}%') |

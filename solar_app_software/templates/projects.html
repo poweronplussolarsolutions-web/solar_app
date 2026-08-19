@@ -68,7 +68,9 @@
         <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
         <td>{{ p.inverter_capacity_kw }} kW</td>
         <td>{{ p.panel_capacity_kw }} kW</td>
-        <td style="font-size:12px;color:var(--muted)">{{ p.stage }}</td>
+                <td style="font-size:12px;color:var(--muted)">
+          {% if p.work_category == 'Outside' %}—{% else %}{{ p.stage }}{% endif %}
+        </td>
         <td>
           {% if p.doc_staff %}
           <div style="display:flex;align-items:center;gap:6px">
@@ -96,7 +98,13 @@
     <span style="font-size:12px;color:var(--hint)">—</span>
   {% endif %}
 </td>
-        <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
+                <td>
+          {% if p.work_category == 'Outside' %}
+          <span class="badge" style="background:#f3e8ff;color:#6b21a8;border:1px solid #d8b4fe">Outside Work</span>
+          {% else %}
+          <span class="badge badge-{{ p.status }}">{{ p.status }}</span>
+          {% endif %}
+        </td>
         {% if current_user.role == 'admin' %}
 <td style="white-space:nowrap">
   {% if p.id in pending_excess_ids %}
