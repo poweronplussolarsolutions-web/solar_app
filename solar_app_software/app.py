@@ -1331,6 +1331,8 @@ def service_map():
         tags_json=tags_json, search_q=q, center=center, radius_km=radius_km,
         urgency=urgency, tag_urgency=tag_urgency)
 def create_service_schedule(project):
+    if project.work_category == 'Outside':          
+        return
     if ServiceRecord.query.filter_by(project_id=project.id).first():
         return
 
