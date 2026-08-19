@@ -254,7 +254,7 @@ function renderTable(projects) {
 }
 
 function openJobCard(code) {
-  window.location = `/job_card?q=${encodeURIComponent(code)}`;
+  window.location = `/job_card?q=${encodeURIComponent(code)}&from=all_works`;
 }
 
 document.addEventListener('DOMContentLoaded', loadData);
