@@ -206,6 +206,24 @@
     {% endfor %}
   </select>
 </div>
+      {% if current_user.role == 'admin' %}
+      <div class="form-group">
+        <label>Work category
+          <span style="font-size:11px;color:var(--warning);font-weight:400">⚠ admin override</span>
+        </label>
+        <select name="work_category" id="work_category_select" onchange="toggleOutsideWork()">
+          <option value="Installation" {% if proj.work_category == 'Installation' %}selected{% endif %}>
+            Installation (Cash/Loan)
+          </option>
+          <option value="Outside" {% if proj.work_category == 'Outside' %}selected{% endif %}>
+            Outside Work (paperwork only)
+          </option>
+        </select>
+        <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
+          Changing this changes which sections show on the project page. Switching to Outside removes any service schedule.
+        </span>
+      </div>
+      {% endif %}
 
       <div class="form-group">
         <label>Total contract amount (₹)</label>
@@ -432,5 +450,21 @@ function toggleOtherRoof() {
 }
 toggleOtherRoof();
 
+</script>
+<script>
+function toggleOutsideWork() {
+  const sel = document.getElementById('work_category_select');
+  if (!sel) return;
+  const isOutside = sel.value === 'Outside';
+  ['inverter_capacity_kw','panel_capacity_kw','structure_capacity_kw','total_amount',
+   'project_type','project_subtype','inverter_type','roof_type']
+    .forEach(name => {
+      const el = document.querySelector(`[name="${name}"]`);
+      if (!el) return;
+      const group = el.closest('.form-group');
+      if (group) group.style.display = isOutside ? 'none' : '';
+    });
+}
+toggleOutsideWork();
 </script>
 {% endblock %}

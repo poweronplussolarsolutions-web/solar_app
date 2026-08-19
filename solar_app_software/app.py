@@ -2644,6 +2644,7 @@ def new_project():
     roof_type_other      = _clean(request.form.get('roof_type_other', ''), 60) or None,
     inverter_type        = request.form.get('inverter_type') or None,
     coordinator_name     = resolved_coord_name,
+    work_category         = request.form.get('work_category') if request.form.get('work_category') in ('Installation', 'Outside') else 'Installation',
         )
         db.session.add(proj)
         db.session.flush()
@@ -2802,6 +2803,15 @@ def edit_project(pid):
                     return redirect(url_for('edit_project', pid=pid))
                 changes.append(f'MNRE: {proj.project_code} → {new_code}')
                 proj.project_code = new_code
+
+            # ── Work category override ──────────────────────────────────
+            new_work_category = request.form.get('work_category')
+            if new_work_category in ('Installation', 'Outside') and new_work_category != proj.work_category:
+                changes.append(f'Work category: {proj.work_category} → {new_work_category}')
+                proj.work_category = new_work_category
+                if new_work_category == 'Outside':
+                    # Outside-work projects don't have a service schedule
+                    ServiceRecord.query.filter_by(project_id=pid).delete()
         if current_user.role in ('admin','documents','office','documents_k'):
             proj.customer.name       = _clean(request.form.get('customer_name', proj.customer.name), 120)
             proj.customer.phone      = _clean(request.form.get('customer_phone', ''), 20) or None

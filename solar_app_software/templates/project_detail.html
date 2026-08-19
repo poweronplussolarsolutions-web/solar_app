@@ -2,6 +2,11 @@
 {% block title %}{{ proj.project_code }} — Solar App{% endblock %}
 {% block page_title %}{{ proj.project_code }} — {{ proj.customer.name }}{% endblock %}
 {% block topbar_actions %}
+  {% if proj.work_category == 'Outside' %}
+  <span class="badge" style="font-size:13px;padding:5px 12px;background:#f3e8ff;color:#6b21a8;border:1px solid #d8b4fe">
+     Outside Work
+  </span>
+  {% endif %}
   <span class="badge badge-{{ proj.status }}" style="font-size:13px;padding:5px 12px">{{ proj.status }}</span>
   <a href="{{ url_for('projects') }}" class="btn btn-sm"
    onclick="if(document.referrer && document.referrer.indexOf('/projects') !== -1){event.preventDefault();history.back();}">
@@ -440,7 +445,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     {# ── Payment summary card ── #}
     <div class="card" style="margin-top:0">
-      <div class="card-title">Payment summary</div>
+      <div class="card-title">
+        Payment summary
+        {% if proj.work_category == 'Outside' %}
+        <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:6px">— Outside Work, no fixed contract</span>
+        {% endif %}
+      </div>
 
       {% if proj.work_category == 'Outside' %}
       {# ═══ OUTSIDE WORK: simple running total, no contract/pending math ═══ #}
@@ -834,7 +844,12 @@ document.addEventListener('DOMContentLoaded', function() {
    ══════════════════════════════════════════════════════ #}
 <div class="card" id="payments">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-    <div class="card-title" style="margin:0">Payment history</div>
+    <div class="card-title" style="margin:0">
+      Payment history
+      {% if proj.work_category == 'Outside' %}
+      <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:6px">— amount received logged only</span>
+      {% endif %}
+    </div>
     {% if proj.work_category != 'Outside' %}
     <span class="badge badge-{{ proj.project_type }}">{{ proj.project_type }} project</span>
     {% endif %}
