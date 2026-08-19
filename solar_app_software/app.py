@@ -6932,7 +6932,11 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
     for col, h in enumerate(headers, 1):
         _style_header_cell(ws.cell(5, col), h)
 
-    sorted_projects = sorted(projects, key=lambda x: x.created_at, reverse=True)
+    sorted_projects = sorted(
+        projects,
+        key=lambda x: int(x.project_code) if x.project_code.isdigit() else 0,
+        reverse=True
+    )
     row = 6
     for i, p in enumerate(sorted_projects):
         bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
@@ -7017,7 +7021,7 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
             q = q.filter(Project.status.in_(['Completed', 'Closed']))
         else:
             q = q.filter(Project.status == status_filter)
-    return q.order_by(Project.created_at.desc()).all()
+    return q.order_by(cast(Project.project_code, Integer).desc()).all()
 
 @app.route('/admin/all_works')
 @login_required
