@@ -173,7 +173,9 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Taluk</td><td style="font-size:12px">{{ proj.customer.taluk or '—' }}</td></tr>
             <tr><td style="color:var(--muted);padding:5px 0">District</td><td style="font-size:12px">{{ proj.customer.district or '—' }}</td></tr>
 
-      {% if proj.work_category != 'Outside' %}
+      {% if proj.work_category == 'Outside' %}
+      <tr><td style="color:var(--muted);padding:5px 0">Work category</td><td><span class="badge">Outside Work</span></td></tr>
+      {% endif %}
       <tr>
         <td style="color:var(--muted);padding:5px 0">System size</td>
         <td>
@@ -182,10 +184,8 @@ document.addEventListener('DOMContentLoaded', function () {
       </tr>
       <tr><td style="color:var(--muted);padding:5px 0">Inverter type</td><td>{{ proj.inverter_type or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Type</td><td><span class="badge badge-{{ proj.project_type }}">{{ proj.project_type }}</span></td></tr>
+      {% if proj.work_category != 'Outside' %}
       <tr><td style="color:var(--muted);padding:5px 0">Sub Type</td><td style="font-size:12px">{{ proj.project_subtype }}</td></tr>
-      {% else %}
-      <tr><td style="color:var(--muted);padding:5px 0">Work category</td><td><span class="badge">Outside Work</span></td></tr>
-      <tr><td style="color:var(--muted);padding:5px 0">Type</td><td><span class="badge badge-{{ proj.project_type }}">{{ proj.project_type }}</span></td></tr>
       {% endif %}
 
       {% set cd = proj.connection_details %}

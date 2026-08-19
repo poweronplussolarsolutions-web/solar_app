@@ -261,8 +261,7 @@ toggleOtherRoof();
 function toggleOutsideWork() {
   const isOutside = document.getElementById('work_category_select').value === 'Outside';
   
-  ['inverter_capacity_kw','panel_capacity_kw','structure_capacity_kw',
-   'project_subtype','inverter_type','roof_type']
+ ['structure_capacity_kw','project_subtype','inverter_type','roof_type']
     .forEach(name => {
       const el = document.querySelector(`[name="${name}"]`);
       if (!el) return;
