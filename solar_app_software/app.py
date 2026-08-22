@@ -4380,6 +4380,7 @@ def onsite_progress(pid):
         old_struct  = progress.structure_work_status
         old_install = progress.installation_status or 'NotStarted'
         old_elec    = progress.electrical_status   or 'NotStarted'
+        old_materials_delivered = progress.materials_delivered
         progress.important_notes=request.form.get('important_notes',progress.important_notes or '')
         progress.structure_work_status = new_struct
         progress.structure_notes       = _clean(request.form.get('structure_notes', ''), 500)
@@ -4399,7 +4400,12 @@ def onsite_progress(pid):
             or request.form.get('materials_delivered_date')
         )
         progress.materials_delivered_date = date.fromisoformat(delivered_date_raw) if delivered_date_raw else (progress.materials_delivered_date or date.today())
-
+        if progress.materials_delivered and not old_materials_delivered:
+            for u in User.query.filter_by(role='payments', is_active=True).all():
+                create_notification(u.id, pid,
+                    f'{proj.project_code} — {proj.customer.name}: Materials delivered to site '
+                    f'on {progress.materials_delivered_date.strftime("%d %b %Y")}.', 'info')
+            log_action(pid, 'Payments team notified: materials delivered', new_val='Delivered')
         for field, col in [
             ('structure_start_date','structure_start_date'), ('structure_end_date','structure_end_date'),
             ('installation_start_date','installation_start_date'), ('installation_end_date','installation_end_date'),
@@ -4700,7 +4706,7 @@ def dispatch_material(pid, mid):
 def deliver_stock_to_site(pid):
     proj     = Project.query.get_or_404(pid)
     progress = proj.onsite_progress or OnsiteProgress(project_id=pid)
-
+    was_delivered = progress.materials_delivered
     item_ids = request.form.getlist('stock_item_id')
     qtys     = request.form.getlist('stock_qty')
 
@@ -4730,7 +4736,15 @@ def deliver_stock_to_site(pid):
         progress.materials_ordered_date = progress.materials_ordered_date or progress.materials_delivered_date
     if not progress.id:
         db.session.add(progress)
+    if not was_delivered:
+        for u in User.query.filter_by(role='payments', is_active=True).all():
+            create_notification(u.id, pid,
+                f'{proj.project_code} — {proj.customer.name}: Materials delivered to site'
+                + (f' — {", ".join(deducted)}.' if deducted else '.'), 'info')
 
+    log_action(pid, 'Materials delivered to site' +
+               (f': {", ".join(deducted)}' if deducted else ' (no stock items selected)'),
+               new_val='Delivered')
     log_action(pid, 'Materials delivered to site' +
                (f': {", ".join(deducted)}' if deducted else ' (no stock items selected)'),
                new_val='Delivered')
