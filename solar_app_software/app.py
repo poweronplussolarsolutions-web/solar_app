@@ -1338,9 +1338,7 @@ def create_service_schedule(project):
 
     base = date.today()
     for visit_num in range(1, 11):
-        months_ahead = visit_num * 6
-        year_offset, month_offset = divmod(base.month - 1 + months_ahead, 12)
-        sched = base.replace(year=base.year + year_offset, month=month_offset + 1)
+        sched = _add_months(base, visit_num * 6)
         db.session.add(ServiceRecord(
             project_id     = project.id,
             visit_number   = visit_num,
@@ -1354,7 +1352,6 @@ def create_service_schedule(project):
     # log_action(project.id, 'Service schedule created (10 visits x 6 months)', new_val='Upcoming')
 
 def _add_months(base_date, months):
-    """Add N months to a date, safely handling month-end overflow (e.g. Jan 31 + 1mo)."""
     year_offset, month_offset = divmod(base_date.month - 1 + months, 12)
     year  = base_date.year + year_offset
     month = month_offset + 1
