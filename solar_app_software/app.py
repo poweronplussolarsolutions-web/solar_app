@@ -3017,10 +3017,26 @@ def project_detail(pid):
     worker_rate = {str(w.id): float(w.rate_per_day or 0) for w in all_workers}
     notify_pay_id = request.args.get('notify_pay', type=int)
     is_final_pay  = request.args.get('final_pay', type=int) == 1
+
+    wa_confirm_msg  = None
+    wa_reminder_msg = None
+    wa_complete_msg = None
+    wa_just_msg     = None
+    if proj.work_category != 'Outside' and proj.customer.phone:
+        wa_confirm_msg = _wa_payment_message(proj, 'confirmation')
+        if proj.pending_amount and proj.pending_amount > 0:
+            wa_reminder_msg = _wa_payment_message(proj, 'reminder')
+        if proj.total_receivable > 0 and proj.pending_amount <= 0:
+            wa_complete_msg = _wa_payment_message(proj, 'final')
+        if notify_pay_id:
+            wa_just_msg = wa_complete_msg if is_final_pay else wa_confirm_msg
+
     return render_template('project_detail.html', proj=proj, logs=logs,
                            workers=workers, all_workers=all_workers,
                            worker_rate=worker_rate, today=date.today(),
-                           notify_pay_id=notify_pay_id, is_final_pay=is_final_pay)
+                           notify_pay_id=notify_pay_id, is_final_pay=is_final_pay,
+                           wa_confirm_msg=wa_confirm_msg, wa_reminder_msg=wa_reminder_msg,
+                           wa_complete_msg=wa_complete_msg, wa_just_msg=wa_just_msg)
 @app.route('/projects/<int:pid>/expenses', methods=['POST'])
 @login_required
 @roles_required('admin', 'documents','office','documents_k')
@@ -6091,10 +6107,10 @@ def date_fmt(value):
     if isinstance(value, (datetime, date)):
         return value.strftime('%d/%m/%Y')
     return str(value)
+
 @app.template_filter('wa_link')
 def wa_link_filter(phone, message):
-    """Build a wa.me deep link from a raw phone number + message text.
-    Assumes Indian numbers: normalizes 10-digit or leading-0 numbers to +91."""
+    """Build a wa.me deep link from a raw phone number + message text."""
     digits = re.sub(r'\D', '', phone or '')
     if len(digits) == 10:
         digits = '91' + digits
@@ -6103,6 +6119,85 @@ def wa_link_filter(phone, message):
     if not digits:
         return '#'
     return f'https://wa.me/{digits}?text={quote_plus(message)}'
+
+
+def _wa_money(v):
+    try:
+        return f'₹{float(v or 0):,.0f}'
+    except Exception:
+        return '₹0'
+
+
+def _wa_payment_message(proj, kind='confirmation'):
+    """
+    Builds the standard 'Payment Details' WhatsApp message:
+
+    *Payment Details – Power On Plus Solar Solutions*
+    <Customer Name>
+    <Place>
+
+    Dear Customer,
+    Greetings from Power On Plus Solar Solutions. We hope you are doing well.
+    Please find below the payment details for the ongoing work:
+
+    Work Amount : ₹...
+    Loan first amount credited: ₹...
+    Loan 2nd amount credited: ₹...
+    Balance payable: ₹...
+
+    Kindly review ...
+    Thank you for your cooperation.
+
+    Best regards,
+    Power On Plus Solar Solutions
+    """
+    customer = proj.customer
+    lines = ['*Payment Details – Power On Plus Solar Solutions*']
+    lines.append(customer.name)
+    if customer.place:
+        lines.append(customer.place)
+    lines.append('')
+    lines.append('Dear Customer,')
+    lines.append('Greetings from Power On Plus Solar Solutions. We hope you are doing well.')
+    lines.append('Please find below the payment details for the ongoing work:')
+    lines.append('')
+    lines.append(f'Work Amount : {_wa_money(proj.total_amount)}/-')
+
+    if proj.project_type == 'Loan':
+        instalments = proj.bank_instalments
+        if 'First' in instalments:
+            lines.append(f"Loan first amount credited: {_wa_money(instalments['First'].amount)}/-")
+        if 'Second' in instalments:
+            lines.append(f"Loan 2nd amount credited: {_wa_money(instalments['Second'].amount)}/-")
+        customer_total = sum(float(p.amount) for p in proj.payments if p.payment_source == 'Customer')
+        if customer_total > 0:
+            lines.append(f'Amount paid by you: {_wa_money(customer_total)}/-')
+    else:
+        collected = float(proj.collected_amount or 0)
+        if collected > 0:
+            lines.append(f'Amount received so far: {_wa_money(collected)}/-')
+
+    if kind == 'final':
+        lines.append('')
+        lines.append('We are happy to inform you that the full amount has now been received. '
+                      'Your project is fully paid.')
+    else:
+        lines.append(f'Balance payable: {_wa_money(proj.pending_amount)}/-')
+        lines.append('')
+        if kind == 'reminder':
+            lines.append('Kindly clear the pending balance at your earliest convenience.')
+        else:
+            lines.append('Kindly review the above details and proceed with the pending payments '
+                          'as per the schedule.')
+        lines.append('Please feel free to contact us if you require any clarification.')
+
+    lines.append('')
+    lines.append('Thank you for your cooperation.')
+    lines.append('')
+    lines.append('Best regards,')
+    lines.append('Power On Plus Solar Solutions')
+
+    return '\n'.join(lines)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # EXCEL REPORT GENERATION  (unchanged from original — omitted for brevity)

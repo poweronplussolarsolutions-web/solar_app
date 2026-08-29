@@ -1851,67 +1851,45 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
   {% else %}
 
-  {% set latest_pay = proj.payments | sort(attribute='created_at', reverse=True) | first %}
-
-    {% if notify_pay_id and latest_pay and latest_pay.id == notify_pay_id %}
-    {% if is_final_pay %}
-      {% set final_msg = 'Dear ' ~ proj.customer.name ~ ', we are happy to inform you that your final payment of ' ~ (latest_pay.amount | inr) ~ ' has been received and your solar project (' ~ proj.project_code ~ ') is now fully paid.'
-          ~ ' Thank you for choosing Power On Plus Solar Solutions — we truly appreciate your trust in us!' %}
-  <div style="display:flex;align-items:center;gap:12px;background:var(--green-50,#f0fdf4);
-              border:1px solid var(--green-300,#86efac);border-radius:var(--radius);
-              padding:12px 16px;margin-bottom:14px">
-    <span style="font-size:18px">🎉</span>
+  {% if notify_pay_id and wa_just_msg %}
+  <div style="display:flex;align-items:center;gap:12px;
+              background:{% if is_final_pay %}var(--green-50,#f0fdf4){% else %}var(--green-50,#f0fdf4){% endif %};
+              border:1px solid {% if is_final_pay %}var(--green-300,#86efac){% else %}var(--green-200,#bbf7d0){% endif %};
+              border-radius:var(--radius);padding:12px 16px;margin-bottom:14px">
+    <span style="font-size:18px">{% if is_final_pay %}🎉{% else %}💬{% endif %}</span>
     <div style="flex:1">
-      <div style="font-size:13px;font-weight:600;color:var(--green-700,#15803d)">Final payment received — project fully paid</div>
-      <div style="font-size:12px;color:var(--green-600,#16a34a)">Send {{ proj.customer.name }} a completion message on WhatsApp?</div>
+      <div style="font-size:13px;font-weight:600;color:var(--green-700,#15803d)">
+        {% if is_final_pay %}Final payment received — project fully paid{% else %}Payment just recorded{% endif %}
+      </div>
+      <div style="font-size:12px;color:var(--green-600,#16a34a)">
+        Send {{ proj.customer.name }} the payment details on WhatsApp?
+      </div>
     </div>
     <a class="btn btn-sm btn-primary" target="_blank" rel="noopener"
-       href="{{ raw_phone | wa_link(final_msg) }}">Send now →</a>
+       href="{{ raw_phone | wa_link(wa_just_msg) }}">Send now →</a>
   </div>
-    {% else %}
-      {% set just_msg = 'Dear ' ~ proj.customer.name ~ ', we have received your payment of ' ~ (latest_pay.amount | inr) ~ ' for your solar project (' ~ proj.project_code ~ ').'
-          ~ ' Your remaining balance is ' ~ (proj.pending_amount | inr) ~ '.'
-          ~ ' Thank you for choosing Power On Plus Solar Solutions!' %}
-  <div style="display:flex;align-items:center;gap:12px;background:var(--green-50,#f0fdf4);
-              border:1px solid var(--green-200,#bbf7d0);border-radius:var(--radius);
-              padding:12px 16px;margin-bottom:14px">
-    <span style="font-size:18px">💬</span>
-    <div style="flex:1">
-      <div style="font-size:13px;font-weight:600;color:var(--green-700,#15803d)">Payment just recorded</div>
-      <div style="font-size:12px;color:var(--green-600,#16a34a)">Send {{ proj.customer.name }} a confirmation on WhatsApp?</div>
-    </div>
-    <a class="btn btn-sm btn-primary" target="_blank" rel="noopener"
-       href="{{ raw_phone | wa_link(just_msg) }}">Send now →</a>
-  </div>
-    {% endif %}
   {% endif %}
 
   <div style="font-size:12px;color:var(--muted);margin-bottom:12px">
-    Opens WhatsApp with a pre-filled message to <strong>{{ proj.customer.name }}</strong> ({{ raw_phone }}).
-    
+    Opens WhatsApp with a pre-filled payment-details message to <strong>{{ proj.customer.name }}</strong> ({{ raw_phone }}).
+    Review before sending — the greeting defaults to "Dear Customer," so adjust it if needed.
   </div>
 
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-    {% if latest_pay %}
-      {% set confirm_msg = 'Dear ' ~ proj.customer.name ~ ', we have received your payment of ' ~ (latest_pay.amount | inr) ~ ' for your solar project (' ~ proj.project_code ~ ').'
-          ~ ' Your remaining balance is ' ~ (proj.pending_amount | inr) ~ '.'
-          ~ ' Thank you for choosing Power On Plus Solar Solutions!' %}
-    <a class="btn btn-sm" target="_blank" rel="noopener" href="{{ raw_phone | wa_link(confirm_msg) }}">
-      ✓ Payment confirmation
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    {% if wa_confirm_msg %}
+    <a class="btn btn-sm" target="_blank" rel="noopener" href="{{ raw_phone | wa_link(wa_confirm_msg) }}">
+      ✓ Payment details
     </a>
     {% endif %}
 
-    {% if proj.pending_amount and proj.pending_amount > 0 %}
-      {% set reminder_msg = 'Dear ' ~ proj.customer.name ~ ', this is a reminder that a balance of ' ~ (proj.pending_amount | inr) ~ ' is pending for your solar project (' ~ proj.project_code ~ '). Kindly clear the dues at your earliest convenience. Thank you — Power On Plus Solar Solutions' %}
-    <a class="btn btn-sm btn-warning" target="_blank" rel="noopener" href="{{ raw_phone | wa_link(reminder_msg) }}">
+    {% if wa_reminder_msg %}
+    <a class="btn btn-sm btn-warning" target="_blank" rel="noopener" href="{{ raw_phone | wa_link(wa_reminder_msg) }}">
       ⏰ Payment reminder
     </a>
     {% endif %}
 
-    {% if proj.total_receivable > 0 and proj.pending_amount <= 0 %}
-      {% set complete_msg = 'Dear ' ~ proj.customer.name ~ ', your solar project (' ~ proj.project_code ~ ') is fully paid and complete.'
-          ~ ' Thank you for choosing Power On Plus Solar Solutions — we truly appreciate your trust in us!' %}
-    <a class="btn btn-sm btn-success" target="_blank" rel="noopener" href="{{ raw_phone | wa_link(complete_msg) }}">
+    {% if wa_complete_msg %}
+    <a class="btn btn-sm btn-success" target="_blank" rel="noopener" href="{{ raw_phone | wa_link(wa_complete_msg) }}">
       🎉 Project completed
     </a>
     {% endif %}
