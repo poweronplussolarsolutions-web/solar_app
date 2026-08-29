@@ -1810,88 +1810,27 @@ def notify_onsite_team(project_id, message, notif_type='task'):
 @login_required
 @roles_required('admin', 'payments', 'director')
 def onsite_activity():
-    """Read-only day-by-day view of onsite work — for the Payments team.
-    Shows phase start/completion events (structure/installation/electrical)
-    and logged notes, per project, for the selected date."""
-    selected_date = request.args.get('date')
-    try:
-        day = date.fromisoformat(selected_date) if selected_date else date.today()
-    except ValueError:
-        day = date.today()
+    """Read-only bucket board of onsite work — same staging as the onsite
+    team's board (/onsite), but for the Payments team. View-only: no links
+    into the onsite edit form, no inline actions."""
+    from sqlalchemy.orm import joinedload
 
-    # ── Logged notes for the day ────────────────────────────────────────
-    logs_today = (OnsiteLog.query
-        .options(joinedload(OnsiteLog.project).joinedload(Project.customer))
-        .filter(OnsiteLog.log_date == day)
-        .order_by(OnsiteLog.created_at.desc())
+    projects = (Project.query
+        .options(
+            joinedload(Project.onsite_progress),
+            joinedload(Project.materials),
+            joinedload(Project.customer),
+            joinedload(Project.payments),
+            joinedload(Project.coordinator),
+        )
+        .filter(
+            Project.status.in_(['InProgress', 'Delayed', 'Lead', 'Created']),
+            Project.work_category != 'Outside'
+        )
+        .order_by(Project.updated_at.desc())
         .all())
 
-    # ── Phase start/completion events for the day ───────────────────────
-    # Comes from OnsiteProgress's own start/end date fields — set when
-    # structure/installation/electrical work is marked started or completed.
-    phase_progress = (OnsiteProgress.query
-        .options(joinedload(OnsiteProgress.project).joinedload(Project.customer))
-        .filter(db.or_(
-            OnsiteProgress.structure_start_date == day,
-            OnsiteProgress.structure_end_date == day,
-            OnsiteProgress.installation_start_date == day,
-            OnsiteProgress.installation_end_date == day,
-            OnsiteProgress.electrical_start_date == day,
-            OnsiteProgress.electrical_end_date == day,
-        ))
-        .all())
-
-    by_project = {}
-
-    def _row(p):
-        return by_project.setdefault(p.id, {'project': p, 'phase_events': [], 'logs': []})
-
-    for op in phase_progress:
-        events = []
-        if op.structure_end_date == day and op.structure_work_status == 'Completed':
-            events.append({'phase': 'Structure', 'event': 'Completed'})
-        elif op.structure_start_date == day:
-            events.append({'phase': 'Structure', 'event': 'Started'})
-        if op.installation_end_date == day and op.installation_status == 'Completed':
-            events.append({'phase': 'Installation', 'event': 'Completed'})
-        elif op.installation_start_date == day:
-            events.append({'phase': 'Installation', 'event': 'Started'})
-        if op.electrical_end_date == day and op.electrical_status == 'Completed':
-            events.append({'phase': 'Electrical', 'event': 'Completed'})
-        elif op.electrical_start_date == day:
-            events.append({'phase': 'Electrical', 'event': 'Started'})
-        if events:
-            _row(op.project)['phase_events'].extend(events)
-
-    for l in logs_today:
-        _row(l.project)['logs'].append(l)
-
-    rows = sorted(by_project.values(), key=lambda r: r['project'].project_code)
-
-    # ── Nearest prev/next dates with any activity (log or phase event) ──
-    all_dates = set()
-    for (d,) in db.session.query(OnsiteLog.log_date).distinct():
-        if d: all_dates.add(d)
-    for col in (OnsiteProgress.structure_start_date, OnsiteProgress.structure_end_date,
-                OnsiteProgress.installation_start_date, OnsiteProgress.installation_end_date,
-                OnsiteProgress.electrical_start_date, OnsiteProgress.electrical_end_date):
-        for (d,) in db.session.query(col).filter(col.isnot(None)).distinct():
-            if d: all_dates.add(d)
-
-    earlier = sorted([d for d in all_dates if d < day], reverse=True)
-    later   = sorted([d for d in all_dates if d > day])
-    prev_activity_date = earlier[0] if earlier else None
-    next_activity_date = later[0] if later else None
-    recent_activity_dates = sorted(all_dates, reverse=True)[:10]
-
-    return render_template('onsite_activity.html',
-        rows=rows, day=day,
-        prev_day=prev_activity_date or (day - timedelta(days=1)),
-        next_day=next_activity_date or (day + timedelta(days=1)),
-        has_prev=prev_activity_date is not None,
-        has_next=next_activity_date is not None,
-        recent_activity_dates=recent_activity_dates,
-        today=date.today())
+    return render_template('onsite_activity.html', data={'projects': projects})
 def next_project_code():
     numeric = []
     for (code,) in db.session.query(Project.project_code).all():

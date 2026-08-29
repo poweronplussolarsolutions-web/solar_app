@@ -3,98 +3,267 @@
 {% block page_title %}Onsite Activity{% endblock %}
 
 {% block content %}
-<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <a href="{{ url_for('onsite_activity', date=prev_day.isoformat()) }}"
-       style="padding:6px 12px;border:0.5px solid var(--border);border-radius:var(--radius);text-decoration:none;color:inherit;font-size:13px">
-      ← {{ 'Prev entry' if has_prev else 'Prev' }}
-    </a>
+<style>
+.stage-col { }
+.stage-header {
+  font-size:11px;font-weight:600;letter-spacing:0.07em;
+  text-transform:uppercase;color:var(--muted);
+  padding:10px 14px 8px;
+  border-bottom:2px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.stage-header .count {
+  font-size:10px;background:var(--bg);border:0.5px solid var(--border);
+  border-radius:20px;padding:1px 8px;color:var(--hint);font-weight:500;
+}
+.proj-card {
+  padding:10px 14px;border-bottom:0.5px solid var(--border);
+  font-size:13px;
+}
+.proj-card:last-child { border-bottom:none; }
+.proj-card-code { font-weight:500;font-size:12px;color:var(--hint); }
+.proj-card-name { font-weight:500;margin-bottom:2px; }
+.proj-card-meta { font-size:11px;color:var(--muted);margin-top:3px; }
+.tag-pill {
+  display:inline-flex;align-items:center;gap:3px;
+  font-size:10px;font-weight:500;padding:1px 7px;
+  border-radius:20px;white-space:nowrap;
+}
+.pill-malabar  { background:#fef3c7;color:#92400e;border:0.5px solid #fcd34d; }
+.pill-struct   { background:#dbeafe;color:#1e40af;border:0.5px solid #93c5fd; }
+.pill-install  { background:#f3e8ff;color:#6b21a8;border:0.5px solid #d8b4fe; }
+.pill-done     { background:#d1fae5;color:#065f46;border:0.5px solid #6ee7b7; }
+.empty-col { padding:14px;font-size:13px;color:var(--hint);text-align:center; }
+@media (max-width:640px) {
+  .board-grid { grid-template-columns:1fr !important; }
+}
+</style>
 
-    <input type="date" id="onsiteDatePicker" value="{{ day.isoformat() }}"
-       data-base-url="{{ url_for('onsite_activity') }}"
-       style="padding:5px 10px;border:0.5px solid var(--border);border-radius:var(--radius);
-              font-size:13px;background:var(--surface);color:inherit;font-family:inherit">
+{# ── Bucket each project into onsite stages ── #}
+{% set ns = namespace(
+  not_ordered=[],
+  ordered=[],
+  structure=[],
+  installation=[],
+  done=[]
+) %}
 
-<script>
-document.getElementById('onsiteDatePicker').addEventListener('change', function () {
-  window.location.href = this.dataset.baseUrl + '?date=' + this.value;
-});
-</script>
-    <a href="{{ url_for('onsite_activity', date=next_day.isoformat()) }}"
-       style="padding:6px 12px;border:0.5px solid var(--border);border-radius:var(--radius);text-decoration:none;color:inherit;font-size:13px">
-      {{ 'Next entry' if has_next else 'Next' }} →
-    </a>
-
-    <div style="font-size:13px;color:var(--muted)">
-      {{ day.strftime('%A, %d %b %Y') }}
-      {% if day == today %}<span style="font-size:11px;font-weight:400">(today)</span>{% endif %}
-    </div>
-  </div>
-  {% if day != today %}
-  <a href="{{ url_for('onsite_activity') }}" style="font-size:12px;color:var(--muted)">Jump to today</a>
+{% for p in data.projects %}
+  {% set op = p.onsite_progress %}
+  {% set mat_delivered = op and op.materials_delivered %}
+  {% set mat_ordered   = op and op.materials_ordered %}
+  {% set install_done  = op and op.installation_status  == 'Completed' %}
+  {% set struct_done   = op and op.structure_work_status == 'Completed' %}
+  {% if install_done %}
+    {% set _ = ns.done.append(p) %}
+  {% elif struct_done %}
+    {% set _ = ns.installation.append(p) %}
+  {% elif mat_delivered %}
+    {% set _ = ns.structure.append(p) %}
+  {% elif mat_ordered %}
+    {% set _ = ns.ordered.append(p) %}
+  {% else %}
+    {% set _ = ns.not_ordered.append(p) %}
   {% endif %}
+{% endfor %}
+{% set ns.not_ordered  = ns.not_ordered  | sort(attribute='days_open') %}
+{% set ns.ordered      = ns.ordered      | sort(attribute='days_open') %}
+{% set ns.structure    = ns.structure    | sort(attribute='days_open') %}
+{% set ns.installation = ns.installation | sort(attribute='days_open') %}
+{% set ns.done         = ns.done         | sort(attribute='days_open') %}
+
+{# ── Search bar ── #}
+<div style="display:flex;align-items:center;gap:8px;background:var(--surface);
+            border:0.5px solid var(--border);border-radius:var(--radius);
+            padding:10px 14px;margin-bottom:14px;">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2" style="color:var(--hint);flex-shrink:0">
+    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+  </svg>
+  <input id="onsiteActivitySearch" type="text" placeholder="Search customer, project code, coordinator…"
+         style="border:none;outline:none;flex:1;font-size:13px;background:transparent;color:inherit">
+  <button id="onsiteActivitySearchClear" onclick="onsiteActivityClear()"
+          style="display:none;font-size:11px;color:var(--hint);cursor:pointer;
+                 padding:2px 8px;border:0.5px solid var(--border);
+                 border-radius:20px;background:var(--bg)">Clear</button>
 </div>
 
-{% if not rows %}
-  <div class="card" style="text-align:center;padding:30px;color:var(--muted);font-size:13px">
-    {% if day == today %}
-      No onsite work recorded for today yet.
-    {% else %}
-      No onsite work recorded for {{ day.strftime('%d %b %Y') }}.
-    {% endif %}
-    {% if has_prev or has_next %}
-      <div style="margin-top:8px">Use the Prev/Next buttons above to jump to the nearest date with recorded activity.</div>
-    {% endif %}
+{# ── Summary strip ── #}
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+  {% for label, count, color in [
+  ('Order pending',     ns.not_ordered | length,  '#92400e'),
+  ('Order placed',      ns.ordered | length,       '#d97706'),
+  ('Structure',         ns.structure | length,     '#1e40af'),
+  ('Installation',      ns.installation | length,  '#6b21a8'),
+  ('Completed',         ns.done | length,          '#065f46'),
+] %}
+  <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:10px 16px;min-width:110px">
+    <div style="font-size:22px;font-weight:500;color:{{ color }}">{{ count }}</div>
+    <div style="font-size:11px;color:var(--muted)">{{ label }}</div>
   </div>
-{% else %}
-  <div style="display:flex;flex-direction:column;gap:10px">
-    {% for r in rows %}
-    {% set p = r.project %}
-    <div class="card" style="padding:14px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
-        <div>
-          <a href="{{ url_for('project_detail', pid=p.id) }}" style="font-weight:600;text-decoration:none;color:inherit">
-            {{ p.project_code }} — {{ p.customer.name }}
-          </a>
-          <div style="font-size:12px;color:var(--muted)">
-            {{ p.inverter_capacity_kw }} kW inverter · {{ p.panel_capacity_kw }} kW panel
-            {% if p.coordinator %} · Coordinator: {{ p.coordinator.full_name }}{% endif %}
-          </div>
-        </div>
-        <span style="font-size:11px;padding:2px 8px;border-radius:20px;background:var(--bg);border:0.5px solid var(--border)">
-          {{ p.status }}
-        </span>
-      </div>
+  {% endfor %}
+</div>
 
-      {% if r.phase_events %}
-      <div style="margin-top:10px;font-size:12px">
-        <div style="display:flex;flex-wrap:wrap;gap:6px">
-          {% for e in r.phase_events %}
-          <span style="padding:3px 9px;border-radius:20px;font-weight:500;
-                       {% if e.event == 'Completed' %}background:#d1fae5;color:#065f46;border:0.5px solid #6ee7b7;
-                       {% else %}background:#dbeafe;color:#1e40af;border:0.5px solid #93c5fd;{% endif %}">
-            {{ e.phase }} {{ e.event }}
-          </span>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
+{# ── Board columns (view-only — no links into the onsite edit form) ── #}
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px" class="board-grid">
 
-      {% if r.logs %}
-      <div style="margin-top:10px;font-size:12px">
-        <div style="font-weight:600;color:var(--muted);margin-bottom:4px">Notes</div>
-        {% for l in r.logs %}
-        <div style="padding:6px 0;border-top:0.5px solid var(--border)">
-          <span style="font-weight:500">{{ l.work_phase }}</span> — {{ l.note }}
-          <div style="color:var(--hint);font-size:11px;margin-top:2px">
-            {{ l.logger.full_name if l.logger else '—' }} · {{ l.created_at.strftime('%I:%M %p') }}
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-      {% endif %}
+  {# Column A: Materials #}
+  <div class="card" style="padding:0">
+    <div class="stage-header">
+      <span>Materials</span>
+      <span class="count">{{ (ns.not_ordered | length) + (ns.ordered | length) }}</span>
     </div>
-    {% endfor %}
+    {% if ns.not_ordered or ns.ordered %}
+      {% for p in ns.not_ordered %}
+      <div class="proj-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div class="proj-card-code">{{ p.project_code }}{% if p.coordinator %} · {{ p.coordinator.full_name }}{% elif p.coordinator_name %} · {{ p.coordinator_name }}{% endif %}</div>
+          <span class="tag-pill pill-malabar">Not ordered</span>
+        </div>
+        <div class="proj-card-name">{{ p.customer.name }}</div>
+        <div class="proj-card-meta">{{ p.inverter_capacity_kw }} kW inverter · {{ p.panel_capacity_kw }} kW panel</div>
+      </div>
+      {% endfor %}
+      {% for p in ns.ordered %}
+      <div class="proj-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div class="proj-card-code">{{ p.project_code }}{% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}</div>
+          <span class="tag-pill pill-malabar">Order placed</span>
+        </div>
+        <div class="proj-card-name">{{ p.customer.name }}</div>
+        <div class="proj-card-meta">{{ p.inverter_capacity_kw }} kW inverter · {{ p.panel_capacity_kw }} kW panel · Awaiting delivery</div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-col">No projects</div>
+    {% endif %}
   </div>
-{% endif %}
+
+  {# Column B: Structure work #}
+  <div class="card" style="padding:0">
+    <div class="stage-header">
+      <span>Structure work</span>
+      <span class="count">{{ ns.structure | length }}</span>
+    </div>
+    {% if ns.structure %}
+      {% for p in ns.structure %}
+      {% set op = p.onsite_progress %}
+      <div class="proj-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div class="proj-card-code">{{ p.project_code }}{% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}</div>
+          <span class="tag-pill pill-struct">
+            {% if op and op.structure_work_status == 'InProgress' %}In progress
+            {% elif op and op.structure_work_status == 'Completed' %}Completed
+            {% else %}Not started{% endif %}
+          </span>
+        </div>
+        <div class="proj-card-name">{{ p.customer.name }}</div>
+        <div class="proj-card-meta">
+          {{ p.inverter_capacity_kw }} kW inverter · {{ p.panel_capacity_kw }} kW panel · Materials ready
+          {% if op and op.structure_start_date %} · Started {{ op.structure_start_date | date_fmt }}{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-col">No projects</div>
+    {% endif %}
+  </div>
+
+  {# Column C: Installation #}
+  <div class="card" style="padding:0">
+    <div class="stage-header">
+      <span>Installation</span>
+      <span class="count">{{ ns.installation | length }}</span>
+    </div>
+    {% if ns.installation %}
+      {% for p in ns.installation %}
+      {% set op = p.onsite_progress %}
+      <div class="proj-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div class="proj-card-code">{{ p.project_code }}{% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}</div>
+          <span class="tag-pill pill-install">
+            {% if op and op.installation_status == 'InProgress' %}In progress
+            {% elif op and op.installation_status == 'Completed' %}Completed
+            {% else %}Not Started{% endif %}
+          </span>
+        </div>
+        <div class="proj-card-name">{{ p.customer.name }}</div>
+        <div class="proj-card-meta">
+          {{ p.inverter_capacity_kw }} kW inverter · {{ p.panel_capacity_kw }} kW panel
+          {% if op and op.installation_start_date %} · Started {{ op.installation_start_date | date_fmt }}{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-col">No projects</div>
+    {% endif %}
+  </div>
+
+  {# Column D: Completed #}
+  <div class="card" style="padding:0">
+    <div class="stage-header">
+      <span>Completed</span>
+      <span class="count">{{ ns.done | length }}</span>
+    </div>
+    {% if ns.done %}
+      {% for p in ns.done %}
+      {% set op = p.onsite_progress %}
+      <div class="proj-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div class="proj-card-code">{{ p.project_code }}{% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}</div>
+          <span class="tag-pill pill-done">Complete</span>
+        </div>
+        <div class="proj-card-name">{{ p.customer.name }}</div>
+        <div class="proj-card-meta">
+          {{ p.inverter_capacity_kw }} kW inverter · {{ p.panel_capacity_kw }} kW panel
+          {% if op and op.installation_end_date %} · {{ op.installation_end_date | date_fmt }}{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-col">No projects</div>
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+(function () {
+  const input = document.getElementById('onsiteActivitySearch');
+  const clearBtn = document.getElementById('onsiteActivitySearchClear');
+
+  function filter(q) {
+    q = q.toLowerCase().trim();
+    clearBtn.style.display = q ? 'inline-block' : 'none';
+
+    document.querySelectorAll('.proj-card').forEach(card => {
+      const text = card.textContent.toLowerCase();
+      card.style.display = (!q || text.includes(q)) ? 'block' : 'none';
+    });
+
+    document.querySelectorAll('.stage-header').forEach(header => {
+      const col = header.closest('.card');
+      const visible = [...col.querySelectorAll('.proj-card')].filter(c => c.style.display !== 'none');
+      const countEl = header.querySelector('.count');
+      if (countEl) countEl.textContent = visible.length;
+
+      let empty = col.querySelector('.empty-col');
+      if (visible.length === 0) {
+        if (!empty) {
+          empty = document.createElement('div');
+          empty.className = 'empty-col';
+          col.appendChild(empty);
+        }
+        empty.textContent = q ? 'No matches' : 'No projects';
+        empty.style.display = '';
+      } else if (empty) {
+        empty.style.display = 'none';
+      }
+    });
+  }
+
+  input.addEventListener('input', e => filter(e.target.value));
+  window.onsiteActivityClear = function () { input.value = ''; filter(''); };
+})();
+</script>
 {% endblock %}
