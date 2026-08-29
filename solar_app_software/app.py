@@ -16,6 +16,7 @@ from decimal import Decimal
 import os
 import re
 from pywebpush import webpush, WebPushException
+from urllib.parse import quote_plus 
 import json as _json
 from flask import send_from_directory
 from flask import send_file
@@ -3014,11 +3015,12 @@ def project_detail(pid):
     workers     = Worker.query.filter_by(is_active=True).all()
     all_workers = Worker.query.filter_by(is_active=True).all()
     worker_rate = {str(w.id): float(w.rate_per_day or 0) for w in all_workers}
+    notify_pay_id = request.args.get('notify_pay', type=int)
+    is_final_pay  = request.args.get('final_pay', type=int) == 1
     return render_template('project_detail.html', proj=proj, logs=logs,
                            workers=workers, all_workers=all_workers,
-                           worker_rate=worker_rate, today=date.today())
-
-
+                           worker_rate=worker_rate, today=date.today(),
+                           notify_pay_id=notify_pay_id, is_final_pay=is_final_pay)
 @app.route('/projects/<int:pid>/expenses', methods=['POST'])
 @login_required
 @roles_required('admin', 'documents','office','documents_k')
@@ -3475,10 +3477,18 @@ def add_payment(pid):
             f'Loan work {proj.project_code} — {proj.customer.name} '
             f'({proj.inverter_capacity_kw} kW): First bank payment of ₹{amount:,.0f} received. ', 'task')
 
-    auto_advance_stage(proj)
+        auto_advance_stage(proj)
     db.session.commit()
     flash(f'Payment of ₹{amount:,.0f} recorded.', 'success')
-    return redirect(url_for('project_detail', pid=pid))
+
+    if proj.work_category == 'Outside':
+        return redirect(url_for('project_detail', pid=pid))
+
+    is_final = (proj.total_receivable > 0 and proj.pending_amount <= 0)
+    return redirect(url_for('project_detail', pid=pid,
+                             notify_pay=pay.id,
+                             final_pay=1 if is_final else 0,
+                             _anchor='whatsapp-messages'))
 @app.route('/projects/<int:pid>/payments/<int:pay_id>/edit', methods=['POST'])
 @login_required
 @roles_required('admin', 'payments')
@@ -6081,7 +6091,18 @@ def date_fmt(value):
     if isinstance(value, (datetime, date)):
         return value.strftime('%d/%m/%Y')
     return str(value)
-
+@app.template_filter('wa_link')
+def wa_link_filter(phone, message):
+    """Build a wa.me deep link from a raw phone number + message text.
+    Assumes Indian numbers: normalizes 10-digit or leading-0 numbers to +91."""
+    digits = re.sub(r'\D', '', phone or '')
+    if len(digits) == 10:
+        digits = '91' + digits
+    elif len(digits) == 11 and digits.startswith('0'):
+        digits = '91' + digits[1:]
+    if not digits:
+        return '#'
+    return f'https://wa.me/{digits}?text={quote_plus(message)}'
 
 # ─────────────────────────────────────────────────────────────────────────────
 # EXCEL REPORT GENERATION  (unchanged from original — omitted for brevity)

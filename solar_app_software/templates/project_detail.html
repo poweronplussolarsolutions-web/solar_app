@@ -1835,7 +1835,90 @@ document.addEventListener('DOMContentLoaded', function() {
   {% endif %}{# end if proj.project_type == 'Loan' / else #}
   {% endif %}{# end work_category == 'Outside' / else #}
 </div>{# end payments card #}
+{# ══════════════════════════════════════════════════════
+   WHATSAPP MESSAGES  (manual wa.me links — payments team only)
+   Not available for Outside-work projects
+   ══════════════════════════════════════════════════════ #}
+{% if current_user.role in ['admin', 'payments'] and proj.work_category != 'Outside' %}
+<div class="card" id="whatsapp-messages">
+  <div class="card-title">WhatsApp messages</div>
 
+  {% set raw_phone = proj.customer.phone or '' %}
+
+  {% if not raw_phone %}
+  <div style="color:var(--hint);font-size:13px;padding:4px 0">
+    No phone number on file for {{ proj.customer.name }}. Add one via Edit details to enable WhatsApp messages.
+  </div>
+  {% else %}
+
+  {% set latest_pay = proj.payments | sort(attribute='created_at', reverse=True) | first %}
+
+    {% if notify_pay_id and latest_pay and latest_pay.id == notify_pay_id %}
+    {% if is_final_pay %}
+      {% set final_msg = 'Dear ' ~ proj.customer.name ~ ', we are happy to inform you that your final payment of ' ~ (latest_pay.amount | inr) ~ ' has been received and your solar project (' ~ proj.project_code ~ ') is now fully paid.'
+          ~ ' Thank you for choosing Power On Plus Solar Solutions — we truly appreciate your trust in us!' %}
+  <div style="display:flex;align-items:center;gap:12px;background:var(--green-50,#f0fdf4);
+              border:1px solid var(--green-300,#86efac);border-radius:var(--radius);
+              padding:12px 16px;margin-bottom:14px">
+    <span style="font-size:18px">🎉</span>
+    <div style="flex:1">
+      <div style="font-size:13px;font-weight:600;color:var(--green-700,#15803d)">Final payment received — project fully paid</div>
+      <div style="font-size:12px;color:var(--green-600,#16a34a)">Send {{ proj.customer.name }} a completion message on WhatsApp?</div>
+    </div>
+    <a class="btn btn-sm btn-primary" target="_blank" rel="noopener"
+       href="{{ raw_phone | wa_link(final_msg) }}">Send now →</a>
+  </div>
+    {% else %}
+      {% set just_msg = 'Dear ' ~ proj.customer.name ~ ', we have received your payment of ' ~ (latest_pay.amount | inr) ~ ' for your solar project (' ~ proj.project_code ~ ').'
+          ~ ' Your remaining balance is ' ~ (proj.pending_amount | inr) ~ '.'
+          ~ ' Thank you for choosing Power On Plus Solar Solutions!' %}
+  <div style="display:flex;align-items:center;gap:12px;background:var(--green-50,#f0fdf4);
+              border:1px solid var(--green-200,#bbf7d0);border-radius:var(--radius);
+              padding:12px 16px;margin-bottom:14px">
+    <span style="font-size:18px">💬</span>
+    <div style="flex:1">
+      <div style="font-size:13px;font-weight:600;color:var(--green-700,#15803d)">Payment just recorded</div>
+      <div style="font-size:12px;color:var(--green-600,#16a34a)">Send {{ proj.customer.name }} a confirmation on WhatsApp?</div>
+    </div>
+    <a class="btn btn-sm btn-primary" target="_blank" rel="noopener"
+       href="{{ raw_phone | wa_link(just_msg) }}">Send now →</a>
+  </div>
+    {% endif %}
+  {% endif %}
+
+  <div style="font-size:12px;color:var(--muted);margin-bottom:12px">
+    Opens WhatsApp with a pre-filled message to <strong>{{ proj.customer.name }}</strong> ({{ raw_phone }}).
+    Nothing is sent automatically — review the message and hit send yourself.
+  </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+    {% if latest_pay %}
+      {% set confirm_msg = 'Dear ' ~ proj.customer.name ~ ', we have received your payment of ' ~ (latest_pay.amount | inr) ~ ' for your solar project (' ~ proj.project_code ~ ').'
+          ~ ' Your remaining balance is ' ~ (proj.pending_amount | inr) ~ '.'
+          ~ ' Thank you for choosing Power On Plus Solar Solutions!' %}
+    <a class="btn btn-sm" target="_blank" rel="noopener" href="{{ raw_phone | wa_link(confirm_msg) }}">
+      ✓ Payment confirmation
+    </a>
+    {% endif %}
+
+    {% if proj.pending_amount and proj.pending_amount > 0 %}
+      {% set reminder_msg = 'Dear ' ~ proj.customer.name ~ ', this is a reminder that a balance of ' ~ (proj.pending_amount | inr) ~ ' is pending for your solar project (' ~ proj.project_code ~ '). Kindly clear the dues at your earliest convenience. Thank you — Power On Plus Solar Solutions' %}
+    <a class="btn btn-sm btn-warning" target="_blank" rel="noopener" href="{{ raw_phone | wa_link(reminder_msg) }}">
+      ⏰ Payment reminder
+    </a>
+    {% endif %}
+
+    {% if proj.total_receivable > 0 and proj.pending_amount <= 0 %}
+      {% set complete_msg = 'Dear ' ~ proj.customer.name ~ ', your solar project (' ~ proj.project_code ~ ') is fully paid and complete.'
+          ~ ' Thank you for choosing Power On Plus Solar Solutions — we truly appreciate your trust in us!' %}
+    <a class="btn btn-sm btn-success" target="_blank" rel="noopener" href="{{ raw_phone | wa_link(complete_msg) }}">
+      🎉 Project completed
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
 {# ══════════════════════════════════════════════════════
    DOCUMENTS SUMMARY
    ══════════════════════════════════════════════════════ #}
