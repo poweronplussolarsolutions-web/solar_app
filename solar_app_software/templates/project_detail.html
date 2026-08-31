@@ -559,6 +559,8 @@ document.addEventListener('DOMContentLoaded', function () {
             <span class="tag" style="margin-left:4px;font-size:10px">{{ expense.paid_by }}</span>
           </div>
           <div style="font-size:16px;font-weight:500">{{ expense.amount | inr }}</div>
+          <div style="font-size:16px;font-weight:500">{{ expense.notes | inr }}</div>
+
           {% if expense.paid_by == 'Company' %}
             {% if not expense.recovered %}
               <div style="font-size:10px;color:var(--amber-600);margin-top:2px">Pending recovery</div>
