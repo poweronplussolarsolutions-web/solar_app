@@ -8,6 +8,7 @@ import pymysql
 pymysql.install_as_MySQLdb()
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, session, make_response
 from flask_sqlalchemy import SQLAlchemy
+import secrets
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
@@ -21,6 +22,7 @@ import json as _json
 from flask import send_from_directory
 from flask import send_file
 import tempfile, calendar
+from flask import abort 
 # from solar_app_software.logging_system import (
 #     setup_logging, security_log,
 #     log_login_attempt, log_lockout, log_password_change,
@@ -93,6 +95,26 @@ def get_doc_completion(project):
 # ─────────────────────────────────────────────────────────────────────────────
 
 app = Flask(__name__)
+DESKTOP_HOST = 'app.poweronplussolarsolutions.in'
+DESKTOP_HEADER = 'X-PowerOn-Desktop-Key'
+DESKTOP_CLIENT_KEY = os.environ.get('DESKTOP_CLIENT_KEY', '')
+
+@app.before_request
+def require_desktop_client_on_app_subdomain():
+    host = (request.host or '').split(':', 1)[0].lower()
+    if host != DESKTOP_HOST:
+        return None
+
+    
+    if not DESKTOP_CLIENT_KEY:
+        app.logger.error('DESKTOP_CLIENT_KEY is not configured')
+        abort(503)
+
+    supplied = request.headers.get(DESKTOP_HEADER, '')
+    if not supplied or not secrets.compare_digest(supplied, DESKTOP_CLIENT_KEY):
+        abort(403)
+
+    return None
 
 # ── Secret key: MUST be set via environment variable in production ────────────
 _secret = os.environ.get('SECRET_KEY', '')
