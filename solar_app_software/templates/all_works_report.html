@@ -147,10 +147,19 @@
       {% endfor %}
     </select>
   </div>
+  <div class="aw-filter-group">
+  <label>Work Amount</label>
+  <select id="amountFilter" onchange="loadData()">
+    <option value="All">All amounts</option>
+    <option value="Zero">₹0 only</option>
+    <option value="NonZero">Non-zero only</option>
+  </select>
+</div>
     <div class="aw-filter-actions">
-      <button type="button" class="btn btn-secondary" onclick="resetFilters()">Reset</button>
-      <button type="button" class="btn btn-primary" onclick="downloadExcel()">↓ Download Excel</button>
-    </div>
+  <button type="button" class="btn btn-secondary" onclick="resetFilters()">Reset</button>
+  <button type="button" class="btn btn-secondary" onclick="printTable()">🖨 Print</button>
+  <button type="button" class="btn btn-primary" onclick="downloadExcel()">↓ Download Excel</button>
+</div>
   </div>
 
   <div id="activeChips" class="aw-active-chips"></div>
@@ -294,6 +303,7 @@ function currentFilters() {
     project_type:   document.getElementById('typeFilter').value,
     work_category:  document.getElementById('categoryFilter').value,
     status:         document.getElementById('statusFilter').value,
+    amount_filter:  document.getElementById('amountFilter').value,
   };
   const month = document.getElementById('monthFilter').value;
   if (month) {
@@ -311,6 +321,7 @@ function resetFilters() {
   document.getElementById('typeFilter').value = 'All';
   document.getElementById('categoryFilter').value = 'All';
   document.getElementById('statusFilter').value = 'All';
+  document.getElementById('amountFilter').value = 'All';
   document.getElementById('monthFilter').value = '';
   document.getElementById('yearFilter').disabled = true;
   loadData();
@@ -327,6 +338,7 @@ function renderChips(filters) {
     work_category: { Installation: 'Installation', Outside: 'Outside' },
     status:        { Active: 'Active', InProgress: 'In Progress', Delayed: 'Delayed',
                       Completed: 'Completed/Closed', OnHold: 'On Hold', Lead: 'Lead' },
+    amount_filter: { Zero: '₹0 Work Amount', NonZero: 'Non-zero Work Amount' },
   };
   const monthNames = ['', 'January','February','March','April','May','June',
                        'July','August','September','October','November','December'];
@@ -336,12 +348,42 @@ function renderChips(filters) {
       html += `<span class="aw-chip">${monthNames[val]} ${filters.year}</span>`;
       continue;
     }
-    if (key === 'year') continue; // shown alongside month
+    if (key === 'year') continue;
     if (val !== 'All' && labels[key] && labels[key][val]) {
       html += `<span class="aw-chip">${labels[key][val]}</span>`;
     }
   }
   chips.innerHTML = html;
+}
+function printTable() {
+  const win = window.open('', '_blank');
+  const kpis = document.getElementById('kpiRow').outerHTML;
+  const chips = document.getElementById('activeChips').outerHTML;
+  const table = document.getElementById('worksTable').outerHTML;
+  win.document.write(`
+    <html><head><title>All Works Report</title>
+    <style>
+      body{font-family:Arial,sans-serif;padding:20px;}
+      table{width:100%;border-collapse:collapse;font-size:11px;}
+      th,td{padding:5px 7px;border:1px solid #ccc;text-align:left;}
+      th{background:#333;color:#fff;}
+      .aw-kpi-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+      .aw-kpi{border:1px solid #ccc;border-radius:6px;padding:8px 12px;min-width:80px;}
+      .aw-kpi-label{font-size:10px;color:#666;}
+      .aw-kpi-value{font-size:14px;font-weight:700;}
+      .aw-status-pill{padding:2px 6px;border-radius:8px;font-size:9px;font-weight:600;}
+      h2{margin-bottom:4px;}
+    </style></head>
+    <body>
+      <h2>Power On Plus Solar Solutions — All Works</h2>
+      ${chips}
+      ${kpis}
+      ${table}
+    </body></html>
+  `);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 300);
 }
 </script>
 {% endblock %}

@@ -7099,7 +7099,7 @@ def download_coordinator_report_all():
         download_name=f'AllWorks_{coordinator.username}.xlsx',
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 def _get_all_works_projects(project_type_filter, work_category_filter='All', status_filter='All',
-                             month=None, year=None):
+                             month=None, year=None, amount_filter='All'):
     q = Project.query.filter(Project.status != 'Cancelled')
     if project_type_filter in ('Cash', 'Loan'):
         q = q.filter(Project.project_type == project_type_filter)
@@ -7112,6 +7112,10 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
             q = q.filter(Project.status.in_(['Completed', 'Closed']))
         else:
             q = q.filter(Project.status == status_filter)
+    if amount_filter == 'Zero':
+        q = q.filter(db.or_(Project.total_amount == 0, Project.total_amount.is_(None)))
+    elif amount_filter == 'NonZero':
+        q = q.filter(Project.total_amount > 0)
     if month and year:
         month_start = date(year, month, 1)
         month_end   = date(year, month, calendar.monthrange(year, month)[1])
@@ -7133,9 +7137,11 @@ def all_works_preview_data():
     project_type_filter  = request.args.get('project_type', 'All')
     work_category_filter = request.args.get('work_category', 'All')
     status_filter         = request.args.get('status', 'All')
+    amount_filter          = request.args.get('amount_filter', 'All')
     month = request.args.get('month', type=int)
     year  = request.args.get('year', type=int)
-    projects = _get_all_works_projects(project_type_filter, work_category_filter, status_filter, month, year)
+    projects = _get_all_works_projects(project_type_filter, work_category_filter,
+                                        status_filter, month, year, amount_filter)
 
     total_val = sum(float(p.total_amount or 0) for p in projects)
     collected = sum(float(p.collected_amount or 0) for p in projects)
@@ -7190,9 +7196,11 @@ def all_works_download():
     project_type_filter  = request.args.get('project_type', 'All')
     work_category_filter = request.args.get('work_category', 'All')
     status_filter          = request.args.get('status', 'All')
+    amount_filter          = request.args.get('amount_filter', 'All')
     month = request.args.get('month', type=int)
     year  = request.args.get('year', type=int)
-    projects = _get_all_works_projects(project_type_filter, work_category_filter, status_filter, month, year)
+    projects = _get_all_works_projects(project_type_filter, work_category_filter,
+                                        status_filter, month, year, amount_filter)
     path = build_allworks_full_report(projects, project_type_filter, work_category_filter,
                                        tempfile.gettempdir(), month, year)
 
@@ -7203,6 +7211,10 @@ def all_works_download():
         parts.append(work_category_filter)
     if status_filter != 'All':
         parts.append(status_filter)
+    if amount_filter == 'Zero':
+        parts.append('ZeroAmount')
+    elif amount_filter == 'NonZero':
+        parts.append('NonZeroAmount')
     if month and year:
         parts.append(f'{calendar.month_abbr[month]}{year}')
     fname = '_'.join(parts) + '.xlsx'
