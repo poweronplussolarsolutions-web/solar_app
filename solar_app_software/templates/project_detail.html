@@ -1323,7 +1323,13 @@ document.addEventListener('DOMContentLoaded', function() {
 {% endfor %}
 {% set bank_total = ns.bank_total %}
 {% set contract_amt = proj.total_amount | float %}
-{% set excess_amt = bank_total - contract_amt %}
+
+{% set settled_bank_excess = proj.payment_excesses
+     | selectattr('source', 'eq', 'Bank')
+     | selectattr('status', 'eq', 'Settled')
+     | sum(attribute='amount') %}
+
+{% set excess_amt = bank_total - contract_amt - (settled_bank_excess | float) %}
 {% set exc = proj.bank_excess %}
 
 {% if excess_amt > 0.01 or exc %}
