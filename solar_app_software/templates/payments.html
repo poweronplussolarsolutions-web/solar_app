@@ -92,7 +92,29 @@
   </div>
   {{paginate('?pay_page=' ~ pay_page, pending_projs.page, pending_projs.pages, 'page') }}
 </div>
-
+<div class="card">
+  <form method="get" action="{{ url_for('payments_dashboard') }}"
+        style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+    <div>
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">
+        View payments recorded on
+      </label>
+      <input type="date" name="pay_date" value="{{ pay_date }}"
+             style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+    {% if pay_date %}
+    <a href="{{ url_for('payments_dashboard') }}" class="btn btn-secondary btn-sm">Clear</a>
+    {% endif %}
+  </form>
+  {% if pay_date %}
+  <div style="margin-top:10px;font-size:13px;color:var(--muted)">
+    Showing <strong>{{ recent_payments.total }}</strong> payment(s) recorded on
+    <strong>{{ pay_date }}</strong> — Total collected that day:
+    <strong style="color:var(--teal-600)">{{ date_total | inr }}</strong>
+  </div>
+  {% endif %}
+</div>
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;
             flex-wrap:wrap;gap:8px;margin-bottom:12px">
@@ -102,31 +124,36 @@
   {% if recent_payments.items %}
   <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
   <table>
-    <thead>
-      <tr>
-        <th>Date</th><th>Project</th><th>Customer</th>
-        <th>Amount</th><th>Type</th><th>Ref</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for pay in recent_payments.items %}
-      <tr>
-        <td>{{ pay.payment_date | date_fmt }}</td>
-        <td><a href="{{ url_for('project_detail', pid=pay.project_id) }}"
-               style="color:var(--amber-600)">{{ pay.project.project_code }}</a></td>
-        <td>{{ pay.project.customer.name }}</td>
-        <td style="font-weight:500">{{ pay.amount | inr }}</td>
-        <td><span class="tag">{{ pay.payment_type }}</span></td>
-        <td style="font-size:12px;color:var(--muted)">{{ pay.reference_no or '—' }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <thead>
+    <tr>
+      <th>Date</th><th>Project</th><th>Customer</th>
+      <th>Amount</th><th>Type</th><th>Ref</th><th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for pay in recent_payments.items %}
+    <tr>
+      <td>{{ pay.payment_date | date_fmt }}</td>
+      <td><a href="{{ url_for('project_detail', pid=pay.project_id) }}"
+             style="color:var(--amber-600)">{{ pay.project.project_code }}</a></td>
+      <td>{{ pay.project.customer.name }}</td>
+      <td style="font-weight:500">{{ pay.amount | inr }}</td>
+      <td><span class="tag">{{ pay.payment_type }}</span></td>
+      <td style="font-size:12px;color:var(--muted)">{{ pay.reference_no or '—' }}</td>
+      <td style="font-size:12px;color:var(--muted);max-width:220px">{{ pay.notes or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
   </div>
-  {{ paginate('?page=' ~ page, recent_payments.page, recent_payments.pages, 'pay_page') }}
+  {% set pay_base_qs = '?page=' ~ page %}
+{% if pay_date %}{% set pay_base_qs = pay_base_qs ~ '&pay_date=' ~ pay_date %}{% endif %}
+{{ paginate(pay_base_qs, recent_payments.page, recent_payments.pages, 'pay_page') }}
   {% else %}
-  <div style="text-align:center;padding:24px;color:var(--hint)">No payments recorded yet.</div>
-  {% endif %}
+<div style="text-align:center;padding:24px;color:var(--hint)">
+  {% if pay_date %}No payments were recorded on {{ pay_date }}.{% else %}No payments recorded yet.{% endif %}
+</div>
+{% endif %}
 </div>
 
 {% endblock %}

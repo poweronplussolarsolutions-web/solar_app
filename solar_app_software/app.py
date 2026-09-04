@@ -3650,15 +3650,39 @@ def payments_dashboard():
     page     = request.args.get('page', 1, type=int)
     pay_page = request.args.get('pay_page', 1, type=int)
     per_page = 15
+
+    pay_date_str = _clean(request.args.get('pay_date', ''), 10)
+    pay_date = None
+    if pay_date_str:
+        try:
+            pay_date = date.fromisoformat(pay_date_str)
+        except ValueError:
+            pay_date = None
+            pay_date_str = ''
+            flash('Invalid date selected.', 'warning')
+
     active_ids      = db.session.query(Project.id).filter(Project.status.notin_(['Cancelled','OnHold'])).subquery()
     total_collected = float(db.session.query(db.func.sum(Payment.amount)).filter(Payment.project_id.in_(active_ids)).scalar() or 0)
     total_value     = float(db.session.query(db.func.sum(Project.total_amount)).filter(Project.status.notin_(['Cancelled','OnHold'])).scalar() or 0)
-    recent_payments = Payment.query.order_by(Payment.created_at.desc()).paginate(page=pay_page, per_page=per_page, error_out=False)
-    pending_projs   = Project.query.filter(Project.status.notin_(['Closed','Cancelled','OnHold'])).order_by(Project.updated_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+
+    payments_query = Payment.query.order_by(Payment.payment_date.desc(), Payment.created_at.desc())
+    if pay_date:
+        payments_query = payments_query.filter(Payment.payment_date == pay_date)
+
+    recent_payments = payments_query.paginate(page=pay_page, per_page=per_page, error_out=False)
+
+    date_total = None
+    if pay_date:
+        date_total = float(db.session.query(db.func.sum(Payment.amount))
+                            .filter(Payment.payment_date == pay_date).scalar() or 0)
+
+    pending_projs = Project.query.filter(Project.status.notin_(['Closed','Cancelled','OnHold'])).order_by(Project.updated_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+
     return render_template('payments.html',
         total_collected=total_collected, total_pending=total_value - total_collected,
         total_value=total_value, recent_payments=recent_payments,
-        pending_projs=pending_projs, page=page, pay_page=pay_page)
+        pending_projs=pending_projs, page=page, pay_page=pay_page,
+        pay_date=pay_date_str, date_total=date_total)
 @app.route('/projects/<int:pid>/waive_balance', methods=['POST'])
 @login_required
 @roles_required('admin', 'payments')
