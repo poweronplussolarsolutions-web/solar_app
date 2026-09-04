@@ -6616,7 +6616,186 @@ def build_docstaff_monthly_report(staff, all_projects, year, month, output_dir='
     path  = os.path.join(output_dir, fname)
     wb.save(path)
     return path
+ # ─────────────────────────────────────────────────────────────────────────────
+# PAYMENTS-BY-DATE REPORT (Excel + PDF)
+# ─────────────────────────────────────────────────────────────────────────────
  
+def build_payments_report_excel(payments, pay_date, output_dir='/tmp'):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Payments'
+    _page_setup(ws)
+    ws.freeze_panes = 'A6'
+
+    subtitle = (f'Payments recorded on {pay_date.strftime("%d %b %Y")}'
+                if pay_date else 'All Recorded Payments')
+    titles = [
+        ('Power On Plus Solar Solutions', C_HEADER_BG, C_HEADER_FG, 14, False, True),
+        (subtitle,                        C_SUBHDR_BG, C_HEADER_FG, 11, False, True),
+        (f'Generated: {date.today().strftime("%d %b %Y")}', C_ALT_BG, '444444', 10, True, True),
+        ('', 'FFFFFF', '000000', 8, False, False),
+    ]
+    for r, (txt, bg_c, fg_c, sz, italic, center) in enumerate(titles, 1):
+        ws.merge_cells(f'A{r}:H{r}')
+        c = ws[f'A{r}']
+        c.value = txt or None
+        c.font  = _font(bold=(not italic and bool(txt)), color=fg_c, size=sz, italic=italic)
+        c.fill  = _fill(bg_c)
+        if center:
+            c.alignment = _center()
+    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[2].height = 22
+    ws.row_dimensions[3].height = 18
+    ws.row_dimensions[4].height = 8
+
+    ws.row_dimensions[5].height = 20
+    headers = ['Date', 'MNRE No.', 'Customer', 'Amount (₹)', 'Type', 'Source', 'Reference', 'Notes']
+    for col, h in enumerate(headers, 1):
+        _style_header_cell(ws.cell(5, col), h)
+
+    row = 6
+    for i, pay in enumerate(payments):
+        bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        ws.row_dimensions[row].height = 17
+        vals = [pay.payment_date.strftime('%d %b %Y'), pay.project.project_code,
+                pay.project.customer.name, float(pay.amount), pay.payment_type,
+                pay.payment_source, pay.reference_no or '—', pay.notes or '—']
+        fmts   = [None, None, None, '₹#,##0', None, None, None, None]
+        aligns = ['center', 'center', 'left', 'right', 'center', 'center', 'center', 'left']
+        for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
+            _style_data_cell(ws.cell(row, col), val, bg=bg, align=aln, number_fmt=fmt)
+        row += 1
+
+    total_amt = sum(float(p.amount) for p in payments)
+    ws.row_dimensions[row].height = 20
+    for col in range(1, len(headers) + 1):
+        cell = ws.cell(row, col)
+        if col == 1:
+            _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 2:
+            _style_data_cell(cell, f'{len(payments)} payments', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
+        elif col == 4:
+            _style_data_cell(cell, total_amt, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
+        else:
+            cell.fill = _fill(C_TOTAL_BG)
+            cell.border = _border()
+
+    col_widths = [13, 12, 24, 14, 10, 10, 18, 30]
+    for i, w in enumerate(col_widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    fname = f'Payments_{pay_date.isoformat()}.xlsx' if pay_date else 'Payments_All.xlsx'
+    path = os.path.join(output_dir, fname)
+    wb.save(path)
+    return path
+
+
+def build_payments_report_pdf(payments, pay_date, output_dir='/tmp'):
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import mm
+
+    fname = f'Payments_{pay_date.isoformat()}.pdf' if pay_date else 'Payments_All.pdf'
+    path = os.path.join(output_dir, fname)
+
+    doc = SimpleDocTemplate(path, pagesize=landscape(A4),
+                             topMargin=15 * mm, bottomMargin=15 * mm,
+                             leftMargin=12 * mm, rightMargin=12 * mm)
+    styles = getSampleStyleSheet()
+    elements = []
+
+    title_style = styles['Title']
+    title_style.textColor = colors.HexColor('#1A3C5E')
+    elements.append(Paragraph('Power On Plus Solar Solutions', title_style))
+
+    subtitle = (f'Payments recorded on {pay_date.strftime("%d %b %Y")}'
+                if pay_date else 'All Recorded Payments')
+    subtitle_style = styles['Heading2']
+    subtitle_style.textColor = colors.HexColor('#2E6DA4')
+    elements.append(Paragraph(subtitle, subtitle_style))
+    elements.append(Paragraph(f'Generated: {date.today().strftime("%d %b %Y")}', styles['Normal']))
+    elements.append(Spacer(1, 10))
+
+    data = [['Date', 'MNRE No.', 'Customer', 'Amount (₹)', 'Type', 'Source', 'Reference', 'Notes']]
+    total_amt = 0.0
+    for pay in payments:
+        amt = float(pay.amount)
+        total_amt += amt
+        data.append([
+            pay.payment_date.strftime('%d %b %Y'),
+            pay.project.project_code,
+            pay.project.customer.name,
+            f'{amt:,.0f}',
+            pay.payment_type,
+            pay.payment_source,
+            pay.reference_no or '—',
+            (pay.notes or '—')[:60],
+        ])
+    data.append(['TOTAL', f'{len(payments)} payments', '', f'{total_amt:,.0f}', '', '', '', ''])
+
+    table = Table(data, repeatRows=1,
+                  colWidths=[22 * mm, 20 * mm, 40 * mm, 24 * mm, 18 * mm, 18 * mm, 28 * mm, 60 * mm])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1A3C5E')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#BFCBD6')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#F2F7FB')]),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#FFF3CD')),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('ALIGN', (3, 1), (3, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    elements.append(table)
+    doc.build(elements)
+    return path
+
+
+def _get_payments_for_date(pay_date):
+    q = Payment.query.order_by(Payment.payment_date.desc(), Payment.created_at.desc())
+    if pay_date:
+        q = q.filter(Payment.payment_date == pay_date)
+    return q.all()
+
+
+@app.route('/payments/download_excel')
+@login_required
+@roles_required('admin', 'payments', 'director')
+def download_payments_excel():
+    pay_date_str = _clean(request.args.get('pay_date', ''), 10)
+    pay_date = None
+    if pay_date_str:
+        try:
+            pay_date = date.fromisoformat(pay_date_str)
+        except ValueError:
+            pay_date = None
+
+    payments = _get_payments_for_date(pay_date)
+    path = build_payments_report_excel(payments, pay_date, tempfile.gettempdir())
+    fname = f'Payments_{pay_date_str}.xlsx' if pay_date_str else 'Payments_All.xlsx'
+    return send_file(path, as_attachment=True, download_name=fname,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+@app.route('/payments/download_pdf')
+@login_required
+@roles_required('admin', 'payments', 'director')
+def download_payments_pdf():
+    pay_date_str = _clean(request.args.get('pay_date', ''), 10)
+    pay_date = None
+    if pay_date_str:
+        try:
+            pay_date = date.fromisoformat(pay_date_str)
+        except ValueError:
+            pay_date = None
+
+    payments = _get_payments_for_date(pay_date)
+    path = build_payments_report_pdf(payments, pay_date, tempfile.gettempdir())
+    fname = f'Payments_{pay_date_str}.pdf' if pay_date_str else 'Payments_All.pdf'
+    return send_file(path, as_attachment=True, download_name=fname, mimetype='application/pdf')
 # ─────────────────────────────────────────────────────────────────────────────
 # REPORT DOWNLOAD ROUTES
 # ─────────────────────────────────────────────────────────────────────────────

@@ -66,6 +66,12 @@
     {% if pay_date %}
     <a href="{{ url_for('payments_dashboard') }}" class="btn btn-secondary btn-sm">Clear</a>
     {% endif %}
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <a href="{{ url_for('download_payments_excel', pay_date=pay_date or None) }}"
+         class="btn btn-secondary btn-sm">↓ Excel</a>
+      <a href="{{ url_for('download_payments_pdf', pay_date=pay_date or None) }}"
+         class="btn btn-secondary btn-sm">↓ PDF</a>
+    </div>
   </form>
   {% if pay_date %}
   <div style="margin-top:10px;font-size:13px;color:var(--muted)">
