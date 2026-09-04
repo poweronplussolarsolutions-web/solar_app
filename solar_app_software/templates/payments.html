@@ -51,47 +51,7 @@
   </div>
 </div>
 
-<div class="card">
-  <div style="display:flex;justify-content:space-between;align-items:center;
-            flex-wrap:wrap;gap:8px;margin-bottom:12px">
-    <div class="card-title" style="margin:0">Project payment status</div>
-    <div style="font-size:12px;color:var(--muted)">{{ pending_projs.total }} projects</div>
-  </div>
-  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
-  <table>
-    <thead>
-      <tr>
-        <th>Project</th><th>Customer</th><th>Type</th>
-        <th>Collected</th><th>Total</th><th>Pending</th><th>Progress</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for p in pending_projs.items %}
-      <tr>
-        <td><a href="{{ url_for('project_detail', pid=p.id) }}"
-               style="font-weight:500;color:var(--amber-600)">{{ p.project_code }}</a></td>
-        <td>{{ p.customer.name }}</td>
-        <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
-        <td>{{ p.collected_amount | inr }}</td>
-        <td>{{ p.total_amount | inr }}</td>
-        <td style="color:{% if p.pending_amount > 0 %}var(--red-600){% else %}var(--green-600){% endif %}">
-          {{ p.pending_amount | inr }}
-        </td>
-        <td style="white-space:nowrap">
-          <div style="display:flex;align-items:center;gap:6px">
-            <div class="progress-wrap" style="width:50px">
-              <div class="progress-bar" style="width:{{ p.payment_pct }}%"></div>
-            </div>
-            <span style="font-size:11px">{{ p.payment_pct }}%</span>
-          </div>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  {{paginate('?pay_page=' ~ pay_page, pending_projs.page, pending_projs.pages, 'page') }}
-</div>
+
 <div class="card">
   <form method="get" action="{{ url_for('payments_dashboard') }}"
         style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
@@ -154,6 +114,47 @@
   {% if pay_date %}No payments were recorded on {{ pay_date }}.{% else %}No payments recorded yet.{% endif %}
 </div>
 {% endif %}
+</div>
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;
+            flex-wrap:wrap;gap:8px;margin-bottom:12px">
+    <div class="card-title" style="margin:0">Project payment status</div>
+    <div style="font-size:12px;color:var(--muted)">{{ pending_projs.total }} projects</div>
+  </div>
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+  <table>
+    <thead>
+      <tr>
+        <th>Project</th><th>Customer</th><th>Type</th>
+        <th>Collected</th><th>Total</th><th>Pending</th><th>Progress</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in pending_projs.items %}
+      <tr>
+        <td><a href="{{ url_for('project_detail', pid=p.id) }}"
+               style="font-weight:500;color:var(--amber-600)">{{ p.project_code }}</a></td>
+        <td>{{ p.customer.name }}</td>
+        <td><span class="badge badge-{{ p.project_type }}">{{ p.project_type }}</span></td>
+        <td>{{ p.collected_amount | inr }}</td>
+        <td>{{ p.total_amount | inr }}</td>
+        <td style="color:{% if p.pending_amount > 0 %}var(--red-600){% else %}var(--green-600){% endif %}">
+          {{ p.pending_amount | inr }}
+        </td>
+        <td style="white-space:nowrap">
+          <div style="display:flex;align-items:center;gap:6px">
+            <div class="progress-wrap" style="width:50px">
+              <div class="progress-bar" style="width:{{ p.payment_pct }}%"></div>
+            </div>
+            <span style="font-size:11px">{{ p.payment_pct }}%</span>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {{paginate('?pay_page=' ~ pay_page, pending_projs.page, pending_projs.pages, 'page') }}
 </div>
 
 {% endblock %}
