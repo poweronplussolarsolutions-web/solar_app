@@ -91,7 +91,12 @@
 </style>
 
 <div class="card">
-
+<div class="aw-filter-group" style="min-width:220px">
+  <label>Search (MNRE No. / Customer)</label>
+  <input type="text" id="searchFilter" placeholder="Type to search…"
+         oninput="debouncedLoad()"
+         style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--text)">
+</div>
   <div class="aw-filter-bar">
     <div class="aw-filter-group">
       <label>Project Type</label>
@@ -314,6 +319,51 @@ function renderTable(projects) {
 
 function openJobCard(code) {
   window.location = `/job_card?q=${encodeURIComponent(code)}&from=all_works`;
+}
+let searchDebounceTimer = null;
+
+function debouncedLoad() {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(loadData, 350);
+}
+
+function onMonthChange() {
+  document.getElementById('yearFilter').disabled = !document.getElementById('monthFilter').value;
+  loadData();
+}
+
+function currentFilters() {
+  const filters = {
+    project_type:   document.getElementById('typeFilter').value,
+    work_category:  document.getElementById('categoryFilter').value,
+    status:         document.getElementById('statusFilter').value,
+    amount_filter:  document.getElementById('amountFilter').value,
+  };
+  const month = document.getElementById('monthFilter').value;
+  if (month) {
+    filters.month = month;
+    filters.year  = document.getElementById('yearFilter').value;
+  }
+  const search = document.getElementById('searchFilter').value.trim();
+  if (search) {
+    filters.q = search;
+  }
+  return filters;
+}
+
+function buildQS(filters) {
+  return new URLSearchParams(filters).toString();
+}
+
+function resetFilters() {
+  document.getElementById('typeFilter').value = 'All';
+  document.getElementById('categoryFilter').value = 'All';
+  document.getElementById('statusFilter').value = 'All';
+  document.getElementById('amountFilter').value = 'All';
+  document.getElementById('monthFilter').value = '';
+  document.getElementById('yearFilter').disabled = true;
+  document.getElementById('searchFilter').value = '';
+  loadData();
 }
 
 function printTable() {
