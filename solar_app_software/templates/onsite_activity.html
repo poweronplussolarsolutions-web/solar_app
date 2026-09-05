@@ -72,20 +72,35 @@
 {% set ns.installation = ns.installation | sort(attribute='days_open') %}
 {% set ns.done         = ns.done         | sort(attribute='days_open') %}
 
-{# ── Search bar ── #}
-<div style="display:flex;align-items:center;gap:8px;background:var(--surface);
+{# ── Search + date filter bar ── #}
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);
             border:0.5px solid var(--border);border-radius:var(--radius);
             padding:10px 14px;margin-bottom:14px;">
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-       stroke-width="2" style="color:var(--hint);flex-shrink:0">
-    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-  </svg>
-  <input id="onsiteActivitySearch" type="text" placeholder="Search customer, project code, coordinator…"
-         style="border:none;outline:none;flex:1;font-size:13px;background:transparent;color:inherit">
+  <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:220px">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" style="color:var(--hint);flex-shrink:0">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    </svg>
+    <input id="onsiteActivitySearch" type="text" placeholder="Search customer, project code, coordinator…"
+           style="border:none;outline:none;flex:1;font-size:13px;background:transparent;color:inherit">
+  </div>
+
+  <div style="display:flex;align-items:center;gap:6px">
+    <label style="font-size:11px;color:var(--muted)">Stage date from</label>
+    <input id="onsiteActivityDateFrom" type="date"
+           style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);color:var(--text)">
+    <label style="font-size:11px;color:var(--muted)">to</label>
+    <input id="onsiteActivityDateTo" type="date"
+           style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg);color:var(--text)">
+  </div>
+
   <button id="onsiteActivitySearchClear" onclick="onsiteActivityClear()"
           style="display:none;font-size:11px;color:var(--hint);cursor:pointer;
                  padding:2px 8px;border:0.5px solid var(--border);
                  border-radius:20px;background:var(--bg)">Clear</button>
+</div>
+<div style="font-size:11px;color:var(--hint);margin:-10px 0 14px">
+  Date filter applies to each card's own stage date — order date for Materials, start date for Structure/Installation, completion date for Completed.
 </div>
 
 {# ── Summary strip ── #}
@@ -115,7 +130,8 @@
     </div>
     {% if ns.not_ordered or ns.ordered %}
       {% for p in ns.not_ordered %}
-      <div class="proj-card">
+      {% set op = p.onsite_progress %}
+      <div class="proj-card" data-created="{{ op.materials_ordered_date.strftime('%Y-%m-%d') if op and op.materials_ordered_date else '' }}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div class="proj-card-code">{{ p.project_code }}{% if p.coordinator %} · {{ p.coordinator.full_name }}{% elif p.coordinator_name %} · {{ p.coordinator_name }}{% endif %}</div>
           <span class="tag-pill pill-malabar">Not ordered</span>
@@ -125,7 +141,8 @@
       </div>
       {% endfor %}
       {% for p in ns.ordered %}
-      <div class="proj-card">
+      {% set op = p.onsite_progress %}
+      <div class="proj-card" data-created="{{ op.materials_ordered_date.strftime('%Y-%m-%d') if op and op.materials_ordered_date else '' }}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div class="proj-card-code">{{ p.project_code }}{% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}</div>
           <span class="tag-pill pill-malabar">Order placed</span>
@@ -148,7 +165,7 @@
     {% if ns.structure %}
       {% for p in ns.structure %}
       {% set op = p.onsite_progress %}
-      <div class="proj-card">
+      <div class="proj-card" data-created="{{ op.structure_start_date.strftime('%Y-%m-%d') if op and op.structure_start_date else '' }}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div class="proj-card-code">{{ p.project_code }}{% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}</div>
           <span class="tag-pill pill-struct">
@@ -178,7 +195,7 @@
     {% if ns.installation %}
       {% for p in ns.installation %}
       {% set op = p.onsite_progress %}
-      <div class="proj-card">
+      <div class="proj-card" data-created="{{ op.installation_start_date.strftime('%Y-%m-%d') if op and op.installation_start_date else '' }}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div class="proj-card-code">{{ p.project_code }}{% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}</div>
           <span class="tag-pill pill-install">
@@ -208,7 +225,7 @@
     {% if ns.done %}
       {% for p in ns.done %}
       {% set op = p.onsite_progress %}
-      <div class="proj-card">
+      <div class="proj-card" data-created="{{ op.installation_end_date.strftime('%Y-%m-%d') if op and op.installation_end_date else '' }}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div class="proj-card-code">{{ p.project_code }}{% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}</div>
           <span class="tag-pill pill-done">Complete</span>
@@ -229,16 +246,32 @@
 
 <script>
 (function () {
-  const input = document.getElementById('onsiteActivitySearch');
+  const input    = document.getElementById('onsiteActivitySearch');
+  const dateFrom = document.getElementById('onsiteActivityDateFrom');
+  const dateTo   = document.getElementById('onsiteActivityDateTo');
   const clearBtn = document.getElementById('onsiteActivitySearchClear');
 
-  function filter(q) {
-    q = q.toLowerCase().trim();
-    clearBtn.style.display = q ? 'inline-block' : 'none';
+  function matchesDate(card) {
+    const hasDateFilter = dateFrom.value || dateTo.value;
+    if (!hasDateFilter) return true;
+
+    const created = card.getAttribute('data-created');
+    if (!created) return false; // no stage date recorded — exclude when a date filter is active
+    if (dateFrom.value && created < dateFrom.value) return false;
+    if (dateTo.value && created > dateTo.value) return false;
+    return true;
+  }
+
+  function filter() {
+    const q = input.value.toLowerCase().trim();
+    const hasDateFilter = dateFrom.value || dateTo.value;
+    clearBtn.style.display = (q || hasDateFilter) ? 'inline-block' : 'none';
 
     document.querySelectorAll('.proj-card').forEach(card => {
       const text = card.textContent.toLowerCase();
-      card.style.display = (!q || text.includes(q)) ? 'block' : 'none';
+      const textOk = !q || text.includes(q);
+      const dateOk = matchesDate(card);
+      card.style.display = (textOk && dateOk) ? 'block' : 'none';
     });
 
     document.querySelectorAll('.stage-header').forEach(header => {
@@ -254,7 +287,7 @@
           empty.className = 'empty-col';
           col.appendChild(empty);
         }
-        empty.textContent = q ? 'No matches' : 'No projects';
+        empty.textContent = (q || hasDateFilter) ? 'No matches' : 'No projects';
         empty.style.display = '';
       } else if (empty) {
         empty.style.display = 'none';
@@ -262,8 +295,16 @@
     });
   }
 
-  input.addEventListener('input', e => filter(e.target.value));
-  window.onsiteActivityClear = function () { input.value = ''; filter(''); };
+  input.addEventListener('input', filter);
+  dateFrom.addEventListener('change', filter);
+  dateTo.addEventListener('change', filter);
+
+  window.onsiteActivityClear = function () {
+    input.value = '';
+    dateFrom.value = '';
+    dateTo.value = '';
+    filter();
+  };
 })();
 </script>
 {% endblock %}
