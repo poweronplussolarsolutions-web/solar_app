@@ -4834,7 +4834,7 @@ def stock_sale():
     return redirect(url_for('stock_dashboard'))
 @app.route('/product_replacements')
 @login_required
-@roles_required('admin', 'stocks','director')
+@roles_required('admin', 'stocks','director','payments')
 def product_replacements():
     show_archived = request.args.get('archived') == '1'
     cat_search = _clean(request.args.get('cat_q', ''), 100)
@@ -4861,7 +4861,7 @@ def product_replacements():
         cat_search=cat_search)
 @app.route('/product_replacements/category/new', methods=['POST'])
 @login_required
-@roles_required('admin', 'stocks', 'director')
+@roles_required('admin', 'stocks', 'director','payments')
 def new_product_category():
     name = _clean(request.form.get('name', ''), 120)
     if not name:
@@ -4877,7 +4877,7 @@ def new_product_category():
     return redirect(url_for('product_replacement_category', cid=cat.id))
 @app.route('/product_replacements/category/<int:cid>/edit', methods=['POST'])
 @login_required
-@roles_required('admin', 'stocks', 'director')
+@roles_required('admin', 'stocks', 'director','payments')
 def edit_product_category(cid):
     cat = ProductCategory.query.get_or_404(cid)
     name = _clean(request.form.get('name', ''), 120)
@@ -4912,7 +4912,7 @@ def delete_product_category(cid):
 
 @app.route('/product_replacements/category/<int:cid>')
 @login_required
-@roles_required('admin', 'stocks', 'director')
+@roles_required('admin', 'stocks', 'director','payments')
 def product_replacement_category(cid):
     cat = ProductCategory.query.get_or_404(cid)
     search = _clean(request.args.get('q', ''), 100)
@@ -4931,7 +4931,7 @@ def product_replacement_category(cid):
 
 @app.route('/product_replacements/category/<int:cid>/add', methods=['POST'])
 @login_required
-@roles_required('admin', 'stocks', 'director')
+@roles_required('admin', 'stocks', 'director','payments')
 @limiter.limit('30 per minute')
 def add_product_replacement(cid):
     cat = ProductCategory.query.get_or_404(cid)
@@ -4969,7 +4969,7 @@ def add_product_replacement(cid):
 
 @app.route('/product_replacements/<int:rid>/edit', methods=['POST'])
 @login_required
-@roles_required('admin', 'stocks', 'director')
+@roles_required('admin', 'stocks', 'director','payments')
 def edit_product_replacement(rid):
     rec = ProductReplacement.query.get_or_404(rid)
 
@@ -4989,7 +4989,7 @@ def edit_product_replacement(rid):
     return redirect(url_for('product_replacement_category', cid=rec.category_id))
 @app.route('/product_replacements/<int:rid>/clear', methods=['POST'])
 @login_required
-@roles_required('admin', 'stocks', 'director')
+@roles_required('admin', 'stocks', 'director','payments')
 def mark_replacement_cleared(rid):
     rec = ProductReplacement.query.get_or_404(rid)
     if rec.status == 'Cleared':
@@ -5005,7 +5005,7 @@ def mark_replacement_cleared(rid):
 
 @app.route('/product_replacements/<int:rid>/reopen', methods=['POST'])
 @login_required
-@roles_required('admin', 'stocks', 'director')
+@roles_required('admin', 'stocks', 'director','payments')
 def reopen_replacement_case(rid):
     rec = ProductReplacement.query.get_or_404(rid)
     if rec.status == 'Pending':

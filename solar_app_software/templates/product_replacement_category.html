@@ -34,10 +34,10 @@
         </select>
         <button type="submit" class="btn btn-sm">Search</button>
       </form>
-      {% if current_user.role in ['admin','service','stocks','director'] %}
+      {% if current_user.role in ['admin','service','stocks','director','payments'] %}
       <button class="btn btn-sm btn-primary" onclick="togglePanel('newRepPanel')">+ Log Replacement</button>
       {% endif %}
-      {% if current_user.role in ['admin','service','stocks','director'] and cat.is_active %}
+      {% if current_user.role in ['admin','service','stocks','director','payments'] and cat.is_active %}
       <button type="button" class="btn btn-sm" onclick="togglePanel('catEditPanelDetail')">Edit name</button>
       {% endif %}
       {% if current_user.role == 'admin' and cat.is_active %}
@@ -49,7 +49,7 @@
       {% endif %}
     </div>
   </div>
-  {% if current_user.role in ['admin','service','stocks','director'] and cat.is_active %}
+  {% if current_user.role in ['admin','service','stocks','director','payments'] and cat.is_active %}
   <div id="catEditPanelDetail" style="display:none;margin-bottom:16px;border:1px solid var(--border);
        border-radius:var(--radius);padding:14px;background:var(--bg)">
     <form method="POST" action="{{ url_for('edit_product_category', cid=cat.id) }}">
@@ -119,7 +119,7 @@
         <tr>
           <th>Status</th><th>Complaint ID</th><th>Serial No.</th><th>New Serial</th><th>Date</th>
           <th>Purchaser</th><th>Phone</th><th>Order ID</th><th>Notes</th>
-          {% if current_user.role in ['admin','service','stocks','director'] %}<th></th>{% endif %}
+          {% if current_user.role in ['admin','service','stocks','director','payments'] %}<th></th>{% endif %}
         </tr>
       </thead>
       <tbody>
@@ -167,7 +167,7 @@
           </td>
           {% endif %}
         </tr>
-        {% if current_user.role in ['admin','service','stocks','director'] %}
+        {% if current_user.role in ['admin','service','stocks','director','payments'] %}
         <tr id="rep-edit-{{ r.id }}" style="display:none;background:var(--bg)">
           <td colspan="10" style="padding:12px 14px">
             <form method="POST" action="{{ url_for('edit_product_replacement', rid=r.id) }}">
