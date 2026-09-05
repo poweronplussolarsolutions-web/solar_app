@@ -6336,7 +6336,7 @@ def build_coordinator_monthly_report(coordinator, all_projects, year, month, out
     delayed   = [p for p in month_projects if p.status == 'Delayed']
     total_val = sum(_inr(p.total_amount) for p in month_projects)
     collected = sum(_inr(p.collected_amount) for p in month_projects)
-    pending   = total_val - collected
+    pending   = sum(p.pending_amount for p in month_projects)
     pct       = (collected / total_val * 100) if total_val else 0
 
     ws.row_dimensions[6].height = 20
@@ -6347,7 +6347,7 @@ def build_coordinator_monthly_report(coordinator, all_projects, year, month, out
         _style_data_cell(ws.cell(6, col), val, align='center', bold=True, number_fmt=fmt)
 
     ws.row_dimensions[7].height = 8; ws.row_dimensions[8].height = 20
-    for col, h in enumerate(['MNRE No.','Customer','Place','Type','Subtype','Status',
+    for col, h in enumerate(['MNRE No.','Customer','Place','Sub Co','Type','Subtype','Status',
                               'Contract (₹)','Collected (₹)','Pending (₹)','Doc Staff','Created'], 1):
         _style_header_cell(ws.cell(8, col), h)
 
@@ -6355,29 +6355,30 @@ def build_coordinator_monthly_report(coordinator, all_projects, year, month, out
     for i, p in enumerate(sorted(month_projects, key=lambda x: x.created_at, reverse=True)):
         bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
         s_bg, s_fg = STATUS_COLORS.get(p.status, ('FFFFFF','000000'))
-        pend_val = _inr(p.total_amount) - _inr(p.collected_amount)
+        pend_val = p.pending_amount
         ws.row_dimensions[row].height = 18
         for col, (val, fmt, aln) in enumerate(zip(
-            [p.project_code, p.customer.name,p.customer.place or '—', p.project_type, p.project_subtype or '—',
+            [p.project_code, p.customer.name, p.customer.place or '—', p.customer.sub_co or '—',
+             p.project_type, p.project_subtype or '—',
               p.status, _inr(p.total_amount), _inr(p.collected_amount), pend_val,
              p.doc_staff.full_name if p.doc_staff else '—', p.created_at.strftime('%d %b %Y')],
-            [None,None,None,None,None,None,'₹#,##0','₹#,##0','₹#,##0',None,None,None],
-            ['center','left','center','center','center','center','right','right','right','left','center','center']), 1):
+            [None,None,None,None,None,None,None,'₹#,##0','₹#,##0','₹#,##0',None,None],
+            ['center','left','center','center','center','center','center','right','right','right','left','center']), 1):
             cell = ws.cell(row, col)
-            _style_data_cell(cell, val, bg=s_bg if col==6 else bg, fg=s_fg if col==6 else '000000',
+            _style_data_cell(cell, val, bg=s_bg if col==7 else bg, fg=s_fg if col==7 else '000000',
                              align=aln, number_fmt=fmt)
         row += 1
 
     ws.row_dimensions[row].height = 20
     for col, (val, fmt, aln) in enumerate(zip(
-    ['TOTAL', f'{len(month_projects)} projects','','','','',total_val,collected,pending,'',''],
-    [None,None,None,None,None,None,'₹#,##0','₹#,##0','₹#,##0',None,None],
-    ['center','left','','','','','right','right','right','','']), 1):
+    ['TOTAL', f'{len(month_projects)} projects','','','','','',total_val,collected,pending,'',''],
+    [None,None,None,None,None,None,None,'₹#,##0','₹#,##0','₹#,##0',None,None],
+    ['center','left','','','','','','right','right','right','','']), 1):
         cell = ws.cell(row, col)
         if val == '': cell.fill = _fill(C_TOTAL_BG); cell.border = _border(); continue
         _style_data_cell(cell, val, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align=aln or 'center', number_fmt=fmt)
 
-    for i, w in enumerate([12,24,8,10,16,12,14,14,14,18,13], 1):
+    for i, w in enumerate([12,24,8,12,10,16,12,14,14,14,18,13], 1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
     ws2 = wb.create_sheet('New This Month'); _page_setup(ws2)
@@ -6394,31 +6395,30 @@ def build_coordinator_monthly_report(coordinator, all_projects, year, month, out
 
 
 def _build_project_sheet(ws, projects, title, coord_name):
-    ws.merge_cells('A1:J1'); c = ws['A1']; c.value = title
+    ws.merge_cells('A1:K1'); c = ws['A1']; c.value = title
     c.font = _font(bold=True, color=C_HEADER_FG, size=12); c.fill = _fill(C_HEADER_BG); c.alignment = _center()
-    ws.merge_cells('A2:J2'); c = ws['A2']; c.value = f'Coordinator: {coord_name}'
+    ws.merge_cells('A2:K2'); c = ws['A2']; c.value = f'Coordinator: {coord_name}'
     c.font = _font(italic=True, color='444444'); c.fill = _fill(C_ALT_BG); c.alignment = _center()
     ws.row_dimensions[3].height = 8
-    for col, h in enumerate(['MNRE No.','Customer','Place','Type','Subtype','Status',
+    for col, h in enumerate(['MNRE No.','Customer','Place','Sub Co','Type','Subtype','Status',
                               'Contract (₹)','Collected (₹)','Pending (₹)','Doc Staff'], 1):
         _style_header_cell(ws.cell(4, col), h)
     for i, p in enumerate(projects):
         row = i + 5; bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
         s_bg, s_fg = STATUS_COLORS.get(p.status, ('FFFFFF','000000'))
-        pend = _inr(p.total_amount) - _inr(p.collected_amount)
+        pend = p.pending_amount
         for col, (val, fmt, aln) in enumerate(zip(
-    [p.project_code, p.customer.name, p.project_type, p.project_subtype or '—',
-     p.customer.place or '—',
+    [p.project_code, p.customer.name, p.customer.place or '—', p.customer.sub_co or '—',
+     p.project_type, p.project_subtype or '—',
      p.status, _inr(p.total_amount), _inr(p.collected_amount), pend,
      p.doc_staff.full_name if p.doc_staff else '—'],
-    [None,None,None,None,None,None,'₹#,##0','₹#,##0','₹#,##0',None],
-    ['center','left','center','center','left','center','right','right','right','left']), 1):
+    [None,None,None,None,None,None,None,'₹#,##0','₹#,##0','₹#,##0',None],
+    ['center','left','center','center','center','center','center','right','right','right','left']), 1):
             _style_data_cell(ws.cell(row, col), val,
-                bg=s_bg if col==6 else bg, fg=s_fg if col==6 else '000000', align=aln, number_fmt=fmt)
+                bg=s_bg if col==7 else bg, fg=s_fg if col==7 else '000000', align=aln, number_fmt=fmt)
         ws.row_dimensions[row].height = 17
-    for i, w in enumerate([12,24,8,10,16,12,14,14,14,18], 1):
+    for i, w in enumerate([12,24,8,12,10,16,12,14,14,14,18], 1):
         ws.column_dimensions[get_column_letter(i)].width = w
-
 
 def _build_stage_sheet(ws, projects, month_name, year, coord_name):
     stages = ['Lead','Site Visit','Documentation','Onsite Work','Connection','Subsidy','Payment']
@@ -6532,7 +6532,7 @@ def build_docstaff_monthly_report(staff, all_projects, year, month, output_dir='
     ws.row_dimensions[7].height = 8; ws.row_dimensions[8].height = 20
  
     # ── Detail table headers (aligned 1:1 with vals below) ──────────────────
-    detail_headers = ['MNRE No.','Customer','Type','Subtype','Status','Work Amount (₹)',
+    detail_headers = ['MNRE No.','Customer','Sub Co','Type','Subtype','Status','Work Amount (₹)',
                        'MNRE','Feasibility','CD Payment','Connection','Payment Compl.',
                        'Coordinator','Created']
     for col, h in enumerate(detail_headers, 1):
@@ -6544,20 +6544,20 @@ def build_docstaff_monthly_report(staff, all_projects, year, month, output_dir='
         s_bg, s_fg = STATUS_COLORS.get(p.status, ('FFFFFF','000000'))
         def _tick(dn): return '✓' if _doc_done(p, dn) else '✗'
         ws.row_dimensions[row].height = 18
-        vals   = [p.project_code, p.customer.name, p.project_type, p.project_subtype or '—',
+        vals   = [p.project_code, p.customer.name, p.customer.sub_co or '—', p.project_type, p.project_subtype or '—',
                   p.status, _inr(p.total_amount),
                   _tick('MNRE'), _tick('Feasibility Receipt'), _tick('CD Payment Receipt'),
                   _tick('KSEB Connection'), _tick('Payment Completion'),
                   p.coordinator.full_name if p.coordinator else '—',
                   p.created_at.strftime('%d %b %Y')]
-        fmts   = [None,None,None,None,None,'₹#,##0',None,None,None,None,None,None,None]
-        aligns = ['center','left','center','center','center','right',
+        fmts   = [None,None,None,None,None,None,'₹#,##0',None,None,None,None,None,None,None]
+        aligns = ['center','left','center','center','center','center','right',
                   'center','center','center','center','center','left','center']
         for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
             cell = ws.cell(row, col)
-            tick_cols = (7, 8, 9, 10, 11)   # MNRE, Feasibility, CD Payment, Connection, Payment Compl.
-            c_bg = s_bg if col == 5 else (C_GREEN_BG if val == '✓' else C_RED_BG) if col in tick_cols else bg
-            c_fg = s_fg if col == 5 else (C_GREEN_FG if val == '✓' else C_RED_FG) if col in tick_cols else '000000'
+            tick_cols = (8, 9, 10, 11, 12)   # MNRE, Feasibility, CD Payment, Connection, Payment Compl.
+            c_bg = s_bg if col == 6 else (C_GREEN_BG if val == '✓' else C_RED_BG) if col in tick_cols else bg
+            c_fg = s_fg if col == 6 else (C_GREEN_FG if val == '✓' else C_RED_FG) if col in tick_cols else '000000'
             _style_data_cell(cell, val, bg=c_bg, fg=c_fg, align=aln, number_fmt=fmt)
         row += 1
  
@@ -6567,15 +6567,15 @@ def build_docstaff_monthly_report(staff, all_projects, year, month, output_dir='
         cell = ws.cell(row, col)
         if col == 1:  _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
         elif col == 2: _style_data_cell(cell, f'{len(month_projects)} projects', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
-        elif col == 6: _style_data_cell(cell, total_work_amt, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
-        elif col == 7: _style_data_cell(cell, mnre_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
-        elif col == 8: _style_data_cell(cell, feas_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
-        elif col == 9: _style_data_cell(cell, cd_done,   bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
-        elif col == 10:_style_data_cell(cell, conn_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
-        elif col == 11:_style_data_cell(cell, pay_done,  bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 7: _style_data_cell(cell, total_work_amt, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
+        elif col == 8: _style_data_cell(cell, mnre_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 9: _style_data_cell(cell, feas_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 10:_style_data_cell(cell, cd_done,   bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 11:_style_data_cell(cell, conn_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 12:_style_data_cell(cell, pay_done,  bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
         else:          cell.fill = _fill(C_TOTAL_BG); cell.border = _border()
  
-    col_widths = [12,24,8,10,12,16,8,10,10,10,10,20,13]
+    col_widths = [12,24,12,8,10,12,16,8,10,10,10,10,20,13]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
  
@@ -6939,6 +6939,7 @@ def _project_to_dict_coord(p):
         'code':      p.project_code,
         'customer':  p.customer.name,
         'place':     p.customer.place or '—',
+        'sub_co':    p.customer.sub_co or '—',
         'inverter_kw': p.inverter_capacity_kw,
         'panel_kw':    p.panel_capacity_kw,
         'type':      p.project_type,
@@ -6949,7 +6950,7 @@ def _project_to_dict_coord(p):
         'status_fg': fg,
         'contract':  _inr_fmt(p.total_amount),
         'collected': _inr_fmt(p.collected_amount),
-        'pending':   _inr_fmt(float(p.total_amount or 0) - float(p.collected_amount or 0)),
+        'pending':   _inr_fmt(p.pending_amount),
         'doc_staff': p.doc_staff.full_name if p.doc_staff else '—',
         'created':   p.created_at.strftime('%d %b %Y'),
     }
@@ -6964,6 +6965,7 @@ def _project_to_dict_docstaff(p):
         'code':        p.project_code,
         'customer':    p.customer.name,
         'place':       p.customer.place or '—',
+        'sub_co':      p.customer.sub_co or '—',
         'inverter_kw': p.inverter_capacity_kw,
         'panel_kw':    p.panel_capacity_kw,
         'coordinator': p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—'),
@@ -7005,7 +7007,6 @@ def build_allworks_coordinator_report(coordinator, projects, output_dir='/tmp'):
     _page_setup(ws)
     ws.freeze_panes = 'A6'
 
-    # Title block
     titles = [
         ('Power On Plus Solar Solutions',          C_HEADER_BG, C_HEADER_FG, 14, False, True),
         (f'All Works — {coordinator.full_name}',   C_SUBHDR_BG, C_HEADER_FG, 11, False, True),
@@ -7013,7 +7014,7 @@ def build_allworks_coordinator_report(coordinator, projects, output_dir='/tmp'):
         ('', 'FFFFFF', '000000', 8, False, False),
     ]
     for r, (txt, bg_c, fg_c, sz, italic, center) in enumerate(titles, 1):
-        ws.merge_cells(f'A{r}:L{r}')
+        ws.merge_cells(f'A{r}:M{r}')
         c = ws[f'A{r}']
         c.value = txt or None
         c.font  = _font(bold=(not italic and bool(txt)), color=fg_c, size=sz, italic=italic)
@@ -7025,9 +7026,8 @@ def build_allworks_coordinator_report(coordinator, projects, output_dir='/tmp'):
     ws.row_dimensions[3].height = 18
     ws.row_dimensions[4].height = 8
 
-    # Column headers
     ws.row_dimensions[5].height = 20
-    headers = ['MNRE No.', 'Customer', 'Place', 'Type', 'Subtype', 'Category', 'Status',
+    headers = ['MNRE No.', 'Customer', 'Place', 'Sub Co', 'Type', 'Subtype', 'Category', 'Status',
                 'Contract (₹)', 'Collected (₹)', 'Pending (₹)',
                 'Coordinator', 'Doc Staff', 'Created']
     for col, h in enumerate(headers, 1):
@@ -7038,26 +7038,27 @@ def build_allworks_coordinator_report(coordinator, projects, output_dir='/tmp'):
     for i, p in enumerate(sorted_projects):
         bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
         s_bg, s_fg = STATUS_COLORS.get(p.status, ('FFFFFF', '000000'))
-        pend = float(p.total_amount or 0) - float(p.collected_amount or 0)
+        pend = p.pending_amount
         ws.row_dimensions[row].height = 17
         coord_name = p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—')
-        vals = [p.project_code, p.customer.name, p.customer.place or '—',
+        vals = [p.project_code, p.customer.name, p.customer.place or '—', p.customer.sub_co or '—',
                 p.project_type, p.project_subtype or '—', p.work_category, p.status,
                 float(p.total_amount or 0), float(p.collected_amount or 0), pend,
                 coord_name, p.doc_staff.full_name if p.doc_staff else '—',
                 p.created_at.strftime('%d %b %Y')]
-        fmts   = [None, None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0', None, None, None]
-        aligns = ['center', 'left', 'left', 'center', 'center', 'center', 'center',
+        fmts   = [None, None, None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0', None, None, None]
+        aligns = ['center', 'left', 'left', 'center', 'center', 'center', 'center', 'center',
                   'right', 'right', 'right', 'left', 'left', 'center']
         for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
             _style_data_cell(ws.cell(row, col), val,
-                              bg=s_bg if col == 7 else bg,
-                              fg=s_fg if col == 7 else '000000',
+                              bg=s_bg if col == 8 else bg,
+                              fg=s_fg if col == 8 else '000000',
                               align=aln, number_fmt=fmt)
         row += 1
 
     total_val  = sum(float(p.total_amount or 0) for p in sorted_projects)
     total_coll = sum(float(p.collected_amount or 0) for p in sorted_projects)
+    total_pend = sum(p.pending_amount for p in sorted_projects)
     ws.row_dimensions[row].height = 20
     for col in range(1, len(headers) + 1):
         cell = ws.cell(row, col)
@@ -7065,23 +7066,22 @@ def build_allworks_coordinator_report(coordinator, projects, output_dir='/tmp'):
             _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
         elif col == 2:
             _style_data_cell(cell, f'{len(sorted_projects)} projects', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
-        elif col == 8:
-            _style_data_cell(cell, total_val, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
         elif col == 9:
-            _style_data_cell(cell, total_coll, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
+            _style_data_cell(cell, total_val, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
         elif col == 10:
-            _style_data_cell(cell, total_val - total_coll, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
+            _style_data_cell(cell, total_coll, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
+        elif col == 11:
+            _style_data_cell(cell, total_pend, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
         else:
             cell.fill = _fill(C_TOTAL_BG)
             cell.border = _border()
 
-    col_widths = [12, 24, 16, 8, 10, 12, 12, 14, 14, 14, 20, 20, 13]
+    col_widths = [12, 24, 16, 12, 8, 10, 12, 12, 14, 14, 14, 20, 20, 13]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
     path = os.path.join(output_dir, f'AllWorks_{coordinator.username}.xlsx')
     wb.save(path)
     return path
-
 
 def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
     """Single flat sheet — all projects for a doc staff member, no month filter."""
@@ -7098,7 +7098,7 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
         ('', 'FFFFFF', '000000', 8, False, False),
     ]
     for r, (txt, bg_c, fg_c, sz, italic, center) in enumerate(titles, 1):
-        ws.merge_cells(f'A{r}:L{r}')
+        ws.merge_cells(f'A{r}:M{r}')
         c = ws[f'A{r}']
         c.value = txt or None
         c.font  = _font(bold=(not italic and bool(txt)), color=fg_c, size=sz, italic=italic)
@@ -7111,7 +7111,7 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
     ws.row_dimensions[4].height = 8
  
     ws.row_dimensions[5].height = 20
-    headers = ['MNRE No.', 'Customer', 'Type', 'Subtype', 'Status', 'Work Amount (₹)',
+    headers = ['MNRE No.', 'Customer', 'Sub Co', 'Type', 'Subtype', 'Status', 'Work Amount (₹)',
                'Feasibility', 'CD Payment', 'MNRE', 'KSEB Conn.', 'Coordinator', 'Created']
     for col, h in enumerate(headers, 1):
         _style_header_cell(ws.cell(5, col), h)
@@ -7126,7 +7126,7 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
         conn   = _doc_done(p, 'KSEB Connection')
         mnre   = _doc_done(p, 'MNRE')
         ws.row_dimensions[row].height = 17
-        vals = [p.project_code, p.customer.name, p.project_type, p.project_subtype or '—',
+        vals = [p.project_code, p.customer.name, p.customer.sub_co or '—', p.project_type, p.project_subtype or '—',
                 p.status, _inr(p.total_amount),
                 '✓' if feas else '✗',
                 '✓' if cd else '✗',
@@ -7134,13 +7134,13 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
                 '✓' if conn else '✗',
                 p.coordinator.full_name if p.coordinator else '—',
                 p.created_at.strftime('%d %b %Y')]
-        fmts   = [None,None,None,None,None,'₹#,##0',None,None,None,None,None,None]
-        aligns = ['center','left','center','center','center','right',
+        fmts   = [None,None,None,None,None,None,'₹#,##0',None,None,None,None,None,None]
+        aligns = ['center','left','center','center','center','center','right',
                   'center','center','center','center','left','center']
         for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
-            if col == 5:
+            if col == 6:
                 c_bg, c_fg = s_bg, s_fg
-            elif col in (7, 8, 9, 10):
+            elif col in (8, 9, 10, 11):
                 c_bg = C_GREEN_BG if val == '✓' else C_RED_BG
                 c_fg = C_GREEN_FG if val == '✓' else C_RED_FG
             else:
@@ -7161,21 +7161,21 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
         elif col == 2:
             _style_data_cell(cell, f'{len(sorted_projects)} projects',
                              bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
-        elif col == 6:
-            _style_data_cell(cell, total_work_amt, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
         elif col == 7:
-            _style_data_cell(cell, feas_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+            _style_data_cell(cell, total_work_amt, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
         elif col == 8:
-            _style_data_cell(cell, cd_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+            _style_data_cell(cell, feas_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
         elif col == 9:
-            _style_data_cell(cell, mnre_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+            _style_data_cell(cell, cd_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
         elif col == 10:
+            _style_data_cell(cell, mnre_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 11:
             _style_data_cell(cell, conn_done, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
         else:
             cell.fill = _fill(C_TOTAL_BG)
             cell.border = _border()
  
-    col_widths = [12, 24, 8, 10, 12, 16, 10, 10, 10, 10, 20, 13]
+    col_widths = [12, 24, 12, 8, 10, 12, 16, 10, 10, 10, 10, 20, 13]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
  
@@ -7219,7 +7219,7 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
     ws.row_dimensions[4].height = 8
 
     ws.row_dimensions[5].height = 20
-    headers = ['MNRE No.', 'Customer', 'Place', 'Type', 'Subtype', 'Status',
+    headers = ['MNRE No.', 'Customer', 'Place', 'Sub Co', 'Type', 'Subtype', 'Status',
                 'Contract (₹)', 'Collected (₹)', 'Pending (₹)',
                 'Coordinator', 'Doc Staff', 'Created']
     for col, h in enumerate(headers, 1):
@@ -7234,26 +7234,27 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
     for i, p in enumerate(sorted_projects):
         bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
         s_bg, s_fg = STATUS_COLORS.get(p.status, ('FFFFFF', '000000'))
-        pend = float(p.total_amount or 0) - float(p.collected_amount or 0)
+        pend = p.pending_amount
         ws.row_dimensions[row].height = 17
         coord_name = p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—')
-        vals = [p.project_code, p.customer.name, p.customer.place or '—',
+        vals = [p.project_code, p.customer.name, p.customer.place or '—', p.customer.sub_co or '—',
                 p.project_type, p.project_subtype or '—', p.status,
                 float(p.total_amount or 0), float(p.collected_amount or 0), pend,
                 coord_name, p.doc_staff.full_name if p.doc_staff else '—',
                 p.created_at.strftime('%d %b %Y')]
-        fmts   = [None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0', None, None, None]
-        aligns = ['center', 'left', 'left', 'center', 'center', 'center',
+        fmts   = [None, None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0', None, None, None]
+        aligns = ['center', 'left', 'left', 'center', 'center', 'center', 'center',
                   'right', 'right', 'right', 'left', 'left', 'center']
         for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
             _style_data_cell(ws.cell(row, col), val,
-                              bg=s_bg if col == 6 else bg,
-                              fg=s_fg if col == 6 else '000000',
+                              bg=s_bg if col == 7 else bg,
+                              fg=s_fg if col == 7 else '000000',
                               align=aln, number_fmt=fmt)
         row += 1
 
     total_val  = sum(float(p.total_amount or 0) for p in sorted_projects)
     total_coll = sum(float(p.collected_amount or 0) for p in sorted_projects)
+    total_pend = sum(p.pending_amount for p in sorted_projects)
     ws.row_dimensions[row].height = 20
     for col in range(1, len(headers) + 1):
         cell = ws.cell(row, col)
@@ -7261,17 +7262,17 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
             _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
         elif col == 2:
             _style_data_cell(cell, f'{len(sorted_projects)} projects', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
-        elif col == 7:
-            _style_data_cell(cell, total_val, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
         elif col == 8:
-            _style_data_cell(cell, total_coll, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
+            _style_data_cell(cell, total_val, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
         elif col == 9:
-            _style_data_cell(cell, total_val - total_coll, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
+            _style_data_cell(cell, total_coll, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
+        elif col == 10:
+            _style_data_cell(cell, total_pend, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
         else:
             cell.fill = _fill(C_TOTAL_BG)
             cell.border = _border()
 
-    col_widths = [12, 24, 16, 8, 10, 12, 14, 14, 14, 20, 20, 13]
+    col_widths = [12, 24, 16, 12, 8, 10, 12, 14, 14, 14, 20, 20, 13]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
@@ -7348,6 +7349,7 @@ def all_works_preview_data():
 
     total_val = sum(float(p.total_amount or 0) for p in projects)
     collected = sum(float(p.collected_amount or 0) for p in projects)
+    pending   = sum(p.pending_amount for p in projects)
     active    = [p for p in projects if p.status in ('InProgress', 'Delayed', 'Lead', 'OnHold')]
     completed = [p for p in projects if p.status in ('Completed', 'Closed')]
     delayed   = [p for p in projects if p.status == 'Delayed']
@@ -7361,6 +7363,7 @@ def all_works_preview_data():
             'code':          p.project_code,
             'customer':      p.customer.name,
             'place':         p.customer.place or '—',
+            'sub_co':        p.customer.sub_co or '—',
             'type':          p.project_type,
             'subtype':       p.project_subtype or '—',
             'work_category': p.work_category,
@@ -7369,7 +7372,7 @@ def all_works_preview_data():
             'status_fg':     fg,
             'contract':      _inr_fmt(p.total_amount),
             'collected':     _inr_fmt(p.collected_amount),
-            'pending':       _inr_fmt(float(p.total_amount or 0) - float(p.collected_amount or 0)),
+            'pending':       _inr_fmt(p.pending_amount),
             'coordinator':   p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—'),
             'doc_staff':     p.doc_staff.full_name if p.doc_staff else '—',
             'created':       p.created_at.strftime('%d %b %Y'),
@@ -7386,7 +7389,7 @@ def all_works_preview_data():
             'Completed': len(completed),
             'Value':     _inr_fmt(total_val),
             'Collected': _inr_fmt(collected),
-            'Pending':   _inr_fmt(total_val - collected),
+            'Pending':   _inr_fmt(pending),
         },
         'projects': [_to_dict(p) for p in projects],
     })
@@ -7469,6 +7472,7 @@ def coordinator_report_preview_data():
 
     total_val = sum(float(p.total_amount    or 0) for p in projects)
     collected = sum(float(p.collected_amount or 0) for p in projects)
+    pending   = sum(p.pending_amount for p in projects)
     active    = [p for p in projects if p.status in ('InProgress', 'Delayed', 'Lead', 'OnHold')]
     completed = [p for p in projects if p.status in ('Completed', 'Closed')]
 
@@ -7479,7 +7483,7 @@ def coordinator_report_preview_data():
             'Completed': len(completed),
             'Value':     _inr_fmt(total_val),
             'Collected': _inr_fmt(collected),
-            'Pending':   _inr_fmt(total_val - collected),
+            'Pending':   _inr_fmt(pending),
         },
         'projects': [_project_to_dict_coord(p)
                      for p in sorted(projects, key=lambda x: x.created_at, reverse=True)],
@@ -7560,6 +7564,7 @@ def print_coordinator_report():
     projects   = sorted(projects, key=lambda x: x.created_at, reverse=True)
     total_val  = sum(float(p.total_amount    or 0) for p in projects)
     total_coll = sum(float(p.collected_amount or 0) for p in projects)
+    total_pend = sum(p.pending_amount for p in projects)
 
     return render_template('print_coordinator_report.html',
         coordinator=coordinator,
@@ -7567,10 +7572,9 @@ def print_coordinator_report():
         period=period,
         total_val=total_val,
         total_coll=total_coll,
-        total_pend=total_val - total_coll,
+        total_pend=total_pend,
         generated=date.today().strftime('%d %b %Y'),
     )
-
 
 # ── Doc staff: printable HTML ─────────────────────────────────────────────────
 @app.route('/admin/docstaff_reports/print')
@@ -7645,6 +7649,7 @@ def coordinator_my_report_preview():
         projects = [p for p in all_projects if p.status != 'Cancelled']
     total_val = sum(float(p.total_amount    or 0) for p in projects)
     collected = sum(float(p.collected_amount or 0) for p in projects)
+    pending   = sum(p.pending_amount for p in projects)
     active    = [p for p in projects if p.status in ('InProgress','Delayed','Lead','OnHold')]
     completed = [p for p in projects if p.status in ('Completed','Closed')]
 
@@ -7655,12 +7660,11 @@ def coordinator_my_report_preview():
             'Completed': len(completed),
             'Value':     _inr_fmt(total_val),
             'Collected': _inr_fmt(collected),
-            'Pending':   _inr_fmt(total_val - collected),
+            'Pending':   _inr_fmt(pending),
         },
         'projects': [_project_to_dict_coord(p)
                      for p in sorted(projects, key=lambda x: x.created_at, reverse=True)],
     })
-
 
 @app.route('/coordinator/my_report/download')
 @login_required
@@ -7714,6 +7718,7 @@ def coordinator_my_report_print():
     projects   = sorted(projects, key=lambda x: x.created_at, reverse=True)
     total_val  = sum(float(p.total_amount    or 0) for p in projects)
     total_coll = sum(float(p.collected_amount or 0) for p in projects)
+    total_pend = sum(p.pending_amount for p in projects)
 
     return render_template('print_coordinator_report.html',
         coordinator=coord,
@@ -7721,7 +7726,7 @@ def coordinator_my_report_print():
         period=period,
         total_val=total_val,
         total_coll=total_coll,
-        total_pend=total_val - total_coll,
+        total_pend=total_pend,
         generated=datetime.now().strftime('%d %b %Y, %I:%M %p'))
 from solar_app_software.job_card_excel import build_job_card
 

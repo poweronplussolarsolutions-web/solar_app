@@ -173,6 +173,7 @@
           <th>MNRE No.</th>
           <th>Customer</th>
           <th>Place</th>
+          <th>Sub Co</th>
           <th>Type</th>
           <th>Subtype</th>
           <th>Category</th>
@@ -186,7 +187,7 @@
         </tr>
       </thead>
       <tbody id="worksBody">
-        <tr><td colspan="13" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>
+        <tr><td colspan="14" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>
       </tbody>
     </table>
   </div>
@@ -198,101 +199,6 @@
 </div>
 
 <script>
-function currentFilters() {
-  return {
-    project_type:   document.getElementById('typeFilter').value,
-    work_category:  document.getElementById('categoryFilter').value,
-    status:         document.getElementById('statusFilter').value,
-  };
-}
-
-function buildQS(filters) {
-  return new URLSearchParams(filters).toString();
-}
-
-function resetFilters() {
-  document.getElementById('typeFilter').value = 'All';
-  document.getElementById('categoryFilter').value = 'All';
-  document.getElementById('statusFilter').value = 'All';
-  loadData();
-}
-
-function downloadExcel() {
-  window.location = `/admin/all_works/download?${buildQS(currentFilters())}`;
-}
-
-function renderChips(filters) {
-  const chips = document.getElementById('activeChips');
-  const labels = {
-    project_type:  { Cash: 'Cash', Loan: 'Loan' },
-    work_category: { Installation: 'Installation', Outside: 'Outside' },
-    status:        { Active: 'Active', InProgress: 'In Progress', Delayed: 'Delayed',
-                      Completed: 'Completed/Closed', OnHold: 'On Hold', Lead: 'Lead' },
-  };
-  let html = '';
-  for (const [key, val] of Object.entries(filters)) {
-    if (val !== 'All' && labels[key] && labels[key][val]) {
-      html += `<span class="aw-chip">${labels[key][val]}</span>`;
-    }
-  }
-  chips.innerHTML = html;
-}
-
-function loadData() {
-  const filters = currentFilters();
-  renderChips(filters);
-  document.getElementById('worksBody').innerHTML =
-    '<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>';
-
-  fetch(`/admin/all_works/preview_data?${buildQS(filters)}`)
-    .then(r => r.json())
-    .then(data => {
-      renderKpis(data.kpis);
-      renderTable(data.projects);
-    })
-    .catch(() => {
-      document.getElementById('worksBody').innerHTML =
-        '<tr><td colspan="13" style="text-align:center;padding:30px;color:red">Failed to load.</td></tr>';
-    });
-}
-
-function renderKpis(kpis) {
-  const row = document.getElementById('kpiRow');
-  row.innerHTML = Object.entries(kpis).map(([k, v]) => `
-    <div class="aw-kpi">
-      <div class="aw-kpi-label">${k}</div>
-      <div class="aw-kpi-value">${v}</div>
-    </div>`).join('');
-}
-
-function renderTable(projects) {
-  const td  = s => `<td>${s ?? '—'}</td>`;
-  const tdc = s => `<td style="text-align:center">${s ?? '—'}</td>`;
-  const tdr = s => `<td style="text-align:right">${s ?? '—'}</td>`;
-
-  const body = document.getElementById('worksBody');
-  if (!projects.length) {
-    body.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--hint)">No projects match these filters.</td></tr>';
-    return;
-  }
-
-  body.innerHTML = projects.map((p, i) => {
-    const bg = i % 2 === 0 ? 'var(--surface,#f9f9f9)' : '#fff';
-    return `<tr class="aw-row" style="background:${bg}" onclick="openJobCard('${p.code}')" title="Open job card for ${p.code}">
-      ${tdc(p.code)}${td(p.customer)}${td(p.place)}${tdc(p.type)}${tdc(p.subtype)}${tdc(p.work_category)}
-      <td style="text-align:center">
-        <span class="aw-status-pill" style="background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
-      </td>
-      ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
-    </tr>`;
-  }).join('');
-}
-
-function openJobCard(code) {
-  window.location = `/job_card?q=${encodeURIComponent(code)}&from=all_works`;
-}
-
-document.addEventListener('DOMContentLoaded', loadData);
 function onMonthChange() {
   document.getElementById('yearFilter').disabled = !document.getElementById('monthFilter').value;
   loadData();
@@ -355,6 +261,61 @@ function renderChips(filters) {
   }
   chips.innerHTML = html;
 }
+
+function loadData() {
+  const filters = currentFilters();
+  renderChips(filters);
+  document.getElementById('worksBody').innerHTML =
+    '<tr><td colspan="14" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>';
+
+  fetch(`/admin/all_works/preview_data?${buildQS(filters)}`)
+    .then(r => r.json())
+    .then(data => {
+      renderKpis(data.kpis);
+      renderTable(data.projects);
+    })
+    .catch(() => {
+      document.getElementById('worksBody').innerHTML =
+        '<tr><td colspan="14" style="text-align:center;padding:30px;color:red">Failed to load.</td></tr>';
+    });
+}
+
+function renderKpis(kpis) {
+  const row = document.getElementById('kpiRow');
+  row.innerHTML = Object.entries(kpis).map(([k, v]) => `
+    <div class="aw-kpi">
+      <div class="aw-kpi-label">${k}</div>
+      <div class="aw-kpi-value">${v}</div>
+    </div>`).join('');
+}
+
+function renderTable(projects) {
+  const td  = s => `<td>${s ?? '—'}</td>`;
+  const tdc = s => `<td style="text-align:center">${s ?? '—'}</td>`;
+  const tdr = s => `<td style="text-align:right">${s ?? '—'}</td>`;
+
+  const body = document.getElementById('worksBody');
+  if (!projects.length) {
+    body.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:30px;color:var(--hint)">No projects match these filters.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = projects.map((p, i) => {
+    const bg = i % 2 === 0 ? 'var(--surface,#f9f9f9)' : '#fff';
+    return `<tr class="aw-row" style="background:${bg}" onclick="openJobCard('${p.code}')" title="Open job card for ${p.code}">
+      ${tdc(p.code)}${td(p.customer)}${td(p.place)}${td(p.sub_co)}${tdc(p.type)}${tdc(p.subtype)}${tdc(p.work_category)}
+      <td style="text-align:center">
+        <span class="aw-status-pill" style="background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
+      </td>
+      ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
+    </tr>`;
+  }).join('');
+}
+
+function openJobCard(code) {
+  window.location = `/job_card?q=${encodeURIComponent(code)}&from=all_works`;
+}
+
 function printTable() {
   const win = window.open('', '_blank');
   const kpis = document.getElementById('kpiRow').outerHTML;
@@ -385,5 +346,7 @@ function printTable() {
   win.focus();
   setTimeout(() => win.print(), 300);
 }
+
+document.addEventListener('DOMContentLoaded', loadData);
 </script>
 {% endblock %}

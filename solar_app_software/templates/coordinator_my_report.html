@@ -164,14 +164,14 @@ function renderPreview(data) {
     <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:11px">
       <thead><tr>
-        ${['MNRE No.','Customer','Place','Inv. kW','Panel kW','Type','Subtype','Roof','Status',
+        ${['MNRE No.','Customer','Place','Sub Co','Inv. kW','Panel kW','Type','Subtype','Roof','Status',
            'Contract','Collected','Pending','Doc Staff','Created'].map(th).join('')}
       </tr></thead><tbody>`;
 
   data.projects.forEach((p, i) => {
     const bg = i % 2 === 0 ? 'var(--surface,#f9f9f9)' : '#fff';
     html += `<tr style="background:${bg}">
-      ${tdc(p.code)}${td(p.customer)}${td(p.place)}${tdc(p.inverter_kw)}${tdc(p.panel_kw)}
+      ${tdc(p.code)}${td(p.customer)}${td(p.place)}${td(p.sub_co)}${tdc(p.inverter_kw)}${tdc(p.panel_kw)}
       ${tdc(p.type)}${tdc(p.subtype)}${tdc(p.roof)}
       <td style="padding:5px 8px;font-size:11px;border-bottom:1px solid var(--border);text-align:center">
         <span style="padding:2px 6px;border-radius:10px;font-size:10px;background:${p.status_bg};color:${p.status_fg}">${p.status}</span>

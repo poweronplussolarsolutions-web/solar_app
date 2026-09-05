@@ -94,6 +94,7 @@
       <th>MNRE No.</th>
       <th>Customer</th>
       <th>Place</th>
+      <th>Sub Co</th>
       <th>Inverter kW</th>
       <th>Panel kW</th>
       <th>Type</th>
@@ -109,13 +110,14 @@
   </thead>
   <tbody>
     {% for p in projects %}
-    {% set pend = (p.total_amount or 0)|float - (p.collected_amount or 0)|float %}
+    {% set pend = p.pending_amount %}
     {% set roof_label = 'Clay Tile (Oodu)' if p.roof_type == 'Clay Tile' else (p.roof_type or '—') %}
     <tr>
       <td class="center">{{ loop.index }}</td>
       <td class="center">{{ p.project_code }}</td>
       <td>{{ p.customer.name }}</td>
       <td>{{ p.customer.place or '—' }}</td>
+      <td>{{ p.customer.sub_co or '—' }}</td>
       <td class="center">{{ p.inverter_capacity_kw }}</td>
       <td class="center">{{ p.panel_capacity_kw }}</td>
       <td class="center">{{ p.project_type }}</td>
@@ -131,14 +133,14 @@
       <td class="center">{{ p.created_at.strftime('%d/%m/%y') }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="15" style="text-align:center;padding:20px;color:#888">No projects found.</td></tr>
+    <tr><td colspan="16" style="text-align:center;padding:20px;color:#888">No projects found.</td></tr>
     {% endfor %}
   </tbody>
   <tfoot>
     <tr>
       <td colspan="2" style="text-align:center">TOTAL</td>
       <td>{{ projects|length }} projects</td>
-      <td colspan="7"></td>
+      <td colspan="8"></td>
       <td class="right">{{ total_val | int | format_inr }}</td>
       <td class="right">{{ total_coll | int | format_inr }}</td>
       <td class="right">{{ total_pend | int | format_inr }}</td>
