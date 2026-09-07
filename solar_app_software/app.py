@@ -362,11 +362,13 @@ class Project(db.Model):
         return sum(float(w.amount) for w in self.waivers)
     @property
     def pending_amount(self):
+        if self.status == 'Cancelled':
+            return 0
         sub_customer_share = 0
         if self.subsidy and self.subsidy.customer_share and self.subsidy.status == 'Received':
             sub_customer_share = float(self.subsidy.customer_share)
         return max(0, self.total_receivable - self.effective_collected
-                   - sub_customer_share - self.total_waived)
+               - sub_customer_share - self.total_waived)
 
     @property
     def effective_collected(self):
