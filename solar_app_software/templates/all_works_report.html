@@ -90,12 +90,15 @@
 }
 </style>
 
-<div class="card">
-<div class="aw-filter-group" style="min-width:220px">
-  <label>Search (MNRE No. / Customer)</label>
-  <input type="text" id="searchFilter" placeholder="Type to search…"
-         oninput="debouncedLoad()"
-         style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--text)">
+<div class="aw-filter-group" style="min-width:260px">
+  <label>Search (MNRE No. / Customer Name)</label>
+  <div style="display:flex;gap:6px">
+    <input type="text" id="searchFilter" placeholder="Type to search…"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();loadData();}"
+           style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--text)">
+    <button type="button" class="btn btn-primary" onclick="loadData()" title="Search">🔍</button>
+    <button type="button" class="btn btn-secondary" onclick="clearSearch()" title="Clear search">✕</button>
+  </div>
 </div>
   <div class="aw-filter-bar">
     <div class="aw-filter-group">
