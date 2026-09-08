@@ -1642,6 +1642,43 @@ def download_service_report_pdf():
     path  = build_service_report_pdf(records, mode, tempfile.gettempdir(), extra_label)
     fname = f'ServiceReport_{mode}_{date.today().isoformat()}.pdf'
     return send_file(path, as_attachment=True, download_name=fname, mimetype='application/pdf')
+
+
+@app.route('/service_management/generate_pdf_for_share')
+@login_required
+@roles_required('admin', 'onsite', 'coordinator', 'director', 'service')
+def generate_pdf_for_share():
+    """Builds the filtered PDF and returns it directly (for the Web Share API
+    to attach as a real file in WhatsApp/other apps), instead of a link."""
+    mode     = request.args.get('mode', 'overdue')
+    days     = request.args.get('days', type=int)
+    date_str = _clean(request.args.get('service_date', ''), 10)
+
+    single_date_val = None
+    if date_str:
+        try:
+            single_date_val = date.fromisoformat(date_str)
+        except ValueError:
+            abort(400)
+
+    if mode not in ('overdue', 'week', 'month', 'next_days', 'date'):
+        mode = 'overdue'
+
+    records = _get_service_report_records(mode, single_date_val, days)
+
+    extra_label = ''
+    if mode == 'next_days' and days:
+        extra_label = f'Next {days} days'
+    elif mode == 'date':
+        d = single_date_val or date.today()
+        extra_label = d.strftime('%d %b %Y')
+
+    path = build_service_report_pdf(records, mode, tempfile.gettempdir(), extra_label)
+    fname = f'ServiceReport_{mode}_{date.today().isoformat()}.pdf'
+    return send_file(path, mimetype='application/pdf',
+                      as_attachment=False, download_name=fname)
+
+
 def auto_advance_stage(proj):
     if proj.status in ('Cancelled', 'OnHold', 'Completed', 'Closed'):
         return

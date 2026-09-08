@@ -302,6 +302,9 @@
       <button type="submit" class="btn btn-sm btn-primary">
         <i class="ti ti-download" style="font-size:12px"></i> Generate PDF
       </button>
+      <button type="button" class="btn btn-sm" style="background:#25D366;color:#fff" onclick="smSendToWhatsapp()">
+  <i class="ti ti-brand-whatsapp"></i> Send to WhatsApp
+</button>
     </div>
   </form>
 </div>
@@ -842,6 +845,49 @@ function smValidatePdfForm() {
     }
   }
   return true;
+}
+function smSendToWhatsapp() {
+  var mode = document.getElementById('pdf-mode').value;
+  var params = new URLSearchParams({ mode: mode });
+  if (mode === 'next_days') params.set('days', document.getElementById('pdf-days').value || '14');
+  if (mode === 'date') params.set('service_date', document.getElementById('pdf-date').value || '');
+
+  var url = '{{ url_for("generate_pdf_for_share") }}?' + params.toString();
+
+  fetch(url)
+    .then(function(r) {
+      if (!r.ok) throw new Error('Failed to generate PDF');
+      return r.blob();
+    })
+    .then(function(blob) {
+      var fname = 'Service_Report_' + mode + '.pdf';
+      var file = new File([blob], fname, { type: 'application/pdf' });
+
+      // Mobile: native share sheet with the actual PDF attached — user picks WhatsApp
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({
+          files: [file],
+          title: 'Service Report',
+          text: 'Power On Plus Solar Solutions — Service Report',
+        }).catch(function(err) {
+          if (err.name !== 'AbortError') alert('Could not share the file.');
+        });
+        return;
+      }
+
+      // Desktop / unsupported browsers: download the PDF and open WhatsApp Web
+      // so the user can drag-and-drop or attach it manually.
+      var dlUrl = window.URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = dlUrl; a.download = fname;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      window.URL.revokeObjectURL(dlUrl);
+      alert('PDF downloaded. Opening WhatsApp Web — attach the downloaded file to your Service Group.');
+      window.open('https://web.whatsapp.com/', '_blank');
+    })
+    .catch(function() {
+      alert('Could not generate the report.');
+    });
 }
 </script>
 {% endblock %}
