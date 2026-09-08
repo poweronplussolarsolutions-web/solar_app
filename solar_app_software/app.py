@@ -1463,7 +1463,7 @@ def refresh_service_statuses():
  
     if changed:
         db.session.commit()
-def _get_service_report_records(mode, start_date=None, end_date=None, days=None):
+def _get_service_report_records(mode, single_date=None, days=None):
     """Returns ServiceRecords for the PDF report, filtered by mode.
     Excludes Cancelled/OnHold projects and Outside-work projects, same as
     the service management screen."""
@@ -1492,11 +1492,11 @@ def _get_service_report_records(mode, start_date=None, end_date=None, days=None)
         end = today + timedelta(days=n)
         q = q.filter(ServiceRecord.status.notin_(['Completed', 'Skipped']),
                      ServiceRecord.scheduled_date <= end)
-    elif mode == 'range':
-        if start_date:
-            q = q.filter(ServiceRecord.scheduled_date >= start_date)
-        if end_date:
-            q = q.filter(ServiceRecord.scheduled_date <= end_date)
+    elif mode == 'date':
+        if single_date:
+            q = q.filter(ServiceRecord.scheduled_date == single_date)
+        else:
+            q = q.filter(ServiceRecord.scheduled_date == today)
     else:
         q = q.filter(ServiceRecord.status == 'Overdue')
 
@@ -1515,11 +1515,11 @@ def build_service_report_pdf(records, mode, output_dir='/tmp', extra_label=''):
         'week':      'Service Visits Due This Week',
         'month':     'Service Visits Due This Month',
         'next_days': 'Upcoming Service Visits',
-        'range':     'Service Visits — Selected Dates',
+        'date':      'Service Visits Scheduled On',
     }
     title_label = mode_labels.get(mode, 'Service Visits Report')
     if extra_label:
-        title_label += f' ({extra_label})'
+        title_label += f' — {extra_label}'
 
     fname = f'ServiceReport_{mode}_{date.today().isoformat()}.pdf'
     path  = os.path.join(output_dir, fname)
@@ -1579,39 +1579,33 @@ def build_service_report_pdf(records, mode, output_dir='/tmp', extra_label=''):
     doc.build(elements)
     return path
 
-
 @app.route('/service_management/download_pdf')
 @login_required
 @roles_required('admin', 'onsite', 'coordinator', 'director', 'service')
 def download_service_report_pdf():
-    mode      = request.args.get('mode', 'overdue')
-    days      = request.args.get('days', type=int)
-    start_str = _clean(request.args.get('start_date', ''), 10)
-    end_str   = _clean(request.args.get('end_date', ''), 10)
+    mode       = request.args.get('mode', 'overdue')
+    days       = request.args.get('days', type=int)
+    date_str   = _clean(request.args.get('service_date', ''), 10)
 
-    start_date_val = None
-    end_date_val   = None
-    try:
-        if start_str:
-            start_date_val = date.fromisoformat(start_str)
-        if end_str:
-            end_date_val = date.fromisoformat(end_str)
-    except ValueError:
-        flash('Invalid date provided.', 'danger')
-        return redirect(url_for('service_management'))
+    single_date_val = None
+    if date_str:
+        try:
+            single_date_val = date.fromisoformat(date_str)
+        except ValueError:
+            flash('Invalid date provided.', 'danger')
+            return redirect(url_for('service_management'))
 
-    if mode not in ('overdue', 'week', 'month', 'next_days', 'range'):
+    if mode not in ('overdue', 'week', 'month', 'next_days', 'date'):
         mode = 'overdue'
 
-    records = _get_service_report_records(mode, start_date_val, end_date_val, days)
+    records = _get_service_report_records(mode, single_date_val, days)
 
     extra_label = ''
     if mode == 'next_days' and days:
         extra_label = f'Next {days} days'
-    elif mode == 'range' and (start_date_val or end_date_val):
-        s = start_date_val.strftime('%d %b %Y') if start_date_val else '…'
-        e = end_date_val.strftime('%d %b %Y') if end_date_val else '…'
-        extra_label = f'{s} – {e}'
+    elif mode == 'date':
+        d = single_date_val or date.today()
+        extra_label = d.strftime('%d %b %Y')
 
     path  = build_service_report_pdf(records, mode, tempfile.gettempdir(), extra_label)
     fname = f'ServiceReport_{mode}_{date.today().isoformat()}.pdf'
