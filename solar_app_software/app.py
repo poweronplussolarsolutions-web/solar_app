@@ -1677,7 +1677,59 @@ def generate_pdf_for_share():
     fname = f'ServiceReport_{mode}_{date.today().isoformat()}.pdf'
     return send_file(path, mimetype='application/pdf',
                       as_attachment=False, download_name=fname)
+def _service_report_label_and_message(mode, single_date_val, days, count):
+    mode_messages = {
+        'overdue':   'This is the list of *overdue* services.',
+        'week':      'This is the list of services *due this week*.',
+        'month':     'This is the list of services *due this month*.',
+        'next_days': None,   # filled in below with the day count
+        'date':      None,   # filled in below with the date
+    }
 
+    if mode == 'next_days':
+        n = days or 30
+        body = f'This is the list of services due in the *next {n} days*.'
+    elif mode == 'date':
+        d = single_date_val or date.today()
+        if d == date.today():
+            body = "This is *today's* service list."
+        else:
+            body = f'This is the service list for *{d.strftime("%d %b %Y")}*.'
+    else:
+        body = mode_messages.get(mode, 'This is the service list.')
+
+    message = (
+        f'*Power On Plus Solar Solutions*\n\n'
+        f'{body}\n'
+        f'Total: {count} visit(s).\n\n'
+        f'PDF attached.'
+    )
+    return message
+
+
+@app.route('/service_management/share_info')
+@login_required
+@roles_required('admin', 'onsite', 'coordinator', 'director', 'service')
+def service_report_share_info():
+    """Returns the WhatsApp message text (company name + filter description +
+    count) so the client can pair it with the PDF when sharing."""
+    mode     = request.args.get('mode', 'overdue')
+    days     = request.args.get('days', type=int)
+    date_str = _clean(request.args.get('service_date', ''), 10)
+
+    single_date_val = None
+    if date_str:
+        try:
+            single_date_val = date.fromisoformat(date_str)
+        except ValueError:
+            return jsonify({'error': 'Invalid date.'}), 400
+
+    if mode not in ('overdue', 'week', 'month', 'next_days', 'date'):
+        mode = 'overdue'
+
+    records = _get_service_report_records(mode, single_date_val, days)
+    message = _service_report_label_and_message(mode, single_date_val, days, len(records))
+    return jsonify({'message': message, 'count': len(records)})
 
 def auto_advance_stage(proj):
     if proj.status in ('Cancelled', 'OnHold', 'Completed', 'Closed'):
