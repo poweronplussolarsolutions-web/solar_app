@@ -1574,7 +1574,7 @@ def build_service_report_pdf(records, mode, output_dir='/tmp', extra_label=''):
         earlier = sorted([d for vn, d in entries if vn < visit_number])
         return earlier
 
-    header_row = ['MNRE No.', 'Customer', 'kW', 'Coordinator', 'Visit #', 'Scheduled',
+    header_row = ['MNRE No.', 'Customer', 'Place', 'Phone', 'kW', 'Coordinator', 'Visit #', 'Scheduled',
                   'Status', 'Previous Service Completed Dates', 'Project Created']
     data = [[Paragraph(h, header_style) for h in header_row]]
 
@@ -1592,6 +1592,8 @@ def build_service_report_pdf(records, mode, output_dir='/tmp', extra_label=''):
         data.append([
             Paragraph(proj.project_code, cell_style),
             Paragraph(proj.customer.name, cell_style),
+            Paragraph(proj.customer.place or '—', cell_style),
+            Paragraph(proj.customer.phone or '—', cell_style),
             Paragraph(f'{proj.inverter_capacity_kw:g}' if proj.inverter_capacity_kw is not None else '—', cell_style),
             Paragraph(coord_name, cell_style),
             Paragraph(str(rec.visit_number), cell_style),
@@ -1602,11 +1604,11 @@ def build_service_report_pdf(records, mode, output_dir='/tmp', extra_label=''):
         ])
 
     if len(data) == 1:
-        data.append([Paragraph('No records found for this filter', cell_style)] + [''] * 8)
+        data.append([Paragraph('No records found for this filter', cell_style)] + [''] * 10)
 
     table = Table(data, repeatRows=1,
-                  colWidths=[16 * mm, 32 * mm, 10 * mm, 28 * mm, 12 * mm,
-                             20 * mm, 18 * mm, 52 * mm, 20 * mm])
+                  colWidths=[16 * mm, 26 * mm, 20 * mm, 20 * mm, 10 * mm, 24 * mm, 10 * mm,
+                             18 * mm, 16 * mm, 46 * mm, 18 * mm])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1A3C5E')),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#BFCBD6')),
