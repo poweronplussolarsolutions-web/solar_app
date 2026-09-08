@@ -302,12 +302,7 @@
       <button type="submit" class="btn btn-sm btn-primary">
         <i class="ti ti-download" style="font-size:12px"></i> Generate PDF
       </button>
-      <button type="button" class="btn btn-sm" style="background:#25D366;color:#fff" onclick="smSendToWhatsapp('app')">
-  <i class="ti ti-brand-whatsapp"></i> WhatsApp App
-</button>
-<button type="button" class="btn btn-sm" style="background:#128C7E;color:#fff" onclick="smSendToWhatsapp('web')">
-  <i class="ti ti-brand-whatsapp"></i> WhatsApp Web
-</button>
+      
     </div>
   </form>
 </div>
@@ -849,45 +844,6 @@ function smValidatePdfForm() {
   }
   return true;
 }
-function smSendToWhatsapp(target) {
-  var mode = document.getElementById('pdf-mode').value;
-  var params = new URLSearchParams({ mode: mode });
-  if (mode === 'next_days') params.set('days', document.getElementById('pdf-days').value || '14');
-  if (mode === 'date') params.set('service_date', document.getElementById('pdf-date').value || '');
 
-  var infoUrl = '{{ url_for("service_report_share_info") }}?' + params.toString();
-  var pdfUrl  = '{{ url_for("generate_pdf_for_share") }}?' + params.toString();
-
-  Promise.all([
-    fetch(infoUrl).then(function(r) { return r.json(); }),
-    fetch(pdfUrl).then(function(r) {
-      if (!r.ok) throw new Error('Failed to generate PDF');
-      return r.blob();
-    })
-  ]).then(function(results) {
-    var info    = results[0];
-    var pdfBlob = results[1];
-    if (info.error) { alert(info.error); return; }
-
-    var fname = 'Service_Report_' + mode + '.pdf';
-
-    // Download the PDF, then open the chosen WhatsApp target directly with
-    // the message pre-filled. No native share sheet — the two buttons pick
-    // the destination explicitly, same as the payment message links.
-    var dlUrl = window.URL.createObjectURL(pdfBlob);
-    var a = document.createElement('a');
-    a.href = dlUrl; a.download = fname;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    window.URL.revokeObjectURL(dlUrl);
-
-    var text = encodeURIComponent(info.message);
-    var url  = target === 'web'
-      ? 'https://web.whatsapp.com/send?text=' + text
-      : 'https://wa.me/?text=' + text;
-    window.open(url, '_blank');
-  }).catch(function() {
-    alert('Could not generate the report.');
-  });
-}
 </script>
 {% endblock %}
