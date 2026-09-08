@@ -1507,7 +1507,7 @@ def build_service_report_pdf(records, mode, output_dir='/tmp', extra_label=''):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import mm
 
     mode_labels = {
@@ -1526,7 +1526,7 @@ def build_service_report_pdf(records, mode, output_dir='/tmp', extra_label=''):
 
     doc = SimpleDocTemplate(path, pagesize=landscape(A4),
                              topMargin=15 * mm, bottomMargin=15 * mm,
-                             leftMargin=12 * mm, rightMargin=12 * mm)
+                             leftMargin=10 * mm, rightMargin=10 * mm)
     styles   = getSampleStyleSheet()
     elements = []
 
@@ -1540,7 +1540,35 @@ def build_service_report_pdf(records, mode, output_dir='/tmp', extra_label=''):
     elements.append(Paragraph(f'Generated: {date.today().strftime("%d %b %Y")}', styles['Normal']))
     elements.append(Spacer(1, 10))
 
-    data  = [['MNRE No.', 'Customer', 'kW', 'Coordinator', 'Visit #', 'Scheduled', 'Status', 'Project Created']]
+    cell_style = ParagraphStyle('cell', fontName='Helvetica', fontSize=7.5, leading=9)
+    header_style = ParagraphStyle('cellhdr', fontName='Helvetica-Bold', fontSize=7.5,
+                                   leading=9, textColor=colors.white)
+
+    # ── Pre-fetch every completed visit (with its completed_date) for the
+    #    projects involved, grouped by project — one query, not per-row ──────
+    project_ids = list({rec.project_id for rec in records})
+    prev_completed_map = {}   # project_id -> [(visit_number, completed_date), ...] 
+    if project_ids:
+        prior_completed = (ServiceRecord.query
+            .filter(ServiceRecord.project_id.in_(project_ids),
+                    ServiceRecord.status == 'Completed',
+                    ServiceRecord.completed_date.isnot(None))
+            .order_by(ServiceRecord.project_id, ServiceRecord.visit_number)
+            .all())
+        for r in prior_completed:
+            prev_completed_map.setdefault(r.project_id, []).append((r.visit_number, r.completed_date))
+
+    def _all_completed_before(project_id, visit_number):
+        """All completed-visit dates for this project with a visit_number
+        earlier than the one being reported, oldest first."""
+        entries = prev_completed_map.get(project_id, [])
+        earlier = sorted([d for vn, d in entries if vn < visit_number])
+        return earlier
+
+    header_row = ['MNRE No.', 'Customer', 'kW', 'Coordinator', 'Visit #', 'Scheduled',
+                  'Status', 'Previous Service Completed Dates', 'Project Created']
+    data = [[Paragraph(h, header_style) for h in header_row]]
+
     today = date.today()
     for rec in records:
         proj = rec.project
@@ -1548,37 +1576,41 @@ def build_service_report_pdf(records, mode, output_dir='/tmp', extra_label=''):
         status_disp = rec.status
         if rec.status not in ('Completed', 'Skipped') and rec.scheduled_date < today:
             status_disp = 'Overdue'
+
+        prev_dates = _all_completed_before(rec.project_id, rec.visit_number)
+        prev_disp = ', '.join(d.strftime('%d %b %Y') for d in prev_dates) if prev_dates else '—'
+
         data.append([
-            proj.project_code,
-            proj.customer.name,
-            f'{proj.inverter_capacity_kw:g}' if proj.inverter_capacity_kw is not None else '—',
-            coord_name,
-            str(rec.visit_number),
-            rec.scheduled_date.strftime('%d %b %Y'),
-            status_disp,
-            proj.created_at.strftime('%d %b %Y'),
+            Paragraph(proj.project_code, cell_style),
+            Paragraph(proj.customer.name, cell_style),
+            Paragraph(f'{proj.inverter_capacity_kw:g}' if proj.inverter_capacity_kw is not None else '—', cell_style),
+            Paragraph(coord_name, cell_style),
+            Paragraph(str(rec.visit_number), cell_style),
+            Paragraph(rec.scheduled_date.strftime('%d %b %Y'), cell_style),
+            Paragraph(status_disp, cell_style),
+            Paragraph(prev_disp, cell_style),
+            Paragraph(proj.created_at.strftime('%d %b %Y'), cell_style),
         ])
 
     if len(data) == 1:
-        data.append(['—', 'No records found for this filter', '', '', '', '', '', ''])
+        data.append([Paragraph('No records found for this filter', cell_style)] + [''] * 8)
 
     table = Table(data, repeatRows=1,
-                  colWidths=[20 * mm, 42 * mm, 14 * mm, 38 * mm, 16 * mm, 24 * mm, 22 * mm, 26 * mm])
+                  colWidths=[16 * mm, 32 * mm, 10 * mm, 28 * mm, 12 * mm,
+                             20 * mm, 18 * mm, 52 * mm, 20 * mm])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1A3C5E')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#BFCBD6')),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F2F7FB')]),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
     ]))
     elements.append(table)
     elements.append(Spacer(1, 8))
     elements.append(Paragraph(f'Total: {len(records)} visit(s)', styles['Normal']))
     doc.build(elements)
     return path
-
 @app.route('/service_management/download_pdf')
 @login_required
 @roles_required('admin', 'onsite', 'coordinator', 'director', 'service')
