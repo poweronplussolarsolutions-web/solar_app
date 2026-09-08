@@ -870,23 +870,10 @@ function smSendToWhatsapp(target) {
     if (info.error) { alert(info.error); return; }
 
     var fname = 'Service_Report_' + mode + '.pdf';
-    var file  = new File([pdfBlob], fname, { type: 'application/pdf' });
 
-    // Mobile: native share sheet with PDF + message text — user picks WhatsApp
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      navigator.share({
-        files: [file],
-        title: 'Power On Plus — Service Report',
-        text: info.message,
-      }).catch(function(err) {
-        if (err.name !== 'AbortError') alert('Could not share the file.');
-      });
-      return;
-    }
-
-    // Desktop: download the PDF, then open the chosen WhatsApp target directly
-    // with the message pre-filled — same as the payment message links, just
-    // without a phone number since this report has no single recipient.
+    // Download the PDF, then open the chosen WhatsApp target directly with
+    // the message pre-filled. No native share sheet — the two buttons pick
+    // the destination explicitly, same as the payment message links.
     var dlUrl = window.URL.createObjectURL(pdfBlob);
     var a = document.createElement('a');
     a.href = dlUrl; a.download = fname;
