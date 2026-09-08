@@ -7309,9 +7309,22 @@ def download_coordinator_report_all():
     return send_file(path, as_attachment=True,
         download_name=f'AllWorks_{coordinator.username}.xlsx',
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+from sqlalchemy.orm import selectinload, joinedload
+
 def _get_all_works_projects(project_type_filter, work_category_filter='All', status_filter='All',
                              month=None, year=None, amount_filter='All', search=''):
-    q = Project.query.join(Customer).filter(Project.status != 'Cancelled')
+    q = (Project.query
+         .join(Customer)
+         .options(
+             joinedload(Project.customer),
+             joinedload(Project.coordinator),
+             joinedload(Project.doc_staff),
+             joinedload(Project.subsidy),
+             selectinload(Project.expenses),
+             selectinload(Project.waivers),
+         )
+         .filter(Project.status != 'Cancelled'))
+
     if project_type_filter in ('Cash', 'Loan'):
         q = q.filter(Project.project_type == project_type_filter)
     if work_category_filter in ('Installation', 'Outside'):

@@ -226,20 +226,29 @@
       {% endif %}
 
       <div class="form-group">
-        <label>Total contract amount (₹)</label>
-        <input name="total_amount" type="number" step="1" min="0"
-               value="{{ proj.total_amount|int }}"/>
-        {% if proj.collected_amount and proj.collected_amount > 0 %}
-        <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
-          {{ proj.collected_amount|inr }} already collected
-        </span>
-        {% endif %}
-        <div id="balance-preview" style="display:none;margin-top:5px;font-size:12px;
-             padding:6px 10px;border-radius:5px;background:#e8f5e9;color:#2e7d32;
-             border:1px solid #a5d6a7">
-          New outstanding balance: <strong id="balance-amount"></strong>
-        </div>
-      </div>
+  <label>Total contract amount (₹)
+    {% if current_user.role == 'coordinator' %}
+    <span style="font-size:11px;color:var(--muted);font-weight:400">(locked — contact admin/documents to change)</span>
+    {% endif %}
+  </label>
+  {% if current_user.role == 'coordinator' %}
+  <input type="number" value="{{ proj.total_amount|int }}" disabled
+         style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
+  {% else %}
+  <input name="total_amount" type="number" step="1" min="0"
+         value="{{ proj.total_amount|int }}"/>
+  {% endif %}
+  {% if proj.collected_amount and proj.collected_amount > 0 %}
+  <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
+    {{ proj.collected_amount|inr }} already collected
+  </span>
+  {% endif %}
+  <div id="balance-preview" style="display:none;margin-top:5px;font-size:12px;
+       padding:6px 10px;border-radius:5px;background:#e8f5e9;color:#2e7d32;
+       border:1px solid #a5d6a7">
+    New outstanding balance: <strong id="balance-amount"></strong>
+  </div>
+</div>
 
       <div class="form-group">
         <label>Documents staff</label>
