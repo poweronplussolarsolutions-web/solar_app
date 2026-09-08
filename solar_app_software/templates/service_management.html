@@ -302,8 +302,11 @@
       <button type="submit" class="btn btn-sm btn-primary">
         <i class="ti ti-download" style="font-size:12px"></i> Generate PDF
       </button>
-      <button type="button" class="btn btn-sm" style="background:#25D366;color:#fff" onclick="smSendToWhatsapp()">
-  <i class="ti ti-brand-whatsapp"></i> Send to WhatsApp
+      <button type="button" class="btn btn-sm" style="background:#25D366;color:#fff" onclick="smSendToWhatsapp('app')">
+  <i class="ti ti-brand-whatsapp"></i> WhatsApp App
+</button>
+<button type="button" class="btn btn-sm" style="background:#128C7E;color:#fff" onclick="smSendToWhatsapp('web')">
+  <i class="ti ti-brand-whatsapp"></i> WhatsApp Web
 </button>
     </div>
   </form>
@@ -846,7 +849,7 @@ function smValidatePdfForm() {
   }
   return true;
 }
-function smSendToWhatsapp() {
+function smSendToWhatsapp(target) {
   var mode = document.getElementById('pdf-mode').value;
   var params = new URLSearchParams({ mode: mode });
   if (mode === 'next_days') params.set('days', document.getElementById('pdf-days').value || '14');
@@ -881,38 +884,23 @@ function smSendToWhatsapp() {
       return;
     }
 
-    // Desktop fallback: download the PDF, then let the user choose app vs web
+    // Desktop: download the PDF, then open the chosen WhatsApp target directly
+    // with the message pre-filled — same as the payment message links, just
+    // without a phone number since this report has no single recipient.
     var dlUrl = window.URL.createObjectURL(pdfBlob);
     var a = document.createElement('a');
     a.href = dlUrl; a.download = fname;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     window.URL.revokeObjectURL(dlUrl);
 
-    smShowWhatsappChoice(info.message);
+    var text = encodeURIComponent(info.message);
+    var url  = target === 'web'
+      ? 'https://web.whatsapp.com/send?text=' + text
+      : 'https://wa.me/?text=' + text;
+    window.open(url, '_blank');
   }).catch(function() {
     alert('Could not generate the report.');
   });
-}
-
-function smShowWhatsappChoice(message) {
-  var text = encodeURIComponent(message);
-  var appUrl = 'https://wa.me/?text=' + text;
-  var webUrl = 'https://web.whatsapp.com/send?text=' + text;
-
-  var wrap = document.createElement('div');
-  wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center';
-  wrap.innerHTML =
-    '<div style="background:var(--surface,#fff);border-radius:14px;padding:22px;max-width:340px;width:90%;text-align:center">' +
-      '<div style="font-weight:600;font-size:15px;margin-bottom:6px">PDF downloaded</div>' +
-      '<div style="font-size:12.5px;color:var(--muted,#666);margin-bottom:16px">Attach the downloaded file and choose where to send the message.</div>' +
-      '<div style="display:flex;flex-direction:column;gap:8px">' +
-        '<a href="' + appUrl + '" target="_blank" style="display:block;padding:10px;border-radius:8px;background:#25D366;color:#fff;text-decoration:none;font-weight:500">Open in WhatsApp App</a>' +
-        '<a href="' + webUrl + '" target="_blank" style="display:block;padding:10px;border-radius:8px;border:1px solid var(--border,#ddd);color:inherit;text-decoration:none;font-weight:500">Open in WhatsApp Web</a>' +
-        '<button type="button" style="padding:8px;border:none;background:none;color:var(--muted,#666);cursor:pointer;margin-top:2px" onclick="this.closest(\'div[style*=fixed]\').remove()">Cancel</button>' +
-      '</div>' +
-    '</div>';
-  document.body.appendChild(wrap);
-  wrap.addEventListener('click', function(e) { if (e.target === wrap) wrap.remove(); });
 }
 </script>
 {% endblock %}
