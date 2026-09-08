@@ -881,19 +881,38 @@ function smSendToWhatsapp() {
       return;
     }
 
-    // Desktop fallback: download the PDF, open WhatsApp Web with the message
-    // pre-filled — user attaches the downloaded file manually and sends.
+    // Desktop fallback: download the PDF, then let the user choose app vs web
     var dlUrl = window.URL.createObjectURL(pdfBlob);
     var a = document.createElement('a');
     a.href = dlUrl; a.download = fname;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     window.URL.revokeObjectURL(dlUrl);
 
-    alert('PDF downloaded. WhatsApp Web will open with the message ready — attach the downloaded file and send.');
-    window.open('https://wa.me/?text=' + encodeURIComponent(info.message), '_blank');
+    smShowWhatsappChoice(info.message);
   }).catch(function() {
     alert('Could not generate the report.');
   });
+}
+
+function smShowWhatsappChoice(message) {
+  var text = encodeURIComponent(message);
+  var appUrl = 'https://wa.me/?text=' + text;
+  var webUrl = 'https://web.whatsapp.com/send?text=' + text;
+
+  var wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+  wrap.innerHTML =
+    '<div style="background:var(--surface,#fff);border-radius:14px;padding:22px;max-width:340px;width:90%;text-align:center">' +
+      '<div style="font-weight:600;font-size:15px;margin-bottom:6px">PDF downloaded</div>' +
+      '<div style="font-size:12.5px;color:var(--muted,#666);margin-bottom:16px">Attach the downloaded file and choose where to send the message.</div>' +
+      '<div style="display:flex;flex-direction:column;gap:8px">' +
+        '<a href="' + appUrl + '" target="_blank" style="display:block;padding:10px;border-radius:8px;background:#25D366;color:#fff;text-decoration:none;font-weight:500">Open in WhatsApp App</a>' +
+        '<a href="' + webUrl + '" target="_blank" style="display:block;padding:10px;border-radius:8px;border:1px solid var(--border,#ddd);color:inherit;text-decoration:none;font-weight:500">Open in WhatsApp Web</a>' +
+        '<button type="button" style="padding:8px;border:none;background:none;color:var(--muted,#666);cursor:pointer;margin-top:2px" onclick="this.closest(\'div[style*=fixed]\').remove()">Cancel</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(wrap);
+  wrap.addEventListener('click', function(e) { if (e.target === wrap) wrap.remove(); });
 }
 </script>
 {% endblock %}
