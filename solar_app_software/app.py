@@ -1466,42 +1466,51 @@ def refresh_service_statuses():
 def _get_service_report_records(mode, single_date=None, days=None):
     """Returns ServiceRecords for the PDF report, filtered by mode.
     Excludes Cancelled/OnHold projects and Outside-work projects, same as
-    the service management screen."""
+    the service management screen. Only the NEXT actionable visit per
+    project is considered — a project never appears twice just because
+    more than one of its visits has fallen behind."""
     refresh_service_statuses()
     today = date.today()
 
-    q = (ServiceRecord.query
+    base_q = (ServiceRecord.query
          .join(Project)
          .options(joinedload(ServiceRecord.project).joinedload(Project.customer),
                   joinedload(ServiceRecord.project).joinedload(Project.coordinator))
          .filter(Project.status.notin_(['Cancelled', 'OnHold']),
                  Project.work_category != 'Outside'))
 
+    all_records = base_q.order_by(ServiceRecord.project_id, ServiceRecord.visit_number).all()
+
+    # Keep only each project's earliest not-yet-completed/skipped visit —
+    # this is the same "next visit" a project shows in service_management.
+    next_by_project = {}
+    for rec in all_records:
+        if rec.project_id in next_by_project:
+            continue
+        if rec.status not in ('Completed', 'Skipped'):
+            next_by_project[rec.project_id] = rec
+
+    next_records = list(next_by_project.values())
+
     if mode == 'overdue':
-        q = q.filter(ServiceRecord.status == 'Overdue')
+        records = [r for r in next_records if r.status == 'Overdue']
     elif mode == 'week':
         end = today + timedelta(days=7)
-        q = q.filter(ServiceRecord.status.notin_(['Completed', 'Skipped']),
-                     ServiceRecord.scheduled_date <= end)
+        records = [r for r in next_records if r.scheduled_date <= end]
     elif mode == 'month':
         end = today + timedelta(days=30)
-        q = q.filter(ServiceRecord.status.notin_(['Completed', 'Skipped']),
-                     ServiceRecord.scheduled_date <= end)
+        records = [r for r in next_records if r.scheduled_date <= end]
     elif mode == 'next_days':
-        n   = days or 30
+        n = days or 30
         end = today + timedelta(days=n)
-        q = q.filter(ServiceRecord.status.notin_(['Completed', 'Skipped']),
-                     ServiceRecord.scheduled_date <= end)
+        records = [r for r in next_records if r.scheduled_date <= end]
     elif mode == 'date':
-        if single_date:
-            q = q.filter(ServiceRecord.scheduled_date == single_date)
-        else:
-            q = q.filter(ServiceRecord.scheduled_date == today)
+        target = single_date or today
+        records = [r for r in next_records if r.scheduled_date == target]
     else:
-        q = q.filter(ServiceRecord.status == 'Overdue')
+        records = [r for r in next_records if r.status == 'Overdue']
 
-    return q.order_by(ServiceRecord.scheduled_date).all()
-
+    return sorted(records, key=lambda r: r.scheduled_date)
 
 def build_service_report_pdf(records, mode, output_dir='/tmp', extra_label=''):
     from reportlab.lib import colors
