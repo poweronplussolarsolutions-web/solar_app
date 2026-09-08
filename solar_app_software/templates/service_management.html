@@ -5,6 +5,9 @@
   <a href="{{ url_for('service_map') }}" class="btn btn-sm">
     <i class="ti ti-map-pin"></i> Map view
   </a>
+  <button type="button" class="btn btn-sm" onclick="smTogglePdfPanel()">
+    <i class="ti ti-file-download"></i> Download PDF
+  </button>
 {% endblock %}
 
 {% block head %}
@@ -253,11 +256,59 @@
     text-align: center; padding: 56px 24px; color: var(--hint); font-size: 14px;
   }
   .empty-state i { font-size: 32px; display: block; margin-bottom: 10px; opacity: .5; }
+  .sm-pdf-panel {
+  border: 0.5px solid var(--border);
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.sm-pdf-row {
+  display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+}
+.sm-pdf-row .form-group { display: flex; flex-direction: column; gap: 4px; }
+.sm-pdf-row label { font-size: 11.5px; color: var(--muted); font-weight: 500; }
+.sm-pdf-row select, .sm-pdf-row input {
+  font-size: 13px; padding: 7px 10px;
+  border: 0.5px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text);
+}
 </style>
 {% endblock %}
 
 {% block content %}
-
+<div class="sm-pdf-panel" id="sm-pdf-panel" style="display:none">
+  <form method="GET" action="{{ url_for('download_service_report_pdf') }}"
+        target="_blank" onsubmit="return smValidatePdfForm()">
+    <div class="sm-pdf-row">
+      <div class="form-group">
+        <label>Report type</label>
+        <select name="mode" id="pdf-mode" onchange="smPdfModeChange()">
+          <option value="overdue">Overdue visits</option>
+          <option value="week">Due this week</option>
+          <option value="month">Due this month</option>
+          <option value="next_days">Due in next N days</option>
+          <option value="range">Custom date range</option>
+        </select>
+      </div>
+      <div class="form-group" id="pdf-days-group" style="display:none">
+        <label>Number of days</label>
+        <input type="number" name="days" id="pdf-days" min="1" max="365" value="14">
+      </div>
+      <div class="form-group" id="pdf-start-group" style="display:none">
+        <label>From date</label>
+        <input type="date" name="start_date" id="pdf-start">
+      </div>
+      <div class="form-group" id="pdf-end-group" style="display:none">
+        <label>To date</label>
+        <input type="date" name="end_date" id="pdf-end">
+      </div>
+      <button type="submit" class="btn btn-sm btn-primary">
+        <i class="ti ti-download" style="font-size:12px"></i> Generate PDF
+      </button>
+    </div>
+  </form>
+</div>
 <div class="sm-stat-grid">
   {% for label, val, accent in [
     ('Projects',   stats.projects,  'var(--text)'),
@@ -774,6 +825,29 @@ function smToggleSelect(checkbox) {
     if (card) card.classList.remove('is-selected');
   }
   smUpdateBulkBar();
+}
+function smTogglePdfPanel() {
+  var el = document.getElementById('sm-pdf-panel');
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+function smPdfModeChange() {
+  var mode = document.getElementById('pdf-mode').value;
+  document.getElementById('pdf-days-group').style.display  = mode === 'next_days' ? '' : 'none';
+  document.getElementById('pdf-start-group').style.display = mode === 'range' ? '' : 'none';
+  document.getElementById('pdf-end-group').style.display   = mode === 'range' ? '' : 'none';
+}
+function smValidatePdfForm() {
+  var mode = document.getElementById('pdf-mode').value;
+  if (mode === 'range') {
+    var s = document.getElementById('pdf-start').value;
+    var e = document.getElementById('pdf-end').value;
+    if (!s && !e) {
+      alert('Please select at least a start or end date for a custom range.');
+      return false;
+    }
+  }
+  return true;
 }
 </script>
 {% endblock %}

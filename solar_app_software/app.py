@@ -1463,7 +1463,159 @@ def refresh_service_statuses():
  
     if changed:
         db.session.commit()
+def _get_service_report_records(mode, start_date=None, end_date=None, days=None):
+    """Returns ServiceRecords for the PDF report, filtered by mode.
+    Excludes Cancelled/OnHold projects and Outside-work projects, same as
+    the service management screen."""
+    refresh_service_statuses()
+    today = date.today()
 
+    q = (ServiceRecord.query
+         .join(Project)
+         .options(joinedload(ServiceRecord.project).joinedload(Project.customer),
+                  joinedload(ServiceRecord.project).joinedload(Project.coordinator))
+         .filter(Project.status.notin_(['Cancelled', 'OnHold']),
+                 Project.work_category != 'Outside'))
+
+    if mode == 'overdue':
+        q = q.filter(ServiceRecord.status == 'Overdue')
+    elif mode == 'week':
+        end = today + timedelta(days=7)
+        q = q.filter(ServiceRecord.status.notin_(['Completed', 'Skipped']),
+                     ServiceRecord.scheduled_date <= end)
+    elif mode == 'month':
+        end = today + timedelta(days=30)
+        q = q.filter(ServiceRecord.status.notin_(['Completed', 'Skipped']),
+                     ServiceRecord.scheduled_date <= end)
+    elif mode == 'next_days':
+        n   = days or 30
+        end = today + timedelta(days=n)
+        q = q.filter(ServiceRecord.status.notin_(['Completed', 'Skipped']),
+                     ServiceRecord.scheduled_date <= end)
+    elif mode == 'range':
+        if start_date:
+            q = q.filter(ServiceRecord.scheduled_date >= start_date)
+        if end_date:
+            q = q.filter(ServiceRecord.scheduled_date <= end_date)
+    else:
+        q = q.filter(ServiceRecord.status == 'Overdue')
+
+    return q.order_by(ServiceRecord.scheduled_date).all()
+
+
+def build_service_report_pdf(records, mode, output_dir='/tmp', extra_label=''):
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import mm
+
+    mode_labels = {
+        'overdue':   'Overdue Service Visits',
+        'week':      'Service Visits Due This Week',
+        'month':     'Service Visits Due This Month',
+        'next_days': 'Upcoming Service Visits',
+        'range':     'Service Visits — Selected Dates',
+    }
+    title_label = mode_labels.get(mode, 'Service Visits Report')
+    if extra_label:
+        title_label += f' ({extra_label})'
+
+    fname = f'ServiceReport_{mode}_{date.today().isoformat()}.pdf'
+    path  = os.path.join(output_dir, fname)
+
+    doc = SimpleDocTemplate(path, pagesize=landscape(A4),
+                             topMargin=15 * mm, bottomMargin=15 * mm,
+                             leftMargin=12 * mm, rightMargin=12 * mm)
+    styles   = getSampleStyleSheet()
+    elements = []
+
+    title_style = styles['Title']
+    title_style.textColor = colors.HexColor('#1A3C5E')
+    elements.append(Paragraph('Power On Plus Solar Solutions', title_style))
+
+    subtitle_style = styles['Heading2']
+    subtitle_style.textColor = colors.HexColor('#2E6DA4')
+    elements.append(Paragraph(title_label, subtitle_style))
+    elements.append(Paragraph(f'Generated: {date.today().strftime("%d %b %Y")}', styles['Normal']))
+    elements.append(Spacer(1, 10))
+
+    data  = [['MNRE No.', 'Customer', 'kW', 'Coordinator', 'Visit #', 'Scheduled', 'Status', 'Project Created']]
+    today = date.today()
+    for rec in records:
+        proj = rec.project
+        coord_name = proj.coordinator.full_name if proj.coordinator else (proj.coordinator_name or '—')
+        status_disp = rec.status
+        if rec.status not in ('Completed', 'Skipped') and rec.scheduled_date < today:
+            status_disp = 'Overdue'
+        data.append([
+            proj.project_code,
+            proj.customer.name,
+            f'{proj.inverter_capacity_kw:g}' if proj.inverter_capacity_kw is not None else '—',
+            coord_name,
+            str(rec.visit_number),
+            rec.scheduled_date.strftime('%d %b %Y'),
+            status_disp,
+            proj.created_at.strftime('%d %b %Y'),
+        ])
+
+    if len(data) == 1:
+        data.append(['—', 'No records found for this filter', '', '', '', '', '', ''])
+
+    table = Table(data, repeatRows=1,
+                  colWidths=[20 * mm, 42 * mm, 14 * mm, 38 * mm, 16 * mm, 24 * mm, 22 * mm, 26 * mm])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1A3C5E')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#BFCBD6')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F2F7FB')]),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    elements.append(table)
+    elements.append(Spacer(1, 8))
+    elements.append(Paragraph(f'Total: {len(records)} visit(s)', styles['Normal']))
+    doc.build(elements)
+    return path
+
+
+@app.route('/service_management/download_pdf')
+@login_required
+@roles_required('admin', 'onsite', 'coordinator', 'director', 'service')
+def download_service_report_pdf():
+    mode      = request.args.get('mode', 'overdue')
+    days      = request.args.get('days', type=int)
+    start_str = _clean(request.args.get('start_date', ''), 10)
+    end_str   = _clean(request.args.get('end_date', ''), 10)
+
+    start_date_val = None
+    end_date_val   = None
+    try:
+        if start_str:
+            start_date_val = date.fromisoformat(start_str)
+        if end_str:
+            end_date_val = date.fromisoformat(end_str)
+    except ValueError:
+        flash('Invalid date provided.', 'danger')
+        return redirect(url_for('service_management'))
+
+    if mode not in ('overdue', 'week', 'month', 'next_days', 'range'):
+        mode = 'overdue'
+
+    records = _get_service_report_records(mode, start_date_val, end_date_val, days)
+
+    extra_label = ''
+    if mode == 'next_days' and days:
+        extra_label = f'Next {days} days'
+    elif mode == 'range' and (start_date_val or end_date_val):
+        s = start_date_val.strftime('%d %b %Y') if start_date_val else '…'
+        e = end_date_val.strftime('%d %b %Y') if end_date_val else '…'
+        extra_label = f'{s} – {e}'
+
+    path  = build_service_report_pdf(records, mode, tempfile.gettempdir(), extra_label)
+    fname = f'ServiceReport_{mode}_{date.today().isoformat()}.pdf'
+    return send_file(path, as_attachment=True, download_name=fname, mimetype='application/pdf')
 def auto_advance_stage(proj):
     if proj.status in ('Cancelled', 'OnHold', 'Completed', 'Closed'):
         return
