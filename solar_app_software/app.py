@@ -2361,13 +2361,13 @@ def dashboard():
             page=request.args.get('page', 1, type=int), per_page=15, error_out=False)
 
         active_projects = Project.query.filter(
-        Project.status.notin_(['Cancelled', 'OnHold'])
-        ).options(
-        joinedload(Project.subsidy),
-        selectinload(Project.expenses),
-        selectinload(Project.waivers),
-        selectinload(Project.payments),
-        ).all()
+    Project.status != 'Cancelled'
+    ).options(
+    joinedload(Project.subsidy),
+    selectinload(Project.expenses),
+    selectinload(Project.waivers),
+    selectinload(Project.payments),
+    ).all()
 
         data['collected'] = sum(p.effective_collected for p in active_projects)
         data['total_amt'] = sum(p.total_receivable   for p in active_projects)
