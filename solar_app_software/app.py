@@ -3887,15 +3887,15 @@ def payments_dashboard():
             })
         for exp in expenses_today:
             entries.append({
-                'kind':      'expense_recovery',
-                'sort_key':  exp.updated_at,
-                'date':      exp.recovered_date,
-                'project':   exp.project,
-                'amount':    float(exp.amount),
-                'label':     f'{exp.expense_type} Recovered',
-                'reference': exp.recovery_reference or '—',
-                'notes':     exp.recovery_notes or exp.notes or '—',
-            })
+        'kind':      'expense_recovery',
+        'sort_key':  exp.updated_at,
+        'date':      exp.recovered_date,
+        'project':   exp.project,
+        'amount':    float(exp.amount),
+        'label':     f'{exp.expense_type} Recovered',
+        'reference': exp.recovery_reference or '—',
+        'notes':     exp.notes or '—',
+    })
         entries.sort(key=lambda e: e['sort_key'] or datetime.min, reverse=True)
 
         total_entries = len(entries)
