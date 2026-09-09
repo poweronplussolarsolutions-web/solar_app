@@ -2357,12 +2357,18 @@ def dashboard():
         data['delayed']   = Project.query.filter_by(status='Delayed').count()
         data['projects']  = Project.query.order_by(Project.updated_at.desc()).paginate(
             page=request.args.get('page', 1, type=int), per_page=15, error_out=False)
-        active_ids = db.session.query(Project.id).filter(
-            Project.status.notin_(['Cancelled', 'OnHold'])).subquery()
-        data['collected'] = float(db.session.query(db.func.sum(Payment.amount)).filter(
-            Payment.project_id.in_(active_ids)).scalar() or 0)
-        data['total_amt'] = float(db.session.query(db.func.sum(Project.total_amount)).filter(
-            Project.status.notin_(['Cancelled', 'OnHold'])).scalar() or 0)
+
+        active_projects = Project.query.filter(
+        Project.status.notin_(['Cancelled', 'OnHold'])
+        ).options(
+        joinedload(Project.subsidy),
+        selectinload(Project.expenses),
+        selectinload(Project.waivers),
+        selectinload(Project.payments),
+        ).all()
+
+        data['collected'] = sum(p.effective_collected for p in active_projects)
+        data['total_amt'] = sum(p.total_receivable   for p in active_projects)
 
     elif role == 'coordinator':
         my_projects    = Project.query.filter_by(coordinator_id=current_user.id).order_by(Project.updated_at.desc()).all()
