@@ -90,7 +90,7 @@
     <div class="card-title" style="margin:0">Recent payment transactions</div>
     <div style="font-size:12px;color:var(--muted)">{{ recent_payments.total }} total</div>
   </div>
-  {% if recent_payments.items %}
+  {% if recent_payments.entries %}
   <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
   <table>
   <thead>
@@ -100,7 +100,7 @@
     </tr>
   </thead>
   <tbody>
-    {% for entry in recent_payments.items %}
+    {% for entry in recent_payments.entries %}
     <tr>
       <td>{{ entry.date | date_fmt }}</td>
       <td><a href="{{ url_for('project_detail', pid=entry.project.id) }}"

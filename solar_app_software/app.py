@@ -3854,19 +3854,15 @@ def payments_dashboard():
             pay_date_str = ''
             flash('Invalid date selected.', 'warning')
 
-    # Same project set (Cancelled excluded, OnHold included) and same
-    # per-project totals as the All Works report — keeps the two pages in sync.
     all_projects    = Project.query.filter(Project.status != 'Cancelled').all()
     total_value     = sum(p.total_receivable for p in all_projects)
     total_collected = sum(p.effective_collected for p in all_projects)
     total_pending   = sum(p.pending_amount for p in all_projects)
 
-    date_total     = None
+    date_total      = None
     recovered_total = None
 
     if pay_date:
-        # ── Merge Payments received that day + Company expenses recovered
-        #    that day into a single "transactions" feed ──────────────────────
         payments_today = (Payment.query
             .filter(Payment.payment_date == pay_date)
             .order_by(Payment.created_at.desc())
@@ -3907,10 +3903,10 @@ def payments_dashboard():
         total_pages   = max(1, (total_entries + per_page - 1) // per_page)
 
         recent_payments = {
-            'items': entries[start:start + per_page],
-            'total': total_entries,
-            'page':  pay_page,
-            'pages': total_pages,
+            'entries': entries[start:start + per_page],
+            'total':   total_entries,
+            'page':    pay_page,
+            'pages':   total_pages,
         }
 
         date_total      = sum(float(p.amount) for p in payments_today)
@@ -3929,10 +3925,10 @@ def payments_dashboard():
             'notes':     pay.notes or '—',
         } for pay in pag.items]
         recent_payments = {
-            'items': entries,
-            'total': pag.total,
-            'page':  pag.page,
-            'pages': pag.pages,
+            'entries': entries,
+            'total':   pag.total,
+            'page':    pag.page,
+            'pages':   pag.pages,
         }
 
     pending_projs = Project.query.filter(
