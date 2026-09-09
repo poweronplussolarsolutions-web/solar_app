@@ -6451,6 +6451,7 @@ def _wa_payment_message(proj, kind='confirmation'):
     Balance payable: ₹...
 
     Kindly review ...
+    Bank details + GPay for payment
     Thank you for your cooperation.
 
     Best regards,
@@ -6495,6 +6496,15 @@ def _wa_payment_message(proj, kind='confirmation'):
             lines.append('Kindly review the above details and proceed with the pending payments '
                           'as per the schedule.')
         lines.append('Please feel free to contact us if you require any clarification.')
+        lines.append('')
+        lines.append('You may pay via bank transfer or GPay:')
+        lines.append('Bank Name : BANK OF BARODA')
+        lines.append('Branch: Vavanoor')
+        lines.append('A/c No. : 82880200001384')
+        lines.append('IFSC Code: BARB0VJVAVA')
+        lines.append('A/c. Name: POWER ON PLUS SOLAR INVERTER AND BATTERY')
+        lines.append('')
+        lines.append('GPay number: 6282124199 (Salim Mattaya)')
 
     lines.append('')
     lines.append('Thank you for your cooperation.')
