@@ -3872,10 +3872,10 @@ def payments_dashboard():
         date_total = float(db.session.query(db.func.sum(Payment.amount))
                             .filter(Payment.payment_date == pay_date).scalar() or 0)
 
-    pending_projs = Project.query.filter(
-        Project.status.notin_(['Closed', 'Cancelled', 'OnHold'])
-    ).order_by(Project.updated_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
-
+    pending_projs = Project.query.options(joinedload(Project.expenses)).filter(
+    Project.status.notin_(['Closed', 'Cancelled', 'OnHold'])
+    ).order_by(Project.updated_at.desc()).paginate(
+        page=request.args.get('page', 1, type=int), per_page=20, error_out=False)
     return render_template('payments.html',
         total_collected=total_collected, total_pending=total_pending,
         total_value=total_value, recent_payments=recent_payments,

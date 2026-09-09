@@ -133,6 +133,7 @@
       <tr>
         <th>Project</th><th>Customer</th><th>Type</th>
         <th>Collected</th><th>Total</th><th>Pending</th><th>Progress</th>
+        <th>Company Expenses</th>
       </tr>
     </thead>
     <tbody>
@@ -154,6 +155,23 @@
             </div>
             <span style="font-size:11px">{{ p.payment_pct }}%</span>
           </div>
+        </td>
+        <td style="white-space:nowrap">
+          {% set company_expenses = p.expenses | selectattr('paid_by', 'equalto', 'Company') | list %}
+          {% if company_expenses %}
+            <div style="display:flex;flex-direction:column;gap:3px">
+              {% for e in company_expenses %}
+                <span class="tag" style="font-size:10px;
+                      background:{{ '#d4edda' if e.recovered else '#f8d7da' }};
+                      color:{{ '#155724' if e.recovered else '#721c24' }}">
+                  {{ e.expense_type }}:
+                  {% if e.recovered %}Recovered{% else %}{{ e.amount | inr }} pending{% endif %}
+                </span>
+              {% endfor %}
+            </div>
+          {% else %}
+            <span style="color:var(--hint)">—</span>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
