@@ -3861,26 +3861,91 @@ def payments_dashboard():
     total_collected = sum(p.effective_collected for p in all_projects)
     total_pending   = sum(p.pending_amount for p in all_projects)
 
-    payments_query = Payment.query.order_by(Payment.payment_date.desc(), Payment.created_at.desc())
+    date_total     = None
+    recovered_total = None
+
     if pay_date:
-        payments_query = payments_query.filter(Payment.payment_date == pay_date)
+        # ── Merge Payments received that day + Company expenses recovered
+        #    that day into a single "transactions" feed ──────────────────────
+        payments_today = (Payment.query
+            .filter(Payment.payment_date == pay_date)
+            .order_by(Payment.created_at.desc())
+            .all())
+        expenses_today = (ProjectExpense.query
+            .filter(ProjectExpense.recovered == True,
+                    ProjectExpense.recovered_date == pay_date)
+            .order_by(ProjectExpense.updated_at.desc())
+            .all())
 
-    recent_payments = payments_query.paginate(page=pay_page, per_page=per_page, error_out=False)
+        entries = []
+        for pay in payments_today:
+            entries.append({
+                'kind':      'payment',
+                'sort_key':  pay.created_at,
+                'date':      pay.payment_date,
+                'project':   pay.project,
+                'amount':    float(pay.amount),
+                'label':     pay.payment_type,
+                'reference': pay.reference_no or '—',
+                'notes':     pay.notes or '—',
+            })
+        for exp in expenses_today:
+            entries.append({
+                'kind':      'expense_recovery',
+                'sort_key':  exp.updated_at,
+                'date':      exp.recovered_date,
+                'project':   exp.project,
+                'amount':    float(exp.amount),
+                'label':     f'{exp.expense_type} Recovered',
+                'reference': exp.recovery_reference or '—',
+                'notes':     exp.recovery_notes or exp.notes or '—',
+            })
+        entries.sort(key=lambda e: e['sort_key'] or datetime.min, reverse=True)
 
-    date_total = None
-    if pay_date:
-        date_total = float(db.session.query(db.func.sum(Payment.amount))
-                            .filter(Payment.payment_date == pay_date).scalar() or 0)
+        total_entries = len(entries)
+        start         = (pay_page - 1) * per_page
+        total_pages   = max(1, (total_entries + per_page - 1) // per_page)
 
-    pending_projs = Project.query.options(joinedload(Project.expenses)).filter(
-    Project.status.notin_(['Closed', 'Cancelled', 'OnHold'])
+        recent_payments = {
+            'items': entries[start:start + per_page],
+            'total': total_entries,
+            'page':  pay_page,
+            'pages': total_pages,
+        }
+
+        date_total      = sum(float(p.amount) for p in payments_today)
+        recovered_total = sum(float(e.amount) for e in expenses_today)
+    else:
+        pag = (Payment.query
+               .order_by(Payment.payment_date.desc(), Payment.created_at.desc())
+               .paginate(page=pay_page, per_page=per_page, error_out=False))
+        entries = [{
+            'kind':      'payment',
+            'date':      pay.payment_date,
+            'project':   pay.project,
+            'amount':    float(pay.amount),
+            'label':     pay.payment_type,
+            'reference': pay.reference_no or '—',
+            'notes':     pay.notes or '—',
+        } for pay in pag.items]
+        recent_payments = {
+            'items': entries,
+            'total': pag.total,
+            'page':  pag.page,
+            'pages': pag.pages,
+        }
+
+    pending_projs = Project.query.filter(
+        Project.status.notin_(['Closed', 'Cancelled', 'OnHold'])
     ).order_by(Project.updated_at.desc()).paginate(
         page=request.args.get('page', 1, type=int), per_page=20, error_out=False)
+
     return render_template('payments.html',
         total_collected=total_collected, total_pending=total_pending,
         total_value=total_value, recent_payments=recent_payments,
         pending_projs=pending_projs, page=page, pay_page=pay_page,
-        pay_date=pay_date_str, date_total=date_total)
+        pay_date=pay_date_str, date_total=date_total,
+        recovered_total=recovered_total)
 @app.route('/projects/<int:pid>/waive_balance', methods=['POST'])
 @login_required
 @roles_required('admin', 'payments')

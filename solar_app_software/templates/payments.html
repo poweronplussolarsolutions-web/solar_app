@@ -75,9 +75,12 @@
   </form>
   {% if pay_date %}
   <div style="margin-top:10px;font-size:13px;color:var(--muted)">
-    Showing <strong>{{ recent_payments.total }}</strong> payment(s) recorded on
-    <strong>{{ pay_date }}</strong> — Total collected that day:
-    <strong style="color:var(--teal-600)">{{ date_total | inr }}</strong>
+    Showing <strong>{{ date_total is not none and (recent_payments.total) or recent_payments.total }}</strong>
+    entr{{ 'y' if recent_payments.total == 1 else 'ies' }} for <strong>{{ pay_date }}</strong>
+    — Payments collected: <strong style="color:var(--teal-600)">{{ date_total | inr }}</strong>
+    {% if recovered_total %}
+      · Expenses recovered: <strong style="color:var(--teal-600)">{{ recovered_total | inr }}</strong>
+    {% endif %}
   </div>
   {% endif %}
 </div>
@@ -97,16 +100,22 @@
     </tr>
   </thead>
   <tbody>
-    {% for pay in recent_payments.items %}
+    {% for entry in recent_payments.items %}
     <tr>
-      <td>{{ pay.payment_date | date_fmt }}</td>
-      <td><a href="{{ url_for('project_detail', pid=pay.project_id) }}"
-             style="color:var(--amber-600)">{{ pay.project.project_code }}</a></td>
-      <td>{{ pay.project.customer.name }}</td>
-      <td style="font-weight:500">{{ pay.amount | inr }}</td>
-      <td><span class="tag">{{ pay.payment_type }}</span></td>
-      <td style="font-size:12px;color:var(--muted)">{{ pay.reference_no or '—' }}</td>
-      <td style="font-size:12px;color:var(--muted);max-width:220px">{{ pay.notes or '—' }}</td>
+      <td>{{ entry.date | date_fmt }}</td>
+      <td><a href="{{ url_for('project_detail', pid=entry.project.id) }}"
+             style="color:var(--amber-600)">{{ entry.project.project_code }}</a></td>
+      <td>{{ entry.project.customer.name }}</td>
+      <td style="font-weight:500">{{ entry.amount | inr }}</td>
+      <td>
+        {% if entry.kind == 'expense_recovery' %}
+          <span class="tag" style="background:#d4edda;color:#155724">{{ entry.label }}</span>
+        {% else %}
+          <span class="tag">{{ entry.label }}</span>
+        {% endif %}
+      </td>
+      <td style="font-size:12px;color:var(--muted)">{{ entry.reference }}</td>
+      <td style="font-size:12px;color:var(--muted);max-width:220px">{{ entry.notes }}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -117,7 +126,7 @@
 {{ paginate(pay_base_qs, recent_payments.page, recent_payments.pages, 'pay_page') }}
   {% else %}
 <div style="text-align:center;padding:24px;color:var(--hint)">
-  {% if pay_date %}No payments were recorded on {{ pay_date }}.{% else %}No payments recorded yet.{% endif %}
+  {% if pay_date %}No payments or recovered expenses on {{ pay_date }}.{% else %}No payments recorded yet.{% endif %}
 </div>
 {% endif %}
 </div>
@@ -133,7 +142,6 @@
       <tr>
         <th>Project</th><th>Customer</th><th>Type</th>
         <th>Collected</th><th>Total</th><th>Pending</th><th>Progress</th>
-        <th>Company Expenses</th>
       </tr>
     </thead>
     <tbody>
@@ -155,23 +163,6 @@
             </div>
             <span style="font-size:11px">{{ p.payment_pct }}%</span>
           </div>
-        </td>
-        <td style="white-space:nowrap">
-          {% set company_expenses = p.expenses | selectattr('paid_by', 'equalto', 'Company') | list %}
-          {% if company_expenses %}
-            <div style="display:flex;flex-direction:column;gap:3px">
-              {% for e in company_expenses %}
-                <span class="tag" style="font-size:10px;
-                      background:{{ '#d4edda' if e.recovered else '#f8d7da' }};
-                      color:{{ '#155724' if e.recovered else '#721c24' }}">
-                  {{ e.expense_type }}:
-                  {% if e.recovered %}Recovered{% else %}{{ e.amount | inr }} pending{% endif %}
-                </span>
-              {% endfor %}
-            </div>
-          {% else %}
-            <span style="color:var(--hint)">—</span>
-          {% endif %}
         </td>
       </tr>
       {% endfor %}
