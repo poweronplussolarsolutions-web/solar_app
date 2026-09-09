@@ -23,6 +23,8 @@ from flask import send_from_directory
 from flask import send_file
 import tempfile, calendar
 from flask import abort 
+from sqlalchemy.orm import joinedload
+from sqlalchemy import func
 # from solar_app_software.logging_system import (
 #     setup_logging, security_log,
 #     log_login_attempt, log_lockout, log_password_change,
@@ -2391,11 +2393,6 @@ def dashboard():
         data['subsidy_list']     = subsidy_list
 
     elif role == 'documents':
-
-        from sqlalchemy.orm import joinedload
-        from sqlalchemy import func
-
-   
         all_my_projects = Project.query.options(
         joinedload(Project.documents)
     ).filter_by(doc_staff_id=current_user.id).all()
@@ -2468,8 +2465,6 @@ def dashboard():
         is_read=False
     ).order_by(Notification.created_at.desc()).limit(20).all()
     elif role == 'documents_k':
-        from sqlalchemy.orm import joinedload
-        from sqlalchemy import func
 
         all_my_projects = Project.query.options(
         joinedload(Project.documents)
@@ -2544,8 +2539,7 @@ def dashboard():
     # })
     
     elif role == 'office':
-        from sqlalchemy.orm import joinedload
-        from sqlalchemy import func
+        
 
         all_projects = Project.query.options(
     joinedload(Project.documents)
@@ -2618,7 +2612,7 @@ def dashboard():
             page=request.args.get('page', 1, type=int), per_page=20, error_out=False)
 
     elif role == 'onsite':
-        from sqlalchemy.orm import joinedload
+        
         data['projects'] = (Project.query
             .options(
                 joinedload(Project.onsite_progress),
@@ -2650,8 +2644,6 @@ def dashboard():
 @login_required
 @roles_required('admin', 'onsite', 'director')
 def onsite_board():
-
-    from sqlalchemy.orm import joinedload
 
     projects = (Project.query
         .options(
