@@ -7614,8 +7614,10 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
     path = os.path.join(output_dir, f'AllWorks_Docs_{staff.username}.xlsx')
     wb.save(path)
     return path
-def build_allworks_full_report(projects, project_type_filter='All', work_category_filter='All', output_dir='/tmp',month=None, year=None):
-    """System-wide all-works sheet — every project, optionally filtered by Cash/Loan and Installation/Outside."""
+def build_allworks_full_report(projects, project_type_filter='All', work_category_filter='All',
+                                output_dir='/tmp', month=None, year=None, payment_stage_filter='All'):
+    """System-wide all-works sheet — every project, optionally filtered by Cash/Loan,
+    Installation/Outside, and by pending bank instalment (First/Second)."""
     wb = Workbook()
     ws = wb.active
     ws.title = 'All Works'
@@ -7623,6 +7625,10 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
     ws.freeze_panes = 'A6'
 
     filter_bits = []
+    if payment_stage_filter == 'FirstPending':
+        filter_bits.append('First Payment Pending')
+    elif payment_stage_filter == 'SecondPending':
+        filter_bits.append('Second Payment Pending')
     if project_type_filter != 'All':
         filter_bits.append(project_type_filter)
     if work_category_filter != 'All':
@@ -7631,14 +7637,17 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         filter_bits.append(f'{calendar.month_name[month]} {year}')
     subtitle = f'All Works — {" · ".join(filter_bits)}' if filter_bits else 'All Works — System Wide'
 
+    show_instalments = payment_stage_filter in ('FirstPending', 'SecondPending')
+
     titles = [
         ('Power On Plus Solar Solutions', C_HEADER_BG, C_HEADER_FG, 14, False, True),
         (subtitle,                        C_SUBHDR_BG, C_HEADER_FG, 11, False, True),
         (f'Generated: {date.today().strftime("%d %b %Y")}', C_ALT_BG, '444444', 10, True, True),
         ('', 'FFFFFF', '000000', 8, False, False),
     ]
+    last_col_letter = 'N' if show_instalments else 'L'
     for r, (txt, bg_c, fg_c, sz, italic, center) in enumerate(titles, 1):
-        ws.merge_cells(f'A{r}:L{r}')
+        ws.merge_cells(f'A{r}:{last_col_letter}{r}')
         c = ws[f'A{r}']
         c.value = txt or None
         c.font  = _font(bold=(not italic and bool(txt)), color=fg_c, size=sz, italic=italic)
@@ -7652,8 +7661,10 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
 
     ws.row_dimensions[5].height = 20
     headers = ['MNRE No.', 'Customer', 'Place', 'Sub Co', 'Type', 'Subtype', 'Status',
-                'Contract (₹)', 'Collected (₹)', 'Pending (₹)',
-                'Coordinator', 'Doc Staff', 'Created']
+                'Contract (₹)', 'Collected (₹)', 'Pending (₹)']
+    if show_instalments:
+        headers += ['1st Instalment (₹)', '2nd Instalment (₹)']
+    headers += ['Coordinator', 'Doc Staff', 'Created']
     for col, h in enumerate(headers, 1):
         _style_header_cell(ws.cell(5, col), h)
 
@@ -7669,14 +7680,29 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         pend = p.pending_amount
         ws.row_dimensions[row].height = 17
         coord_name = p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—')
+
         vals = [p.project_code, p.customer.name, p.customer.place or '—', p.customer.sub_co or '—',
                 p.project_type, p.project_subtype or '—', p.status,
-                float(p.total_amount or 0), float(p.collected_amount or 0), pend,
-                coord_name, p.doc_staff.full_name if p.doc_staff else '—',
-                p.created_at.strftime('%d %b %Y')]
-        fmts   = [None, None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0', None, None, None]
+                float(p.total_amount or 0), float(p.collected_amount or 0), pend]
+        fmts   = [None, None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0']
         aligns = ['center', 'left', 'left', 'center', 'center', 'center', 'center',
-                  'right', 'right', 'right', 'left', 'left', 'center']
+                  'right', 'right', 'right']
+
+        if show_instalments:
+            instalments = p.bank_instalments if p.project_type == 'Loan' else {}
+            first_amt  = float(instalments['First'].amount)  if 'First'  in instalments else None
+            second_amt = float(instalments['Second'].amount) if 'Second' in instalments else None
+            vals   += [first_amt if first_amt is not None else '—',
+                       second_amt if second_amt is not None else '—']
+            fmts   += ['₹#,##0' if first_amt is not None else None,
+                       '₹#,##0' if second_amt is not None else None]
+            aligns += ['right', 'right']
+
+        vals   += [coord_name, p.doc_staff.full_name if p.doc_staff else '—',
+                   p.created_at.strftime('%d %b %Y')]
+        fmts   += [None, None, None]
+        aligns += ['left', 'left', 'center']
+
         for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
             _style_data_cell(ws.cell(row, col), val,
                               bg=s_bg if col == 7 else bg,
@@ -7704,11 +7730,21 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
             cell.fill = _fill(C_TOTAL_BG)
             cell.border = _border()
 
-    col_widths = [12, 24, 16, 12, 8, 10, 12, 14, 14, 14, 20, 20, 13]
+    col_widths = [12, 24, 16, 12, 8, 10, 12, 14, 14, 14]
+    if show_instalments:
+        col_widths += [16, 16]
+    col_widths += [20, 20, 13]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
-    fname = f'AllWorks_System_{project_type_filter}.xlsx' if project_type_filter != 'All' else 'AllWorks_System.xlsx'
+    fname_bits = ['AllWorks_System']
+    if payment_stage_filter == 'FirstPending':
+        fname_bits.append('FirstPending')
+    elif payment_stage_filter == 'SecondPending':
+        fname_bits.append('SecondPending')
+    elif project_type_filter != 'All':
+        fname_bits.append(project_type_filter)
+    fname = '_'.join(fname_bits) + '.xlsx'
     path = os.path.join(output_dir, fname)
     wb.save(path)
     return path
@@ -7737,7 +7773,8 @@ def download_coordinator_report_all():
 from sqlalchemy.orm import selectinload, joinedload
 
 def _get_all_works_projects(project_type_filter, work_category_filter='All', status_filter='All',
-                             month=None, year=None, amount_filter='All', search=''):
+                             month=None, year=None, amount_filter='All', search='',
+                             payment_stage_filter='All'):
     q = (Project.query
          .join(Customer)
          .options(
@@ -7747,11 +7784,17 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
              joinedload(Project.subsidy),
              selectinload(Project.expenses),
              selectinload(Project.waivers),
+             selectinload(Project.payments),
          )
          .filter(Project.status != 'Cancelled'))
 
-    if project_type_filter in ('Cash', 'Loan'):
+    # Payment-stage filters only make sense for Loan projects (bank instalments) —
+    # they override the Project Type dropdown when active.
+    if payment_stage_filter in ('FirstPending', 'SecondPending'):
+        q = q.filter(Project.project_type == 'Loan')
+    elif project_type_filter in ('Cash', 'Loan'):
         q = q.filter(Project.project_type == project_type_filter)
+
     if work_category_filter in ('Installation', 'Outside'):
         q = q.filter(Project.work_category == work_category_filter)
     if status_filter != 'All':
@@ -7775,7 +7818,17 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
             Customer.name.ilike(f'%{search}%') |
             Project.project_code.ilike(f'%{search}%')
         )
-    return q.order_by(cast(Project.project_code, Integer).desc()).all()
+
+    projects = q.order_by(cast(Project.project_code, Integer).desc()).all()
+
+    # Post-filter in Python — bank_instalments/next_bank_instalment are computed
+    # from the payments relationship, not something SQL can filter on directly.
+    if payment_stage_filter == 'FirstPending':
+        projects = [p for p in projects if p.next_bank_instalment == 'First']
+    elif payment_stage_filter == 'SecondPending':
+        projects = [p for p in projects if p.next_bank_instalment == 'Second']
+
+    return projects
 @app.route('/admin/all_works')
 @login_required
 @roles_required('admin', 'director', 'payments', 'office')
@@ -7788,15 +7841,17 @@ def all_works_report():
 @login_required
 @roles_required('admin', 'director', 'payments', 'office')
 def all_works_preview_data():
-    project_type_filter  = request.args.get('project_type', 'All')
-    work_category_filter = request.args.get('work_category', 'All')
-    status_filter         = request.args.get('status', 'All')
-    amount_filter          = request.args.get('amount_filter', 'All')
-    search                 = _clean(request.args.get('q', ''), 100)
+    project_type_filter   = request.args.get('project_type', 'All')
+    work_category_filter  = request.args.get('work_category', 'All')
+    status_filter          = request.args.get('status', 'All')
+    amount_filter           = request.args.get('amount_filter', 'All')
+    payment_stage_filter    = request.args.get('payment_stage', 'All')
+    search                  = _clean(request.args.get('q', ''), 100)
     month = request.args.get('month', type=int)
     year  = request.args.get('year', type=int)
     projects = _get_all_works_projects(project_type_filter, work_category_filter,
-                                        status_filter, month, year, amount_filter, search)
+                                        status_filter, month, year, amount_filter, search,
+                                        payment_stage_filter)
 
     total_val = sum(float(p.total_amount or 0) for p in projects)
     collected = sum(float(p.collected_amount or 0) for p in projects)
@@ -7810,6 +7865,7 @@ def all_works_preview_data():
 
     def _to_dict(p):
         bg, fg = STATUS_COLORS_HTML.get(p.status, ('#fff', '#000'))
+        instalments = p.bank_instalments if p.project_type == 'Loan' else {}
         return {
             'code':          p.project_code,
             'customer':      p.customer.name,
@@ -7824,46 +7880,61 @@ def all_works_preview_data():
             'contract':      _inr_fmt(p.total_amount),
             'collected':     _inr_fmt(p.collected_amount),
             'pending':       _inr_fmt(p.pending_amount),
+            'first_instalment':  _inr_fmt(instalments['First'].amount) if 'First' in instalments else '—',
+            'second_instalment': _inr_fmt(instalments['Second'].amount) if 'Second' in instalments else '—',
             'coordinator':   p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—'),
             'doc_staff':     p.doc_staff.full_name if p.doc_staff else '—',
             'created':       p.created_at.strftime('%d %b %Y'),
         }
 
+    kpis = {
+        'Total':     len(projects),
+        'Cash':      cash_count,
+        'Loan':      loan_count,
+        'Outside':   outside_count,
+        'Active':    len(active),
+        'Delayed':   len(delayed),
+        'Completed': len(completed),
+        'Value':     _inr_fmt(total_val),
+        'Collected': _inr_fmt(collected),
+        'Pending':   _inr_fmt(pending),
+    }
+    if payment_stage_filter in ('FirstPending', 'SecondPending'):
+        kpis['Payment Pending'] = len(projects)
+
     return jsonify({
-        'kpis': {
-            'Total':     len(projects),
-            'Cash':      cash_count,
-            'Loan':      loan_count,
-            'Outside':   outside_count,
-            'Active':    len(active),
-            'Delayed':   len(delayed),
-            'Completed': len(completed),
-            'Value':     _inr_fmt(total_val),
-            'Collected': _inr_fmt(collected),
-            'Pending':   _inr_fmt(pending),
-        },
+        'kpis': kpis,
         'projects': [_to_dict(p) for p in projects],
+        'payment_stage': payment_stage_filter,
     })
 
 @app.route('/admin/all_works/download')
 @login_required
 @roles_required('admin', 'director', 'payments', 'office')
 def all_works_download():
-    project_type_filter  = request.args.get('project_type', 'All')
-    work_category_filter = request.args.get('work_category', 'All')
-    status_filter          = request.args.get('status', 'All')
-    amount_filter          = request.args.get('amount_filter', 'All')
-    search                  = _clean(request.args.get('q', ''), 100)
+    project_type_filter   = request.args.get('project_type', 'All')
+    work_category_filter  = request.args.get('work_category', 'All')
+    status_filter           = request.args.get('status', 'All')
+    amount_filter            = request.args.get('amount_filter', 'All')
+    payment_stage_filter     = request.args.get('payment_stage', 'All')
+    search                    = _clean(request.args.get('q', ''), 100)
     month = request.args.get('month', type=int)
     year  = request.args.get('year', type=int)
     projects = _get_all_works_projects(project_type_filter, work_category_filter,
-                                        status_filter, month, year, amount_filter, search)
-    path = build_allworks_full_report(projects, project_type_filter, work_category_filter,
-                                       tempfile.gettempdir(), month, year)
+                                        status_filter, month, year, amount_filter, search,
+                                        payment_stage_filter)
+
+    effective_type_filter = 'Loan' if payment_stage_filter in ('FirstPending', 'SecondPending') else project_type_filter
+    path = build_allworks_full_report(projects, effective_type_filter, work_category_filter,
+                                       tempfile.gettempdir(), month, year, payment_stage_filter)
 
     parts = ['AllWorks']
-    if project_type_filter != 'All':
-        parts.append(project_type_filter)
+    if payment_stage_filter == 'FirstPending':
+        parts.append('FirstPaymentPending')
+    elif payment_stage_filter == 'SecondPending':
+        parts.append('SecondPaymentPending')
+    if effective_type_filter != 'All':
+        parts.append(effective_type_filter)
     if work_category_filter != 'All':
         parts.append(work_category_filter)
     if status_filter != 'All':

@@ -129,6 +129,14 @@
         <!-- <option value="Lead">Lead</option> -->
       </select>
     </div>
+        <div class="aw-filter-group">
+      <label>Payment Stage (Loan only)</label>
+      <select id="paymentStageFilter" onchange="onPaymentStageChange()">
+        <option value="All">All</option>
+        <option value="FirstPending">First payment not received</option>
+        <option value="SecondPending">Second payment not received</option>
+      </select>
+    </div>
     <div class="aw-filter-group">
     <label>Month (by Created Date)</label>
     <select id="monthFilter" onchange="onMonthChange()">
@@ -189,6 +197,8 @@
           <th style="text-align:right">Contract</th>
           <th style="text-align:right">Collected</th>
           <th style="text-align:right">Pending</th>
+          <th style="text-align:right">1st Instalment</th>
+          <th style="text-align:right">2nd Instalment</th>
           <th>Coordinator</th>
           <th>Doc Staff</th>
           <th>Created</th>
@@ -207,122 +217,6 @@
 </div>
 
 <script>
-function onMonthChange() {
-  document.getElementById('yearFilter').disabled = !document.getElementById('monthFilter').value;
-  loadData();
-}
-
-function currentFilters() {
-  const filters = {
-    project_type:   document.getElementById('typeFilter').value,
-    work_category:  document.getElementById('categoryFilter').value,
-    status:         document.getElementById('statusFilter').value,
-    amount_filter:  document.getElementById('amountFilter').value,
-  };
-  const month = document.getElementById('monthFilter').value;
-  if (month) {
-    filters.month = month;
-    filters.year  = document.getElementById('yearFilter').value;
-  }
-  return filters;
-}
-
-function buildQS(filters) {
-  return new URLSearchParams(filters).toString();
-}
-
-function resetFilters() {
-  document.getElementById('typeFilter').value = 'All';
-  document.getElementById('categoryFilter').value = 'All';
-  document.getElementById('statusFilter').value = 'All';
-  document.getElementById('amountFilter').value = 'All';
-  document.getElementById('monthFilter').value = '';
-  document.getElementById('yearFilter').disabled = true;
-  loadData();
-}
-
-function downloadExcel() {
-  window.location = `/admin/all_works/download?${buildQS(currentFilters())}`;
-}
-
-function renderChips(filters) {
-  const chips = document.getElementById('activeChips');
-  const labels = {
-    project_type:  { Cash: 'Cash', Loan: 'Loan' },
-    work_category: { Installation: 'Installation', Outside: 'Outside' },
-    status:        { Active: 'Active', InProgress: 'In Progress', Delayed: 'Delayed',
-                      Completed: 'Completed/Closed', OnHold: 'On Hold', Lead: 'Lead' },
-    amount_filter: { Zero: '₹0 Work Amount', NonZero: 'Non-zero Work Amount' },
-  };
-  const monthNames = ['', 'January','February','March','April','May','June',
-                       'July','August','September','October','November','December'];
-  let html = '';
-  for (const [key, val] of Object.entries(filters)) {
-    if (key === 'month' && val) {
-      html += `<span class="aw-chip">${monthNames[val]} ${filters.year}</span>`;
-      continue;
-    }
-    if (key === 'year') continue;
-    if (val !== 'All' && labels[key] && labels[key][val]) {
-      html += `<span class="aw-chip">${labels[key][val]}</span>`;
-    }
-  }
-  chips.innerHTML = html;
-}
-
-function loadData() {
-  const filters = currentFilters();
-  renderChips(filters);
-  document.getElementById('worksBody').innerHTML =
-    '<tr><td colspan="14" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>';
-
-  fetch(`/admin/all_works/preview_data?${buildQS(filters)}`)
-    .then(r => r.json())
-    .then(data => {
-      renderKpis(data.kpis);
-      renderTable(data.projects);
-    })
-    .catch(() => {
-      document.getElementById('worksBody').innerHTML =
-        '<tr><td colspan="14" style="text-align:center;padding:30px;color:red">Failed to load.</td></tr>';
-    });
-}
-
-function renderKpis(kpis) {
-  const row = document.getElementById('kpiRow');
-  row.innerHTML = Object.entries(kpis).map(([k, v]) => `
-    <div class="aw-kpi">
-      <div class="aw-kpi-label">${k}</div>
-      <div class="aw-kpi-value">${v}</div>
-    </div>`).join('');
-}
-
-function renderTable(projects) {
-  const td  = s => `<td>${s ?? '—'}</td>`;
-  const tdc = s => `<td style="text-align:center">${s ?? '—'}</td>`;
-  const tdr = s => `<td style="text-align:right">${s ?? '—'}</td>`;
-
-  const body = document.getElementById('worksBody');
-  if (!projects.length) {
-    body.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:30px;color:var(--hint)">No projects match these filters.</td></tr>';
-    return;
-  }
-
-  body.innerHTML = projects.map((p, i) => {
-    const bg = i % 2 === 0 ? 'var(--surface,#f9f9f9)' : '#fff';
-    return `<tr class="aw-row" style="background:${bg}" onclick="openJobCard('${p.code}')" title="Open job card for ${p.code}">
-      ${tdc(p.code)}${td(p.customer)}${td(p.place)}${td(p.sub_co)}${tdc(p.type)}${tdc(p.subtype)}${tdc(p.work_category)}
-      <td style="text-align:center">
-        <span class="aw-status-pill" style="background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
-      </td>
-      ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
-    </tr>`;
-  }).join('');
-}
-
-function openJobCard(code) {
-  window.location = `/job_card?q=${encodeURIComponent(code)}&from=all_works`;
-}
 let searchDebounceTimer = null;
 
 function debouncedLoad() {
@@ -335,12 +229,25 @@ function onMonthChange() {
   loadData();
 }
 
+function onPaymentStageChange() {
+  const stage = document.getElementById('paymentStageFilter').value;
+  const typeSelect = document.getElementById('typeFilter');
+  if (stage === 'FirstPending' || stage === 'SecondPending') {
+    typeSelect.value = 'Loan';
+    typeSelect.disabled = true;
+  } else {
+    typeSelect.disabled = false;
+  }
+  loadData();
+}
+
 function currentFilters() {
   const filters = {
     project_type:   document.getElementById('typeFilter').value,
     work_category:  document.getElementById('categoryFilter').value,
     status:         document.getElementById('statusFilter').value,
     amount_filter:  document.getElementById('amountFilter').value,
+    payment_stage:  document.getElementById('paymentStageFilter').value,
   };
   const month = document.getElementById('monthFilter').value;
   if (month) {
@@ -360,13 +267,107 @@ function buildQS(filters) {
 
 function resetFilters() {
   document.getElementById('typeFilter').value = 'All';
+  document.getElementById('typeFilter').disabled = false;
   document.getElementById('categoryFilter').value = 'All';
   document.getElementById('statusFilter').value = 'All';
   document.getElementById('amountFilter').value = 'All';
+  document.getElementById('paymentStageFilter').value = 'All';
   document.getElementById('monthFilter').value = '';
   document.getElementById('yearFilter').disabled = true;
   document.getElementById('searchFilter').value = '';
   loadData();
+}
+
+function clearSearch() {
+  document.getElementById('searchFilter').value = '';
+  loadData();
+}
+
+function downloadExcel() {
+  window.location = `/admin/all_works/download?${buildQS(currentFilters())}`;
+}
+
+function renderChips(filters) {
+  const chips = document.getElementById('activeChips');
+  const labels = {
+    project_type:  { Cash: 'Cash', Loan: 'Loan' },
+    work_category: { Installation: 'Installation', Outside: 'Outside' },
+    status:        { Active: 'Active', InProgress: 'In Progress', Delayed: 'Delayed',
+                      Completed: 'Completed/Closed', OnHold: 'On Hold', Lead: 'Lead' },
+    amount_filter: { Zero: '₹0 Work Amount', NonZero: 'Non-zero Work Amount' },
+    payment_stage: { FirstPending: 'First Payment Not Received', SecondPending: 'Second Payment Not Received' },
+  };
+  const monthNames = ['', 'January','February','March','April','May','June',
+                       'July','August','September','October','November','December'];
+  let html = '';
+  for (const [key, val] of Object.entries(filters)) {
+    if (key === 'month' && val) {
+      html += `<span class="aw-chip">${monthNames[val]} ${filters.year}</span>`;
+      continue;
+    }
+    if (key === 'year' || key === 'q') continue;
+    if (val !== 'All' && labels[key] && labels[key][val]) {
+      html += `<span class="aw-chip">${labels[key][val]}</span>`;
+    }
+  }
+  if (filters.q) {
+    html += `<span class="aw-chip">Search: "${filters.q}"</span>`;
+  }
+  chips.innerHTML = html;
+}
+
+function loadData() {
+  const filters = currentFilters();
+  renderChips(filters);
+  document.getElementById('worksBody').innerHTML =
+    '<tr><td colspan="16" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>';
+
+  fetch(`/admin/all_works/preview_data?${buildQS(filters)}`)
+    .then(r => r.json())
+    .then(data => {
+      renderKpis(data.kpis);
+      renderTable(data.projects);
+    })
+    .catch(() => {
+      document.getElementById('worksBody').innerHTML =
+        '<tr><td colspan="16" style="text-align:center;padding:30px;color:red">Failed to load.</td></tr>';
+    });
+}
+
+function renderKpis(kpis) {
+  const row = document.getElementById('kpiRow');
+  row.innerHTML = Object.entries(kpis).map(([k, v]) => `
+    <div class="aw-kpi">
+      <div class="aw-kpi-label">${k}</div>
+      <div class="aw-kpi-value">${v}</div>
+    </div>`).join('');
+}
+
+function renderTable(projects) {
+  const td  = s => `<td>${s ?? '—'}</td>`;
+  const tdc = s => `<td style="text-align:center">${s ?? '—'}</td>`;
+  const tdr = s => `<td style="text-align:right">${s ?? '—'}</td>`;
+
+  const body = document.getElementById('worksBody');
+  if (!projects.length) {
+    body.innerHTML = '<tr><td colspan="16" style="text-align:center;padding:30px;color:var(--hint)">No projects match these filters.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = projects.map((p, i) => {
+    const bg = i % 2 === 0 ? 'var(--surface,#f9f9f9)' : '#fff';
+    return `<tr class="aw-row" style="background:${bg}" onclick="openJobCard('${p.code}')" title="Open job card for ${p.code}">
+      ${tdc(p.code)}${td(p.customer)}${td(p.place)}${td(p.sub_co)}${tdc(p.type)}${tdc(p.subtype)}${tdc(p.work_category)}
+      <td style="text-align:center">
+        <span class="aw-status-pill" style="background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
+      </td>
+      ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${tdr(p.first_instalment)}${tdr(p.second_instalment)}${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
+    </tr>`;
+  }).join('');
+}
+
+function openJobCard(code) {
+  window.location = `/job_card?q=${encodeURIComponent(code)}&from=all_works`;
 }
 
 function printTable() {
