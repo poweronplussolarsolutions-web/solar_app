@@ -7637,7 +7637,7 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         filter_bits.append(f'{calendar.month_name[month]} {year}')
     subtitle = f'All Works — {" · ".join(filter_bits)}' if filter_bits else 'All Works — System Wide'
 
-    show_instalments = payment_stage_filter in ('FirstPending', 'SecondPending')
+    show_payments = payment_stage_filter in ('FirstPending', 'SecondPending')
 
     titles = [
         ('Power On Plus Solar Solutions', C_HEADER_BG, C_HEADER_FG, 14, False, True),
@@ -7645,7 +7645,7 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         (f'Generated: {date.today().strftime("%d %b %Y")}', C_ALT_BG, '444444', 10, True, True),
         ('', 'FFFFFF', '000000', 8, False, False),
     ]
-    last_col_letter = 'N' if show_instalments else 'L'
+    last_col_letter = 'N' if show_payments else 'L'
     for r, (txt, bg_c, fg_c, sz, italic, center) in enumerate(titles, 1):
         ws.merge_cells(f'A{r}:{last_col_letter}{r}')
         c = ws[f'A{r}']
@@ -7662,8 +7662,8 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
     ws.row_dimensions[5].height = 20
     headers = ['MNRE No.', 'Customer', 'Place', 'Sub Co', 'Type', 'Subtype', 'Status',
                 'Contract (₹)', 'Collected (₹)', 'Pending (₹)']
-    if show_instalments:
-        headers += ['1st Instalment (₹)', '2nd Instalment (₹)']
+    if show_payments:
+        headers += ['1st Payment', '2nd Payment']
     headers += ['Coordinator', 'Doc Staff', 'Created']
     for col, h in enumerate(headers, 1):
         _style_header_cell(ws.cell(5, col), h)
@@ -7687,16 +7687,16 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         fmts   = [None, None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0']
         aligns = ['center', 'left', 'left', 'center', 'center', 'center', 'center',
                   'right', 'right', 'right']
+        tick_col_indices = []
 
-        if show_instalments:
+        if show_payments:
             instalments = p.bank_instalments if p.project_type == 'Loan' else {}
-            first_amt  = float(instalments['First'].amount)  if 'First'  in instalments else None
-            second_amt = float(instalments['Second'].amount) if 'Second' in instalments else None
-            vals   += [first_amt if first_amt is not None else '—',
-                       second_amt if second_amt is not None else '—']
-            fmts   += ['₹#,##0' if first_amt is not None else None,
-                       '₹#,##0' if second_amt is not None else None]
-            aligns += ['right', 'right']
+            first_done  = 'First'  in instalments
+            second_done = 'Second' in instalments
+            tick_col_indices = [len(vals) + 1, len(vals) + 2]  # 1-based positions about to be added
+            vals   += ['✓' if first_done else '✗', '✓' if second_done else '✗']
+            fmts   += [None, None]
+            aligns += ['center', 'center']
 
         vals   += [coord_name, p.doc_staff.full_name if p.doc_staff else '—',
                    p.created_at.strftime('%d %b %Y')]
@@ -7704,10 +7704,14 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         aligns += ['left', 'left', 'center']
 
         for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
-            _style_data_cell(ws.cell(row, col), val,
-                              bg=s_bg if col == 7 else bg,
-                              fg=s_fg if col == 7 else '000000',
-                              align=aln, number_fmt=fmt)
+            if col == 7:
+                c_bg, c_fg = s_bg, s_fg
+            elif col in tick_col_indices:
+                c_bg = C_GREEN_BG if val == '✓' else C_RED_BG
+                c_fg = C_GREEN_FG if val == '✓' else C_RED_FG
+            else:
+                c_bg, c_fg = bg, '000000'
+            _style_data_cell(ws.cell(row, col), val, bg=c_bg, fg=c_fg, align=aln, number_fmt=fmt)
         row += 1
 
     total_val  = sum(float(p.total_amount or 0) for p in sorted_projects)
@@ -7731,8 +7735,8 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
             cell.border = _border()
 
     col_widths = [12, 24, 16, 12, 8, 10, 12, 14, 14, 14]
-    if show_instalments:
-        col_widths += [16, 16]
+    if show_payments:
+        col_widths += [12, 12]
     col_widths += [20, 20, 13]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
@@ -7880,8 +7884,8 @@ def all_works_preview_data():
             'contract':      _inr_fmt(p.total_amount),
             'collected':     _inr_fmt(p.collected_amount),
             'pending':       _inr_fmt(p.pending_amount),
-            'first_instalment':  _inr_fmt(instalments['First'].amount) if 'First' in instalments else '—',
-            'second_instalment': _inr_fmt(instalments['Second'].amount) if 'Second' in instalments else '—',
+            'first_payment':  'First' in instalments,
+            'second_payment': 'Second' in instalments,
             'coordinator':   p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—'),
             'doc_staff':     p.doc_staff.full_name if p.doc_staff else '—',
             'created':       p.created_at.strftime('%d %b %Y'),

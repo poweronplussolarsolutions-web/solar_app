@@ -197,8 +197,8 @@
           <th style="text-align:right">Contract</th>
           <th style="text-align:right">Collected</th>
           <th style="text-align:right">Pending</th>
-          <th style="text-align:right">1st Instalment</th>
-          <th style="text-align:right">2nd Instalment</th>
+          <th style="text-align:center">1st Payment</th>
+          <th style="text-align:center">2nd Payment</th>
           <th>Coordinator</th>
           <th>Doc Staff</th>
           <th>Created</th>
@@ -342,7 +342,9 @@ function renderKpis(kpis) {
       <div class="aw-kpi-value">${v}</div>
     </div>`).join('');
 }
-
+function tdTick(done) {
+  return `<td style="text-align:center;font-weight:700;color:${done ? '#155724' : '#721c24'}">${done ? '✓' : '✗'}</td>`;
+}
 function renderTable(projects) {
   const td  = s => `<td>${s ?? '—'}</td>`;
   const tdc = s => `<td style="text-align:center">${s ?? '—'}</td>`;
@@ -361,7 +363,7 @@ function renderTable(projects) {
       <td style="text-align:center">
         <span class="aw-status-pill" style="background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
       </td>
-      ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${tdr(p.first_instalment)}${tdr(p.second_instalment)}${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
+      ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${tdTick(p.first_payment)}${tdTick(p.second_payment)}${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
     </tr>`;
   }).join('');
 }
