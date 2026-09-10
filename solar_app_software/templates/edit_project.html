@@ -144,23 +144,29 @@
 
     <div class="form-grid">
 
+      <!-- 1. Inverter capacity -->
       <div class="form-group">
         <label>Inverter capacity (kW) *</label>
         <input name="inverter_capacity_kw" type="number" step="any" min="0.01" required
                value="{{ proj.inverter_capacity_kw }}"/>
       </div>
 
+      <!-- 2. Panel capacity -->
       <div class="form-group">
         <label>Panel capacity (kW) *</label>
         <input name="panel_capacity_kw" type="number" step="any" min="0.01" required
                value="{{ proj.panel_capacity_kw }}"/>
       </div>
-       <div class="form-group">
-  <label>Structure capacity (kW) <span style="color:var(--muted);font-weight:400;font-size:11px">(optional — only if different from panel kW)</span></label>
-  <input name="structure_capacity_kw" type="number" step="any" min="0.01"
-         value="{{ proj.structure_capacity_kw or '' }}"
-         placeholder="e.g. 5"/>
-</div>
+
+      <!-- 3. Structure capacity -->
+      <div class="form-group">
+        <label>Structure capacity (kW) <span style="color:var(--muted);font-weight:400;font-size:11px">(optional — only if different from panel kW)</span></label>
+        <input name="structure_capacity_kw" type="number" step="any" min="0.01"
+               value="{{ proj.structure_capacity_kw or '' }}"
+               placeholder="e.g. 5"/>
+      </div>
+
+      <!-- 4. Project type -->
       <div class="form-group">
         <label>Project type *</label>
         <select name="project_type" required id="project_type" onchange="toggleLoanSubtype()">
@@ -174,38 +180,7 @@
         {% endif %}
       </div>
 
-      <div class="form-group">
-        <label>Project subtype</label>
-        <select name="project_subtype">
-          <option value="DCR"     {% if proj.project_subtype == 'DCR'     %}selected{% endif %}>DCR (with subsidy)</option>
-          <option value="Non-DCR" {% if proj.project_subtype == 'Non-DCR' %}selected{% endif %}>Non-DCR (no subsidy)</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-  <label>Roof type</label>
-  <select name="roof_type" id="roof_type_select" onchange="toggleOtherRoof()">
-    <option value="">— Select —</option>
-    {% for rt, label in [('Flat','Flat'),('Sheet','Sheet'),('Slope','Slope'),('Tile','Tile'),('Clay Tile','Clay Tile (Oodu)')] %}
-    <option value="{{ rt }}" {% if proj.roof_type == rt %}selected{% endif %}>{{ label }}</option>
-    {% endfor %}
-    <option value="Other" {% if proj.roof_type == 'Other' %}selected{% endif %}>Other (type manually)…</option>
-  </select>
-</div>
-<div class="form-group" id="other-roof-field" style="display:none">
-  <label>Roof type <span style="color:var(--muted);font-weight:400;font-size:11px">(not in list)</span></label>
-  <input name="roof_type_other" id="roof_type_other" type="text" maxlength="60"
-         value="{{ proj.roof_type_other or '' }}" placeholder="e.g. Asbestos sheet"/>
-</div>
-      <div class="form-group">
-  <label>Inverter type</label>
-  <select name="inverter_type">
-    <option value="">— Select —</option>
-    {% for it in ['Standard','Hybrid','String'] %}
-    <option value="{{ it }}" {% if proj.inverter_type == it %}selected{% endif %}>{{ it }}</option>
-    {% endfor %}
-  </select>
-</div>
+      <!-- 5. Work category (admin only) — placed right after Project type, matching new_project -->
       {% if current_user.role == 'admin' %}
       <div class="form-group">
         <label>Work category
@@ -225,31 +200,103 @@
       </div>
       {% endif %}
 
+      <!-- 6. Project subtype -->
       <div class="form-group">
-  <label>Total contract amount (₹)
-    {% if current_user.role == 'coordinator' %}
-    <span style="font-size:11px;color:var(--muted);font-weight:400">(locked — contact admin/documents to change)</span>
-    {% endif %}
-  </label>
-  {% if current_user.role == 'coordinator' %}
-  <input type="number" value="{{ proj.total_amount|int }}" disabled
-         style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
-  {% else %}
-  <input name="total_amount" type="number" step="1" min="0"
-         value="{{ proj.total_amount|int }}"/>
-  {% endif %}
-  {% if proj.collected_amount and proj.collected_amount > 0 %}
-  <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
-    {{ proj.collected_amount|inr }} already collected
-  </span>
-  {% endif %}
-  <div id="balance-preview" style="display:none;margin-top:5px;font-size:12px;
-       padding:6px 10px;border-radius:5px;background:#e8f5e9;color:#2e7d32;
-       border:1px solid #a5d6a7">
-    New outstanding balance: <strong id="balance-amount"></strong>
-  </div>
-</div>
+        <label>Project subtype</label>
+        <select name="project_subtype">
+          <option value="DCR"     {% if proj.project_subtype == 'DCR'     %}selected{% endif %}>DCR (with subsidy)</option>
+          <option value="Non-DCR" {% if proj.project_subtype == 'Non-DCR' %}selected{% endif %}>Non-DCR (no subsidy)</option>
+        </select>
+      </div>
 
+      <!-- 7. Roof type -->
+      <div class="form-group">
+        <label>Roof type</label>
+        <select name="roof_type" id="roof_type_select" onchange="toggleOtherRoof()">
+          <option value="">— Select —</option>
+          {% for rt, label in [('Flat','Flat'),('Sheet','Sheet'),('Slope','Slope'),('Tile','Tile'),('Clay Tile','Clay Tile (Oodu)')] %}
+          <option value="{{ rt }}" {% if proj.roof_type == rt %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+          <option value="Other" {% if proj.roof_type == 'Other' %}selected{% endif %}>Other (type manually)…</option>
+        </select>
+      </div>
+
+      <!-- 8. Roof type other -->
+      <div class="form-group" id="other-roof-field" style="display:none">
+        <label>Roof type <span style="color:var(--muted);font-weight:400;font-size:11px">(not in list)</span></label>
+        <input name="roof_type_other" id="roof_type_other" type="text" maxlength="60"
+               value="{{ proj.roof_type_other or '' }}" placeholder="e.g. Asbestos sheet"/>
+      </div>
+
+      <!-- 9. Inverter type -->
+      <div class="form-group">
+        <label>Inverter type</label>
+        <select name="inverter_type">
+          <option value="">— Select —</option>
+          {% for it in ['Standard','Hybrid','String'] %}
+          <option value="{{ it }}" {% if proj.inverter_type == it %}selected{% endif %}>{{ it }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- 10. Total contract amount -->
+      <div class="form-group">
+        <label>Total contract amount (₹)
+          {% if current_user.role == 'coordinator' %}
+          <span style="font-size:11px;color:var(--muted);font-weight:400">(locked — contact admin/documents to change)</span>
+          {% endif %}
+        </label>
+        {% if current_user.role == 'coordinator' %}
+        <input type="number" value="{{ proj.total_amount|int }}" disabled
+               style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
+        {% else %}
+        <input name="total_amount" type="number" step="1" min="0"
+               value="{{ proj.total_amount|int }}"/>
+        {% endif %}
+        {% if proj.collected_amount and proj.collected_amount > 0 %}
+        <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
+          {{ proj.collected_amount|inr }} already collected
+        </span>
+        {% endif %}
+        <div id="balance-preview" style="display:none;margin-top:5px;font-size:12px;
+             padding:6px 10px;border-radius:5px;background:#e8f5e9;color:#2e7d32;
+             border:1px solid #a5d6a7">
+          New outstanding balance: <strong id="balance-amount"></strong>
+        </div>
+      </div>
+
+      <!-- 11. Coordinator -->
+      <div class="form-group">
+        <label>Coordinator</label>
+        <select name="coordinator_id" id="coordinator_id_select" onchange="toggleOtherCoord()">
+          <option value="">— Unassigned —</option>
+          {% for u in coordinators %}
+          <option value="{{ u.id }}" {% if proj.coordinator_id == u.id %}selected{% endif %}>
+            {{ u.full_name }}
+          </option>
+          {% endfor %}
+          <option value="__other__">Other (type name)…</option>
+        </select>
+      </div>
+
+      <!-- 12. Other coordinator field -->
+      <div class="form-group" id="other-coord-field" style="display:none">
+        <label>Coordinator name <span style="color:var(--muted);font-weight:400;font-size:11px">(not in list)</span></label>
+        <input name="coordinator_name_other" id="coordinator_name_other" type="text"
+               list="other_coord_datalist"
+               autocomplete="off"
+               placeholder="Full name of coordinator"/>
+        <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
+          Start typing — if this person already exists, pick them from the list instead of creating a new entry.
+        </span>
+        <datalist id="other_coord_datalist">
+          {% for n in other_coord_names %}
+          <option value="{{ n }}"></option>
+          {% endfor %}
+        </datalist>
+      </div>
+
+      <!-- 13. Documents staff -->
       <div class="form-group">
         <label>Documents staff</label>
         <select name="doc_staff_id">
@@ -269,7 +316,7 @@
       </div>
 
       {% if current_user.role == 'admin' %}
-      <!-- Admin-only: stage, status, coordinator, created_at override -->
+      <!-- 14–16. Admin-only extras: Stage, Status, Created At -->
       <div class="form-group">
         <label>Stage</label>
         <select name="stage">
@@ -287,28 +334,7 @@
           {% endfor %}
         </select>
       </div>
-      {% endif %}
-      <div class="form-group">
-        <label>Coordinator</label>
-        <select name="coordinator_id" id="coordinator_id_select" onchange="toggleOtherCoord()">
-          <option value="">— Unassigned —</option>
-          {% for u in coordinators %}
-          <option value="{{ u.id }}" {% if proj.coordinator_id == u.id %}selected{% endif %}>
-            {{ u.full_name }}
-          </option>
-          {% endfor %}
-          <option value="__other__">Other (type name)…</option>
-        </select>
-      </div>
-      <div class="form-group" id="other-coord-field" style="display:none">
-        <label>Coordinator name <span style="color:var(--muted);font-weight:400;font-size:11px">(not in list)</span></label>
-        <input name="coordinator_name_other" id="coordinator_name_other" type="text"
-               placeholder="Full name of coordinator"/>
-        <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
-          This will be saved as a note — they won't have a login account
-        </span>
-      </div>
-     {% if current_user.role == 'admin' %}
+
       <div class="form-group">
         <label>Created at
           <span style="font-size:11px;color:var(--warning);font-weight:400">⚠ admin override</span>
@@ -320,6 +346,7 @@
         </span>
       </div>
       {% endif %}
+
 {% set geo_tag = proj.geo_tag %}
 <div style="border-top:0.5px solid var(--border);margin:16px 0 14px;font-size:13px;font-weight:500;padding-top:14px;color:var(--muted)">
   Site photo &amp; location <span style="color:var(--muted);font-weight:400;font-size:11px">(optional)</span>

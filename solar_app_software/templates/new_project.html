@@ -178,7 +178,17 @@
 <div class="form-group" id="other-coord-field" style="display:none">
   <label>Coordinator name <span style="color:var(--muted);font-weight:400;font-size:11px">(not in list)</span></label>
   <input name="coordinator_name_other" id="coordinator_name_other" type="text"
+         list="other_coord_datalist"
+         autocomplete="off"
          placeholder="Full name of coordinator"/>
+  <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
+    Start typing — if this person already exists, pick them from the list instead of creating a new entry.
+  </span>
+  <datalist id="other_coord_datalist">
+    {% for n in other_coord_names %}
+    <option value="{{ n }}"></option>
+    {% endfor %}
+  </datalist>
 </div>
 <div class="form-group">
   <label>Sub C/O <span style="color:var(--muted);font-weight:400;font-size:11px">(optional)</span></label>

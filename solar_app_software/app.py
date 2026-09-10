@@ -2723,12 +2723,13 @@ def projects():
 def new_project():
     coordinators = User.query.filter(
     User.role.in_(['coordinator', 'director'])
-).order_by(User.full_name).all()
+    ).order_by(User.full_name).all()
     customers       = Customer.query.order_by(Customer.name).all()
     doc_staff       = User.query.filter_by(role='documents', is_active=True).all()
     office = User.query.filter_by(role='office').all()
     documents_k=User.query.filter_by(role='documents_k').all()
     suggested_code  = next_project_code()
+    other_coord_names = _get_other_coord_names()          
 
     if request.method == 'POST':
         raw_structure = request.form.get('structure_capacity_kw', '').strip()
@@ -2743,7 +2744,10 @@ def new_project():
         if Project.query.filter_by(project_code=code).first():
             flash(f'MNRE number {code} is already registered.', 'danger')
             return render_template('new_project.html', customers=customers,
-                                   doc_staff=doc_staff, suggested_code=suggested_code)
+                                   doc_staff=doc_staff, suggested_code=suggested_code,
+                                   coordinators=coordinators, office=office,
+                                   documents_k=documents_k,
+                                   other_coord_names=other_coord_names)   
         cust_id = request.form.get('customer_id')
         if not cust_id:
             cust = Customer(
@@ -2769,7 +2773,8 @@ def new_project():
 
         if raw_coord_id == '__other__':
             resolved_coord_id   = None
-            resolved_coord_name = coord_name_other or None
+            resolved_coord_name = _normalize_coord_name(coord_name_other) or None   # ← changed
+        
         else:
             resolved_coord_id   = int(raw_coord_id) if raw_coord_id else None
             resolved_coord_name = None
@@ -2855,8 +2860,9 @@ def new_project():
         return redirect(url_for('project_detail', pid=proj.id))
 
     return render_template('new_project.html',coordinators=coordinators, customers=customers,
-                           doc_staff=doc_staff, suggested_code=suggested_code,office=office,documents_k=documents_k)
-
+                           doc_staff=doc_staff, suggested_code=suggested_code,office=office,
+                           documents_k=documents_k,
+                           other_coord_names=other_coord_names)   
 
 @app.route('/projects/<int:pid>/edit', methods=['GET', 'POST'])
 @login_required
@@ -2881,6 +2887,7 @@ def edit_project(pid):
 ).order_by(User.full_name).all()
     office = User.query.filter_by(role='office',is_active=True).all()
     documents_k=User.query.filter_by(role='documents_k',is_active=True).all()
+    other_coord_names = _get_other_coord_names()         
 
     if request.method == 'POST':
         old_type     = proj.project_type
@@ -2998,7 +3005,7 @@ def edit_project(pid):
                             f'You have been unassigned as coordinator from {proj.project_code} — {proj.customer.name}.', 'info')
                         changes.append(f'Coordinator: {old_coord.full_name} → {coord_name_other}')
                         proj.coordinator_id = None
-                    proj.coordinator_name = coord_name_other or None
+                    proj.coordinator_name = _normalize_coord_name(coord_name_other) or None   # ← changed
 
                 elif raw_coord_id:
                     new_coord_id = int(raw_coord_id)
@@ -3142,8 +3149,9 @@ def edit_project(pid):
         return redirect(url_for('project_detail', pid=pid))
 
     return render_template('edit_project.html', proj=proj,
-                           doc_staff=doc_staff, coordinators=coordinators,office=office,documents_k=documents_k)
-
+                           doc_staff=doc_staff, coordinators=coordinators,office=office,
+                           documents_k=documents_k,
+                           other_coord_names=other_coord_names)   
 @app.route('/projects/<int:pid>/geo_tag/delete_photo', methods=['POST'])
 @login_required
 @roles_required('admin', 'onsite', 'coordinator', 'documents', 'office', 'documents_k', 'director')
@@ -7078,23 +7086,9 @@ def coordinator_reports():
     ).order_by(User.full_name).all()
     today = date.today()
 
-    # Collect free-text coordinator names (projects with no coordinator_id)
-    other_names = (
-        db.session.query(Project.coordinator_name)
-        .filter(Project.coordinator_id == None, Project.coordinator_name != None, Project.coordinator_name != '')
-        .distinct()
-        .all()
-    )
-    seen = {}
-    for (name,) in other_names:
-        key = name.strip().lower()
-        if key not in seen:
-            seen[key] = name.strip()
-    other_coord_names = sorted(seen.values(), key=lambda n: n.lower())
-
     return render_template('coordinator_reports.html',
                            coordinators=coordinators,
-                           other_coord_names=other_coord_names,
+                           other_coord_names=_get_other_coord_names(),
                            current_year=today.year,
                            current_month=today.month)
 @app.route('/admin/coordinator_reports/download')
@@ -7116,7 +7110,41 @@ def download_coordinator_report():
     return send_file(path, as_attachment=True,
         download_name=f'Report_{coordinator.username}_{month_name}_{year}.xlsx',
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+def _get_other_coord_names():
+    """Distinct free-text coordinator names already saved on projects
+    (i.e. entered via 'Other (type name)…'), for autocomplete — so a
+    user typing 'Mohammed Ali' sees 'Ali Power World' already exists
+    and can pick it instead of creating a duplicate."""
+    other_names = (
+        db.session.query(Project.coordinator_name)
+        .filter(Project.coordinator_id.is_(None),
+                Project.coordinator_name.isnot(None),
+                Project.coordinator_name != '')
+        .distinct()
+        .all()
+    )
+    seen = {}
+    for (name,) in other_names:
+        key = name.strip().lower()
+        if key not in seen:
+            seen[key] = name.strip()
+    return sorted(seen.values(), key=lambda n: n.lower())
 
+
+def _normalize_coord_name(name):
+    """Safety net: if the typed name matches an existing free-text
+    coordinator name case/space-insensitively, reuse the exact stored
+    casing instead of saving a near-duplicate string."""
+    if not name:
+        return name
+    cleaned = name.strip()
+    existing = (
+        db.session.query(Project.coordinator_name)
+        .filter(Project.coordinator_id.is_(None),
+                db.func.lower(db.func.trim(Project.coordinator_name)) == cleaned.lower())
+        .first()
+    )
+    return existing[0] if existing else cleaned
 def _resolve_coord_projects(coord_id, coord_name):
     """
     Returns (label_name, projects_queryset_list) for either a User-based
