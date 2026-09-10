@@ -393,11 +393,27 @@ class Project(db.Model):
                - sub_customer_share - self.total_waived)
 
     @property
+    def settled_retained_excess(self):
+        """Excess payments (customer or bank) that were settled and kept by
+        the company — 'Retained as company income' or 'Adjusted against
+        other dues' — rather than returned to the customer/bank. This money
+        was actually collected, so it should count toward effective_collected
+        even though it's tracked outside the capped collected_amount field."""
+        total = 0.0
+        for exc in self.payment_excesses:
+            if exc.status == 'Settled' and exc.action in ('Retained', 'Adjusted'):
+                total += float(exc.amount or 0)
+        if self.bank_excess and self.bank_excess.returned and self.bank_excess.action in ('Retained', 'Adjusted'):
+            total += float(self.bank_excess.excess_amount or 0)
+        return total
+
+    @property
     def effective_collected(self):
         company_share = 0
         if self.subsidy and self.subsidy.company_share and self.subsidy.status == 'Received':
             company_share = float(self.subsidy.company_share)
-        return float(self.collected_amount or 0) + self.recovered_expense_total + company_share
+        return (float(self.collected_amount or 0) + self.recovered_expense_total
+                + company_share + self.settled_retained_excess)
 
     @property
     def payment_pct(self):
