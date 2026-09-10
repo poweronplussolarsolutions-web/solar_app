@@ -166,6 +166,40 @@ server {
 
 ---
 
+## Daily database backups
+
+The included `backup_database.py` creates compressed, consistent MySQL dumps.
+It reads the existing `DATABASE_URL`, writes a timestamped `.sql.gz` file, and
+removes backups older than 30 days (set `BACKUP_KEEP_DAYS` to change this).
+
+For a Linux server using systemd, install the supplied timer once after deploy:
+
+```bash
+sudo install -m 644 deploy/solar-backup.service /etc/systemd/system/
+sudo install -m 644 deploy/solar-backup.timer /etc/systemd/system/
+# Edit /etc/systemd/system/solar-backup.service and set the app/venv paths.
+sudo systemctl daemon-reload
+sudo systemctl enable --now solar-backup.timer
+sudo systemctl start solar-backup.service  # Test immediately
+sudo systemctl status solar-backup.timer
+```
+
+By default the timer runs at 02:00 daily and writes to `/var/backups/solar-app`.
+Create that directory and ensure the `solarapp` service account can write to it:
+
+```bash
+sudo install -d -o solarapp -g solarapp /var/backups/solar-app
+```
+
+The server must have the `mysqldump` command installed. Use `MYSQLDUMP_BIN` if
+it is in a non-standard location. Restore a backup with:
+
+```bash
+gzip -dc /var/backups/solar-app/solar_app_YYYY-MM-DD_HH-MM-SS.sql.gz | mysql -u USER -p DATABASE
+```
+
+---
+
 ## Security Checklist Before Going Live
 
 - [ ] Change `SECRET_KEY` to a long random string

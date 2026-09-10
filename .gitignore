@@ -1,2 +1,3 @@
 # .gitignore
 .env
+solar_app_software/backups/
