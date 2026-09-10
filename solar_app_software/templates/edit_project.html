@@ -349,23 +349,40 @@
 
 {% set geo_tag = proj.geo_tag %}
 <div style="border-top:0.5px solid var(--border);margin:16px 0 14px;font-size:13px;font-weight:500;padding-top:14px;color:var(--muted)">
-  Site photo &amp; location <span style="color:var(--muted);font-weight:400;font-size:11px">(optional)</span>
+  Site photos &amp; location <span style="color:var(--muted);font-weight:400;font-size:11px">(add at least 3 photos of the site if possible)</span>
 </div>
 
-{% if geo_tag and (geo_tag.site_photo_path or geo_tag.has_gps) %}
+{% if (geo_tag and (geo_tag.site_photo_path or geo_tag.has_gps)) or proj.site_photos %}
 <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">
-  {% if geo_tag.site_photo_path %}
+  {% if geo_tag and geo_tag.site_photo_path %}
   <div style="position:relative;width:140px">
     <img src="{{ url_for('serve_site_photo', pid=proj.id) }}" alt="Pre-work site photo"
          style="width:140px;height:100px;object-fit:cover;border-radius:var(--radius);border:0.5px solid var(--border)"/>
+    <span style="position:absolute;bottom:4px;left:4px;background:rgba(0,0,0,0.55);color:#fff;
+                 font-size:10px;padding:1px 6px;border-radius:3px">Photo 1</span>
     <button type="button" class="geo-delete-btn" title="Remove photo"
         data-action="{{ url_for('delete_site_photo', pid=proj.id) }}"
-        data-confirm="Remove site photo?"
+        data-confirm="Remove site photo 1?"
         style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);color:#fff;border:none;
                border-radius:50%;width:20px;height:20px;line-height:20px;font-size:12px;cursor:pointer;padding:0">✕</button>
   </div>
   {% endif %}
-  {% if geo_tag.has_gps %}
+
+  {% for photo in proj.site_photos %}
+  <div style="position:relative;width:140px">
+    <img src="{{ url_for('serve_extra_site_photo', photo_id=photo.id) }}" alt="Site photo"
+         style="width:140px;height:100px;object-fit:cover;border-radius:var(--radius);border:0.5px solid var(--border)"/>
+    <span style="position:absolute;bottom:4px;left:4px;background:rgba(0,0,0,0.55);color:#fff;
+                 font-size:10px;padding:1px 6px;border-radius:3px">Photo {{ loop.index + 1 }}</span>
+    <button type="button" class="geo-delete-btn" title="Remove photo"
+        data-action="{{ url_for('delete_extra_site_photo', photo_id=photo.id) }}"
+        data-confirm="Remove this site photo?"
+        style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);color:#fff;border:none;
+               border-radius:50%;width:20px;height:20px;line-height:20px;font-size:12px;cursor:pointer;padding:0">✕</button>
+  </div>
+  {% endfor %}
+
+  {% if geo_tag and geo_tag.has_gps %}
   <div style="flex:1;min-width:180px;border:0.5px solid var(--border);border-radius:var(--radius);padding:10px 14px;position:relative">
     <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Location pin</div>
     <div style="font-size:12px;font-family:monospace">{{ geo_tag.latitude }}, {{ geo_tag.longitude }}</div>
@@ -382,8 +399,16 @@
 
 <div class="form-grid">
   <div class="form-group">
-    <label>{% if geo_tag and geo_tag.site_photo_path %}Replace site photo{% else %}Site photo{% endif %}</label>
-    <input type="file" name="geo_photo" accept=".jpg,.jpeg,.png"/>
+    <label>{% if geo_tag and geo_tag.site_photo_path %}Replace site photo 1{% else %}Site photo 1{% endif %}</label>
+    <input type="file" name="geo_photo_1" accept=".jpg,.jpeg,.png"/>
+  </div>
+  <div class="form-group">
+    <label>Add site photo</label>
+    <input type="file" name="geo_photo_2" accept=".jpg,.jpeg,.png"/>
+  </div>
+  <div class="form-group">
+    <label>Add site photo</label>
+    <input type="file" name="geo_photo_3" accept=".jpg,.jpeg,.png"/>
   </div>
   <div class="form-group">
     <label>{% if geo_tag and geo_tag.has_gps %}Update Google Maps link{% else %}Google Maps link{% endif %}</label>

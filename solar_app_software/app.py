@@ -987,6 +987,15 @@ class ProjectGeoTag(db.Model):
     project      = db.relationship('Project', backref=db.backref('geo_tag', uselist=False))
     uploader     = db.relationship('User', foreign_keys=[uploaded_by])
     site_photo_uploader = db.relationship('User', foreign_keys=[site_photo_uploaded_by])
+class ProjectSitePhoto(db.Model):
+    __tablename__ = 'project_site_photos'
+    id          = db.Column(db.Integer, primary_key=True)
+    project_id  = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    photo_path  = db.Column(db.String(255), nullable=False)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    project     = db.relationship('Project', backref='site_photos')
+    uploader    = db.relationship('User', foreign_keys=[uploaded_by])
 class GeocodeCache(db.Model):
     __tablename__ = 'geocode_cache'
     id         = db.Column(db.Integer, primary_key=True)
@@ -1144,6 +1153,47 @@ GEO_UPLOAD_DIR = os.environ.get(
     'GEO_UPLOAD_DIR',
     os.path.join(BASE_DIR, 'private_uploads', 'geo_photos')
 )
+def _save_extra_site_photo(pid, file, project_code, index):
+    if not file or not file.filename:
+        return None
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ('.jpg', '.jpeg', '.png'):
+        flash(f'Site photo {index} must be JPG or PNG — skipped.', 'warning')
+        return None
+    os.makedirs(GEO_UPLOAD_DIR, exist_ok=True)
+    fname = f'{project_code}_site_extra{index}_{int(datetime.utcnow().timestamp())}{ext}'
+    fpath = os.path.join(GEO_UPLOAD_DIR, fname)
+    file.save(fpath)
+    photo = ProjectSitePhoto(project_id=pid, photo_path=fpath, uploaded_by=current_user.id)
+    db.session.add(photo)
+    return photo
+
+
+@app.route('/site_photo/<int:photo_id>')
+@login_required
+def serve_extra_site_photo(photo_id):
+    photo = ProjectSitePhoto.query.get_or_404(photo_id)
+    if not os.path.isfile(photo.photo_path):
+        abort(404)
+    return send_file(photo.photo_path)
+
+
+@app.route('/site_photo/<int:photo_id>/delete', methods=['POST'])
+@login_required
+@roles_required('admin', 'onsite', 'coordinator', 'documents', 'office', 'documents_k', 'director')
+def delete_extra_site_photo(photo_id):
+    photo = ProjectSitePhoto.query.get_or_404(photo_id)
+    pid = photo.project_id
+    if os.path.isfile(photo.photo_path):
+        try:
+            os.remove(photo.photo_path)
+        except OSError:
+            pass
+    db.session.delete(photo)
+    log_action(pid, 'Additional site photo removed')
+    db.session.commit()
+    flash('Photo removed.', 'success')
+    return redirect(request.referrer or url_for('project_detail', pid=pid))
 @app.route('/projects/<int:pid>/geo_tag', methods=['POST'])
 @login_required
 @roles_required('admin', 'onsite')
@@ -2804,7 +2854,7 @@ def new_project():
         db.session.add(proj)
         db.session.flush()
         log_action(proj.id, 'Project created', new_val='Created')
-        geo_photo    = request.files.get('geo_photo')
+        geo_photo    = request.files.get('geo_photo_1')   # ← was 'geo_photo'
         maps_url_raw = _clean(request.form.get('maps_url', ''), 500)
         has_photo    = False
         if (geo_photo and geo_photo.filename) or maps_url_raw:
@@ -2817,12 +2867,12 @@ def new_project():
                     fname = f'{proj.project_code}_site_{int(datetime.utcnow().timestamp())}{ext}'
                     fpath = os.path.join(GEO_UPLOAD_DIR, fname)
                     geo_photo.save(fpath)
-                    tag.site_photo_path = fpath          # ← changed from photo_path
+                    tag.site_photo_path = fpath
                     tag.site_photo_uploaded_by = current_user.id
                     tag.site_photo_uploaded_at = datetime.utcnow()
                     has_photo = True
                 else:
-                    flash('Site photo must be JPG or PNG — photo was skipped.', 'warning')
+                    flash('Site photo 1 must be JPG or PNG — photo was skipped.', 'warning')
             if maps_url_raw:
                 tag.maps_url = maps_url_raw
                 lat, lng = parse_gmaps_coords(maps_url_raw)
@@ -2833,6 +2883,15 @@ def new_project():
             db.session.add(tag)
             log_action(proj.id, 'Pre-work site photo/location added at project creation',
                        new_val='Photo' if has_photo else 'Location only')
+
+        # ── Additional site photos (2 & 3) ────────────────────────────────
+        extra_count = 0
+        for idx, field_name in enumerate(('geo_photo_2', 'geo_photo_3'), start=2):
+            f = request.files.get(field_name)
+            if _save_extra_site_photo(proj.id, f, proj.project_code, idx):
+                extra_count += 1
+        if extra_count:
+            log_action(proj.id, f'{extra_count} additional site photo(s) added at project creation')
 
         if proj.doc_staff_id:
             create_notification(
@@ -3107,8 +3166,9 @@ def edit_project(pid):
             cd.updated_by = current_user.id
             if not cd.id:
                 db.session.add(cd)
+        
         # ── Optional PRE-WORK site photo / location update ────────────────
-        geo_photo    = request.files.get('geo_photo')
+        geo_photo    = request.files.get('geo_photo_1')   # ← was 'geo_photo'
         maps_url_raw = _clean(request.form.get('maps_url', ''), 500)
         if (geo_photo and geo_photo.filename) or maps_url_raw:
             tag = proj.geo_tag or ProjectGeoTag(project_id=pid)
@@ -3124,11 +3184,11 @@ def edit_project(pid):
                     fname = f'{proj.project_code}_site_{int(datetime.utcnow().timestamp())}{ext}'
                     fpath = os.path.join(GEO_UPLOAD_DIR, fname)
                     geo_photo.save(fpath)
-                    tag.site_photo_path = fpath           # ← changed from photo_path
+                    tag.site_photo_path = fpath
                     tag.site_photo_uploaded_by = current_user.id
                     tag.site_photo_uploaded_at = datetime.utcnow()
                 else:
-                    flash('Site photo must be JPG or PNG — photo was skipped.', 'warning')
+                    flash('Site photo 1 must be JPG or PNG — photo was skipped.', 'warning')
             if maps_url_raw:
                 tag.maps_url = maps_url_raw
                 lat, lng = parse_gmaps_coords(maps_url_raw)
@@ -3141,6 +3201,15 @@ def edit_project(pid):
             if not tag.id:
                 db.session.add(tag)
             log_action(pid, 'Pre-work site photo/location updated')
+
+        # ── Additional site photos (2 & 3) ────────────────────────────────
+        extra_count = 0
+        for idx, field_name in enumerate(('geo_photo_2', 'geo_photo_3'), start=2):
+            f = request.files.get(field_name)
+            if _save_extra_site_photo(pid, f, proj.project_code, idx):
+                extra_count += 1
+        if extra_count:
+            log_action(pid, f'{extra_count} additional site photo(s) added')
         log_action(pid, 'Project edited: ' + (', '.join(changes) if changes else 'details updated'))
         db.session.commit()
         pending = new_amount - float(proj.collected_amount or 0)
