@@ -125,6 +125,13 @@
              style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
     </div>
     <div class="form-group">
+  <label>Alt Phone <span style="color:var(--muted);font-weight:400;font-size:11px">(optional)</span></label>
+  <input name="customer_alt_phone" type="tel" pattern="[0-9]{10}" maxlength="10"
+         inputmode="numeric"
+         value="{{ proj.customer.alt_phone or '' }}"
+         oninput="this.value=this.value.replace(/\D/g,'').slice(0,10)"/>
+</div>
+    <div class="form-group">
       <label>Address</label>
       <input type="text"
              value="{{ [proj.customer.house_name, proj.customer.place, proj.customer.post, proj.customer.district] | select | join(', ') or '—' }}"
@@ -230,14 +237,14 @@
 
       <!-- 9. Inverter type -->
       <div class="form-group">
-        <label>Inverter type</label>
-        <select name="inverter_type">
-          <option value="">— Select —</option>
-          {% for it in ['Standard','Hybrid','String'] %}
-          <option value="{{ it }}" {% if proj.inverter_type == it %}selected{% endif %}>{{ it }}</option>
-          {% endfor %}
-        </select>
-      </div>
+  <label>Inverter type</label>
+  <select name="inverter_type">
+    <option value="">— Select —</option>
+    {% for it in ['Ongrid','Offgrid','Hybrid','Micro Inverter'] %}
+    <option value="{{ it }}" {% if proj.inverter_type == it %}selected{% endif %}>{{ it }}</option>
+    {% endfor %}
+  </select>
+</div>
 
       <!-- 10. Total contract amount -->
       <div class="form-group">

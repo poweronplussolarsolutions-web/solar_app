@@ -243,11 +243,11 @@ def build_job_card(project=None, output_path="/tmp/job_card.xlsx"):
     merge("J10", "N10", own_val, size=8)
 
     # ──────────────────────────────────────────────────────────────────────────
-    # ROW 11 — APP ID / Load Clearance
+    # ROW 11 — Alt Phone / Load Clearance   ← NEW ROW (was Load Clearance alone)
     # ──────────────────────────────────────────────────────────────────────────
     rh(11, 14)
-    merge("A11", "D11", "APP ID:", size=8, bold=True)
-    merge("E11", "H11", "", size=8)
+    merge("A11", "D11", "Alt Phone:", size=8, bold=True)
+    merge("E11", "H11", safe(c.alt_phone if c else ""), size=8)
     label(9, 11, "Load Clearance:", bold=True, size=8, wrap=True)
     lc_val = ""
     if cd:
@@ -255,11 +255,11 @@ def build_job_card(project=None, output_path="/tmp/job_card.xlsx"):
     merge("J11", "N11", lc_val, size=8)
 
     # ──────────────────────────────────────────────────────────────────────────
-    # ROW 12 — Consumer Number / Feasibility
+    # ROW 12 — APP ID / Feasibility   (shifted down from old row 11/12)
     # ──────────────────────────────────────────────────────────────────────────
     rh(12, 14)
-    merge("A12", "D12", "Consumer Number:", size=8, bold=True, wrap=True)
-    merge("E12", "H12", safe(cd.consumer_number if cd else ""), size=8)
+    merge("A12", "D12", "APP ID:", size=8, bold=True)
+    merge("E12", "H12", "", size=8)
     label(9, 12, "Feasibility:", bold=True, size=8)
     doc_map = {}
     if p:
@@ -267,6 +267,14 @@ def build_job_card(project=None, output_path="/tmp/job_card.xlsx"):
     feas = doc_map.get("Feasibility Receipt")
     feas_val = safe(feas.status if feas else "")
     merge("J12", "N12", feas_val, size=8)
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # ROW 13 — Consumer Number / Stamp Paper
+    # ──────────────────────────────────────────────────────────────────────────
+    rh(13, 14)
+    merge("A13", "D13", "Consumer Number:", size=8, bold=True, wrap=True)
+    merge("E13", "H13", safe(cd.consumer_number if cd else ""), size=8)
+    label(9, 13, "Stamp Paper:", bold=True, size=8)
 
     # build doc_map from documents
     doc_map = {}
@@ -277,11 +285,13 @@ def build_job_card(project=None, output_path="/tmp/job_card.xlsx"):
         d = doc_map.get(key)
         return d.status if d else ""
 
-    # ROW 13 — Stamp Paper
-    merge(f"J13", f"N13", doc_status('KSEB Stamp Paper'), size=8)
+    merge("J13", "N13", doc_status('KSEB Stamp Paper'), size=8)
 
-    # ROW 14 — B-Class Licence  
-    merge(f"J14", f"N14", doc_status('B-Class Licence'), size=8)
+    # ROW 14 — blank left / B-Class Licence
+    rh(14, 14)
+    merge("A14", "H14", "", size=8)
+    label(9, 14, "B-Class Licence:", bold=True, size=8, wrap=True)
+    merge("J14", "N14", doc_status('B-Class Licence'), size=8)
 
     # ──────────────────────────────────────────────────────────────────────────
     # ROW 15 — Pin / Photos
@@ -403,7 +413,7 @@ def build_job_card(project=None, output_path="/tmp/job_card.xlsx"):
           bold=True, size=10, bg=BG_LIGHT, align="left")
 
     # ──────────────────────────────────────────────────────────────────────────
-    # ROWS 28-30 — Serial numbers
+    # ROWS 28-31 — Serial numbers
     # ──────────────────────────────────────────────────────────────────────────
     for row, lbl, data in [
         (28, "NET METER SERIAL NUMBER:", safe(pd_.net_meter_serial_number if pd_ else "")),
@@ -423,10 +433,6 @@ def build_job_card(project=None, output_path="/tmp/job_card.xlsx"):
     for r in range(33, 35):
         rh(r, 14)
         merge(f"A{r}", f"N{r}", "", size=8)
-    # # ROW 32-34 — extra blank rows for panel serials
-    # for r in range(32, 35):
-    #     rh(r, 14)
-    #     merge(f"A{r}", f"N{r}", "", size=8)
 
     # ──────────────────────────────────────────────────────────────────────────
     # ROW 35 — Payment Details header

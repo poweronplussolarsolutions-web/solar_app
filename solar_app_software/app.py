@@ -239,7 +239,26 @@ def _validate_password(password: str) -> list[str]:
     if not re.search(r'[0-9]', password):
         errors.append('one digit')
     return errors
+def _validate_phone(phone: str) -> bool:
+    """True if empty (optional) or exactly 10 digits after stripping formatting."""
+    if not phone:
+        return True
+    digits = re.sub(r'\D', '', phone)
+    return len(digits) == 10
 
+def _validate_email_format(email: str) -> bool:
+    if not email:
+        return True
+    return bool(re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email))
+
+def _clean_phone(phone: str) -> str:
+    """Normalize to bare 10-digit string, stripping +91/0 prefixes."""
+    digits = re.sub(r'\D', '', phone or '')
+    if digits.startswith('91') and len(digits) == 12:
+        digits = digits[2:]
+    if digits.startswith('0') and len(digits) == 11:
+        digits = digits[1:]
+    return digits
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MODELS
@@ -288,6 +307,7 @@ class Customer(db.Model):
     id         = db.Column(db.Integer, primary_key=True)
     name       = db.Column(db.String(120), nullable=False)
     phone      = db.Column(db.String(20))
+    alt_phone  = db.Column(db.String(20))
     email      = db.Column(db.String(120))
     house_name = db.Column(db.String(120))
     place      = db.Column(db.String(120))
@@ -334,7 +354,7 @@ class Project(db.Model):
     loan_subtype     = db.Column(db.Enum('Assisted','Self'), nullable=True)
     roof_type=db.Column(db.Enum('Flat','Sheet','Slope','Clay Tile','Tile','Other'),nullable=True)
     roof_type_other=db.Column(db.String(60), nullable=True)
-    inverter_type = db.Column(db.Enum('Standard','Hybrid','String'), nullable=True)
+    inverter_type = db.Column(db.Enum('Ongrid','Offgrid','Hybrid','Micro Inverter'), nullable=True)
     panel_items      = db.relationship('PanelItem', backref='project', lazy=True, cascade='all,delete-orphan')
     extra_materials  = db.relationship('ExtraMaterial', backref='project', lazy=True, cascade='all,delete-orphan')
     coordinator_name = db.Column(db.String(120), nullable=True)
@@ -2800,10 +2820,40 @@ def new_project():
                                    other_coord_names=other_coord_names)   
         cust_id = request.form.get('customer_id')
         if not cust_id:
+            raw_phone     = _clean(request.form.get('phone', ''), 20)
+            raw_alt_phone = _clean(request.form.get('alt_phone', ''), 20)
+            raw_email     = _clean(request.form.get('email', ''), 120)
+
+            phone_clean     = _clean_phone(raw_phone)
+            alt_phone_clean = _clean_phone(raw_alt_phone)
+
+            if raw_phone and not _validate_phone(phone_clean):
+                flash('Phone number must be a valid 10-digit number.', 'danger')
+                return render_template('new_project.html', customers=customers,
+                               doc_staff=doc_staff, suggested_code=suggested_code,
+                               coordinators=coordinators, office=office,
+                               documents_k=documents_k,
+                               other_coord_names=other_coord_names)
+            if raw_alt_phone and not _validate_phone(alt_phone_clean):
+                flash('Alternate phone number must be a valid 10-digit number.', 'danger')
+                return render_template('new_project.html', customers=customers,
+                               doc_staff=doc_staff, suggested_code=suggested_code,
+                               coordinators=coordinators, office=office,
+                               documents_k=documents_k,
+                               other_coord_names=other_coord_names)
+            if raw_email and not _validate_email_format(raw_email):
+                flash('Please enter a valid email address.', 'danger')
+                return render_template('new_project.html', customers=customers,
+                               doc_staff=doc_staff, suggested_code=suggested_code,
+                               coordinators=coordinators, office=office,
+                               documents_k=documents_k,
+                               other_coord_names=other_coord_names)
+
             cust = Customer(
         name       = _clean(request.form.get('customer_name', ''), 120),
-        phone      = _clean(request.form.get('phone', ''), 20) or None,
-        email      = _clean(request.form.get('email', ''), 120) or None,
+        phone      = phone_clean or None,
+        alt_phone  = alt_phone_clean or None,     # ← NEW
+        email      = raw_email or None,
         house_name = _clean(request.form.get('house_name', ''), 120) or None,
         place      = _clean(request.form.get('place', ''), 120) or None,
         post       = _clean(request.form.get('post', ''), 120) or None,
@@ -2811,11 +2861,11 @@ def new_project():
         village    = _clean(request.form.get('village', ''), 120) or None,
         district   = _clean(request.form.get('district', ''), 80) or None,
         taluk      = _clean(request.form.get('taluk', ''), 120) or None,
-        sub_co=request.form.get('sub_co','').strip() or None,
+        sub_co     = request.form.get('sub_co','').strip() or None,
         )
-            db.session.add(cust)
-            db.session.flush()
-            cust_id = cust.id
+        db.session.add(cust)
+        db.session.flush()
+        cust_id = cust.id
 
         # Resolve coordinator
         raw_coord_id    = request.form.get('coordinator_id') or ''
@@ -3029,9 +3079,27 @@ def edit_project(pid):
                     # Outside-work projects don't have a service schedule
                     ServiceRecord.query.filter_by(project_id=pid).delete()
         if current_user.role in ('admin','documents','office','documents_k'):
+            raw_phone     = _clean(request.form.get('customer_phone', ''), 20)
+            raw_alt_phone = _clean(request.form.get('customer_alt_phone', ''), 20)
+            raw_email     = _clean(request.form.get('customer_email', ''), 120)
+
+            phone_clean     = _clean_phone(raw_phone)
+            alt_phone_clean = _clean_phone(raw_alt_phone)
+
+            if raw_phone and not _validate_phone(phone_clean):
+                flash('Phone number must be a valid 10-digit number.', 'danger')
+                return redirect(url_for('edit_project', pid=pid))
+            if raw_alt_phone and not _validate_phone(alt_phone_clean):
+                flash('Alternate phone number must be a valid 10-digit number.', 'danger')
+                return redirect(url_for('edit_project', pid=pid))
+            if raw_email and not _validate_email_format(raw_email):
+                flash('Please enter a valid email address.', 'danger')
+                return redirect(url_for('edit_project', pid=pid))
+
             proj.customer.name       = _clean(request.form.get('customer_name', proj.customer.name), 120)
-            proj.customer.phone      = _clean(request.form.get('customer_phone', ''), 20) or None
-            proj.customer.email      = _clean(request.form.get('customer_email', ''), 120) or None
+            proj.customer.phone      = phone_clean or None
+            proj.customer.alt_phone  = alt_phone_clean or None     # ← NEW
+            proj.customer.email      = raw_email or None
             proj.customer.house_name = _clean(request.form.get('customer_house_name', ''), 120) or None
             proj.customer.place      = _clean(request.form.get('customer_place', ''), 120) or None
             proj.customer.post       = _clean(request.form.get('customer_post', ''), 120) or None
@@ -3039,8 +3107,8 @@ def edit_project(pid):
             proj.customer.village    = _clean(request.form.get('customer_village', ''), 120) or None
             proj.customer.district   = _clean(request.form.get('customer_district', ''), 80) or None
             proj.customer.taluk      = _clean(request.form.get('customer_taluk', ''), 120) or None
-            proj.customer.sub_co = request.form.get('customer_sub_co', '').strip() or None
-
+            proj.customer.sub_co     = request.form.get('customer_sub_co', '').strip() or None
+    
             new_stage  = request.form.get('stage')
             new_status = request.form.get('status')
             if new_stage and new_stage != proj.stage:
