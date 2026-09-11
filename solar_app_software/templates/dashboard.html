@@ -492,7 +492,8 @@
     <span id="doc-team-tasks-pct" style="font-size:11px;color:var(--hint);min-width:34px;text-align:right;flex-shrink:0">0%</span>
   </div>
 
-  <div id="doc-team-tasks-groups" style="display:flex;flex-direction:column;gap:16px"></div>
+  <div id="doc-team-tasks-groups"
+       style="display:flex;gap:14px;overflow-x:auto;padding-bottom:4px;align-items:stretch"></div>
 
   <div id="doc-team-tasks-empty" style="display:none;text-align:center;color:var(--hint);font-size:13px;padding:20px 0">
     No pending tasks across the documents team today. 🎉
@@ -1030,44 +1031,57 @@ function loadAllDocTasks() {
     empty.style.display = 'none';
 
     data.staff.forEach(s => {
-      const wrap = document.createElement('div');
+      const col = document.createElement('div');
+      col.style.cssText = `
+        flex:0 0 280px;min-width:280px;
+        border:0.5px solid var(--border);border-radius:var(--radius-lg);
+        padding:12px;background:var(--bg);display:flex;flex-direction:column;gap:8px;
+      `;
 
       const header = document.createElement('div');
-      header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:6px';
+      header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;' +
+        'padding-bottom:8px;border-bottom:0.5px solid var(--border)';
       header.innerHTML = `
         <span style="font-size:13px;font-weight:600">${s.staff_name}</span>
-        <span style="font-size:11px;color:var(--muted)">${s.done}/${s.total} done</span>
+        <span style="font-size:11px;color:${s.done === s.total ? 'var(--green-600)' : 'var(--muted)'};font-weight:600">
+          ${s.done}/${s.total}
+        </span>
       `;
-      wrap.appendChild(header);
-
-      const list = document.createElement('div');
-      list.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+      col.appendChild(header);
 
       s.tasks.forEach(t => {
         const style = URGENCY_STYLE[t.urgency] || URGENCY_STYLE.info;
         const row = document.createElement('div');
         row.style.cssText = `
-          display:flex;align-items:center;gap:10px;flex-wrap:wrap;
-          padding:8px 12px;border-radius:var(--radius);
-          background:${t.completed ? 'var(--bg)' : style.bg};
+          display:flex;flex-direction:column;gap:4px;
+          padding:8px 10px;border-radius:var(--radius);
+          background:${t.completed ? 'var(--surface)' : style.bg};
           border:0.5px solid ${t.completed ? 'var(--border)' : style.border};
         `;
         row.innerHTML = `
-          <span style="font-size:14px;flex-shrink:0">${t.completed ? '✅' : '⏳'}</span>
-          <span class="notif-tag" style="background:${style.bg};color:${style.fg};flex-shrink:0;border:0.5px solid ${style.border}">
-            ${t.label}
-          </span>
-          <span style="flex:1;min-width:140px;font-size:13px;line-height:1.4;
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:13px;flex-shrink:0">${t.completed ? '✅' : '⏳'}</span>
+            <span class="notif-tag" style="background:${style.bg};color:${style.fg};flex-shrink:0;border:0.5px solid ${style.border};font-size:10px">
+              ${t.label}
+            </span>
+          </div>
+          <span style="font-size:12px;line-height:1.4;
                        ${t.completed ? 'text-decoration:line-through;color:var(--muted)' : 'color:var(--text)'}">
             ${t.title}
           </span>
-          <a href="/projects/${t.project_id}" class="btn btn-sm" style="flex-shrink:0">Open</a>
+          <a href="/projects/${t.project_id}" class="btn btn-sm" style="align-self:flex-start">Open</a>
         `;
-        list.appendChild(row);
+        col.appendChild(row);
       });
 
-      wrap.appendChild(list);
-      groups.appendChild(wrap);
+      if (!s.tasks.length) {
+        const noneEl = document.createElement('div');
+        noneEl.style.cssText = 'text-align:center;color:var(--hint);font-size:12px;padding:12px 0';
+        noneEl.textContent = 'No tasks today.';
+        col.appendChild(noneEl);
+      }
+
+      groups.appendChild(col);
     });
   });
 }
