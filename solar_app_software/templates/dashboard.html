@@ -39,6 +39,69 @@
 </div>
 {% endif %}
 {% endmacro %}
+{% if current_user.role in ['documents', 'documents_k'] %}
+<div class="card" id="daily-tasks-card" style="margin-bottom:16px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <div class="card-title" style="margin:0">Today's Tasks</div>
+    <span id="daily-tasks-count" style="font-size:12px;color:var(--muted)"></span>
+  </div>
+  <div class="progress-wrap" style="margin-bottom:10px">
+    <div class="progress-bar" id="daily-tasks-progress" style="width:0%"></div>
+  </div>
+  <div id="daily-tasks-list" style="display:flex;flex-direction:column;gap:6px"></div>
+  <div id="daily-tasks-empty" style="display:none;color:var(--hint);font-size:13px;padding:8px 0">
+    No pending tasks for today. 🎉
+  </div>
+  <div id="daily-tasks-reminder" style="display:none;margin-top:10px;font-size:12px;
+       color:var(--amber-600);font-weight:500;border-top:0.5px solid var(--border);padding-top:8px">
+    ⚠ Please clear today's tasks before you leave the office.
+  </div>
+</div>
+
+<script>
+const URGENCY_STYLE = {
+  danger: { bg: 'var(--red-50)',  fg: 'var(--red-600)'  },
+  info:   { bg: 'var(--teal-50)', fg: 'var(--teal-600)' },
+};
+function loadDailyTasks() {
+  fetch('/api/daily_tasks').then(r => r.json()).then(data => {
+    const list     = document.getElementById('daily-tasks-list');
+    const empty    = document.getElementById('daily-tasks-empty');
+    const count    = document.getElementById('daily-tasks-count');
+    const bar      = document.getElementById('daily-tasks-progress');
+    const reminder = document.getElementById('daily-tasks-reminder');
+    list.innerHTML = '';
+    count.textContent = data.total ? `${data.done}/${data.total} done` : '';
+    bar.style.width = data.pct + '%';
+    reminder.style.display = (data.total > 0 && data.done < data.total) ? 'block' : 'none';
+    if (!data.tasks.length) { empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    data.tasks.forEach(t => {
+      const style = URGENCY_STYLE[t.urgency] || URGENCY_STYLE.info;
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;align-items:center;gap:10px;padding:8px 10px;
+        border-radius:var(--radius);background:${t.completed ? 'transparent' : style.bg};
+        border:0.5px solid ${t.completed ? 'var(--border)' : style.fg}`;
+      row.innerHTML = `
+        <input type="checkbox" ${t.completed ? 'checked' : ''} style="cursor:pointer"/>
+        <span style="font-size:11px;font-weight:600;color:${style.fg}">${t.label}</span>
+        <span style="font-size:13px;${t.completed ? 'text-decoration:line-through;color:var(--muted)' : ''}">${t.title}</span>
+        <a href="/projects/${t.project_id}" class="btn btn-sm" style="margin-left:auto">Open</a>
+      `;
+      row.querySelector('input').addEventListener('change', () => {
+        fetch('/api/daily_tasks/toggle', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({key: t.key}),
+        }).then(loadDailyTasks);
+      });
+      list.appendChild(row);
+    });
+  });
+}
+document.addEventListener('DOMContentLoaded', loadDailyTasks);
+</script>
+{% endif %}
 {# ── ADMIN ── #}
 {% if current_user.role in ['admin','director'] %}
 <div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">

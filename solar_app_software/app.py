@@ -90,7 +90,93 @@ def get_doc_completion(project):
     recorded = {d.doc_type: d for d in project.documents}
     done_count = sum(1 for n in expected if n in recorded and recorded[n].status in ('Received','Sent','Completed'))
     return done_count, len(expected)
+FEASIBILITY_EXPIRY_DAYS = 30
+PAYMENT_DELAY_DAYS = 14
+DOC_STAFF_ROLES = ('documents', 'documents_k')
 
+def _compute_daily_tasks(user):
+    """Daily task list for Documents staff only — built from live project
+    data. Nothing here is stored; only completion state is persisted."""
+    if user.role not in DOC_STAFF_ROLES:
+        return []
+
+    tasks = []
+    today = date.today()
+
+    # ── New registrations assigned to this staff member ─────────────
+    new_q = Project.query.filter(
+        db.func.date(Project.created_at) == today,
+        Project.doc_staff_id == user.id,
+    )
+    for p in new_q.all():
+        tasks.append({
+            'key': f'new_reg_{p.id}', 'type': 'new_registration',
+            'label': 'New registration', 'title': f'{p.project_code} — {p.customer.name}',
+            'project_id': p.id, 'urgency': 'info',
+        })
+
+    # ── Feasibility expired (done, but next stage stalled 30+ days) ─
+    cutoff = today - timedelta(days=FEASIBILITY_EXPIRY_DAYS)
+    feas_docs = Document.query.filter(
+        Document.doc_type == 'Feasibility Receipt',
+        Document.status.in_(['Received', 'Sent', 'Completed']),
+        Document.received_date.isnot(None),
+        Document.received_date <= cutoff,
+    ).all()
+    for d in feas_docs:
+        p = Project.query.get(d.project_id)
+        if not p or p.doc_staff_id != user.id:
+            continue
+        if p.status in ('Cancelled', 'OnHold', 'Completed', 'Closed'):
+            continue
+        op = p.onsite_progress
+        if op and op.structure_work_status != 'NotStarted':
+            continue
+        tasks.append({
+            'key': f'feas_expired_{p.id}', 'type': 'feasibility_expired',
+            'label': 'Feasibility expired', 'title': f'{p.project_code} — {p.customer.name}',
+            'project_id': p.id, 'urgency': 'danger',
+        })
+
+    # ── Payment delayed (first / second bank instalment) ────────────
+    cutoff = today - timedelta(days=PAYMENT_DELAY_DAYS)
+    bank_file_docs = Document.query.filter(
+        Document.doc_type == 'Bank File',
+        Document.status.in_(['Received', 'Sent', 'Completed']),
+        Document.received_date.isnot(None),
+        Document.received_date <= cutoff,
+    ).all()
+    for d in bank_file_docs:
+        p = Project.query.get(d.project_id)
+        if not p or p.doc_staff_id != user.id:
+            continue
+        if p.project_type != 'Loan' or p.status in ('Cancelled', 'OnHold'):
+            continue
+        has_first = any(pay.payment_source == 'Bank' and pay.instalment == 'First' for pay in p.payments)
+        if not has_first:
+            tasks.append({
+                'key': f'pay1_delayed_{p.id}', 'type': 'payment_delayed',
+                'label': 'First payment delayed', 'title': f'{p.project_code} — {p.customer.name}',
+                'project_id': p.id, 'urgency': 'danger',
+            })
+
+    loan_projects = Project.query.filter(
+        Project.project_type == 'Loan',
+        Project.status.notin_(['Cancelled', 'OnHold']),
+        Project.doc_staff_id == user.id,
+    ).all()
+    for p in loan_projects:
+        first_pay = next((pay for pay in p.payments
+                           if pay.payment_source == 'Bank' and pay.instalment == 'First'), None)
+        has_second = any(pay.payment_source == 'Bank' and pay.instalment == 'Second' for pay in p.payments)
+        if first_pay and not has_second and (today - first_pay.payment_date).days > PAYMENT_DELAY_DAYS:
+            tasks.append({
+                'key': f'pay2_delayed_{p.id}', 'type': 'payment_delayed',
+                'label': 'Second payment delayed', 'title': f'{p.project_code} — {p.customer.name}',
+                'project_id': p.id, 'urgency': 'danger',
+            })
+
+    return tasks
 
 # ─────────────────────────────────────────────────────────────────────────────
 # APP CONFIG
@@ -986,7 +1072,20 @@ class StockItem(db.Model):
     @property
     def is_low(self):
         return float(self.current_qty or 0) <= float(self.reorder_level or 0)
- 
+class DailyTaskLog(db.Model):
+    __tablename__ = 'daily_task_logs'
+    id            = db.Column(db.Integer, primary_key=True)
+    user_id       = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    task_key      = db.Column(db.String(120), nullable=False)
+    task_date     = db.Column(db.Date, nullable=False, default=date.today)
+    completed     = db.Column(db.Boolean, default=False)
+    completed_at  = db.Column(db.DateTime, nullable=True)
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
+    user          = db.relationship('User', foreign_keys=[user_id])
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'task_key', 'task_date', name='uq_user_task_date'),
+    )
  
 class StockTransaction(db.Model):
     __tablename__ = 'stock_transactions'
@@ -2109,7 +2208,50 @@ def record_stock_txn(stock_item_id, txn_type, quantity, source='Manual',
 def notify_onsite_team(project_id, message, notif_type='task'):
     for user in User.query.filter_by(role='onsite', is_active=True).all():
         create_notification(user.id, project_id, message, notif_type)
+@app.route('/api/daily_tasks')
+@login_required
+def api_daily_tasks():
+    tasks = _compute_daily_tasks(current_user)
+    today = date.today()
+    logs = {}
+    if tasks:
+        keys = [t['key'] for t in tasks]
+        rows = DailyTaskLog.query.filter(
+            DailyTaskLog.user_id == current_user.id,
+            DailyTaskLog.task_date == today,
+            DailyTaskLog.task_key.in_(keys),
+        ).all()
+        logs = {r.task_key: r.completed for r in rows}
+    for t in tasks:
+        t['completed'] = logs.get(t['key'], False)
+    total = len(tasks)
+    done  = sum(1 for t in tasks if t['completed'])
+    return jsonify({
+        'tasks': tasks, 'total': total, 'done': done,
+        'pct': int(done / total * 100) if total else 100,
+    })
 
+
+@app.route('/api/daily_tasks/toggle', methods=['POST'])
+@login_required
+@csrf.exempt
+def api_toggle_daily_task():
+    data = request.get_json(force=True, silent=True) or {}
+    key = data.get('key')
+    if not key:
+        return jsonify({'error': 'missing key'}), 400
+    today = date.today()
+    log = DailyTaskLog.query.filter_by(
+        user_id=current_user.id, task_key=key, task_date=today).first()
+    if not log:
+        log = DailyTaskLog(user_id=current_user.id, task_key=key, task_date=today,
+                            completed=True, completed_at=datetime.utcnow())
+        db.session.add(log)
+    else:
+        log.completed = not log.completed
+        log.completed_at = datetime.utcnow() if log.completed else None
+    db.session.commit()
+    return jsonify({'ok': True, 'completed': log.completed})
 @app.route('/onsite_activity')
 @login_required
 @roles_required('admin', 'payments', 'director')
