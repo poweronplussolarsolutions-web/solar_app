@@ -160,6 +160,9 @@ def _compute_daily_tasks(user):
                 'project_id': p.id, 'urgency': 'danger',
             })
 
+    LOAN_SINGLE_DISBURSEMENT_AMOUNT = 200000  
+                                            
+
     loan_projects = Project.query.filter(
         Project.project_type == 'Loan',
         Project.status.notin_(['Cancelled', 'OnHold']),
@@ -169,6 +172,11 @@ def _compute_daily_tasks(user):
         first_pay = next((pay for pay in p.payments
                            if pay.payment_source == 'Bank' and pay.instalment == 'First'), None)
         has_second = any(pay.payment_source == 'Bank' and pay.instalment == 'Second' for pay in p.payments)
+
+        
+        if first_pay and float(first_pay.amount) >= LOAN_SINGLE_DISBURSEMENT_AMOUNT:
+            continue
+
         if first_pay and not has_second and (today - first_pay.payment_date).days > PAYMENT_DELAY_DAYS:
             tasks.append({
                 'key': f'pay2_delayed_{p.id}', 'type': 'payment_delayed',
