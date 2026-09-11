@@ -566,7 +566,7 @@
             {% if existing.paid_by == 'Company' and existing.recovered %} · Recovered{% endif %}
             {% if existing.paid_by == 'Company' and not existing.recovered %} · Pending recovery{% endif %}
           </span>
-          {% if current_user.role in ['admin', 'documents','documents_k'] %}
+          {% if current_user.role in ['admin', 'documents','documents_k','office'] %}
           <button class="btn btn-sm" onclick="toggleExpenseForm('{{ form_id }}')">Edit</button>
           {% endif %}
         {% else %}
