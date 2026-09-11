@@ -202,8 +202,11 @@ def _compute_daily_tasks(user):
 
         if not first_pay or has_second:
             continue
-        if float(first_pay.amount) <= LOAN_SINGLE_DISBURSEMENT_AMOUNT:
-            continue
+
+        ld = p.loan_detail
+        loan_amt = float(ld.loan_amount) if ld and ld.loan_amount else LOAN_SINGLE_DISBURSEMENT_AMOUNT
+        if loan_amt <= LOAN_SINGLE_DISBURSEMENT_AMOUNT:
+            continue  # sanctioned loan (or default assumption) fits in a single instalment — no second expected
 
         op = p.onsite_progress
         installation_delayed = bool(
