@@ -167,12 +167,8 @@ def _compute_daily_tasks(user):
             })
 
     # ── Second payment delayed ───────────────────────────────────────
-    # Flagged if EITHER:
-    #   (a) 2+ weeks since the first payment, and second not yet recorded, OR
-    #   (b) 2+ weeks since installation was marked complete, and second not
-    #       yet recorded (the bank sometimes ties release of the second
-    #       instalment to work completion rather than a fixed wait from
-    #       the first payment)
+    # Flagged if installation was marked complete 2+ weeks ago and the
+    # second bank instalment still hasn't been recorded.
     # Skipped entirely if the first payment alone was a ~₹2,00,000 single-shot
     # loan disbursement — no second instalment is ever expected for these.
     loan_projects = Project.query.filter(
@@ -191,15 +187,13 @@ def _compute_daily_tasks(user):
         if float(first_pay.amount) >= LOAN_SINGLE_DISBURSEMENT_AMOUNT:
             continue
 
-        delayed_since_first = (today - first_pay.payment_date).days > PAYMENT_DELAY_DAYS
-
         op = p.onsite_progress
-        delayed_since_install = bool(
+        installation_delayed = bool(
             op and op.installation_status == 'Completed' and op.installation_end_date
             and (today - op.installation_end_date).days > PAYMENT_DELAY_DAYS
         )
 
-        if delayed_since_first or delayed_since_install:
+        if installation_delayed:
             tasks.append({
                 'key': f'pay2_delayed_{p.id}', 'type': 'payment_delayed',
                 'label': 'Second payment delayed', 'title': f'{p.project_code} — {p.customer.name}',
