@@ -108,19 +108,35 @@ def _compute_daily_tasks(user):
     tasks = []
     today = date.today()
 
-    # ── Registrations still awaiting first documents (persists until started) ──
-    new_q = Project.query.filter(
+    # ── Projects missing key onboarding details ─────────────────────
+    # (address, work amount, consumer number) — replaces the old
+    # "documents not started" flag with something actionable.
+    detail_q = Project.query.options(
+        joinedload(Project.customer),
+        joinedload(Project.connection_details),
+    ).filter(
         Project.doc_staff_id == user.id,
         Project.work_category != 'Outside',
         Project.status.notin_(['Cancelled', 'OnHold', 'Completed', 'Closed']),
-        ~Project.documents.any(),
     )
-    for p in new_q.all():
-        tasks.append({
-            'key': f'new_reg_{p.id}', 'type': 'new_registration',
-            'label': 'Documentation not started', 'title': f'{p.project_code} — {p.customer.name}',
-            'project_id': p.id, 'urgency': 'info',
-        })
+    for p in detail_q.all():
+        missing = []
+        cust = p.customer
+        if not (cust and cust.house_name and cust.place and cust.pincode):
+            missing.append('address')
+        if not p.total_amount or float(p.total_amount) <= 0:
+            missing.append('work amount')
+        cd = p.connection_details
+        if not (cd and cd.consumer_number):
+            missing.append('consumer number')
+
+        if missing:
+            tasks.append({
+                'key': f'missing_details_{p.id}', 'type': 'missing_details',
+                'label': 'Details pending',
+                'title': f'{p.project_code} — {p.customer.name}: missing {", ".join(missing)}',
+                'project_id': p.id, 'urgency': 'info',
+            })
 
     # ── Feasibility expired (done, but next stage stalled 30+ days) ─
     cutoff = today - timedelta(days=FEASIBILITY_EXPIRY_DAYS)
