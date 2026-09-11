@@ -173,7 +173,7 @@ def _compute_daily_tasks(user):
         p = Project.query.get(d.project_id)
         if not p or p.doc_staff_id != user.id or p.work_category == 'Outside':
             continue
-        if p.project_type != 'Loan' or p.status in ('Cancelled', 'OnHold', 'Completed', 'Closed'):
+        if p.project_type != 'Loan' or p.status in ('Cancelled', 'OnHold'):
             continue
         has_first = any(pay.payment_source == 'Bank' and pay.instalment == 'First' for pay in p.payments)
         if not has_first:
@@ -186,12 +186,11 @@ def _compute_daily_tasks(user):
     # ── Second payment delayed ───────────────────────────────────────
     # Flagged if installation was marked complete 2+ weeks ago and the
     # second bank instalment still hasn't been recorded.
-    # Skipped entirely if the first payment alone was a ~₹2,00,000-or-less
-    # single-shot loan disbursement — no second instalment is ever expected
-    # for these.
+    # Skipped entirely if the first payment alone was a ~₹2,00,000 single-shot
+    # loan disbursement — no second instalment is ever expected for these.
     loan_projects = Project.query.filter(
         Project.project_type == 'Loan',
-        Project.status.notin_(['Cancelled', 'OnHold', 'Completed', 'Closed']),
+        Project.status.notin_(['Cancelled', 'OnHold']),
         Project.doc_staff_id == user.id,
         Project.work_category != 'Outside',
     ).all()
@@ -202,11 +201,8 @@ def _compute_daily_tasks(user):
 
         if not first_pay or has_second:
             continue
-
-        ld = p.loan_detail
-        loan_amt = float(ld.loan_amount) if ld and ld.loan_amount else LOAN_SINGLE_DISBURSEMENT_AMOUNT
-        if loan_amt <= LOAN_SINGLE_DISBURSEMENT_AMOUNT:
-            continue  # sanctioned loan (or default assumption) fits in a single instalment — no second expected
+        if float(first_pay.amount) >= LOAN_SINGLE_DISBURSEMENT_AMOUNT:
+            continue
 
         op = p.onsite_progress
         installation_delayed = bool(
@@ -4469,11 +4465,7 @@ def waive_balance(pid):
             create_notification(u.id, pid,
                 f'{proj.project_code} — {proj.customer.name}: ₹{amount:,.0f} written off by '
                 f'{current_user.full_name}. Reason: {reason}', 'info')
-    active_reminder = PaymentReminder.query.filter_by(project_id=pid, status='Pending').first()
-    if active_reminder:
-        active_reminder.status      = 'Done'
-        active_reminder.resolved_at = datetime.utcnow()
-        active_reminder.resolved_by = current_user.id
+
     db.session.flush()
     auto_advance_stage(proj)
     db.session.commit()
