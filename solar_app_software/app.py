@@ -2301,7 +2301,53 @@ def api_daily_tasks():
         'tasks': tasks, 'total': total, 'done': done,
         'pct': int(done / total * 100) if total else 100,
     })
+@app.route('/api/daily_tasks/all_staff')
+@login_required
+@roles_required('office', 'admin')
+def api_all_doc_tasks():
+    staff_users = User.query.filter(
+        User.role.in_(DOC_STAFF_ROLES), User.is_active == True
+    ).order_by(User.full_name).all()
 
+    today = date.today()
+    result = []
+    grand_total = 0
+    grand_done  = 0
+
+    for staff in staff_users:
+        tasks = _compute_daily_tasks(staff)
+        if not tasks:
+            continue
+        keys = [t['key'] for t in tasks]
+        rows = DailyTaskLog.query.filter(
+            DailyTaskLog.user_id == staff.id,
+            DailyTaskLog.task_date == today,
+            DailyTaskLog.task_key.in_(keys),
+        ).all()
+        logs = {r.task_key: r.completed for r in rows}
+        for t in tasks:
+            t['completed'] = logs.get(t['key'], False)
+
+        total = len(tasks)
+        done  = sum(1 for t in tasks if t['completed'])
+        grand_total += total
+        grand_done  += done
+
+        result.append({
+            'staff_id':   staff.id,
+            'staff_name': staff.full_name,
+            'tasks':      tasks,
+            'total':      total,
+            'done':       done,
+            'pct':        int(done / total * 100) if total else 100,
+        })
+
+    return jsonify({
+        'staff': result,
+        'total': grand_total,
+        'done':  grand_done,
+        'pct':   int(grand_done / grand_total * 100) if grand_total else 100,
+    })
 
 @app.route('/api/daily_tasks/toggle', methods=['POST'])
 @login_required

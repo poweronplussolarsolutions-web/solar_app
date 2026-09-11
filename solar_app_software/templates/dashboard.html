@@ -478,7 +478,26 @@
   {% endfor %}
 </div>
 {% endif %}
+<div class="card" id="doc-team-tasks-card" style="margin-bottom:16px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+    <div class="card-title" style="margin:0">Documents Team — Today's Tasks</div>
+    <span id="doc-team-tasks-count" style="font-size:12px;color:var(--muted);font-weight:500"></span>
+  </div>
 
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+    <div class="progress-wrap" style="flex:1">
+      <div class="progress-bar" id="doc-team-tasks-progress"
+           style="width:0%;background:var(--teal-600);transition:width .3s ease"></div>
+    </div>
+    <span id="doc-team-tasks-pct" style="font-size:11px;color:var(--hint);min-width:34px;text-align:right;flex-shrink:0">0%</span>
+  </div>
+
+  <div id="doc-team-tasks-groups" style="display:flex;flex-direction:column;gap:16px"></div>
+
+  <div id="doc-team-tasks-empty" style="display:none;text-align:center;color:var(--hint);font-size:13px;padding:20px 0">
+    No pending tasks across the documents team today. 🎉
+  </div>
+</div>
 <div class="stats-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
   <div class="stat-card">
     <div class="stat-label">My projects</div>
@@ -988,5 +1007,71 @@ function loadDailyTasks() {
   });
 }
 document.addEventListener('DOMContentLoaded', loadDailyTasks);
+function loadAllDocTasks() {
+  const groupsEl = document.getElementById('doc-team-tasks-groups');
+  if (!groupsEl) return;
+
+  fetch('/api/daily_tasks/all_staff').then(r => r.json()).then(data => {
+    const groups = document.getElementById('doc-team-tasks-groups');
+    const empty  = document.getElementById('doc-team-tasks-empty');
+    const count  = document.getElementById('doc-team-tasks-count');
+    const bar    = document.getElementById('doc-team-tasks-progress');
+    const pct    = document.getElementById('doc-team-tasks-pct');
+
+    groups.innerHTML = '';
+    count.textContent = data.total ? `${data.done}/${data.total} done` : '';
+    bar.style.width = data.pct + '%';
+    pct.textContent = data.pct + '%';
+
+    if (!data.staff.length) {
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+
+    data.staff.forEach(s => {
+      const wrap = document.createElement('div');
+
+      const header = document.createElement('div');
+      header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:6px';
+      header.innerHTML = `
+        <span style="font-size:13px;font-weight:600">${s.staff_name}</span>
+        <span style="font-size:11px;color:var(--muted)">${s.done}/${s.total} done</span>
+      `;
+      wrap.appendChild(header);
+
+      const list = document.createElement('div');
+      list.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+
+      s.tasks.forEach(t => {
+        const style = URGENCY_STYLE[t.urgency] || URGENCY_STYLE.info;
+        const row = document.createElement('div');
+        row.style.cssText = `
+          display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+          padding:8px 12px;border-radius:var(--radius);
+          background:${t.completed ? 'var(--bg)' : style.bg};
+          border:0.5px solid ${t.completed ? 'var(--border)' : style.border};
+        `;
+        row.innerHTML = `
+          <span style="font-size:14px;flex-shrink:0">${t.completed ? '✅' : '⏳'}</span>
+          <span class="notif-tag" style="background:${style.bg};color:${style.fg};flex-shrink:0;border:0.5px solid ${style.border}">
+            ${t.label}
+          </span>
+          <span style="flex:1;min-width:140px;font-size:13px;line-height:1.4;
+                       ${t.completed ? 'text-decoration:line-through;color:var(--muted)' : 'color:var(--text)'}">
+            ${t.title}
+          </span>
+          <a href="/projects/${t.project_id}" class="btn btn-sm" style="flex-shrink:0">Open</a>
+        `;
+        list.appendChild(row);
+      });
+
+      wrap.appendChild(list);
+      groups.appendChild(wrap);
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', loadAllDocTasks);
 </script>
 {% endblock %}
