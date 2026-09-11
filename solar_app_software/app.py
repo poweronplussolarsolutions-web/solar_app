@@ -108,16 +108,17 @@ def _compute_daily_tasks(user):
     tasks = []
     today = date.today()
 
-    # ── New registrations assigned to this staff member ─────────────
+    # ── Registrations still awaiting first documents (persists until started) ──
     new_q = Project.query.filter(
-        db.func.date(Project.created_at) == today,
         Project.doc_staff_id == user.id,
         Project.work_category != 'Outside',
+        Project.status.notin_(['Cancelled', 'OnHold', 'Completed', 'Closed']),
+        ~Project.documents.any(),
     )
     for p in new_q.all():
         tasks.append({
             'key': f'new_reg_{p.id}', 'type': 'new_registration',
-            'label': 'New registration', 'title': f'{p.project_code} — {p.customer.name}',
+            'label': 'Documentation not started', 'title': f'{p.project_code} — {p.customer.name}',
             'project_id': p.id, 'urgency': 'info',
         })
 
@@ -2320,15 +2321,6 @@ def api_toggle_daily_task():
     else:
         log.completed = not log.completed
         log.completed_at = datetime.utcnow() if log.completed else None
-
-    if key.startswith('pay_reminder_') and log.completed:
-        rid = int(key.rsplit('_', 1)[-1])
-        reminder = PaymentReminder.query.get(rid)
-        if reminder and reminder.status == 'Pending':
-            reminder.status      = 'Done'
-            reminder.resolved_at = datetime.utcnow()
-            reminder.resolved_by = current_user.id
-
     db.session.commit()
     return jsonify({'ok': True, 'completed': log.completed})
 @app.route('/onsite_activity')
