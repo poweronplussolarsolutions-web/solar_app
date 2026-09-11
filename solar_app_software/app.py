@@ -92,11 +92,16 @@ def get_doc_completion(project):
     return done_count, len(expected)
 FEASIBILITY_EXPIRY_DAYS = 30
 PAYMENT_DELAY_DAYS = 14
+LOAN_SINGLE_DISBURSEMENT_AMOUNT = 200000  # ₹2,00,000 — banks disburse loans up to
+                                            # this amount in a single instalment;
+                                            # no second instalment is ever expected
 DOC_STAFF_ROLES = ('documents', 'documents_k')
 
 def _compute_daily_tasks(user):
     """Daily task list for Documents staff only — built from live project
-    data. Nothing here is stored; only completion state is persisted."""
+    data. Nothing here is stored; only completion state is persisted.
+    Outside-work projects are excluded entirely — they don't follow the
+    normal feasibility/bank-instalment pipeline."""
     if user.role not in DOC_STAFF_ROLES:
         return []
 
@@ -107,6 +112,7 @@ def _compute_daily_tasks(user):
     new_q = Project.query.filter(
         db.func.date(Project.created_at) == today,
         Project.doc_staff_id == user.id,
+        Project.work_category != 'Outside',
     )
     for p in new_q.all():
         tasks.append({
@@ -125,7 +131,7 @@ def _compute_daily_tasks(user):
     ).all()
     for d in feas_docs:
         p = Project.query.get(d.project_id)
-        if not p or p.doc_staff_id != user.id:
+        if not p or p.doc_staff_id != user.id or p.work_category == 'Outside':
             continue
         if p.status in ('Cancelled', 'OnHold', 'Completed', 'Closed'):
             continue
@@ -138,7 +144,7 @@ def _compute_daily_tasks(user):
             'project_id': p.id, 'urgency': 'danger',
         })
 
-    # ── Payment delayed (first / second bank instalment) ────────────
+    # ── First payment delayed ────────────────────────────────────────
     cutoff = today - timedelta(days=PAYMENT_DELAY_DAYS)
     bank_file_docs = Document.query.filter(
         Document.doc_type == 'Bank File',
@@ -148,7 +154,7 @@ def _compute_daily_tasks(user):
     ).all()
     for d in bank_file_docs:
         p = Project.query.get(d.project_id)
-        if not p or p.doc_staff_id != user.id:
+        if not p or p.doc_staff_id != user.id or p.work_category == 'Outside':
             continue
         if p.project_type != 'Loan' or p.status in ('Cancelled', 'OnHold'):
             continue
@@ -160,24 +166,40 @@ def _compute_daily_tasks(user):
                 'project_id': p.id, 'urgency': 'danger',
             })
 
-    LOAN_SINGLE_DISBURSEMENT_AMOUNT = 200000  
-                                            
-
+    # ── Second payment delayed ───────────────────────────────────────
+    # Flagged if EITHER:
+    #   (a) 2+ weeks since the first payment, and second not yet recorded, OR
+    #   (b) 2+ weeks since installation was marked complete, and second not
+    #       yet recorded (the bank sometimes ties release of the second
+    #       instalment to work completion rather than a fixed wait from
+    #       the first payment)
+    # Skipped entirely if the first payment alone was a ~₹2,00,000 single-shot
+    # loan disbursement — no second instalment is ever expected for these.
     loan_projects = Project.query.filter(
         Project.project_type == 'Loan',
         Project.status.notin_(['Cancelled', 'OnHold']),
         Project.doc_staff_id == user.id,
+        Project.work_category != 'Outside',
     ).all()
     for p in loan_projects:
         first_pay = next((pay for pay in p.payments
                            if pay.payment_source == 'Bank' and pay.instalment == 'First'), None)
         has_second = any(pay.payment_source == 'Bank' and pay.instalment == 'Second' for pay in p.payments)
 
-        
-        if first_pay and float(first_pay.amount) >= LOAN_SINGLE_DISBURSEMENT_AMOUNT:
+        if not first_pay or has_second:
+            continue
+        if float(first_pay.amount) >= LOAN_SINGLE_DISBURSEMENT_AMOUNT:
             continue
 
-        if first_pay and not has_second and (today - first_pay.payment_date).days > PAYMENT_DELAY_DAYS:
+        delayed_since_first = (today - first_pay.payment_date).days > PAYMENT_DELAY_DAYS
+
+        op = p.onsite_progress
+        delayed_since_install = bool(
+            op and op.installation_status == 'Completed' and op.installation_end_date
+            and (today - op.installation_end_date).days > PAYMENT_DELAY_DAYS
+        )
+
+        if delayed_since_first or delayed_since_install:
             tasks.append({
                 'key': f'pay2_delayed_{p.id}', 'type': 'payment_delayed',
                 'label': 'Second payment delayed', 'title': f'{p.project_code} — {p.customer.name}',
