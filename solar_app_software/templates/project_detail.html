@@ -454,7 +454,71 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="card-title">
         Payment summary
       </div>
+      {% if current_user.role in ['admin','payments'] and proj.work_category != 'Outside' %}
+{% set reminder = proj.active_reminder %}
+<div style="margin-bottom:14px;border:0.5px solid
+     {% if reminder and reminder.promised_date < today %}var(--red-200,#fecaca)
+     {% elif reminder %}var(--amber-200,#fde68a){% else %}var(--border){% endif %};
+     border-radius:var(--radius);
+     background:{% if reminder and reminder.promised_date < today %}var(--red-50,#fef2f2)
+     {% elif reminder %}var(--amber-50,#fffbeb){% else %}var(--surface){% endif %};
+     padding:12px 14px">
+  {% if reminder %}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+    <div>
+      <div style="font-size:12px;font-weight:600;
+           color:{% if reminder.promised_date < today %}var(--red-700){% else %}var(--amber-700){% endif %}">
+        {% if reminder.promised_date < today %}⚠ Promised payment overdue{% else %}📅 Customer promised to pay{% endif %}
+      </div>
+      <div style="font-size:14px;font-weight:500;margin-top:2px">
+        {{ reminder.promised_date | date_fmt }}
+        {% if reminder.amount %} — {{ reminder.amount | inr }}{% endif %}
+      </div>
+      {% if reminder.notes %}<div style="font-size:12px;color:var(--hint);margin-top:2px">{{ reminder.notes }}</div>{% endif %}
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-sm" onclick="togglePanel('reminderForm')">✏ Update</button>
+      <form method="POST" action="{{ url_for('dismiss_payment_reminder', rid=reminder.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm btn-danger">Dismiss</button>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:12px;color:var(--hint)">No payment promise on file.</span>
+    <button class="btn btn-sm btn-warning" onclick="togglePanel('reminderForm')">+ Set reminder</button>
+  </div>
+  {% endif %}
 
+  <div id="reminderForm" style="display:none;margin-top:12px;border-top:0.5px solid var(--border);padding-top:12px">
+    <form method="POST" action="{{ url_for('save_payment_reminder', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>They said they'll pay on</label>
+          <input type="date" name="promised_date" required
+                 value="{{ reminder.promised_date.isoformat() if reminder else '' }}"/>
+        </div>
+        <div class="form-group">
+          <label>Amount (₹) <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="number" name="amount" step="0.01" min="0"
+                 value="{{ reminder.amount | float | round(2) if reminder and reminder.amount else '' }}"/>
+        </div>
+        <div class="form-group full">
+          <label>Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="text" name="notes" value="{{ reminder.notes or '' if reminder else '' }}"
+                 placeholder="e.g. Waiting on their bank loan disbursal"/>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button type="submit" class="btn btn-warning btn-sm">Save reminder</button>
+        <button type="button" class="btn btn-sm" onclick="togglePanel('reminderForm')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
       {% if proj.work_category == 'Outside' %}
       {# ═══ OUTSIDE WORK: simple running total, no contract/pending math ═══ #}
       {% set outside_total = proj.payments | sum(attribute='amount') %}

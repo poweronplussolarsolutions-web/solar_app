@@ -201,7 +201,34 @@ def _compute_daily_tasks(user):
             })
 
     return tasks
-
+def _compute_payment_reminder_tasks(user):
+    """Daily reminder list for Payments staff — projects where the customer
+    promised a payment on or before today and it hasn't come in yet."""
+    if user.role not in ('payments', 'admin'):
+        return []
+    today = date.today()
+    tasks = []
+    due = (PaymentReminder.query
+           .join(Project)
+           .filter(PaymentReminder.status == 'Pending',
+                   PaymentReminder.promised_date <= today,
+                   Project.status.notin_(['Cancelled', 'OnHold']),
+                   Project.work_category != 'Outside')
+           .order_by(PaymentReminder.promised_date)
+           .all())
+    for r in due:
+        p = r.project
+        overdue = r.promised_date < today
+        amt_txt = f' — ₹{float(r.amount):,.0f} promised' if r.amount else ''
+        tasks.append({
+            'key': f'pay_reminder_{r.id}',
+            'type': 'payment_reminder',
+            'label': 'Payment overdue' if overdue else 'Payment due today',
+            'title': f'{p.project_code} — {p.customer.name}{amt_txt}',
+            'project_id': p.id,
+            'urgency': 'danger' if overdue else 'info',
+        })
+    return tasks
 # ─────────────────────────────────────────────────────────────────────────────
 # APP CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
@@ -555,7 +582,9 @@ class Project(db.Model):
     def bank_instalments(self):
         pays = [p for p in self.payments if p.payment_source == 'Bank']
         return {p.instalment: p for p in pays}
-
+    @property
+    def active_reminder(self):
+        return next((r for r in self.payment_reminders if r.status == 'Pending'), None)
     @property
     def next_bank_instalment(self):
         done = self.bank_instalments
@@ -687,6 +716,23 @@ class PaymentWaiver(db.Model):
 
     project = db.relationship('Project', backref='waivers')
     waiver  = db.relationship('User', foreign_keys=[waived_by])
+class PaymentReminder(db.Model):
+    __tablename__ = 'payment_reminders'
+    id            = db.Column(db.Integer, primary_key=True)
+    project_id    = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    promised_date = db.Column(db.Date, nullable=False)
+    amount        = db.Column(db.Numeric(12, 2), nullable=True)
+    notes         = db.Column(db.String(300), nullable=True)
+    status        = db.Column(db.Enum('Pending', 'Done', 'Missed', 'Cancelled'),
+                               default='Pending', nullable=False)
+    created_by    = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
+    resolved_at   = db.Column(db.DateTime, nullable=True)
+    resolved_by   = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+    project  = db.relationship('Project', backref='payment_reminders')
+    creator  = db.relationship('User', foreign_keys=[created_by])
+    resolver = db.relationship('User', foreign_keys=[resolved_by])
 class PaymentExcess(db.Model):
     __tablename__ = 'payment_excess'
     id                   = db.Column(db.Integer, primary_key=True)
@@ -2235,7 +2281,7 @@ def notify_onsite_team(project_id, message, notif_type='task'):
 @app.route('/api/daily_tasks')
 @login_required
 def api_daily_tasks():
-    tasks = _compute_daily_tasks(current_user)
+    tasks = _compute_daily_tasks(current_user) + _compute_payment_reminder_tasks(current_user)
     today = date.today()
     logs = {}
     if tasks:
@@ -2274,6 +2320,15 @@ def api_toggle_daily_task():
     else:
         log.completed = not log.completed
         log.completed_at = datetime.utcnow() if log.completed else None
+
+    if key.startswith('pay_reminder_') and log.completed:
+        rid = int(key.rsplit('_', 1)[-1])
+        reminder = PaymentReminder.query.get(rid)
+        if reminder and reminder.status == 'Pending':
+            reminder.status      = 'Done'
+            reminder.resolved_at = datetime.utcnow()
+            reminder.resolved_by = current_user.id
+
     db.session.commit()
     return jsonify({'ok': True, 'completed': log.completed})
 @app.route('/onsite_activity')
@@ -4034,6 +4089,11 @@ def add_payment(pid):
             f'({proj.inverter_capacity_kw} kW): First bank payment of ₹{amount:,.0f} received. ', 'task')
 
         auto_advance_stage(proj)
+    active_reminder = PaymentReminder.query.filter_by(project_id=pid, status='Pending').first()
+    if active_reminder:
+        active_reminder.status      = 'Done'
+        active_reminder.resolved_at = datetime.utcnow()
+        active_reminder.resolved_by = current_user.id
     db.session.commit()
     flash(f'Payment of ₹{amount:,.0f} recorded.', 'success')
 
@@ -4267,6 +4327,57 @@ def payments_dashboard():
         pending_projs=pending_projs, page=page, pay_page=pay_page,
         pay_date=pay_date_str, date_total=date_total,
         recovered_total=recovered_total)
+@app.route('/projects/<int:pid>/payment_reminder', methods=['POST'])
+@login_required
+@roles_required('admin', 'payments')
+def save_payment_reminder(pid):
+    proj = Project.query.get_or_404(pid)
+    if proj.work_category == 'Outside':
+        flash('Payment reminders are not used for Outside-work projects.', 'danger')
+        return redirect(url_for('project_detail', pid=pid) + '#payments')
+    promised_date_str = request.form.get('promised_date')
+    if not promised_date_str:
+        flash('Please choose a date.', 'danger')
+        return redirect(url_for('project_detail', pid=pid) + '#payments')
+
+    promised_date = date.fromisoformat(promised_date_str)
+    amount = _safe_float(request.form.get('amount')) or None
+    notes  = _clean(request.form.get('notes', ''), 300)
+
+    # only one active promise per project — superseding an old one cancels it
+    existing = PaymentReminder.query.filter_by(project_id=pid, status='Pending').first()
+    if existing:
+        existing.status      = 'Cancelled'
+        existing.resolved_at = datetime.utcnow()
+        existing.resolved_by = current_user.id
+
+    reminder = PaymentReminder(
+        project_id=pid, promised_date=promised_date, amount=amount,
+        notes=notes, created_by=current_user.id,
+    )
+    db.session.add(reminder)
+    log_action(pid,
+        f'Payment reminder set for {promised_date.strftime("%d %b %Y")}'
+        + (f' — customer promised ₹{amount:,.0f}' if amount else ''),
+        new_val='Pending')
+    db.session.commit()
+    flash(f'Reminder set for {promised_date.strftime("%d %b %Y")}.', 'success')
+    return redirect(url_for('project_detail', pid=pid) + '#payments')
+
+
+@app.route('/payment_reminders/<int:rid>/dismiss', methods=['POST'])
+@login_required
+@roles_required('admin', 'payments')
+def dismiss_payment_reminder(rid):
+    r = PaymentReminder.query.get_or_404(rid)
+    if r.status == 'Pending':
+        r.status      = 'Cancelled'
+        r.resolved_at = datetime.utcnow()
+        r.resolved_by = current_user.id
+        log_action(r.project_id, 'Payment reminder dismissed', old_val='Pending', new_val='Cancelled')
+        db.session.commit()
+        flash('Reminder dismissed.', 'success')
+    return redirect(request.referrer or url_for('payments_dashboard'))
 @app.route('/projects/<int:pid>/waive_balance', methods=['POST'])
 @login_required
 @roles_required('admin', 'payments')
