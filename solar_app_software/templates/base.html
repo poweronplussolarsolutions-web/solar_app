@@ -503,6 +503,9 @@
       <a class="nav-link {% if request.endpoint == 'onsite_activity' %}active{% endif %}" href="{{ url_for('onsite_activity') }}">
         <span class="dot"></span> Onsite Activity
       </a>
+      <a class="nav-link {% if request.endpoint == 'write_offs_report' %}active{% endif %}" href="{{ url_for('write_offs_report') }}">
+  <span class="dot"></span> Write-offs
+</a>
       {% endif %}
 
       {% if current_user.role in ['admin','onsite'] %}

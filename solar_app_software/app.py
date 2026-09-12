@@ -7543,7 +7543,110 @@ def build_payments_report_excel(payments, pay_date, output_dir='/tmp'):
     path = os.path.join(output_dir, fname)
     wb.save(path)
     return path
+def build_writeoffs_report_excel(waivers, start_date, end_date, output_dir='/tmp'):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Write-offs'
+    _page_setup(ws)
+    ws.freeze_panes = 'A6'
 
+    if start_date and end_date:
+        subtitle = f'Balance Write-offs — {start_date.strftime("%d %b %Y")} to {end_date.strftime("%d %b %Y")}'
+    elif start_date:
+        subtitle = f'Balance Write-offs — from {start_date.strftime("%d %b %Y")}'
+    elif end_date:
+        subtitle = f'Balance Write-offs — up to {end_date.strftime("%d %b %Y")}'
+    else:
+        subtitle = 'Balance Write-offs — All Time'
+
+    titles = [
+        ('Power On Plus Solar Solutions', C_HEADER_BG, C_HEADER_FG, 14, False, True),
+        (subtitle,                        C_SUBHDR_BG, C_HEADER_FG, 11, False, True),
+        (f'Generated: {date.today().strftime("%d %b %Y")}', C_ALT_BG, '444444', 10, True, True),
+        ('', 'FFFFFF', '000000', 8, False, False),
+    ]
+    for r, (txt, bg_c, fg_c, sz, italic, center) in enumerate(titles, 1):
+        ws.merge_cells(f'A{r}:F{r}')
+        c = ws[f'A{r}']
+        c.value = txt or None
+        c.font  = _font(bold=(not italic and bool(txt)), color=fg_c, size=sz, italic=italic)
+        c.fill  = _fill(bg_c)
+        if center:
+            c.alignment = _center()
+    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[2].height = 22
+    ws.row_dimensions[3].height = 18
+    ws.row_dimensions[4].height = 8
+
+    ws.row_dimensions[5].height = 20
+    headers = ['MNRE No.', 'Customer', 'Amount (₹)', 'Reason', 'Waived By', 'Waived Date']
+    for col, h in enumerate(headers, 1):
+        _style_header_cell(ws.cell(5, col), h)
+
+    row = 6
+    for i, w in enumerate(waivers):
+        bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        ws.row_dimensions[row].height = 17
+        vals   = [w.project.project_code, w.project.customer.name, float(w.amount),
+                  w.reason, w.waiver.full_name if w.waiver else '—',
+                  w.waived_date.strftime('%d %b %Y') if w.waived_date else '—']
+        fmts   = [None, None, '₹#,##0', None, None, None]
+        aligns = ['center', 'left', 'right', 'left', 'left', 'center']
+        for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
+            _style_data_cell(ws.cell(row, col), val, bg=bg, align=aln, number_fmt=fmt)
+        row += 1
+
+    total_amount = sum(float(w.amount) for w in waivers)
+    ws.row_dimensions[row].height = 20
+    for col in range(1, len(headers) + 1):
+        cell = ws.cell(row, col)
+        if col == 1:
+            _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 2:
+            _style_data_cell(cell, f'{len(waivers)} write-offs', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
+        elif col == 3:
+            _style_data_cell(cell, total_amount, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
+        else:
+            cell.fill = _fill(C_TOTAL_BG)
+            cell.border = _border()
+
+    col_widths = [12, 24, 14, 40, 20, 14]
+    for i, w_ in enumerate(col_widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w_
+
+    fname = 'WriteOffs'
+    if start_date:
+        fname += f'_{start_date.isoformat()}'
+    if end_date:
+        fname += f'_to_{end_date.isoformat()}'
+    fname += '.xlsx'
+    path = os.path.join(output_dir, fname)
+    wb.save(path)
+    return path
+
+
+@app.route('/write_offs/download')
+@login_required
+@roles_required('admin', 'payments', 'director')
+def download_write_offs_excel():
+    start_str = _clean(request.args.get('start_date', ''), 10)
+    end_str   = _clean(request.args.get('end_date', ''), 10)
+    search    = _clean(request.args.get('q', ''), 100)
+
+    start_date = end_date = None
+    try:
+        if start_str:
+            start_date = date.fromisoformat(start_str)
+        if end_str:
+            end_date = date.fromisoformat(end_str)
+    except ValueError:
+        flash('Invalid date provided.', 'danger')
+        return redirect(url_for('write_offs_report'))
+
+    waivers = _get_write_offs(start_date, end_date, search)
+    path = build_writeoffs_report_excel(waivers, start_date, end_date, tempfile.gettempdir())
+    return send_file(path, as_attachment=True, download_name=os.path.basename(path),
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 def build_payments_report_pdf(payments, pay_date, output_dir='/tmp'):
     from reportlab.lib import colors
@@ -7614,7 +7717,68 @@ def _get_payments_for_date(pay_date):
     if pay_date:
         q = q.filter(Payment.payment_date == pay_date)
     return q.all()
+def _get_write_offs(start_date=None, end_date=None, search=''):
+    q = (PaymentWaiver.query
+         .join(Project)
+         .join(Customer, Project.customer_id == Customer.id)
+         .options(joinedload(PaymentWaiver.project).joinedload(Project.customer),
+                  joinedload(PaymentWaiver.waiver)))
+    if start_date:
+        q = q.filter(PaymentWaiver.waived_date >= start_date)
+    if end_date:
+        q = q.filter(PaymentWaiver.waived_date <= end_date)
+    if search:
+        q = q.filter(
+            Customer.name.ilike(f'%{search}%') |
+            Project.project_code.ilike(f'%{search}%')
+        )
+    return q.order_by(PaymentWaiver.waived_date.desc()).all()
 
+
+@app.route('/write_offs')
+@login_required
+@roles_required('admin', 'payments', 'director')
+def write_offs_report():
+    return render_template('write_offs_report.html')
+
+
+@app.route('/write_offs/preview_data')
+@login_required
+@roles_required('admin', 'payments', 'director')
+def write_offs_preview_data():
+    start_str = _clean(request.args.get('start_date', ''), 10)
+    end_str   = _clean(request.args.get('end_date', ''), 10)
+    search    = _clean(request.args.get('q', ''), 100)
+
+    start_date = end_date = None
+    try:
+        if start_str:
+            start_date = date.fromisoformat(start_str)
+        if end_str:
+            end_date = date.fromisoformat(end_str)
+    except ValueError:
+        return jsonify({'error': 'invalid date'}), 400
+
+    waivers = _get_write_offs(start_date, end_date, search)
+    total_amount = sum(float(w.amount) for w in waivers)
+
+    def _to_dict(w):
+        return {
+            'code':        w.project.project_code,
+            'customer':    w.project.customer.name,
+            'amount':      _inr_fmt(w.amount),
+            'reason':      w.reason,
+            'waived_by':   w.waiver.full_name if w.waiver else '—',
+            'waived_date': w.waived_date.strftime('%d %b %Y') if w.waived_date else '—',
+        }
+
+    return jsonify({
+        'kpis': {
+            'Total Write-offs': len(waivers),
+            'Total Amount':     _inr_fmt(total_amount),
+        },
+        'waivers': [_to_dict(w) for w in waivers],
+    })
 
 @app.route('/payments/download_excel')
 @login_required

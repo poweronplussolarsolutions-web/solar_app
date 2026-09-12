@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Write-off Report{% endblock %}
+{% block page_title %}Balance Write-offs{% endblock %}
+
+{% block content %}
+<style>
+.wo-filter-bar { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;
+  background:var(--surface); border:0.5px solid var(--border); border-radius:var(--radius-lg);
+  padding:16px; margin-bottom:18px; }
+.wo-filter-group { display:flex; flex-direction:column; gap:5px; min-width:150px; }
+.wo-filter-group label { font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; }
+.wo-filter-group input, .wo-filter-group select { padding:7px 10px; border:1px solid var(--border);
+  border-radius:6px; font-size:13px; background:var(--bg); color:var(--text); }
+.wo-filter-actions { display:flex; gap:8px; margin-left:auto; }
+.wo-kpi-row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+.wo-kpi { background:var(--surface); border-radius:8px; padding:10px 14px; min-width:110px; border:0.5px solid var(--border); }
+.wo-kpi-label { font-size:11px; color:var(--hint); }
+.wo-kpi-value { font-size:16px; font-weight:700; color:var(--text); }
+.wo-table-wrap { overflow-x:auto; }
+.wo-table { width:100%; border-collapse:collapse; font-size:12px; }
+.wo-table th { padding:7px 8px; text-align:left; background:var(--muted,#555); color:#fff; font-size:11px; white-space:nowrap; }
+.wo-table td { padding:6px 8px; border-bottom:1px solid var(--border); }
+</style>
+
+<div class="wo-filter-bar">
+  <div class="wo-filter-group">
+    <label>From Date</label>
+    <input type="date" id="startDate" onchange="loadData()">
+  </div>
+  <div class="wo-filter-group">
+    <label>To Date</label>
+    <input type="date" id="endDate" onchange="loadData()">
+  </div>
+  <div class="wo-filter-group" style="min-width:220px">
+    <label>Search (MNRE No. / Customer)</label>
+    <input type="text" id="searchFilter" placeholder="Type to search…"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();loadData();}">
+  </div>
+  <div class="wo-filter-actions">
+    <button type="button" class="btn btn-secondary" onclick="resetFilters()">Reset</button>
+    <button type="button" class="btn btn-secondary" onclick="loadData()">🔍 Search</button>
+    <button type="button" class="btn btn-primary" onclick="downloadExcel()">↓ Download Excel</button>
+  </div>
+</div>
+
+<div id="kpiRow" class="wo-kpi-row"></div>
+
+<div class="wo-table-wrap">
+  <table class="wo-table" id="woTable">
+    <thead>
+      <tr>
+        <th>MNRE No.</th><th>Customer</th><th style="text-align:right">Amount</th>
+        <th>Reason</th><th>Waived By</th><th>Waived Date</th>
+      </tr>
+    </thead>
+    <tbody id="woBody">
+      <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+function currentFilters() {
+  const f = {};
+  const s = document.getElementById('startDate').value;
+  const e = document.getElementById('endDate').value;
+  const q = document.getElementById('searchFilter').value.trim();
+  if (s) f.start_date = s;
+  if (e) f.end_date = e;
+  if (q) f.q = q;
+  return f;
+}
+
+function buildQS(f) { return new URLSearchParams(f).toString(); }
+
+function resetFilters() {
+  document.getElementById('startDate').value = '';
+  document.getElementById('endDate').value = '';
+  document.getElementById('searchFilter').value = '';
+  loadData();
+}
+
+function downloadExcel() {
+  window.location = `/write_offs/download?${buildQS(currentFilters())}`;
+}
+
+function loadData() {
+  const filters = currentFilters();
+  document.getElementById('woBody').innerHTML =
+    '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>';
+
+  fetch(`/write_offs/preview_data?${buildQS(filters)}`)
+    .then(r => r.json())
+    .then(data => { renderKpis(data.kpis); renderTable(data.waivers); })
+    .catch(() => {
+      document.getElementById('woBody').innerHTML =
+        '<tr><td colspan="6" style="text-align:center;padding:30px;color:red">Failed to load.</td></tr>';
+    });
+}
+
+function renderKpis(kpis) {
+  document.getElementById('kpiRow').innerHTML = Object.entries(kpis).map(([k, v]) => `
+    <div class="wo-kpi">
+      <div class="wo-kpi-label">${k}</div>
+      <div class="wo-kpi-value">${v}</div>
+    </div>`).join('');
+}
+
+function renderTable(waivers) {
+  const body = document.getElementById('woBody');
+  if (!waivers.length) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--hint)">No write-offs match these filters.</td></tr>';
+    return;
+  }
+  body.innerHTML = waivers.map((w, i) => {
+    const bg = i % 2 === 0 ? 'var(--surface,#f9f9f9)' : '#fff';
+    return `<tr style="background:${bg}">
+      <td>${w.code}</td><td>${w.customer}</td>
+      <td style="text-align:right">${w.amount}</td>
+      <td>${w.reason}</td><td>${w.waived_by}</td><td>${w.waived_date}</td>
+    </tr>`;
+  }).join('');
+}
+
+document.addEventListener('DOMContentLoaded', loadData);
+</script>
+{% endblock %}
