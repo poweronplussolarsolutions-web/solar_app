@@ -983,11 +983,18 @@ function fmtNavDate(dateStr) {
   if (d.getTime() === y.getTime()) return 'Yesterday';
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
+function toLocalISODate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function shiftDate(dateStr, delta) {
   const base = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
-  base.setHours(0,0,0,0);
+  base.setHours(0, 0, 0, 0);
   base.setDate(base.getDate() + delta);
-  return base.toISOString().slice(0, 10);
+  return toLocalISODate(base);
 }
 
 function loadDailyTasks() {
