@@ -506,6 +506,7 @@ class Project(db.Model):
     inverter_capacity_kw = db.Column(db.Float, nullable=False)
     panel_capacity_kw    = db.Column(db.Float, nullable=False)
     structure_capacity_kw = db.Column(db.Float, nullable=True)
+    transformer_capacity_kw = db.Column(db.Float, nullable=True)
     project_type     = db.Column(db.Enum('Loan', 'Cash'), nullable=False)
     status           = db.Column(db.Enum('Lead','Created','InProgress','Completed','Delayed','Pending','Closed','OnHold','Cancelled'), default='Lead')
     stage            = db.Column(db.String(100), default='Lead')
@@ -3782,6 +3783,23 @@ def project_detail(pid):
                            notify_pay_id=notify_pay_id, is_final_pay=is_final_pay,
                            wa_confirm_msg=wa_confirm_msg, wa_reminder_msg=wa_reminder_msg,
                            wa_complete_msg=wa_complete_msg, wa_just_msg=wa_just_msg)
+@app.route('/projects/<int:pid>/transformer_capacity', methods=['POST'])
+@login_required
+@roles_required('admin', 'onsite', 'coordinator', 'documents', 'office', 'documents_k', 'director')
+def update_transformer_capacity(pid):
+    proj = Project.query.get_or_404(pid)
+    old_val = proj.transformer_capacity_kw
+    raw = request.form.get('transformer_capacity_kw', '').strip()
+    new_val = _safe_float(raw) if raw else None
+    proj.transformer_capacity_kw = new_val
+    if old_val != new_val:
+        log_action(pid, f'Transformer capacity updated: {old_val or 0} kVA → {new_val or 0} kVA',
+                   old_val=str(old_val or ''), new_val=str(new_val or ''))
+        db.session.commit()
+        flash('Transformer capacity updated.', 'success')
+    else:
+        flash('No change.', 'info')
+    return redirect(url_for('project_detail', pid=pid))
 @app.route('/projects/<int:pid>/expenses', methods=['POST'])
 @login_required
 @roles_required('admin', 'documents','office','documents_k')
