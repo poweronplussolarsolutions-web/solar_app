@@ -218,6 +218,26 @@ def _compute_daily_tasks(user):
             })
 
     return tasks
+def _snapshot_today_tasks(user, tasks):
+    """Persist today's live-computed task list, skipping any task_key
+    already snapshotted for today (idempotent across repeated page loads)."""
+    if not tasks:
+        return
+    today = date.today()
+    existing_keys = {
+        k for (k,) in db.session.query(DailyTaskSnapshot.task_key).filter_by(
+            user_id=user.id, task_date=today
+        ).all()
+    }
+    for t in tasks:
+        if t['key'] in existing_keys:
+            continue
+        db.session.add(DailyTaskSnapshot(
+            user_id=user.id, task_date=today, task_key=t['key'], task_type=t['type'],
+            label=t['label'], title=t['title'], project_id=t.get('project_id'),
+            urgency=t['urgency'],
+        ))
+    db.session.commit()
 def _compute_payment_reminder_tasks(user):
     """Daily reminder list for Payments staff — projects where the customer
     promised a payment on or before today and it hasn't come in yet."""
@@ -1173,7 +1193,28 @@ class DailyTaskLog(db.Model):
     __table_args__ = (
         db.UniqueConstraint('user_id', 'task_key', 'task_date', name='uq_user_task_date'),
     )
- 
+class DailyTaskSnapshot(db.Model):
+    """Freezes each day's computed task list the first time it's fetched,
+    so past days can be viewed later without recomputing from (now-changed)
+    live project state. Written lazily by api_daily_tasks / api_all_doc_tasks
+    on first call for a given user+date — no cron job needed."""
+    __tablename__ = 'daily_task_snapshots'
+    id         = db.Column(db.Integer, primary_key=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    task_date  = db.Column(db.Date, nullable=False, default=date.today)
+    task_key   = db.Column(db.String(120), nullable=False)
+    task_type  = db.Column(db.String(40), nullable=False)
+    label      = db.Column(db.String(80))
+    title      = db.Column(db.String(300))
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)
+    urgency    = db.Column(db.String(20))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user       = db.relationship('User', foreign_keys=[user_id])
+    project    = db.relationship('Project', foreign_keys=[project_id])
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'task_date', 'task_key', name='uq_user_date_task'),
+    )
 class StockTransaction(db.Model):
     __tablename__ = 'stock_transactions'
     id             = db.Column(db.Integer, primary_key=True)
@@ -2298,46 +2339,91 @@ def notify_onsite_team(project_id, message, notif_type='task'):
 @app.route('/api/daily_tasks')
 @login_required
 def api_daily_tasks():
-    tasks = _compute_daily_tasks(current_user) + _compute_payment_reminder_tasks(current_user)
-    today = date.today()
+    date_str = _clean(request.args.get('date', ''), 10)
+    target_date = date.today()
+    if date_str:
+        try:
+            target_date = date.fromisoformat(date_str)
+        except ValueError:
+            return jsonify({'error': 'invalid date'}), 400
+    if target_date > date.today():
+        return jsonify({'error': 'cannot view future dates'}), 400
+
+    is_today = (target_date == date.today())
+
+    if is_today:
+        tasks = _compute_daily_tasks(current_user) + _compute_payment_reminder_tasks(current_user)
+        _snapshot_today_tasks(current_user, tasks)
+    else:
+        snaps = DailyTaskSnapshot.query.filter_by(
+            user_id=current_user.id, task_date=target_date
+        ).order_by(DailyTaskSnapshot.id).all()
+        tasks = [{
+            'key': s.task_key, 'type': s.task_type, 'label': s.label,
+            'title': s.title, 'project_id': s.project_id, 'urgency': s.urgency,
+        } for s in snaps]
+
     logs = {}
     if tasks:
         keys = [t['key'] for t in tasks]
         rows = DailyTaskLog.query.filter(
             DailyTaskLog.user_id == current_user.id,
-            DailyTaskLog.task_date == today,
+            DailyTaskLog.task_date == target_date,
             DailyTaskLog.task_key.in_(keys),
         ).all()
         logs = {r.task_key: r.completed for r in rows}
     for t in tasks:
         t['completed'] = logs.get(t['key'], False)
+
     total = len(tasks)
     done  = sum(1 for t in tasks if t['completed'])
     return jsonify({
         'tasks': tasks, 'total': total, 'done': done,
         'pct': int(done / total * 100) if total else 100,
+        'date': target_date.isoformat(), 'is_today': is_today,
     })
 @app.route('/api/daily_tasks/all_staff')
 @login_required
 @roles_required('office', 'admin')
 def api_all_doc_tasks():
+    date_str = _clean(request.args.get('date', ''), 10)
+    target_date = date.today()
+    if date_str:
+        try:
+            target_date = date.fromisoformat(date_str)
+        except ValueError:
+            return jsonify({'error': 'invalid date'}), 400
+    if target_date > date.today():
+        return jsonify({'error': 'cannot view future dates'}), 400
+
+    is_today = (target_date == date.today())
     staff_users = User.query.filter(
         User.role.in_(DOC_STAFF_ROLES), User.is_active == True
     ).order_by(User.full_name).all()
 
-    today = date.today()
     result = []
     grand_total = 0
     grand_done  = 0
 
     for staff in staff_users:
-        tasks = _compute_daily_tasks(staff)
+        if is_today:
+            tasks = _compute_daily_tasks(staff)
+            _snapshot_today_tasks(staff, tasks)
+        else:
+            snaps = DailyTaskSnapshot.query.filter_by(
+                user_id=staff.id, task_date=target_date
+            ).order_by(DailyTaskSnapshot.id).all()
+            tasks = [{
+                'key': s.task_key, 'type': s.task_type, 'label': s.label,
+                'title': s.title, 'project_id': s.project_id, 'urgency': s.urgency,
+            } for s in snaps]
+
         if not tasks:
             continue
         keys = [t['key'] for t in tasks]
         rows = DailyTaskLog.query.filter(
             DailyTaskLog.user_id == staff.id,
-            DailyTaskLog.task_date == today,
+            DailyTaskLog.task_date == target_date,
             DailyTaskLog.task_key.in_(keys),
         ).all()
         logs = {r.task_key: r.completed for r in rows}
@@ -2363,6 +2449,7 @@ def api_all_doc_tasks():
         'total': grand_total,
         'done':  grand_done,
         'pct':   int(grand_done / grand_total * 100) if grand_total else 100,
+        'date':  target_date.isoformat(), 'is_today': is_today,
     })
 
 @app.route('/api/daily_tasks/toggle', methods=['POST'])
@@ -2373,11 +2460,20 @@ def api_toggle_daily_task():
     key = data.get('key')
     if not key:
         return jsonify({'error': 'missing key'}), 400
-    today = date.today()
+    target_date_str = data.get('date')
+    target_date = date.today()
+    if target_date_str:
+        try:
+            target_date = date.fromisoformat(target_date_str)
+        except ValueError:
+            return jsonify({'error': 'invalid date'}), 400
+    if target_date != date.today():
+        return jsonify({'error': 'only today\'s tasks can be toggled'}), 400
+
     log = DailyTaskLog.query.filter_by(
-        user_id=current_user.id, task_key=key, task_date=today).first()
+        user_id=current_user.id, task_key=key, task_date=target_date).first()
     if not log:
-        log = DailyTaskLog(user_id=current_user.id, task_key=key, task_date=today,
+        log = DailyTaskLog(user_id=current_user.id, task_key=key, task_date=target_date,
                             completed=True, completed_at=datetime.utcnow())
         db.session.add(log)
     else:
