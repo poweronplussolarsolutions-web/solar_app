@@ -21,9 +21,26 @@
       <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
       {% endfor %}
     </select>
+    {% if current_user.role == 'documents' %}
+    <input type="hidden" name="view" value="{{ 'all' if view_all else 'mine' }}">
+    {% endif %}
     <button type="submit" class="btn btn-primary">Filter</button>
     <a href="{{ url_for('projects') }}" class="btn">Clear</a>
   </form>
+  {% if current_user.role == 'documents' %}
+  <div style="margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border);display:flex;align-items:center;gap:8px">
+    <span style="font-size:12px;color:var(--muted)">
+      {% if view_all %}Showing all projects{% else %}Showing only your assigned projects{% endif %}
+    </span>
+    {% if view_all %}
+    <a href="{{ url_for('projects', status=status_filter, q=search, consumer_no=consumer_search, view='mine') }}"
+       class="btn btn-sm">Show only mine</a>
+    {% else %}
+    <a href="{{ url_for('projects', status=status_filter, q=search, consumer_no=consumer_search, view='all') }}"
+       class="btn btn-sm">View all projects</a>
+    {% endif %}
+  </div>
+  {% endif %}
 </div>
 
 <div class="card">
@@ -147,13 +164,13 @@
   </div>
   <div style="display:flex;gap:4px;align-items:center">
     {% if pagination.has_prev %}
-    <a href="{{ url_for('projects', page=pagination.prev_num, status=status_filter, q=search, consumer_no=consumer_search) }}"
+    <a href="{{ url_for('projects', page=pagination.prev_num, status=status_filter, q=search, consumer_no=consumer_search, view=('all' if view_all else none)) }}"
        class="btn btn-sm">← Prev</a>
     {% endif %}
 
     {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
       {% if p %}
-        <a href="{{ url_for('projects', page=p, status=status_filter, q=search, consumer_no=consumer_search) }}"
+        <a href="{{ url_for('projects', page=p, status=status_filter, q=search, consumer_no=consumer_search, view=('all' if view_all else none)) }}"
            class="btn btn-sm"
            style="{% if p == pagination.page %}background:var(--amber-600);color:#fff;{% endif %}">
           {{ p }}
@@ -164,7 +181,7 @@
     {% endfor %}
 
     {% if pagination.has_next %}
-    <a href="{{ url_for('projects', page=pagination.next_num, status=status_filter, q=search, consumer_no=consumer_search) }}"
+    <a href="{{ url_for('projects', page=pagination.next_num, status=status_filter, q=search, consumer_no=consumer_search, view=('all' if view_all else none)) }}"
        class="btn btn-sm">Next →</a>
     {% endif %}
   </div>

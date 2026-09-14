@@ -3163,7 +3163,8 @@ from sqlalchemy import case,cast,Integer
 def projects():
     status_filter   = request.args.get('status', '')
     search          = _clean(request.args.get('q', ''), 100)
-    consumer_search = _clean(request.args.get('consumer_no', ''), 50)   
+    consumer_search = _clean(request.args.get('consumer_no', ''), 50)
+    view_all        = request.args.get('view') == 'all'
     page            = request.args.get('page', 1, type=int)
     q = (Project.query
          .join(Customer)
@@ -3171,6 +3172,8 @@ def projects():
     if current_user.role == 'coordinator':
         q = q.filter(Project.coordinator_id == current_user.id)
     if current_user.role == 'documents_k':
+        q = q.filter(Project.doc_staff_id == current_user.id)
+    if current_user.role == 'documents' and not view_all:
         q = q.filter(Project.doc_staff_id == current_user.id)
     if status_filter:
         q = q.filter(Project.status == status_filter, Project.work_category != 'Outside')
@@ -3207,7 +3210,8 @@ def projects():
     return render_template('projects.html', projects=pagination.items, pagination=pagination,
                        status_filter=status_filter, search=search,
                        consumer_search=consumer_search,
-                       pending_excess_ids=pending_excess_ids)   
+                       pending_excess_ids=pending_excess_ids,
+                       view_all=view_all)  
 @app.route('/projects/new', methods=['GET', 'POST'])
 @login_required
 @roles_required('coordinator','admin','documents','office','documents_k','director')
