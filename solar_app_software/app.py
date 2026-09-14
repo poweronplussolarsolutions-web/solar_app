@@ -184,7 +184,16 @@ def _compute_daily_tasks(user):
                 })
 
         # ── Second payment delayed ───────────────────────────────────────
-        loan_projects = Project.query.filter(
+        # Two independent triggers, either one is enough to flag delayed:
+        #   A) Installation was marked Completed 2+ weeks ago, and staff
+        #      haven't even marked the "Second Payment" document yet.
+        #   B) The "Second Payment" document WAS marked, but 2+ weeks have
+        #      passed since that marking and the actual bank payment still
+        #      hasn't been recorded.
+        loan_projects = Project.query.options(
+            joinedload(Project.documents),
+            joinedload(Project.onsite_progress),
+        ).filter(
             Project.project_type == 'Loan',
             Project.status.notin_(['Cancelled', 'OnHold']),
             Project.doc_staff_id == user.id,
@@ -200,13 +209,28 @@ def _compute_daily_tasks(user):
             if float(first_pay.amount) >= LOAN_SINGLE_DISBURSEMENT_AMOUNT:
                 continue
 
+            second_pay_doc = next((d for d in p.documents if d.doc_type == 'Second Payment'), None)
+            second_marked_done = bool(
+                second_pay_doc and second_pay_doc.status in ('Received', 'Sent', 'Completed')
+                and second_pay_doc.received_date
+            )
+
             op = p.onsite_progress
-            installation_delayed = bool(
+            installation_stale = bool(
                 op and op.installation_status == 'Completed' and op.installation_end_date
                 and (today - op.installation_end_date).days > PAYMENT_DELAY_DAYS
             )
 
-            if installation_delayed:
+            # Trigger A — installation done 2+ weeks ago, not even marked yet
+            not_marked_delayed = installation_stale and not second_marked_done
+
+            # Trigger B — marked, but 2+ weeks since marking with no payment
+            marked_delayed = bool(
+                second_marked_done
+                and (today - second_pay_doc.received_date).days > PAYMENT_DELAY_DAYS
+            )
+
+            if not_marked_delayed or marked_delayed:
                 tasks.append({
                     'key': f'pay2_delayed_{p.id}', 'type': 'payment_delayed',
                     'label': 'Second payment delayed', 'title': f'{p.project_code} — {p.customer.name}',
