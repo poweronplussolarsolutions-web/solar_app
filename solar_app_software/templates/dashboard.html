@@ -306,7 +306,27 @@
 
 {# ── DOCUMENTS ── #}
 {% elif current_user.role in ('documents','documents_k') %}
-
+<div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+  <div class="stat-card">
+    <div class="stat-label">Assigned to me</div>
+    <div class="stat-value">{{ data.queue }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">New / not started</div>
+    <div class="stat-value" style="color:var(--amber-600)">{{ data.new_count }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">In progress</div>
+    <div class="stat-value" style="color:var(--teal-600)">
+      {{ data.projects | selectattr('status','eq','InProgress') | list | length }}
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Completed</div>
+    <div class="stat-value" style="color:var(--green-600)">{{ data.completed_count }}</div>
+    <div class="stat-sub">Closed or completed</div>
+  </div>
+</div>
 <div class="two-col" style="margin-bottom:16px;align-items:start">
 <div class="card" id="daily-tasks-card" style="margin-bottom:16px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
@@ -372,29 +392,6 @@
   </div> -->
 </div>
 
-
-
-<div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
-  <div class="stat-card">
-    <div class="stat-label">Assigned to me</div>
-    <div class="stat-value">{{ data.queue }}</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">New / not started</div>
-    <div class="stat-value" style="color:var(--amber-600)">{{ data.new_count }}</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">In progress</div>
-    <div class="stat-value" style="color:var(--teal-600)">
-      {{ data.projects | selectattr('status','eq','InProgress') | list | length }}
-    </div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Completed</div>
-    <div class="stat-value" style="color:var(--green-600)">{{ data.completed_count }}</div>
-    <div class="stat-sub">Closed or completed</div>
-  </div>
-</div>
 
 <!-- <div class="card">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
