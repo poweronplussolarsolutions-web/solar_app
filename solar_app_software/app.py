@@ -6281,7 +6281,10 @@ def app_install_map():
     from sqlalchemy.orm import joinedload
     all_installs = (AppInstallation.query
     .join(Project)
-    .options(...)
+    .options(joinedload(AppInstallation.project)
+        .joinedload(Project.geo_tag),
+        joinedload(AppInstallation.project)
+        .joinedload(Project.customer))
     .filter(Project.status != 'Cancelled',
             Project.work_category != 'Outside')                
     .order_by(AppInstallation.id.desc())
