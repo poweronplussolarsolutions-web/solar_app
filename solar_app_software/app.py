@@ -98,122 +98,156 @@ LOAN_SINGLE_DISBURSEMENT_AMOUNT = 200000  # ₹2,00,000 — banks disburse loans
 DOC_STAFF_ROLES = ('documents', 'documents_k')
 
 def _compute_daily_tasks(user):
-    """Daily task list for Documents staff only — built from live project
-    data. Nothing here is stored; only completion state is persisted.
-    Outside-work projects are excluded entirely — they don't follow the
-    normal feasibility/bank-instalment pipeline."""
-    if user.role not in DOC_STAFF_ROLES:
+    """Daily task list for Documents staff and Office (for their own MNRE
+    reminders) — built from live project data. Nothing here is stored; only
+    completion state is persisted. Outside-work projects are excluded
+    entirely — they don't follow the normal feasibility/bank-instalment
+    pipeline."""
+    if user.role not in DOC_STAFF_ROLES and user.role != 'office':
         return []
 
     tasks = []
     today = date.today()
 
-    # ── Projects missing key onboarding details ─────────────────────
-    # (address, work amount, consumer number) — replaces the old
-    # "documents not started" flag with something actionable.
-    detail_q = Project.query.options(
-        joinedload(Project.customer),
-        joinedload(Project.connection_details),
-    ).filter(
-        Project.doc_staff_id == user.id,
-        Project.work_category != 'Outside',
-        Project.status.notin_(['Cancelled', 'OnHold', 'Completed', 'Closed']),
-    )
-    for p in detail_q.all():
-        missing = []
-        cust = p.customer
-        if not (cust and cust.house_name and cust.place and cust.pincode):
-            missing.append('address')
-        if not p.total_amount or float(p.total_amount) <= 0:
-            missing.append('work amount')
-        cd = p.connection_details
-        if not (cd and cd.consumer_number):
-            missing.append('consumer number')
+    if user.role in DOC_STAFF_ROLES:
+        # ── Projects missing key onboarding details ─────────────────────
+        detail_q = Project.query.options(
+            joinedload(Project.customer),
+            joinedload(Project.connection_details),
+        ).filter(
+            Project.doc_staff_id == user.id,
+            Project.work_category != 'Outside',
+            Project.status.notin_(['Cancelled', 'OnHold', 'Completed', 'Closed']),
+        )
+        for p in detail_q.all():
+            missing = []
+            cust = p.customer
+            if not (cust and cust.house_name and cust.place and cust.pincode):
+                missing.append('address')
+            if not p.total_amount or float(p.total_amount) <= 0:
+                missing.append('work amount')
+            cd = p.connection_details
+            if not (cd and cd.consumer_number):
+                missing.append('consumer number')
 
-        if missing:
+            if missing:
+                tasks.append({
+                    'key': f'missing_details_{p.id}', 'type': 'missing_details',
+                    'label': 'Details pending',
+                    'title': f'{p.project_code} — {p.customer.name}: missing {", ".join(missing)}',
+                    'project_id': p.id, 'urgency': 'info',
+                })
+
+        # ── Feasibility expired ──────────────────────────────────────────
+        cutoff = today - timedelta(days=FEASIBILITY_EXPIRY_DAYS)
+        feas_docs = Document.query.filter(
+            Document.doc_type == 'Feasibility Receipt',
+            Document.status.in_(['Received', 'Sent', 'Completed']),
+            Document.received_date.isnot(None),
+            Document.received_date <= cutoff,
+        ).all()
+        for d in feas_docs:
+            p = Project.query.get(d.project_id)
+            if not p or p.doc_staff_id != user.id or p.work_category == 'Outside':
+                continue
+            if p.status in ('Cancelled', 'OnHold', 'Completed', 'Closed'):
+                continue
+            op = p.onsite_progress
+            if op and op.structure_work_status != 'NotStarted':
+                continue
             tasks.append({
-                'key': f'missing_details_{p.id}', 'type': 'missing_details',
-                'label': 'Details pending',
-                'title': f'{p.project_code} — {p.customer.name}: missing {", ".join(missing)}',
-                'project_id': p.id, 'urgency': 'info',
-            })
-
-    # ── Feasibility expired (done, but next stage stalled 30+ days) ─
-    cutoff = today - timedelta(days=FEASIBILITY_EXPIRY_DAYS)
-    feas_docs = Document.query.filter(
-        Document.doc_type == 'Feasibility Receipt',
-        Document.status.in_(['Received', 'Sent', 'Completed']),
-        Document.received_date.isnot(None),
-        Document.received_date <= cutoff,
-    ).all()
-    for d in feas_docs:
-        p = Project.query.get(d.project_id)
-        if not p or p.doc_staff_id != user.id or p.work_category == 'Outside':
-            continue
-        if p.status in ('Cancelled', 'OnHold', 'Completed', 'Closed'):
-            continue
-        op = p.onsite_progress
-        if op and op.structure_work_status != 'NotStarted':
-            continue
-        tasks.append({
-            'key': f'feas_expired_{p.id}', 'type': 'feasibility_expired',
-            'label': 'Feasibility expired', 'title': f'{p.project_code} — {p.customer.name}',
-            'project_id': p.id, 'urgency': 'danger',
-        })
-
-    # ── First payment delayed ────────────────────────────────────────
-    cutoff = today - timedelta(days=PAYMENT_DELAY_DAYS)
-    bank_file_docs = Document.query.filter(
-        Document.doc_type == 'Bank File',
-        Document.status.in_(['Received', 'Sent', 'Completed']),
-        Document.received_date.isnot(None),
-        Document.received_date <= cutoff,
-    ).all()
-    for d in bank_file_docs:
-        p = Project.query.get(d.project_id)
-        if not p or p.doc_staff_id != user.id or p.work_category == 'Outside':
-            continue
-        if p.project_type != 'Loan' or p.status in ('Cancelled', 'OnHold'):
-            continue
-        has_first = any(pay.payment_source == 'Bank' and pay.instalment == 'First' for pay in p.payments)
-        if not has_first:
-            tasks.append({
-                'key': f'pay1_delayed_{p.id}', 'type': 'payment_delayed',
-                'label': 'First payment delayed', 'title': f'{p.project_code} — {p.customer.name}',
+                'key': f'feas_expired_{p.id}', 'type': 'feasibility_expired',
+                'label': 'Feasibility expired', 'title': f'{p.project_code} — {p.customer.name}',
                 'project_id': p.id, 'urgency': 'danger',
             })
 
-    # ── Second payment delayed ───────────────────────────────────────
-    # Flagged if installation was marked complete 2+ weeks ago and the
-    # second bank instalment still hasn't been recorded.
-    # Skipped entirely if the first payment alone was a ~₹2,00,000 single-shot
-    # loan disbursement — no second instalment is ever expected for these.
-    loan_projects = Project.query.filter(
-        Project.project_type == 'Loan',
-        Project.status.notin_(['Cancelled', 'OnHold']),
+        # ── First payment delayed ────────────────────────────────────────
+        cutoff = today - timedelta(days=PAYMENT_DELAY_DAYS)
+        bank_file_docs = Document.query.filter(
+            Document.doc_type == 'Bank File',
+            Document.status.in_(['Received', 'Sent', 'Completed']),
+            Document.received_date.isnot(None),
+            Document.received_date <= cutoff,
+        ).all()
+        for d in bank_file_docs:
+            p = Project.query.get(d.project_id)
+            if not p or p.doc_staff_id != user.id or p.work_category == 'Outside':
+                continue
+            if p.project_type != 'Loan' or p.status in ('Cancelled', 'OnHold'):
+                continue
+            has_first = any(pay.payment_source == 'Bank' and pay.instalment == 'First' for pay in p.payments)
+            if not has_first:
+                tasks.append({
+                    'key': f'pay1_delayed_{p.id}', 'type': 'payment_delayed',
+                    'label': 'First payment delayed', 'title': f'{p.project_code} — {p.customer.name}',
+                    'project_id': p.id, 'urgency': 'danger',
+                })
+
+        # ── Second payment delayed ───────────────────────────────────────
+        loan_projects = Project.query.filter(
+            Project.project_type == 'Loan',
+            Project.status.notin_(['Cancelled', 'OnHold']),
+            Project.doc_staff_id == user.id,
+            Project.work_category != 'Outside',
+        ).all()
+        for p in loan_projects:
+            first_pay = next((pay for pay in p.payments
+                               if pay.payment_source == 'Bank' and pay.instalment == 'First'), None)
+            has_second = any(pay.payment_source == 'Bank' and pay.instalment == 'Second' for pay in p.payments)
+
+            if not first_pay or has_second:
+                continue
+            if float(first_pay.amount) >= LOAN_SINGLE_DISBURSEMENT_AMOUNT:
+                continue
+
+            op = p.onsite_progress
+            installation_delayed = bool(
+                op and op.installation_status == 'Completed' and op.installation_end_date
+                and (today - op.installation_end_date).days > PAYMENT_DELAY_DAYS
+            )
+
+            if installation_delayed:
+                tasks.append({
+                    'key': f'pay2_delayed_{p.id}', 'type': 'payment_delayed',
+                    'label': 'Second payment delayed', 'title': f'{p.project_code} — {p.customer.name}',
+                    'project_id': p.id, 'urgency': 'danger',
+                })
+
+    # ── Installation completed but MNRE not yet marked done ─────────────
+    # Documents staff get a specific "MNRE pending" reminder; office staff
+    # (who can also carry doc_staff assignments) get a generic
+    # "All documents pending" nudge instead.
+    installed_q = Project.query.options(
+        joinedload(Project.customer),
+        joinedload(Project.documents),
+        joinedload(Project.onsite_progress),
+    ).filter(
         Project.doc_staff_id == user.id,
         Project.work_category != 'Outside',
-    ).all()
-    for p in loan_projects:
-        first_pay = next((pay for pay in p.payments
-                           if pay.payment_source == 'Bank' and pay.instalment == 'First'), None)
-        has_second = any(pay.payment_source == 'Bank' and pay.instalment == 'Second' for pay in p.payments)
-
-        if not first_pay or has_second:
-            continue
-        if float(first_pay.amount) >= LOAN_SINGLE_DISBURSEMENT_AMOUNT:
-            continue
-
+        Project.status.notin_(['Cancelled', 'OnHold']),
+    )
+    for p in installed_q.all():
         op = p.onsite_progress
-        installation_delayed = bool(
-            op and op.installation_status == 'Completed' and op.installation_end_date
-            and (today - op.installation_end_date).days > PAYMENT_DELAY_DAYS
-        )
+        if not (op and op.installation_status == 'Completed'):
+            continue
+        doc_map = {d.doc_type: d for d in p.documents}
+        mnre_doc = doc_map.get('MNRE')
+        mnre_done = bool(mnre_doc and mnre_doc.status in ('Received', 'Sent', 'Completed'))
+        if mnre_done:
+            continue
 
-        if installation_delayed:
+        if user.role in DOC_STAFF_ROLES:
             tasks.append({
-                'key': f'pay2_delayed_{p.id}', 'type': 'payment_delayed',
-                'label': 'Second payment delayed', 'title': f'{p.project_code} — {p.customer.name}',
+                'key': f'mnre_pending_{p.id}', 'type': 'mnre_pending',
+                'label': 'MNRE pending',
+                'title': f'{p.project_code} — {p.customer.name}: Installation completed, MNRE not submitted',
+                'project_id': p.id, 'urgency': 'danger',
+            })
+        else:  # office
+            tasks.append({
+                'key': f'docs_pending_{p.id}', 'type': 'documents_pending',
+                'label': 'All documents pending',
+                'title': f'{p.project_code} — {p.customer.name}: Installation completed, documents not finalized',
                 'project_id': p.id, 'urgency': 'danger',
             })
 
