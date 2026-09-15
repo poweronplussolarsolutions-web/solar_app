@@ -8590,7 +8590,7 @@ from sqlalchemy.orm import selectinload, joinedload
 
 def _get_all_works_projects(project_type_filter, work_category_filter='All', status_filter='All',
                              month=None, year=None, amount_filter='All', search='',
-                             payment_stage_filter='All'):
+                             payment_stage_filter='All', coordinator_filter='All'):
     q = (Project.query
          .join(Customer)
          .options(
@@ -8644,14 +8644,30 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
     elif payment_stage_filter == 'SecondPending':
         projects = [p for p in projects if p.next_bank_instalment == 'Second']
 
+    # Coordinator can be either a linked User (coordinator_id) or a free-text
+    # name (coordinator_name) — same display logic used everywhere else.
+    if coordinator_filter and coordinator_filter != 'All':
+        projects = [
+            p for p in projects
+            if (p.coordinator.full_name if p.coordinator else p.coordinator_name) == coordinator_filter
+        ]
+
     return projects
 @app.route('/admin/all_works')
 @login_required
 @roles_required('admin', 'director', 'payments', 'office')
 def all_works_report():
     today = date.today()
+    coordinators = User.query.filter(
+        User.role.in_(['coordinator', 'director']),
+        User.is_active == True
+    ).order_by(User.full_name).all()
+    coordinator_names = sorted(
+        {c.full_name for c in coordinators} | set(_get_other_coord_names())
+    )
     return render_template('all_works_report.html',
-        current_year=today.year, current_month=today.month)
+        current_year=today.year, current_month=today.month,
+        coordinator_names=coordinator_names)
 
 @app.route('/admin/all_works/preview_data')
 @login_required
@@ -8662,12 +8678,13 @@ def all_works_preview_data():
     status_filter          = request.args.get('status', 'All')
     amount_filter           = request.args.get('amount_filter', 'All')
     payment_stage_filter    = request.args.get('payment_stage', 'All')
+    coordinator_filter      = _clean(request.args.get('coordinator', 'All'), 120) or 'All'
     search                  = _clean(request.args.get('q', ''), 100)
     month = request.args.get('month', type=int)
     year  = request.args.get('year', type=int)
     projects = _get_all_works_projects(project_type_filter, work_category_filter,
                                         status_filter, month, year, amount_filter, search,
-                                        payment_stage_filter)
+                                        payment_stage_filter, coordinator_filter)
 
     total_val = sum(float(p.total_amount or 0) for p in projects)
     collected = sum(float(p.collected_amount or 0) for p in projects)
@@ -8733,12 +8750,13 @@ def all_works_download():
     status_filter           = request.args.get('status', 'All')
     amount_filter            = request.args.get('amount_filter', 'All')
     payment_stage_filter     = request.args.get('payment_stage', 'All')
+    coordinator_filter       = _clean(request.args.get('coordinator', 'All'), 120) or 'All'
     search                    = _clean(request.args.get('q', ''), 100)
     month = request.args.get('month', type=int)
     year  = request.args.get('year', type=int)
     projects = _get_all_works_projects(project_type_filter, work_category_filter,
                                         status_filter, month, year, amount_filter, search,
-                                        payment_stage_filter)
+                                        payment_stage_filter, coordinator_filter)
 
     effective_type_filter = 'Loan' if payment_stage_filter in ('FirstPending', 'SecondPending') else project_type_filter
     path = build_allworks_full_report(projects, effective_type_filter, work_category_filter,
@@ -8759,6 +8777,8 @@ def all_works_download():
         parts.append('ZeroAmount')
     elif amount_filter == 'NonZero':
         parts.append('NonZeroAmount')
+    if coordinator_filter != 'All':
+        parts.append(re.sub(r'[^A-Za-z0-9]+', '', coordinator_filter))
     if month and year:
         parts.append(f'{calendar.month_abbr[month]}{year}')
     if search:

@@ -117,6 +117,15 @@
         <option value="Outside">Outside only</option>
       </select>
     </div>
+        <div class="aw-filter-group">
+      <label>Coordinator</label>
+      <select id="coordinatorFilter" onchange="loadData()">
+        <option value="All">All coordinators</option>
+        {% for name in coordinator_names %}
+        <option value="{{ name }}">{{ name }}</option>
+        {% endfor %}
+      </select>
+    </div>
     <div class="aw-filter-group">
       <label>Project Status</label>
       <select id="statusFilter" onchange="loadData()">
@@ -248,6 +257,7 @@ function currentFilters() {
     status:         document.getElementById('statusFilter').value,
     amount_filter:  document.getElementById('amountFilter').value,
     payment_stage:  document.getElementById('paymentStageFilter').value,
+    coordinator:    document.getElementById('coordinatorFilter').value,
   };
   const month = document.getElementById('monthFilter').value;
   if (month) {
@@ -272,12 +282,12 @@ function resetFilters() {
   document.getElementById('statusFilter').value = 'All';
   document.getElementById('amountFilter').value = 'All';
   document.getElementById('paymentStageFilter').value = 'All';
+  document.getElementById('coordinatorFilter').value = 'All';
   document.getElementById('monthFilter').value = '';
   document.getElementById('yearFilter').disabled = true;
   document.getElementById('searchFilter').value = '';
   loadData();
 }
-
 function clearSearch() {
   document.getElementById('searchFilter').value = '';
   loadData();
@@ -306,6 +316,12 @@ function renderChips(filters) {
       continue;
     }
     if (key === 'year' || key === 'q') continue;
+    if (key === 'coordinator') {
+      if (val && val !== 'All') {
+        html += `<span class="aw-chip">Coordinator: ${val}</span>`;
+      }
+      continue;
+    }
     if (val !== 'All' && labels[key] && labels[key][val]) {
       html += `<span class="aw-chip">${labels[key][val]}</span>`;
     }
