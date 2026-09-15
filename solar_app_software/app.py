@@ -4870,7 +4870,7 @@ def service_management():
         'overdue':   sum(1 for r in all_records if r.status == 'Overdue'),
         'due':       sum(1 for r in all_records if r.status == 'Due'),
         'completed': sum(1 for r in all_records if r.status == 'Completed'),
-        'upcoming':  sum(1 for r in all_records if r.status == 'Upcoming'),
+        'upcoming':  sum(1 for pd in proj_data if pd['next'] and pd['next'].status == 'Upcoming'),
         'skipped':   sum(1 for r in all_records if r.status == 'Skipped'),
     }
 
@@ -6450,7 +6450,7 @@ def project_service(pid):
         'overdue':   over,
         'due':       due,
         'completed': done,
-        'upcoming':  sum(1 for r in records if r.status == 'Upcoming'),
+        'upcoming':  1 if next_v and next_v.status == 'Upcoming' else 0,
         'skipped':   skipped,
     }
 
