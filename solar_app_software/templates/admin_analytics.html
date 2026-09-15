@@ -156,9 +156,9 @@
             <div class="n">{{ r.live_active }}</div>
             <div class="l">live active</div>
           </div>
-          <div class="rank-figure">
-            <div class="n" style="color:var(--green-600)">{{ r.completed_m }}</div>
-            <div class="l">completed</div>
+                    <div class="rank-figure">
+            <div class="n" style="color:var(--green-600)">{{ r.closed_m }}</div>
+            <div class="l">closed</div>
           </div>
           <div class="rank-figure">
             <div class="n" style="color:{% if r.delayed > 0 %}var(--red-600){% else %}var(--hint){% endif %}">{{ r.delayed }}</div>
@@ -231,87 +231,6 @@
   </div>
 </div>
 
-<!-- {# ── ONSITE WORK ANALYTICS ── #}
-<div class="section">
-  <div class="section-head">
-    <div>
-      <div class="section-title">Onsite work</div>
-      <div class="section-sub">Structure, installation and electrical progress across all active on-site projects</div>
-    </div>
-  </div>
-
-  <div class="kpi-mini-row">
-    <div class="stat-card">
-      <div class="stat-label">Onsite right now</div>
-      <div class="stat-value">{{ onsite_stats.projects_onsite_now }}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Avg. structure days</div>
-      <div class="stat-value">{{ onsite_stats.avg_days.structure }}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Avg. installation days</div>
-      <div class="stat-value">{{ onsite_stats.avg_days.installation }}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Avg. electrical days</div>
-      <div class="stat-value">{{ onsite_stats.avg_days.electrical }}</div>
-    </div>
-  </div>
-
-  <div class="chart-grid-3" style="margin-bottom:16px">
-    <div class="card">
-      <div class="chart-label">Structure work</div>
-      <canvas id="structChart" height="200"></canvas>
-    </div>
-    <div class="card">
-      <div class="chart-label">Installation</div>
-      <canvas id="installChart" height="200"></canvas>
-    </div>
-    <div class="card">
-      <div class="chart-label">Electrical</div>
-      <canvas id="elecChart" height="200"></canvas>
-    </div>
-  </div>
-
-  <div class="chart-grid-2" style="margin-bottom:16px">
-    <div class="card">
-      <div class="chart-label">Avg. days stuck in stage (active projects)</div>
-      {% if avg_stage %}
-      <canvas id="stageDurationChart" height="220"></canvas>
-      {% else %}
-      <div class="empty-note">No active projects to measure yet.</div>
-      {% endif %}
-    </div>
-    <div class="card">
-      <div class="chart-label">Material dispatch status</div>
-      <canvas id="materialsChart" height="220"></canvas>
-    </div>
-  </div> -->
-
-  <!-- <div class="card">
-    <div class="chart-label" style="margin-bottom:14px">Worker utilization (top 10, by days worked)</div>
-    {% if worker_stats %}
-    <table class="perf-table">
-      <thead>
-        <tr><th>Worker</th><th>Days worked</th><th>Total earned</th><th>Active assignments</th></tr>
-      </thead>
-      <tbody>
-        {% for w in worker_stats %}
-        <tr>
-          <td data-label="Worker" style="font-weight:500">{{ w.name }}</td>
-          <td data-label="Days worked">{{ w.days }}</td>
-          <td data-label="Earned">{{ w.earned | inr }}</td>
-          <td data-label="Active now" style="color:{% if w.active_now > 0 %}var(--blue-600){% else %}var(--hint){% endif %}">{{ w.active_now }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <div class="empty-note">No worker activity recorded yet.</div>
-    {% endif %}
-  </div> -->
-<!-- </div> -->
 
 {# ── TRENDS ── #}
 <div class="section">
@@ -393,7 +312,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (cd.coord_names && cd.coord_names.length > 0) {
     barChart('coordLiveChart', cd.coord_names, [
       { label: 'Live active', data: cd.coord_live, backgroundColor: '#b5d4f4', borderRadius: 4 },
-      { label: 'Completed this month', data: cd.coord_completed_m, backgroundColor: '#9fe1cb', borderRadius: 4 },
+      { label: 'Closed this month', data: cd.coord_closed_m, backgroundColor: '#9fe1cb', borderRadius: 4 },
     ]);
   } else {
     document.getElementById('coordLiveChart').closest('.card').innerHTML =
@@ -409,40 +328,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('docActivityChart').closest('.card').innerHTML =
       '<div class="chart-label">Updates logged in the last 30 days</div><div class="empty-note">No data yet.</div>';
   }
-
-  // ── Onsite phase doughnuts ──────────────────────────────────────────────
-  var phaseColors = ['#e4e2da', '#b5d4f4', '#9fe1cb'];  // NotStarted / InProgress / Completed
-  function phaseDoughnut(id, labels, counts) {
-    new Chart(document.getElementById(id), {
-      type: 'doughnut',
-      data: { labels: labels, datasets: [{ data: counts, backgroundColor: phaseColors, borderWidth: 0 }] },
-      options: { responsive: true, cutout: '65%', plugins: { legend: { position: 'bottom' } } }
-    });
-  }
-  phaseDoughnut('structChart', cd.struct_labels, cd.struct_counts);
-  phaseDoughnut('installChart', cd.install_labels, cd.install_counts);
-  phaseDoughnut('elecChart', cd.elec_labels, cd.elec_counts);
-
-  // ── Stage duration ──────────────────────────────────────────────────────
-  if (cd.avg_stage_labels && cd.avg_stage_labels.length > 0) {
-    barChart('stageDurationChart', cd.avg_stage_labels, [
-      { label: 'Avg days in stage', data: cd.avg_stage_days, backgroundColor: '#cecbf6', borderRadius: 4 }
-    ], { override: { plugins: { legend: { display: false } },
-         scales: { x: { grid: { color: borderColor } },
-                   y: { grid: { color: borderColor }, beginAtZero: true,
-                        title: { display: true, text: 'Days', color: textColor } } } } });
-  }
-
-  // ── Materials ────────────────────────────────────────────────────────────
-  new Chart(document.getElementById('materialsChart'), {
-    type: 'doughnut',
-    data: {
-      labels: ['Delivered', 'Pending / dispatched'],
-      datasets: [{ data: [cd.materials_delivered, cd.materials_pending],
-             backgroundColor: ['#9fe1cb', '#f7c1c1'], borderWidth: 0 }]
-    },
-    options: { responsive: true, cutout: '65%', plugins: { legend: { position: 'bottom' } } }
-  });
 
   // ── Trend charts (weekly default, switchable) ───────────────────────────
   var timelineChart = barChart('timelineChart', cd.weekly_labels,

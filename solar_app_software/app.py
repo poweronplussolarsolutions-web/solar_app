@@ -6943,11 +6943,9 @@ def admin_analytics():
     coord_ranking = []
     for c in coordinators:
         mine        = [p for p in live_projs if p.coordinator_id == c.id]
-        if not mine:
-            continue
         this_month  = [p for p in mine if p.created_at.date() >= month_start]
         active_now  = [p for p in mine if p.status in ('InProgress', 'Delayed', 'Lead', 'Created')]
-        completed_m = [p for p in this_month if p.status in ('Completed', 'Closed')]
+        closed_m    = [p for p in this_month if p.status == 'Closed']
         collected_m = sum(
             float(pay.amount) for p in mine for pay in p.payments
             if pay.payment_date >= month_start
@@ -6956,12 +6954,13 @@ def admin_analytics():
             'name':        c.full_name,
             'new_month':   len(this_month),
             'live_active': len(active_now),
-            'completed_m': len(completed_m),
+            'closed_m':    len(closed_m),
             'delayed':     sum(1 for p in mine if p.status == 'Delayed'),
             'collected_m': collected_m,
             'total':       len(mine),
         })
     coord_ranking.sort(key=lambda r: (r['live_active'], r['new_month']), reverse=True)
+    coord_ranking = coord_ranking[:10]
     for i, r in enumerate(coord_ranking, 1):
         r['rank'] = i
  
@@ -7081,10 +7080,10 @@ def admin_analytics():
         'type_labels':      list(type_counts.keys()),
         'type_counts':      list(type_counts.values()),
  
-        'coord_names':       [r['name'].split()[0] for r in coord_ranking],
-        'coord_live':        [r['live_active'] for r in coord_ranking],
-        'coord_new':         [r['new_month'] for r in coord_ranking],
-        'coord_completed_m': [r['completed_m'] for r in coord_ranking],
+        'coord_names':    [r['name'].split()[0] for r in coord_ranking],
+        'coord_live':     [r['live_active'] for r in coord_ranking],
+        'coord_new':      [r['new_month'] for r in coord_ranking],
+        'coord_closed_m': [r['closed_m'] for r in coord_ranking],
  
         'doc_activity_names':   [r['name'].split()[0] for r in doc_activity],
         'doc_activity_updates': [r['updates_30d'] for r in doc_activity],
