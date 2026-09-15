@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Admin Analytics — Solar App{% endblock %}
+{% block title %}Analytics — Solar App{% endblock %}
 {% block page_title %}Analytics{% endblock %}
 {% block topbar_actions %}
   <a href="{{ url_for('dashboard') }}" class="btn btn-sm">← Dashboard</a>
@@ -13,120 +13,106 @@
     gap: 12px;
     margin-bottom: 24px;
   }
-  .chart-grid-2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    margin-bottom: 20px;
+  .section {
+    margin-bottom: 28px;
   }
-  .chart-label {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--muted);
-    margin-bottom: 12px;
-  }
-  .period-tabs {
+  .section-head {
     display: flex;
-    gap: 4px;
-    margin-bottom: 16px;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
     flex-wrap: wrap;
   }
-  .period-tab {
-    padding: 5px 14px;
+  .section-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--fg, #24231f);
+  }
+  .section-sub {
     font-size: 12px;
+    color: var(--hint);
+  }
+  .chart-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .chart-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .chart-label { font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 12px; }
+  .period-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .period-tab {
+    padding: 5px 14px; font-size: 12px; border: 0.5px solid var(--border);
+    border-radius: var(--radius); cursor: pointer; background: transparent; color: var(--muted);
+  }
+  .period-tab.active { background: var(--amber-50); border-color: var(--amber-100); color: var(--amber-800); font-weight: 500; }
+
+  /* ── Ranking lists ── */
+  .rank-list { display: flex; flex-direction: column; gap: 6px; }
+  .rank-row {
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
     border: 0.5px solid var(--border);
     border-radius: var(--radius);
-    cursor: pointer;
-    background: transparent;
-    color: var(--muted);
   }
-  .period-tab.active {
-    background: var(--amber-50);
-    border-color: var(--amber-100);
-    color: var(--amber-800);
-    font-weight: 500;
+  .rank-badge {
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: var(--hint); background: transparent;
+  }
+  .rank-row.rank-1 .rank-badge { background: var(--amber-50); color: var(--amber-800); }
+  .rank-row.rank-2 .rank-badge,
+  .rank-row.rank-3 .rank-badge { background: var(--surface-2, #f2f1ea); color: var(--muted); }
+  .rank-name { font-weight: 500; font-size: 13px; }
+  .rank-meta { font-size: 11px; color: var(--hint); margin-top: 2px; }
+  .rank-figures { display: flex; gap: 18px; align-items: center; }
+  .rank-figure { text-align: right; }
+  .rank-figure .n { font-size: 15px; font-weight: 600; line-height: 1.1; }
+  .rank-figure .l { font-size: 10px; color: var(--hint); white-space: nowrap; }
+
+  .empty-note {
+    padding: 20px; text-align: center; color: var(--hint); font-size: 13px;
+    border: 0.5px dashed var(--border); border-radius: var(--radius);
   }
 
-  /* ── Responsive ── */
+  .kpi-mini-row { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-bottom: 16px; }
+
+  .perf-table thead th { font-size: 11px; color: var(--hint); font-weight: 500; text-align: left; }
+  .perf-table td, .perf-table th { padding: 8px 10px; }
+
+  @media (max-width: 900px) {
+    .chart-grid-3 { grid-template-columns: 1fr; }
+  }
   @media (max-width: 768px) {
-    .metric-row {
-      grid-template-columns: repeat(2, 1fr);
-    }
-    .chart-grid-2,
-    .chart-grid-3 {
-      grid-template-columns: 1fr;
-    }
+    .metric-row { grid-template-columns: repeat(2, 1fr); }
+    .chart-grid-2 { grid-template-columns: 1fr; }
+    .kpi-mini-row { grid-template-columns: repeat(2, 1fr); }
   }
-
   @media (max-width: 480px) {
-    .metric-row {
-      grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
-    }
+    .metric-row { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .rank-figures { gap: 10px; }
   }
-
-  /* Coordinator & docs staff tables → card rows on mobile */
   @media (max-width: 600px) {
     .perf-table thead { display: none; }
-
-    .perf-table tbody tr {
-      display: block;
-      border: 0.5px solid var(--border);
-      border-radius: var(--radius);
-      padding: 12px;
-      margin-bottom: 10px;
-    }
-
-    .perf-table tbody td {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 4px 0;
-      border: none;
-      font-size: 13px;
-      gap: 8px;
-    }
-
+    .perf-table tbody tr { display: block; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 12px; margin-bottom: 10px; }
+    .perf-table tbody td { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border: none; font-size: 13px; gap: 8px; }
     .perf-table tbody td::before {
-      content: attr(data-label);
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--hint);
-      white-space: nowrap;
-      flex-shrink: 0;
-      min-width: 90px;
+      content: attr(data-label); font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.04em; color: var(--hint); white-space: nowrap; flex-shrink: 0; min-width: 90px;
     }
-
-    /* Progress bar cell: stack vertically */
-    .perf-table tbody td.td-progress {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-    .perf-table tbody td.td-progress::before {
-      margin-bottom: 4px;
-    }
-    .perf-table tbody td.td-progress > div {
-      width: 100%;
-    }
-    .perf-table tbody td.td-progress .progress-wrap {
-      width: 100% !important;
-    }
-
-    /* Chart header: stack label + tabs */
-    .chart-header {
-      flex-direction: column;
-      align-items: flex-start !important;
-      gap: 8px;
-    }
+    .perf-table tbody td.td-progress { flex-direction: column; align-items: flex-start; }
+    .perf-table tbody td.td-progress::before { margin-bottom: 4px; }
+    .perf-table tbody td.td-progress > div { width: 100%; }
+    .perf-table tbody td.td-progress .progress-wrap { width: 100% !important; }
+    .chart-header { flex-direction: column; align-items: flex-start !important; gap: 8px; }
+    .rank-row { grid-template-columns: 28px 1fr; }
+    .rank-figures { grid-column: 1 / -1; justify-content: flex-start; padding-top: 6px; gap: 16px; }
   }
 </style>
 {% endblock %}
 
 {% block content %}
 
-{# ── SUMMARY ── #}
+{# ── OVERVIEW ── #}
 <div class="metric-row">
   <div class="stat-card">
     <div class="stat-label">Total projects</div>
@@ -146,150 +132,230 @@
   </div>
 </div>
 
-{# ── PROJECTS OVER TIME ── #}
-<div class="card" style="margin-bottom:20px">
-  <div class="chart-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-    <div class="chart-label" style="margin:0">Projects created</div>
-    <div class="period-tabs">
-      <button class="period-tab active" data-period="weekly">Weekly</button>
-      <button class="period-tab" data-period="monthly">Monthly</button>
-      <button class="period-tab" data-period="yearly">Yearly</button>
+{# ── COORDINATOR RANKING — LIVE ── #}
+<div class="section">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Coordinator ranking</div>
+      <div class="section-sub">Live, ranked by projects currently in motion — recalculated on every visit for {{ month_label }}</div>
     </div>
   </div>
-  <canvas id="timelineChart" height="100"></canvas>
+
+  <div class="card" style="margin-bottom:16px">
+    {% if coord_ranking %}
+    <div class="rank-list">
+      {% for r in coord_ranking %}
+      <div class="rank-row {% if r.rank <= 3 %}rank-{{ r.rank }}{% endif %}">
+        <div class="rank-badge">{{ r.rank }}</div>
+        <div>
+          <div class="rank-name">{{ r.name }}</div>
+          <div class="rank-meta">{{ r.new_month }} new this month · {{ r.total }} total on record</div>
+        </div>
+        <div class="rank-figures">
+          <div class="rank-figure">
+            <div class="n">{{ r.live_active }}</div>
+            <div class="l">live active</div>
+          </div>
+          <div class="rank-figure">
+            <div class="n" style="color:var(--green-600)">{{ r.completed_m }}</div>
+            <div class="l">completed</div>
+          </div>
+          <div class="rank-figure">
+            <div class="n" style="color:{% if r.delayed > 0 %}var(--red-600){% else %}var(--hint){% endif %}">{{ r.delayed }}</div>
+            <div class="l">delayed</div>
+          </div>
+          <div class="rank-figure" style="min-width:80px">
+            <div class="n">{{ r.collected_m | inr }}</div>
+            <div class="l">collected · {{ month_label.split(' ')[0] }}</div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-note">No coordinator has an active project yet.</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="chart-label">Live active projects by coordinator</div>
+    <canvas id="coordLiveChart" height="90"></canvas>
+  </div>
 </div>
 
-{# ── PAYMENTS OVER TIME ── #}
-<div class="card" style="margin-bottom:20px">
-  <div class="chart-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-    <div class="chart-label" style="margin:0">Payment amounts collected (₹)</div>
-    <div class="period-tabs">
-      <button class="period-tab active" data-period="weekly" data-chart="payments">Weekly</button>
-      <button class="period-tab" data-period="monthly" data-chart="payments">Monthly</button>
-      <button class="period-tab" data-period="yearly" data-chart="payments">Yearly</button>
+{# ── DOCUMENTS STAFF ACTIVITY RANKING ── #}
+<div class="section">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Documents staff activity</div>
+      <div class="section-sub">Ranked by how often each person has logged an update on their projects in the last 30 days</div>
     </div>
   </div>
-  <canvas id="paymentsChart" height="100"></canvas>
-</div>
 
-{# ── BREAKDOWN CHARTS ── #}
-<div class="chart-grid-2" style="margin-bottom:20px">
-  <div class="card">
-    <div class="chart-label">Project status breakdown</div>
-    <canvas id="statusChart" height="260"></canvas>
-  </div>
-  <div class="card">
-    <div class="chart-label">Loan vs cash projects</div>
-    <canvas id="typeChart" height="260"></canvas>
-  </div>
-</div>
-
-{# ── COORDINATOR PERFORMANCE ── #}
-<div class="card" style="margin-bottom:20px">
-  <div class="chart-label">Projects by coordinator</div>
-  <canvas id="coordChart" height="100"></canvas>
-</div>
-
-{# ── COORDINATOR TABLE ── #}
-<div class="card" style="margin-bottom:20px">
-  <div class="chart-label" style="margin-bottom:14px">Coordinator performance summary</div>
-  <table class="perf-table">
-    <thead>
-      <tr>
-        <th>Coordinator</th>
-        <th>Total</th>
-        <th>Completed</th>
-        <th>Delayed</th>
-        <th>Completion rate</th>
-        <th>Collected</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for c in coord_stats %}
-      <tr>
-        <td data-label="Coordinator" style="font-weight:500">{{ c.name }}</td>
-        <td data-label="Total">{{ c.total }}</td>
-        <td data-label="Completed" style="color:var(--green-600)">{{ c.completed }}</td>
-        <td data-label="Delayed"
-            style="color:{% if c.delayed > 0 %}var(--red-600){% else %}var(--hint){% endif %}">
-          {{ c.delayed }}
-        </td>
-        <td data-label="Rate" class="td-progress">
-          <div style="display:flex;align-items:center;gap:8px">
-            <div class="progress-wrap" style="width:80px">
-              <div class="progress-bar"
-                   style="width:{{ (c.completed / c.total * 100) | int if c.total > 0 else 0 }}%">
+  <div class="card" style="margin-bottom:16px">
+    {% if doc_activity %}
+    <div class="rank-list">
+      {% for r in doc_activity %}
+      <div class="rank-row {% if r.rank <= 3 %}rank-{{ r.rank }}{% endif %}">
+        <div class="rank-badge">{{ r.rank }}</div>
+        <div>
+          <div class="rank-name">{{ r.name }}</div>
+          <div class="rank-meta">{{ r.active_docs }} project(s) assigned · {{ r.per_project }} update(s) per project</div>
+        </div>
+        <div class="rank-figures">
+          <div class="rank-figure">
+            <div class="n">{{ r.updates_30d }}</div>
+            <div class="l">updates · 30d</div>
+          </div>
+          <div class="rank-figure" style="min-width:120px">
+            <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end">
+              <div class="progress-wrap" style="width:70px">
+                <div class="progress-bar" style="width:{{ r.doc_pct }}%"></div>
               </div>
+              <span style="font-size:12px">{{ r.doc_pct }}%</span>
             </div>
-            <span style="font-size:12px">
-              {{ (c.completed / c.total * 100) | int if c.total > 0 else 0 }}%
-            </span>
+            <div class="l" style="text-align:right">docs completed</div>
           </div>
-        </td>
-        <td data-label="Collected">{{ c.collected | inr }}</td>
-      </tr>
+        </div>
+      </div>
       {% endfor %}
-      {% if not coord_stats %}
-      <tr>
-        <td colspan="6" style="text-align:center;color:var(--hint);padding:24px">
-          No coordinators found.
-        </td>
-      </tr>
-      {% endif %}
-    </tbody>
-  </table>
+    </div>
+    {% else %}
+    <div class="empty-note">No documents-staff activity logged in the last 30 days.</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="chart-label">Updates logged in the last 30 days</div>
+    <canvas id="docActivityChart" height="90"></canvas>
+  </div>
 </div>
 
-{# ── DOCS STAFF CHART ── #}
-<div class="card" style="margin-bottom:20px">
-  <div class="chart-label">Projects by docs staff</div>
-  <canvas id="docStaffChart" height="100"></canvas>
+{# ── ONSITE WORK ANALYTICS ── #}
+<div class="section">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Onsite work</div>
+      <div class="section-sub">Structure, installation and electrical progress across all active on-site projects</div>
+    </div>
+  </div>
+
+  <div class="kpi-mini-row">
+    <div class="stat-card">
+      <div class="stat-label">Onsite right now</div>
+      <div class="stat-value">{{ onsite_stats.projects_onsite_now }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg. structure days</div>
+      <div class="stat-value">{{ onsite_stats.avg_days.structure }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg. installation days</div>
+      <div class="stat-value">{{ onsite_stats.avg_days.installation }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg. electrical days</div>
+      <div class="stat-value">{{ onsite_stats.avg_days.electrical }}</div>
+    </div>
+  </div>
+
+  <div class="chart-grid-3" style="margin-bottom:16px">
+    <div class="card">
+      <div class="chart-label">Structure work</div>
+      <canvas id="structChart" height="200"></canvas>
+    </div>
+    <div class="card">
+      <div class="chart-label">Installation</div>
+      <canvas id="installChart" height="200"></canvas>
+    </div>
+    <div class="card">
+      <div class="chart-label">Electrical</div>
+      <canvas id="elecChart" height="200"></canvas>
+    </div>
+  </div>
+
+  <div class="chart-grid-2" style="margin-bottom:16px">
+    <div class="card">
+      <div class="chart-label">Avg. days stuck in stage (active projects)</div>
+      {% if avg_stage %}
+      <canvas id="stageDurationChart" height="220"></canvas>
+      {% else %}
+      <div class="empty-note">No active projects to measure yet.</div>
+      {% endif %}
+    </div>
+    <div class="card">
+      <div class="chart-label">Material dispatch status</div>
+      <canvas id="materialsChart" height="220"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="chart-label" style="margin-bottom:14px">Worker utilization (top 10, by days worked)</div>
+    {% if worker_stats %}
+    <table class="perf-table">
+      <thead>
+        <tr><th>Worker</th><th>Days worked</th><th>Total earned</th><th>Active assignments</th></tr>
+      </thead>
+      <tbody>
+        {% for w in worker_stats %}
+        <tr>
+          <td data-label="Worker" style="font-weight:500">{{ w.name }}</td>
+          <td data-label="Days worked">{{ w.days }}</td>
+          <td data-label="Earned">{{ w.earned | inr }}</td>
+          <td data-label="Active now" style="color:{% if w.active_now > 0 %}var(--blue-600){% else %}var(--hint){% endif %}">{{ w.active_now }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-note">No worker activity recorded yet.</div>
+    {% endif %}
+  </div>
 </div>
 
-{# ── DOCS STAFF TABLE ── #}
-<div class="card">
-  <div class="chart-label" style="margin-bottom:14px">Docs staff performance summary</div>
-  <table class="perf-table">
-    <thead>
-      <tr>
-        <th>Staff</th>
-        <th>Assigned</th>
-        <th>Completed</th>
-        <th>In progress</th>
-        <th>Not started</th>
-        <th>Completion rate</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for s in doc_staff_stats %}
-      <tr>
-        <td data-label="Staff" style="font-weight:500">{{ s.name }}</td>
-        <td data-label="Assigned">{{ s.assigned }}</td>
-        <td data-label="Completed" style="color:var(--green-600)">{{ s.completed }}</td>
-        <td data-label="In progress" style="color:var(--blue-600)">{{ s.inprog }}</td>
-        <td data-label="Not started"
-            style="color:{% if s.not_started > 0 %}var(--red-600){% else %}var(--hint){% endif %}">
-          {{ s.not_started }}
-        </td>
-        <td data-label="Rate" class="td-progress">
-          <div style="display:flex;align-items:center;gap:8px">
-            <div class="progress-wrap" style="width:80px">
-              <div class="progress-bar" style="width:{{ s.doc_pct }}%"></div>
-            </div>
-            <span style="font-size:12px">{{ s.doc_pct }}%</span>
-          </div>
-        </td>
-      </tr>
-      {% endfor %}
-      {% if not doc_staff_stats %}
-      <tr>
-        <td colspan="6" style="text-align:center;color:var(--hint);padding:24px">
-          No docs staff found.
-        </td>
-      </tr>
-      {% endif %}
-    </tbody>
-  </table>
+{# ── TRENDS ── #}
+<div class="section">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Trends</div>
+      <div class="section-sub">Projects created and payments collected over time</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div class="chart-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div class="chart-label" style="margin:0">Projects created</div>
+      <div class="period-tabs">
+        <button class="period-tab active" data-period="weekly">Weekly</button>
+        <button class="period-tab" data-period="monthly">Monthly</button>
+        <button class="period-tab" data-period="yearly">Yearly</button>
+      </div>
+    </div>
+    <canvas id="timelineChart" height="100"></canvas>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div class="chart-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div class="chart-label" style="margin:0">Payment amounts collected (₹)</div>
+      <div class="period-tabs">
+        <button class="period-tab active" data-period="weekly" data-chart="payments">Weekly</button>
+        <button class="period-tab" data-period="monthly" data-chart="payments">Monthly</button>
+        <button class="period-tab" data-period="yearly" data-chart="payments">Yearly</button>
+      </div>
+    </div>
+    <canvas id="paymentsChart" height="100"></canvas>
+  </div>
+
+  <div class="chart-grid-2">
+    <div class="card">
+      <div class="chart-label">Project status breakdown</div>
+      <canvas id="statusChart" height="260"></canvas>
+    </div>
+    <div class="card">
+      <div class="chart-label">Loan vs cash projects</div>
+      <canvas id="typeChart" height="260"></canvas>
+    </div>
+  </div>
 </div>
 
 <div id="chart-data" data-json='{{ chart_data | tojson }}' style="display:none"></div>
@@ -307,41 +373,96 @@ document.addEventListener('DOMContentLoaded', function() {
   Chart.defaults.font.size   = 12;
   Chart.defaults.color       = textColor;
 
-  var timelineChart = new Chart(document.getElementById('timelineChart'), {
-    type: 'bar',
+  function barChart(id, labels, datasets, opts) {
+    opts = opts || {};
+    return new Chart(document.getElementById(id), {
+      type: 'bar',
+      data: { labels: labels, datasets: datasets },
+      options: Object.assign({
+        responsive: true,
+        plugins: { legend: { display: datasets.length > 1, position: 'bottom' } },
+        scales: {
+          x: { grid: { color: borderColor }, stacked: !!opts.stacked },
+          y: { grid: { color: borderColor }, beginAtZero: true, stacked: !!opts.stacked, ticks: { stepSize: 1 } }
+        }
+      }, opts.override || {})
+    });
+  }
+
+  // ── Coordinator live-ranking chart ──────────────────────────────────────
+  if (cd.coord_names && cd.coord_names.length > 0) {
+    barChart('coordLiveChart', cd.coord_names, [
+      { label: 'Live active', data: cd.coord_live, backgroundColor: '#b5d4f4', borderRadius: 4 },
+      { label: 'Completed this month', data: cd.coord_completed_m, backgroundColor: '#9fe1cb', borderRadius: 4 },
+    ]);
+  } else {
+    document.getElementById('coordLiveChart').closest('.card').innerHTML =
+      '<div class="chart-label">Live active projects by coordinator</div><div class="empty-note">No data yet.</div>';
+  }
+
+  // ── Documents activity chart ────────────────────────────────────────────
+  if (cd.doc_activity_names && cd.doc_activity_names.length > 0) {
+    barChart('docActivityChart', cd.doc_activity_names, [
+      { label: 'Updates (30d)', data: cd.doc_activity_updates, backgroundColor: '#fac775', borderRadius: 4 },
+    ]);
+  } else {
+    document.getElementById('docActivityChart').closest('.card').innerHTML =
+      '<div class="chart-label">Updates logged in the last 30 days</div><div class="empty-note">No data yet.</div>';
+  }
+
+  // ── Onsite phase doughnuts ──────────────────────────────────────────────
+  var phaseColors = ['#e4e2da', '#b5d4f4', '#9fe1cb'];  // NotStarted / InProgress / Completed
+  function phaseDoughnut(id, labels, counts) {
+    new Chart(document.getElementById(id), {
+      type: 'doughnut',
+      data: { labels: labels, datasets: [{ data: counts, backgroundColor: phaseColors, borderWidth: 0 }] },
+      options: { responsive: true, cutout: '65%', plugins: { legend: { position: 'bottom' } } }
+    });
+  }
+  phaseDoughnut('structChart', cd.struct_labels, cd.struct_counts);
+  phaseDoughnut('installChart', cd.install_labels, cd.install_counts);
+  phaseDoughnut('elecChart', cd.elec_labels, cd.elec_counts);
+
+  // ── Stage duration ──────────────────────────────────────────────────────
+  if (cd.avg_stage_labels && cd.avg_stage_labels.length > 0) {
+    barChart('stageDurationChart', cd.avg_stage_labels, [
+      { label: 'Avg days in stage', data: cd.avg_stage_days, backgroundColor: '#cecbf6', borderRadius: 4 }
+    ], { override: { plugins: { legend: { display: false } },
+         scales: { x: { grid: { color: borderColor } },
+                   y: { grid: { color: borderColor }, beginAtZero: true,
+                        title: { display: true, text: 'Days', color: textColor } } } } });
+  }
+
+  // ── Materials ────────────────────────────────────────────────────────────
+  new Chart(document.getElementById('materialsChart'), {
+    type: 'doughnut',
     data: {
-      labels: cd.weekly_labels,
-      datasets: [{ label: 'Projects created', data: cd.weekly_projects,
-                   backgroundColor: '#b5d4f4', borderRadius: 4, yAxisID: 'y' }]
+      labels: ['Delivered', 'Pending / dispatched'],
+      datasets: [{ data: [cd.materials_delivered, cd.materials_pending],
+             backgroundColor: ['#9fe1cb', '#f7c1c1'], borderWidth: 0 }]
     },
-    options: {
-      responsive: true,
-      plugins: { legend: { position: 'bottom' } },
-      scales: {
-        x: { grid: { color: borderColor } },
-        y: { grid: { color: borderColor }, ticks: { stepSize: 1 }, beginAtZero: true }
-      }
-    }
+    options: { responsive: true, cutout: '65%', plugins: { legend: { position: 'bottom' } } }
   });
+
+  // ── Trend charts (weekly default, switchable) ───────────────────────────
+  var timelineChart = barChart('timelineChart', cd.weekly_labels,
+    [{ label: 'Projects created', data: cd.weekly_projects, backgroundColor: '#b5d4f4', borderRadius: 4 }]);
 
   var paymentsChart = new Chart(document.getElementById('paymentsChart'), {
     type: 'bar',
     data: {
       labels: cd.weekly_labels,
-      datasets: [{ label: 'Amount collected (₹)', data: cd.weekly_payments,
-                   backgroundColor: '#9fe1cb', borderRadius: 4 }]
+      datasets: [{ label: 'Amount collected (₹)', data: cd.weekly_payments, backgroundColor: '#9fe1cb', borderRadius: 4 }]
     },
     options: {
       responsive: true,
       plugins: { legend: { position: 'bottom' } },
       scales: {
         x: { grid: { color: borderColor } },
-        y: {
-          grid: { color: borderColor }, beginAtZero: true,
-          ticks: { callback: function(v) {
-            return v >= 100000 ? '₹' + (v/100000).toFixed(1) + 'L' : '₹' + (v/1000).toFixed(0) + 'k';
-          }}
-        }
+        y: { grid: { color: borderColor }, beginAtZero: true,
+             ticks: { callback: function(v) {
+               return v >= 100000 ? '₹' + (v/100000).toFixed(1) + 'L' : '₹' + (v/1000).toFixed(0) + 'k';
+             }}}
       }
     }
   });
@@ -393,91 +514,6 @@ document.addEventListener('DOMContentLoaded', function() {
     },
     options: { responsive: true, cutout: '65%', plugins: { legend: { position: 'bottom' } } }
   });
-
-  new Chart(document.getElementById('coordChart'), {
-    type: 'bar',
-    data: {
-      labels: cd.coord_names,
-      datasets: [
-        { label: 'Total',     data: cd.coord_total,     backgroundColor: '#b5d4f4', borderRadius: 4 },
-        { label: 'Completed', data: cd.coord_completed, backgroundColor: '#9fe1cb', borderRadius: 4 },
-        { label: 'Delayed',   data: cd.coord_delayed,   backgroundColor: '#f7c1c1', borderRadius: 4 },
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { position: 'bottom' } },
-      scales: {
-        x: { grid: { color: borderColor } },
-        y: { grid: { color: borderColor }, ticks: { stepSize: 1 }, beginAtZero: true }
-      }
-    }
-  });
-
-  new Chart(document.getElementById('docStaffChart'), {
-    type: 'bar',
-    data: {
-      labels: cd.staff_names,
-      datasets: [
-        { label: 'Completed',   data: cd.staff_completed,   backgroundColor: '#9fe1cb', borderRadius: 4 },
-        { label: 'In progress', data: cd.staff_inprog,      backgroundColor: '#b5d4f4', borderRadius: 4 },
-        { label: 'Not started', data: cd.staff_notstarted,  backgroundColor: '#fac775', borderRadius: 4 },
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { position: 'bottom' } },
-      scales: {
-        x: { stacked: true, grid: { color: borderColor } },
-        y: { stacked: true, grid: { color: borderColor }, ticks: { stepSize: 1 }, beginAtZero: true,
-             title: { display: true, text: 'Projects', color: textColor } }
-      }
-    }
-  });
-
-  if (cd.avg_stage_labels && cd.avg_stage_labels.length > 0) {
-    new Chart(document.getElementById('stageDurationChart'), {
-      type: 'bar',
-      data: {
-        labels: cd.avg_stage_labels,
-        datasets: [{ label: 'Avg days in stage', data: cd.avg_stage_days,
-                     backgroundColor: '#cecbf6', borderRadius: 4 }]
-      },
-      options: {
-        responsive: true,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { grid: { color: borderColor } },
-          y: { grid: { color: borderColor }, beginAtZero: true,
-               title: { display: true, text: 'Days', color: textColor } }
-        }
-      }
-    });
-  }
-
-  if (cd.worker_names && cd.worker_names.length > 0) {
-    new Chart(document.getElementById('workerUtilChart'), {
-      type: 'bar',
-      data: {
-        labels: cd.worker_names,
-        datasets: [
-          { label: 'Days worked',     data: cd.worker_days,   backgroundColor: '#9fe1cb', borderRadius: 4, yAxisID: 'y' },
-          { label: 'Total earned (₹)',data: cd.worker_earned, backgroundColor: '#b5d4f4', borderRadius: 4, yAxisID: 'y2' },
-        ]
-      },
-      options: {
-        responsive: true,
-        plugins: { legend: { position: 'bottom' } },
-        scales: {
-          x: { grid: { color: borderColor } },
-          y:  { grid: { color: borderColor }, beginAtZero: true, position: 'left',
-                title: { display: true, text: 'Days', color: textColor } },
-          y2: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false },
-                ticks: { callback: function(v) { return '₹' + (v/1000).toFixed(0) + 'k'; } } }
-        }
-      }
-    });
-  }
 });
 </script>
 {% endblock %}
