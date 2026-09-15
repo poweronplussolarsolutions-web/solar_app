@@ -6500,10 +6500,10 @@ def complete_service(sid):
 
     _reschedule_future_visits(rec, rec.completed_date)
 
-    # if proj.coordinator_id:
-    #     create_notification(proj.coordinator_id, rec.project_id,
-    #         f'{proj.project_code} — {proj.customer.name}: Service visit #{rec.visit_number} '
-    #         f'completed by {current_user.full_name}.', 'info')
+    if proj.coordinator_id:
+        create_notification(proj.coordinator_id, rec.project_id,
+            f'{proj.project_code} — {proj.customer.name}: Service visit #{rec.visit_number} '
+            f'completed by {current_user.full_name}.', 'info')
 
     db.session.commit()
     flash(f'Service visit #{rec.visit_number} marked complete.', 'success')
