@@ -88,6 +88,50 @@
 .aw-status-pill {
   padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600;
 }
+.aw-multiselect-btn {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  min-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+.aw-multiselect-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+  padding: 8px;
+  z-index: 20;
+  min-width: 190px;
+}
+.aw-multiselect-menu.open { display: block; }
+.aw-multiselect-menu label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.aw-multiselect-menu label:hover { background: var(--accent-bg, #eef2ff); }
 </style>
 
 <div class="aw-filter-group" style="min-width:260px">
@@ -126,17 +170,17 @@
         {% endfor %}
       </select>
     </div>
-    <div class="aw-filter-group">
+        <div class="aw-filter-group" style="position:relative;">
       <label>Project Status</label>
-      <select id="statusFilter" onchange="loadData()">
-        <option value="All">All statuses</option>
-        <!-- <option value="Active">Active (Lead/InProgress)</option> -->
-        <option value="InProgress">In Progress</option>
-        <option value="Delayed">Delayed</option>
-        <option value="Completed">Completed / Closed</option>
-        <option value="OnHold">On Hold</option>
-        <!-- <option value="Lead">Lead</option> -->
-      </select>
+      <button type="button" id="statusFilterBtn" class="aw-multiselect-btn" onclick="toggleStatusDropdown(event)">
+        All statuses <span style="font-size:10px">▾</span>
+      </button>
+      <div id="statusFilterMenu" class="aw-multiselect-menu">
+        <label><input type="checkbox" value="InProgress" onchange="onStatusCheckboxChange()"> In Progress</label>
+        <label><input type="checkbox" value="Delayed" onchange="onStatusCheckboxChange()"> Delayed</label>
+        <label><input type="checkbox" value="Completed" onchange="onStatusCheckboxChange()"> Completed / Closed</label>
+        <label><input type="checkbox" value="OnHold" onchange="onStatusCheckboxChange()"> On Hold</label>
+      </div>
     </div>
         <div class="aw-filter-group">
       <label>Payment Stage (Loan only)</label>
@@ -250,11 +294,48 @@ function onPaymentStageChange() {
   loadData();
 }
 
+// ── Status multi-select dropdown ─────────────────────────────────────────
+function toggleStatusDropdown(e) {
+  e.stopPropagation();
+  document.getElementById('statusFilterMenu').classList.toggle('open');
+}
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('statusFilterMenu');
+  const btn  = document.getElementById('statusFilterBtn');
+  if (menu && !menu.contains(e.target) && e.target !== btn) {
+    menu.classList.remove('open');
+  }
+});
+
+const STATUS_LABELS = {
+  InProgress: 'In Progress', Delayed: 'Delayed',
+  Completed: 'Completed/Closed', OnHold: 'On Hold',
+};
+
+function getSelectedStatuses() {
+  return Array.from(document.querySelectorAll('#statusFilterMenu input[type=checkbox]:checked'))
+    .map(cb => cb.value);
+}
+
+function onStatusCheckboxChange() {
+  const selected = getSelectedStatuses();
+  const btn = document.getElementById('statusFilterBtn');
+  if (selected.length === 0) {
+    btn.innerHTML = 'All statuses <span style="font-size:10px">▾</span>';
+  } else if (selected.length === 1) {
+    btn.innerHTML = `${STATUS_LABELS[selected[0]]} <span style="font-size:10px">▾</span>`;
+  } else {
+    btn.innerHTML = `${selected.length} statuses selected <span style="font-size:10px">▾</span>`;
+  }
+  loadData();
+}
+
 function currentFilters() {
+  const statuses = getSelectedStatuses();
   const filters = {
     project_type:   document.getElementById('typeFilter').value,
     work_category:  document.getElementById('categoryFilter').value,
-    status:         document.getElementById('statusFilter').value,
+    status:         statuses.length ? statuses.join(',') : 'All',
     amount_filter:  document.getElementById('amountFilter').value,
     payment_stage:  document.getElementById('paymentStageFilter').value,
     coordinator:    document.getElementById('coordinatorFilter').value,
@@ -279,7 +360,8 @@ function resetFilters() {
   document.getElementById('typeFilter').value = 'All';
   document.getElementById('typeFilter').disabled = false;
   document.getElementById('categoryFilter').value = 'All';
-  document.getElementById('statusFilter').value = 'All';
+  document.querySelectorAll('#statusFilterMenu input[type=checkbox]').forEach(cb => cb.checked = false);
+  document.getElementById('statusFilterBtn').innerHTML = 'All statuses <span style="font-size:10px">▾</span>';
   document.getElementById('amountFilter').value = 'All';
   document.getElementById('paymentStageFilter').value = 'All';
   document.getElementById('coordinatorFilter').value = 'All';
@@ -288,6 +370,7 @@ function resetFilters() {
   document.getElementById('searchFilter').value = '';
   loadData();
 }
+
 function clearSearch() {
   document.getElementById('searchFilter').value = '';
   loadData();
@@ -302,8 +385,6 @@ function renderChips(filters) {
   const labels = {
     project_type:  { Cash: 'Cash', Loan: 'Loan' },
     work_category: { Installation: 'Installation', Outside: 'Outside' },
-    status:        { Active: 'Active', InProgress: 'In Progress', Delayed: 'Delayed',
-                      Completed: 'Completed/Closed', OnHold: 'On Hold', Lead: 'Lead' },
     amount_filter: { Zero: '₹0 Work Amount', NonZero: 'Non-zero Work Amount' },
     payment_stage: { FirstPending: 'First Payment Not Received', SecondPending: 'Second Payment Not Received' },
   };
@@ -316,6 +397,14 @@ function renderChips(filters) {
       continue;
     }
     if (key === 'year' || key === 'q') continue;
+    if (key === 'status') {
+      if (val && val !== 'All') {
+        val.split(',').forEach(s => {
+          html += `<span class="aw-chip">${STATUS_LABELS[s] || s}</span>`;
+        });
+      }
+      continue;
+    }
     if (key === 'coordinator') {
       if (val && val !== 'All') {
         html += `<span class="aw-chip">Coordinator: ${val}</span>`;

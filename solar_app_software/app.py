@@ -8604,8 +8604,6 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
          )
          .filter(Project.status != 'Cancelled'))
 
-    # Payment-stage filters only make sense for Loan projects (bank instalments) —
-    # they override the Project Type dropdown when active.
     if payment_stage_filter in ('FirstPending', 'SecondPending'):
         q = q.filter(Project.project_type == 'Loan')
     elif project_type_filter in ('Cash', 'Loan'):
@@ -8613,13 +8611,12 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
 
     if work_category_filter in ('Installation', 'Outside'):
         q = q.filter(Project.work_category == work_category_filter)
-    if status_filter != 'All':
-        if status_filter == 'Active':
-            q = q.filter(Project.status.in_(['InProgress', 'Lead', 'Created']))
-        elif status_filter == 'Completed':
-            q = q.filter(Project.status.in_(['Completed', 'Closed']))
-        else:
-            q = q.filter(Project.status == status_filter)
+
+    # ── Multi-select status filter ──────────────────────────────────────
+    status_list = _parse_status_filter(status_filter)
+    if status_list:
+        q = q.filter(Project.status.in_(status_list))
+
     if amount_filter == 'Zero':
         q = q.filter(db.or_(Project.total_amount == 0, Project.total_amount.is_(None)))
     elif amount_filter == 'NonZero':
@@ -8637,15 +8634,11 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
 
     projects = q.order_by(cast(Project.project_code, Integer).desc()).all()
 
-    # Post-filter in Python — bank_instalments/next_bank_instalment are computed
-    # from the payments relationship, not something SQL can filter on directly.
     if payment_stage_filter == 'FirstPending':
         projects = [p for p in projects if p.next_bank_instalment == 'First']
     elif payment_stage_filter == 'SecondPending':
         projects = [p for p in projects if p.next_bank_instalment == 'Second']
 
-    # Coordinator can be either a linked User (coordinator_id) or a free-text
-    # name (coordinator_name) — same display logic used everywhere else.
     if coordinator_filter and coordinator_filter != 'All':
         projects = [
             p for p in projects
@@ -8653,6 +8646,26 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
         ]
 
     return projects
+STATUS_FILTER_MAP = {
+    'InProgress': ['InProgress'],
+    'Delayed':    ['Delayed'],
+    'Completed':  ['Completed', 'Closed'],
+    'OnHold':     ['OnHold'],
+    'Lead':       ['Lead'],
+    'Active':     ['InProgress', 'Lead', 'Created'],
+}
+
+def _parse_status_filter(status_param):
+    """Accepts 'All', a single status key, or a comma-separated list of
+    status keys (e.g. 'InProgress,Delayed'). Returns the expanded list of
+    actual Project.status values to filter on, or [] for no filter."""
+    if not status_param or status_param == 'All':
+        return []
+    keys = [s.strip() for s in status_param.split(',') if s.strip()]
+    statuses = set()
+    for k in keys:
+        statuses.update(STATUS_FILTER_MAP.get(k, [k]))
+    return sorted(statuses)
 @app.route('/admin/all_works')
 @login_required
 @roles_required('admin', 'director', 'payments', 'office')
