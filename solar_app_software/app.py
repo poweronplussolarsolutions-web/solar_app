@@ -8714,6 +8714,7 @@ def all_works_preview_data():
         return {
             'code':          p.project_code,
             'customer':      p.customer.name,
+            'phone':         p.customer.phone or '—',
             'place':         p.customer.place or '—',
             'sub_co':        p.customer.sub_co or '—',
             'type':          p.project_type,
