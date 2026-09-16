@@ -4763,6 +4763,15 @@ def works_status():
     if current_user.role in ('documents','documents_k'):
         projects = [p for p in projects if p.doc_staff_id == current_user.id]
 
+    # ── Doc-staff filter dropdown — only populated/shown for office role ────
+    is_office = (current_user.role == 'office')
+    doc_staff_list = []
+    if is_office:
+        doc_staff_list = User.query.filter(
+            User.role.in_(['documents', 'documents_k']),
+            User.is_active == True
+        ).order_by(User.full_name).all()
+
     KEY_DOCS = [
         'Feasibility Receipt',
         'MNRE',
@@ -4804,8 +4813,9 @@ def works_status():
                            rows=rows,
                            key_docs=KEY_DOCS,
                            summary=summary,
-                           done_statuses=DONE_STATUSES)
-
+                           done_statuses=DONE_STATUSES,
+                           doc_staff_list=doc_staff_list,
+                           is_office=is_office)
 @app.route('/service_management')
 @login_required
 @roles_required('admin', 'onsite', 'coordinator','director','service')

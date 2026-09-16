@@ -9,6 +9,10 @@
 <style>
 .ws-toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center; }
 .ws-toolbar input { flex:1; min-width:180px; }
+.ws-toolbar select {
+  padding:5px 10px; border:0.5px solid var(--border); border-radius:8px;
+  font-size:12px; background:var(--surface); color:var(--text); min-width:160px;
+}
 .filter-pill {
   padding:5px 12px; border:0.5px solid var(--border); border-radius:20px;
   cursor:pointer; font-size:12px; background:var(--surface); color:var(--muted);
@@ -62,6 +66,17 @@
 {# ── Filter toolbar ── #}
 <div class="ws-toolbar">
   <input type="text" id="ws-search" placeholder="Search code or customer…" oninput="wsFilter()">
+
+  {% if is_office %}
+  <select id="ws-docstaff" onchange="wsFilter()">
+    <option value="">All doc staff</option>
+    {% for staff in doc_staff_list %}
+      <option value="{{ staff.id }}">{{ staff.full_name }}</option>
+    {% endfor %}
+    <option value="unassigned">Unassigned</option>
+  </select>
+  {% endif %}
+
   <button class="filter-pill active" data-f="all"         onclick="wsSetFilter('all',this)">All</button>
   <button class="filter-pill"        data-f="feas"        onclick="wsSetFilter('feas',this)">Feasibility ✗</button>
   <button class="filter-pill"        data-f="mnre"        onclick="wsSetFilter('mnre',this)">MNRE ✗</button>
@@ -102,6 +117,7 @@
   <tr
     data-code="{{ p.project_code }}"
     data-name="{{ p.customer.name | lower }}"
+    data-docstaff="{{ p.doc_staff_id or 'unassigned' }}"
     data-feas="{{ 'done' if feas_done else 'pend' }}"
     data-mnre="{{ 'done' if mnre_done else ('pend' if is_dcr else 'na') }}"
     data-cd="{{ 'done' if cd_done else 'pend' }}"
@@ -193,6 +209,8 @@ function wsSetFilter(f, el) {
 
 function wsFilter() {
   const q   = document.getElementById('ws-search').value.toLowerCase();
+  const docStaffEl = document.getElementById('ws-docstaff');
+  const docStaffVal = docStaffEl ? docStaffEl.value : '';
   const rows = document.querySelectorAll('#ws-table tbody tr');
   let vis = 0;
 
@@ -208,7 +226,9 @@ function wsFilter() {
     if (wsActiveFilter === 'kseb')    matchFilter = tr.dataset.kseb    === 'pend';
     if (wsActiveFilter === 'warranty') matchFilter = tr.dataset.warr   === 'pend';
 
-    const show = matchSearch && matchFilter;
+    const matchDocStaff = !docStaffVal || tr.dataset.docstaff === docStaffVal;
+
+    const show = matchSearch && matchFilter && matchDocStaff;
     tr.style.display = show ? '' : 'none';
     if (show) vis++;
   });
