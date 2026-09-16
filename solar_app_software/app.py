@@ -3246,7 +3246,8 @@ def projects():
                        status_filter=status_filter, search=search,
                        consumer_search=consumer_search,
                        pending_excess_ids=pending_excess_ids,
-                       view_all=view_all)  
+                       view_all=view_all) 
+from sqlalchemy.exc import IntegrityError 
 @app.route('/projects/new', methods=['GET', 'POST'])
 @login_required
 @roles_required('coordinator','admin','documents','office','documents_k','director')
@@ -3265,15 +3266,15 @@ def new_project():
     if request.method == 'POST':
         raw_structure = request.form.get('structure_capacity_kw', '').strip()
         structure_kw  = _safe_float(raw_structure) if raw_structure else None
-        code = _clean(request.form.get('project_code', ''), 20)
-        if not code:
-            auto = next_project_code() or '1781'
-            # Ensure auto-generated code is truly free
-            while Project.query.filter_by(project_code=auto).first():
-                auto = str(int(auto) + 1)
-            code = auto
-        if Project.query.filter_by(project_code=code).first():
-            flash(f'MNRE number {code} is already registered.', 'danger')
+
+        # Only admin may type an MNRE number by hand. Everyone else always
+        # gets an auto-assigned one — this also means the race-condition
+        # retry below is the only path normal users ever hit.
+        manual_code = (_clean(request.form.get('project_code', ''), 20)
+                       if current_user.role == 'admin' else '')
+
+        if manual_code and Project.query.filter_by(project_code=manual_code).first():
+            flash(f'MNRE number {manual_code} is already registered.', 'danger')
             return render_template('new_project.html', customers=customers,
                                    doc_staff=doc_staff, suggested_code=suggested_code,
                                    coordinators=coordinators, office=office,
@@ -3342,28 +3343,71 @@ def new_project():
 
         notes_val = _clean(request.form.get('notes', ''), 2000)
 
-        proj = Project(
-    project_code         = code,
-    customer_id          = cust_id,
-    inverter_capacity_kw = _safe_float(request.form.get('inverter_capacity_kw')),
-    panel_capacity_kw    = _safe_float(request.form.get('panel_capacity_kw')),
-    structure_capacity_kw = structure_kw,
-    project_type         = request.form['project_type'],
-    status               = 'InProgress',
-    stage                = 'Documentation',
-    project_subtype      = request.form.get('project_subtype') or None,
-    total_amount         = _safe_float(request.form.get('total_amount', 0)),
-    coordinator_id       = resolved_coord_id,
-    doc_staff_id         = request.form.get('doc_staff_id') or None,
-    notes                = notes_val,
-    roof_type            = request.form.get('roof_type') or None,
-    roof_type_other      = _clean(request.form.get('roof_type_other', ''), 60) or None,
-    inverter_type        = request.form.get('inverter_type') or None,
-    coordinator_name     = resolved_coord_name,
-    work_category         = request.form.get('work_category') if request.form.get('work_category') in ('Installation', 'Outside') else 'Installation',
-        )
-        db.session.add(proj)
-        db.session.flush()
+        def _make_project(pcode):
+            return Project(
+                project_code         = pcode,
+                customer_id          = cust_id,
+                inverter_capacity_kw = _safe_float(request.form.get('inverter_capacity_kw')),
+                panel_capacity_kw    = _safe_float(request.form.get('panel_capacity_kw')),
+                structure_capacity_kw = structure_kw,
+                project_type         = request.form['project_type'],
+                status               = 'InProgress',
+                stage                = 'Documentation',
+                project_subtype      = request.form.get('project_subtype') or None,
+                total_amount         = _safe_float(request.form.get('total_amount', 0)),
+                coordinator_id       = resolved_coord_id,
+                doc_staff_id         = request.form.get('doc_staff_id') or None,
+                notes                = notes_val,
+                roof_type            = request.form.get('roof_type') or None,
+                roof_type_other      = _clean(request.form.get('roof_type_other', ''), 60) or None,
+                inverter_type        = request.form.get('inverter_type') or None,
+                coordinator_name     = resolved_coord_name,
+                work_category        = request.form.get('work_category') if request.form.get('work_category') in ('Installation', 'Outside') else 'Installation',
+            )
+
+        proj = None
+        if manual_code:
+            # Admin-typed number — one attempt, with a SAVEPOINT so a race
+            # with another insert doesn't roll back the customer we just
+            # flushed above.
+            try:
+                with db.session.begin_nested():
+                    proj = _make_project(manual_code)
+                    db.session.add(proj)
+                    db.session.flush()
+            except IntegrityError:
+                proj = None
+                flash(f'MNRE number {manual_code} was just taken by another project. '
+                      'Please pick a different number.', 'danger')
+                return render_template('new_project.html', customers=customers,
+                                       doc_staff=doc_staff, suggested_code=suggested_code,
+                                       coordinators=coordinators, office=office,
+                                       documents_k=documents_k,
+                                       other_coord_names=other_coord_names)
+        else:
+            # Auto-assigned number — retry on collision instead of erroring.
+            # Two users hitting "create" at the same moment will now each
+            # end up with a different number instead of one of them failing.
+            candidate = next_project_code() or '1781'
+            for _attempt in range(20):
+                try:
+                    with db.session.begin_nested():
+                        proj = _make_project(candidate)
+                        db.session.add(proj)
+                        db.session.flush()
+                    break
+                except IntegrityError:
+                    proj = None
+                    candidate = str(int(candidate) + 1)
+            if proj is None:
+                db.session.rollback()
+                flash('Could not assign an MNRE number — please try again.', 'danger')
+                return render_template('new_project.html', customers=customers,
+                                       doc_staff=doc_staff, suggested_code=suggested_code,
+                                       coordinators=coordinators, office=office,
+                                       documents_k=documents_k,
+                                       other_coord_names=other_coord_names)
+
         log_action(proj.id, 'Project created', new_val='Created')
         geo_photo    = request.files.get('geo_photo_1')   # ← was 'geo_photo'
         maps_url_raw = _clean(request.form.get('maps_url', ''), 500)
@@ -3432,8 +3476,7 @@ def new_project():
     return render_template('new_project.html',coordinators=coordinators, customers=customers,
                            doc_staff=doc_staff, suggested_code=suggested_code,office=office,
                            documents_k=documents_k,
-                           other_coord_names=other_coord_names)   
-
+                           other_coord_names=other_coord_names)
 @app.route('/projects/<int:pid>/edit', methods=['GET', 'POST'])
 @login_required
 @roles_required('admin', 'coordinator', 'documents','office','documents_k','director')

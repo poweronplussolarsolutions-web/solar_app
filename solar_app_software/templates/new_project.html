@@ -72,9 +72,10 @@
     <div class="form-grid">
 
       <!-- MNRE Number -->
-      <div class="form-group">
-        <label>MNRE Number *</label>
-        <input name="project_code" type="text"
+      {% if current_user.role == 'admin' %}
+<div class="form-group">
+  <label>MNRE Number</label>
+  <input name="project_code" type="text"
        value="{{ suggested_code or '' }}"
        pattern="\d*" title="Digits only — no letters or spaces"
        placeholder="Leave blank to auto-assign"/>
@@ -85,7 +86,16 @@
     Leave blank to auto-assign, or enter manually for the first project
   {% endif %}
 </span>
-      </div>
+</div>
+{% else %}
+<div class="form-group">
+  <label>MNRE Number</label>
+  <input type="text" value="Auto-assigned on save{% if suggested_code %} (next: {{ suggested_code }}){% endif %}" disabled/>
+  <!-- <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
+    Only admins can set the MNRE number manually.
+  </span> -->
+</div>
+{% endif %}
 
       <div class="form-group">
         <label>Inverter capacity (kW) *</label>
