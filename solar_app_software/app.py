@@ -1654,7 +1654,16 @@ def download_site_photo(pid):
     ext  = os.path.splitext(tag.site_photo_path)[1]
     return send_file(tag.site_photo_path, as_attachment=True,
                       download_name=f'{proj.project_code}_before_work_site_photo{ext}')
-
+@app.route('/site_photo/<int:photo_id>/download')
+@login_required
+def download_extra_site_photo(photo_id):
+    photo = ProjectSitePhoto.query.get_or_404(photo_id)
+    if not os.path.isfile(photo.photo_path):
+        abort(404)
+    proj = photo.project
+    ext = os.path.splitext(photo.photo_path)[1]
+    return send_file(photo.photo_path, as_attachment=True,
+                      download_name=f'{proj.project_code}_site_extra{ext}')
 
 @app.route('/projects/<int:pid>/geo_tag/delete_site_photo', methods=['POST'])
 @login_required
