@@ -3461,12 +3461,13 @@ def new_project():
                 f'({proj.project_type}, {proj.inverter_capacity_kw} kW).', 'task',
             )
         # ── Notify onsite team of new work ────────────────────────────────
-        if proj.project_type == 'Cash':
-            notify_onsite_team(proj.id,
+        if proj.work_category != 'Outside':
+            if proj.project_type == 'Cash':
+                notify_onsite_team(proj.id,
                 f'New cash work: {proj.project_code} — {proj.customer.name} '
                 f'({proj.inverter_capacity_kw} kW). Assigned by {current_user.full_name}.', 'task')
-        elif proj.project_type == 'Loan':
-            notify_onsite_team(proj.id,
+            elif proj.project_type == 'Loan':
+                notify_onsite_team(proj.id,
                 f'New loan work: {proj.project_code} — {proj.customer.name} '
                 f'({proj.inverter_capacity_kw} kW). Awaiting first bank payment before site work begins.', 'info')
         db.session.commit()
@@ -4767,14 +4768,13 @@ def documents(pid):
             ))
             log_action(pid, f'Document received: {doc_type}', new_val=status)
 
-        if doc_type == 'Feasibility Receipt' and status in ('Received', 'Completed'):
+        if doc_type == 'Feasibility Receipt' and status in ('Received', 'Completed') and proj.work_category != 'Outside':
             if not Notification.query.filter_by(project_id=pid, notif_type='task').filter(
-                    Notification.message.like('%Structure work%')).first():
+            Notification.message.like('%Structure work%')).first():
                 notify_onsite_team(pid,
-                    f'Feasibility done for {proj.project_code} — {proj.customer.name}. Start structure work.',
-                    'task')
-                log_action(pid, 'Onsite team notified: structure work', new_val='Notified')
-
+                f'Feasibility done for {proj.project_code} — {proj.customer.name}. Start structure work.',
+                'task')
+            log_action(pid, 'Onsite team notified: structure work', new_val='Notified')
         if doc_type == 'KSEB Connection' and status in ('Received', 'Completed'):
             if not AppInstallation.query.filter_by(project_id=pid).first():
                 db.session.add(AppInstallation(project_id=pid, status='Pending', scheduled_date=date.today()))
