@@ -99,6 +99,7 @@
       <th>#</th>
       <th>MNRE No.</th>
       <th>Customer</th>
+      <th>Phone</th>
       <th>Place</th>
       <th>Inv. kW</th>
       <th>Panel kW</th>
@@ -127,6 +128,7 @@
       <td class="center">{{ loop.index }}</td>
       <td class="center">{{ p.project_code }}</td>
       <td>{{ p.customer.name }}</td>
+      <td class="center">{{ p.customer.phone or '—' }}</td>
       <td>{{ p.customer.place or '—' }}</td>
       <td class="center">{{ p.inverter_capacity_kw }}</td>
       <td class="center">{{ p.panel_capacity_kw }}</td>
@@ -162,13 +164,14 @@
       <td class="center">{{ p.created_at.strftime('%d/%m/%y') }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="19" style="text-align:center;padding:20px;color:#888">No projects found.</td></tr>
+    <tr><td colspan="20" style="text-align:center;padding:20px;color:#888">No projects found.</td></tr>
     {% endfor %}
   </tbody>
   <tfoot>
     <tr>
       <td colspan="2" style="text-align:center">TOTAL</td>
       <td>{{ projects|length }} projects</td>
+      <td></td>
       <td colspan="9"></td>
       <td class="right">{{ projects|sum(attribute='total_amount')|inr }}</td>
       <td></td>
