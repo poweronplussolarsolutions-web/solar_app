@@ -257,7 +257,9 @@ def _compute_daily_tasks(user):
         doc_map = {d.doc_type: d for d in p.documents}
         mnre_doc = doc_map.get('MNRE')
         mnre_done = bool(mnre_doc and mnre_doc.status in ('Received', 'Sent', 'Completed'))
-        if mnre_done:
+        # MNRE only applies to DCR projects — Non-DCR never needs this doc.
+        mnre_applicable = (p.project_subtype == 'DCR')
+        if mnre_done or not mnre_applicable:
             continue
 
         if user.role in DOC_STAFF_ROLES:
