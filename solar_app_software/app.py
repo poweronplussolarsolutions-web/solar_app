@@ -3574,7 +3574,8 @@ def edit_project(pid):
                 changes.append(f'MNRE: {proj.project_code} → {new_code}')
                 proj.project_code = new_code
 
-            # ── Work category override ──────────────────────────────────
+        # ── Work category override — admin, documents, office ─────────────
+        if current_user.role in ('admin', 'documents', 'office'):
             new_work_category = request.form.get('work_category')
             if new_work_category in ('Installation', 'Outside') and new_work_category != proj.work_category:
                 changes.append(f'Work category: {proj.work_category} → {new_work_category}')
@@ -3582,6 +3583,7 @@ def edit_project(pid):
                 if new_work_category == 'Outside':
                     # Outside-work projects don't have a service schedule
                     ServiceRecord.query.filter_by(project_id=pid).delete()
+
         if current_user.role in ('admin','documents','office','documents_k'):
             raw_phone     = _clean(request.form.get('customer_phone', ''), 20)
             raw_alt_phone = _clean(request.form.get('customer_alt_phone', ''), 20)
@@ -3792,7 +3794,7 @@ def edit_project(pid):
     return render_template('edit_project.html', proj=proj,
                            doc_staff=doc_staff, coordinators=coordinators,office=office,
                            documents_k=documents_k,
-                           other_coord_names=other_coord_names)   
+                           other_coord_names=other_coord_names)
 @app.route('/projects/<int:pid>/geo_tag/delete_photo', methods=['POST'])
 @login_required
 @roles_required('admin', 'onsite', 'coordinator', 'documents', 'office', 'documents_k', 'director')

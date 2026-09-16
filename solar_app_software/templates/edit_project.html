@@ -183,11 +183,9 @@
       </div>
 
       <!-- 5. Work category (admin only) — placed right after Project type, matching new_project -->
-      {% if current_user.role in ['admin','office','documents'] %}
+            {% if current_user.role in ['admin','office','documents'] %}
       <div class="form-group">
-        <label>Work category
-          <span style="font-size:11px;color:var(--warning);font-weight:400">⚠ admin override</span>
-        </label>
+        <label>Work category</label>
         <select name="work_category" id="work_category_select" onchange="toggleOutsideWork()">
           <option value="Installation" {% if proj.work_category == 'Installation' %}selected{% endif %}>
             Installation (Cash/Loan)
