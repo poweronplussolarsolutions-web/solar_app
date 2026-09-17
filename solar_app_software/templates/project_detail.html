@@ -754,6 +754,11 @@ document.addEventListener('DOMContentLoaded', function () {
       Onsite Progress
     </a>
     {% endif %}
+    {% if current_user.role in ['admin','documents','documents_k','office'] %}
+<a href="{{ url_for('rts_feasibility_form', pid=proj.id) }}" class="btn btn-sm">
+  📄 RTS PDF
+</a>
+{% endif %}
   </div>
 </div>
 {# ══════════════════════════════════════════════════════

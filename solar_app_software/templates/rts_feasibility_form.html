@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}RTS Feasibility — {{ proj.project_code }}{% endblock %}
+{% block page_title %}RTS Vendor Feasibility Report — {{ proj.project_code }}{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:640px">
+  <div class="card-title">Auto-filled from project</div>
+  <table style="font-size:13px;margin-bottom:16px">
+    <tr><td style="color:var(--muted);width:200px;padding:4px 0">Name of the Consumer</td><td>{{ proj.customer.name }}</td></tr>
+    <tr><td style="color:var(--muted);padding:4px 0">Discom Consumer ID</td><td>{{ proj.connection_details.consumer_number if proj.connection_details else '—' }}</td></tr>
+    <tr><td style="color:var(--muted);padding:4px 0">PM Surya Shakti Portal ID</td><td>{{ proj.customer.name }}</td></tr>
+    <tr><td style="color:var(--muted);padding:4px 0">Address for Installation</td><td>{{ proj.customer.full_address or '—' }}</td></tr>
+    <tr><td style="color:var(--muted);padding:4px 0">District</td><td>{{ proj.customer.district or '—' }}</td></tr>
+    <tr><td style="color:var(--muted);padding:4px 0">State</td><td>KERALA</td></tr>
+    <tr><td style="color:var(--muted);padding:4px 0">Pin Code</td><td>{{ proj.customer.pincode or '—' }}</td></tr>
+    <tr><td style="color:var(--muted);padding:4px 0">Actual RTS Capacity to be installed</td><td>{{ proj.inverter_capacity_kw }} kW</td></tr>
+  </table>
+
+  {% if not proj.connection_details or not proj.connection_details.consumer_number
+        or not proj.customer.full_address or not proj.customer.district or not proj.customer.pincode %}
+  <div style="background:var(--amber-50,#fffbeb);border:1px solid var(--amber-200,#fde68a);
+              border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--amber-700,#b45309)">
+    Some auto-filled fields above are missing on this project (shown as "—"). You can still generate
+    the PDF — those lines will just be blank — or go to <a href="{{ url_for('edit_project', pid=proj.id) }}">Edit details</a> first.
+  </div>
+  {% endif %}
+
+  <div class="card-title">A few more details</div>
+  <form method="POST" action="{{ url_for('generate_rts_feasibility', pid=proj.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Jan Samarth ID</label>
+      <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+        <input type="checkbox" id="jsSame" name="jan_samarth_same" checked
+               onchange="document.getElementById('jsInput').style.display = this.checked ? 'none' : 'block';">
+        <label for="jsSame" style="margin:0;font-weight:400">Same as consumer name ({{ proj.customer.name }})</label>
+      </div>
+      <input type="text" id="jsInput" name="jan_samarth_id" style="display:none"
+             placeholder="Enter the Jan Samarth ID for this consumer"/>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label>RTS Capacity in KW Applied</label>
+        <input type="number" step="0.01" min="0" name="rts_capacity_applied_kw"
+               value="{{ proj.panel_capacity_kw }}" required/>
+      </div>
+      <div class="form-group">
+        <label>Project Cost, all inclusive (₹)</label>
+        <input type="number" step="1" min="0" name="project_cost"
+               value="{{ proj.total_amount | int if proj.total_amount else '' }}" required/>
+      </div>
+      <div class="form-group">
+        <label>Discom ID <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+        <input type="text" name="discom_id" placeholder="If different from Consumer ID"/>
+      </div>
+      <div class="form-group">
+        <label>Channel Partner <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+        <input type="text" name="channel_partner" placeholder="If any"/>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary" style="margin-top:8px">📄 Generate preview</button>
+    <a href="{{ url_for('project_detail', pid=proj.id) }}" class="btn btn-sm">Cancel</a>
+  </form>
+</div>
+{% endblock %}

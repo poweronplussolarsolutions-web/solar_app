@@ -16,6 +16,8 @@ from datetime import datetime, date, timezone, timedelta
 from decimal import Decimal
 import os
 import re
+import uuid
+from rts_feasibility import build_rts_feasibility_pdf
 from pywebpush import webpush, WebPushException
 from urllib.parse import quote_plus 
 import json as _json
@@ -326,6 +328,8 @@ def _compute_payment_reminder_tasks(user):
             'urgency': 'danger' if overdue else 'info',
         })
     return tasks
+def _rts_preview_path(pid):
+    return os.path.join(tempfile.gettempdir(), f'rts_feasibility_{pid}_{current_user.id}.pdf')
 # ─────────────────────────────────────────────────────────────────────────────
 # APP CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1896,7 +1900,221 @@ def _get_service_report_records(mode, single_date=None, days=None):
         records = [r for r in next_records if r.status == 'Overdue']
 
     return sorted(records, key=lambda r: r.scheduled_date)
+import os
+import shutil
+import subprocess
+import tempfile
+import uuid
+ 
+from docx import Document
+ 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+RTS_TEMPLATE_PATH = os.path.join(BASE_DIR, 'form_templates', 'RTS_vendor_feasibility_template.docx')
+LIBREOFFICE_BIN = os.environ.get('LIBREOFFICE_BIN', 'soffice')
 
+P_NAME               = 1   # 1.  Name of the Consumer
+P_DISCOM_CONSUMER_ID = 2   # 2.  Discom Consumer ID
+P_DISCOM_ID          = 3   # 3.  Discom ID
+P_SURYA_GHAR_ID      = 4   # 4.  PM Surya Shakti Portal ID
+P_JAN_SAMARTH_ID     = 5   # 5.  Jan Samarth ID
+P_ADDRESS            = 6   # 6.  Address for Installation
+P_DISTRICT           = 7   # 7.  District of Installation
+# 8.  State of Installation — already hard-coded "KERALA" in the template, untouched
+P_PINCODE            = 10  # 9.  Pin Code of Installation
+# 10. OEM Name — already hard-coded "UTL SOLAR", untouched
+P_CHANNEL_PARTNER    = 15  # 11. Channel Partner, if any
+# 12-15 — EPC contractor name/address/register ID/bank details are all
+P_RTS_APPLIED_KW     = 24  # 16. RTS Capacity in KW Applied
+P_RTS_INSTALLED_KW   = 25  # 17. Actual RTS Capacity to be installed
+P_PROJECT_COST       = 30  # 20. Project Cost (all inclusive)
+
+def _append(paragraph, value):
+    """Add the value as a new run at the end of the paragraph, right
+    after the printed label, matching how the template is laid out."""
+    if value in (None, ''):
+        return
+    paragraph.add_run(str(value))
+ 
+ 
+def build_rts_feasibility_docx(
+    project,
+    jan_samarth_id,
+    rts_capacity_applied_kw,
+    project_cost,
+    discom_id='',
+    channel_partner='',
+    output_dir='/tmp',
+):
+    """
+    Fill the RTS vendor feasibility template for `project` (a Project
+    ORM instance) and save the filled .docx. Field mapping:
+ 
+      Name of the Consumer          -> project.customer.name
+      Discom Consumer ID            -> project.connection_details.consumer_number
+      Discom ID                     -> `discom_id` (not tracked elsewhere — pass in)
+      PM Surya Shakti Portal ID     -> project.customer.name (per instruction)
+      Jan Samarth ID                -> `jan_samarth_id` (caller resolves the
+                                        "same as consumer name?" question before
+                                        calling this — see the Flask routes)
+      Address for Installation      -> project.customer.full_address
+      District of Installation      -> project.customer.district
+      State of Installation         -> fixed "KERALA" (already in template)
+      Pin Code of Installation      -> project.customer.pincode
+      RTS Capacity in KW Applied    -> `rts_capacity_applied_kw`
+      Actual RTS Capacity installed -> project.inverter_capacity_kw
+      Project Cost (all inclusive)  -> `project_cost`
+ 
+    Nothing else in the document — including the Site Layout Images
+    field and every page after page 1 — is modified. Returns the path
+    to the filled .docx.
+    """
+    doc = Document(RTS_TEMPLATE_PATH)
+    paras = doc.paragraphs
+ 
+    cust = project.customer
+    cd = project.connection_details
+ 
+    _append(paras[P_NAME], cust.name)
+    _append(paras[P_DISCOM_CONSUMER_ID], cd.consumer_number if cd else '')
+    _append(paras[P_DISCOM_ID], discom_id)
+    _append(paras[P_SURYA_GHAR_ID], cust.name)
+    _append(paras[P_JAN_SAMARTH_ID], jan_samarth_id)
+    _append(paras[P_ADDRESS], cust.full_address or '')
+    _append(paras[P_DISTRICT], cust.district or '')
+    _append(paras[P_PINCODE], cust.pincode or '')
+    _append(paras[P_CHANNEL_PARTNER], channel_partner)
+    _append(paras[P_RTS_APPLIED_KW], f'{rts_capacity_applied_kw} kW')
+    _append(paras[P_RTS_INSTALLED_KW], f'{project.inverter_capacity_kw} kW')
+    _append(paras[P_PROJECT_COST], f'\u20b9{float(project_cost):,.0f}')
+ 
+    fname = f'RTS_Feasibility_{project.project_code}_{uuid.uuid4().hex[:6]}.docx'
+    out_path = os.path.join(output_dir, fname)
+    doc.save(out_path)
+    return out_path
+ 
+ 
+def convert_docx_to_pdf(docx_path, output_dir='/tmp'):
+    """Convert a .docx to .pdf using LibreOffice headless mode. Returns
+    the .pdf path. Raises RuntimeError if soffice isn't available."""
+    if not shutil.which(LIBREOFFICE_BIN):
+        raise RuntimeError(
+            'LibreOffice ("soffice") was not found on PATH. Install it with '
+            '`sudo apt-get install -y libreoffice-writer` or set the '
+            'LIBREOFFICE_BIN environment variable to its full path.'
+        )
+    # soffice needs its own writable profile dir per concurrent run,
+    # otherwise parallel requests can clobber each other.
+    with tempfile.TemporaryDirectory() as profile_dir:
+        subprocess.run(
+            [
+                LIBREOFFICE_BIN, '--headless', '--norestore',
+                f'-env:UserInstallation=file://{profile_dir}',
+                '--convert-to', 'pdf', '--outdir', output_dir, docx_path,
+            ],
+            check=True, timeout=60,
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        )
+    pdf_path = os.path.splitext(docx_path)[0] + '.pdf'
+    if not os.path.isfile(pdf_path):
+        raise RuntimeError('LibreOffice did not produce a PDF — check its stderr output.')
+    return pdf_path
+ 
+ 
+def build_rts_feasibility_pdf(project, jan_samarth_id, rts_capacity_applied_kw,
+                               project_cost, discom_id='', channel_partner='',
+                               output_dir='/tmp'):
+    """Convenience wrapper: fill the docx, convert to pdf, return pdf path."""
+    docx_path = build_rts_feasibility_docx(
+        project, jan_samarth_id, rts_capacity_applied_kw, project_cost,
+        discom_id=discom_id, channel_partner=channel_partner,
+        output_dir=output_dir,
+    )
+    pdf_path = convert_docx_to_pdf(docx_path, output_dir)
+    os.remove(docx_path)  # only the PDF is needed past this point
+    return pdf_path
+ 
+ 
+if __name__ == '__main__':
+    # Quick sanity check that the paragraph indices above still match
+    # the template — run `python rts_feasibility.py` after replacing
+    # the template file to confirm before wiring it into the live app.
+    doc = Document(RTS_TEMPLATE_PATH)
+    checks = {
+        P_NAME: 'Name of the Consumer', P_DISCOM_CONSUMER_ID: 'Discom Consumer ID',
+        P_DISCOM_ID: 'Discom ID', P_SURYA_GHAR_ID: 'PM Surya Shakti Portal ID',
+        P_JAN_SAMARTH_ID: 'Jan Samarth ID', P_ADDRESS: 'Address for Installation',
+        P_DISTRICT: 'District of Installation', P_PINCODE: 'Pin Code of Installation',
+        P_CHANNEL_PARTNER: 'Channel Partner', P_RTS_APPLIED_KW: 'RTS Capacity in KW Applied',
+        P_RTS_INSTALLED_KW: 'Actual RTS Capacity', P_PROJECT_COST: 'Project Cost',
+    }
+    ok = True
+    for idx, expect in checks.items():
+        actual = doc.paragraphs[idx].text
+        match = expect.lower() in actual.lower()
+        ok = ok and match
+        print(('OK  ' if match else 'MISMATCH'), idx, '->', repr(actual))
+    print('All indices match template.' if ok else 'FIX INDICES BEFORE USING.')
+ 
+
+@app.route('/projects/<int:pid>/rts_feasibility')
+@login_required
+@roles_required('admin', 'documents', 'documents_k', 'office', 'coordinator', 'director')
+def rts_feasibility_form(pid):
+    proj = Project.query.get_or_404(pid)
+    return render_template('rts_feasibility_form.html', proj=proj)
+ 
+ 
+@app.route('/projects/<int:pid>/rts_feasibility/generate', methods=['POST'])
+@login_required
+@roles_required('admin', 'documents', 'documents_k', 'office', 'coordinator', 'director')
+def generate_rts_feasibility(pid):
+    proj = Project.query.get_or_404(pid)
+ 
+    jan_samarth_id  = (proj.customer.name if request.form.get('jan_samarth_same')
+                        else _clean(request.form.get('jan_samarth_id', ''), 60))
+    rts_applied     = _safe_float(request.form.get('rts_capacity_applied_kw'))
+    project_cost    = _safe_float(request.form.get('project_cost'))
+    discom_id       = _clean(request.form.get('discom_id', ''), 60)
+    channel_partner = _clean(request.form.get('channel_partner', ''), 120)
+ 
+    pdf_path = build_rts_feasibility_pdf(
+        proj, jan_samarth_id, rts_applied, project_cost,
+        discom_id=discom_id, channel_partner=channel_partner,
+        output_dir=tempfile.gettempdir(),
+    )
+    # Move it to a stable, predictable path so the preview page can just
+    # embed it without passing tokens around.
+    final_path = _rts_preview_path(pid)
+    shutil.move(pdf_path, final_path)
+ 
+    log_action(pid, 'RTS Vendor Feasibility PDF generated')
+    db.session.commit()
+    return redirect(url_for('rts_feasibility_preview', pid=pid))
+ 
+ 
+@app.route('/projects/<int:pid>/rts_feasibility/preview')
+@login_required
+@roles_required('admin', 'documents', 'documents_k', 'office', 'coordinator', 'director')
+def rts_feasibility_preview(pid):
+    proj = Project.query.get_or_404(pid)
+    if not os.path.isfile(_rts_preview_path(pid)):
+        flash('Generate the PDF first.', 'warning')
+        return redirect(url_for('rts_feasibility_form', pid=pid))
+    return render_template('rts_feasibility_preview.html', proj=proj)
+ 
+ 
+@app.route('/projects/<int:pid>/rts_feasibility/file')
+@login_required
+@roles_required('admin', 'documents', 'documents_k', 'office', 'coordinator', 'director')
+def rts_feasibility_file(pid):
+    proj = Project.query.get_or_404(pid)
+    path = _rts_preview_path(pid)
+    if not os.path.isfile(path):
+        abort(404)
+    as_attachment = request.args.get('download') == '1'
+    return send_file(path, as_attachment=as_attachment,
+                      download_name=f'RTS_Feasibility_{proj.project_code}.pdf',
+                      mimetype='application/pdf')
 def build_service_report_pdf(records, mode, output_dir='/tmp', extra_label=''):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
