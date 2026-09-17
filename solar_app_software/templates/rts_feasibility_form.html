@@ -33,8 +33,9 @@
       <label>Jan Samarth ID</label>
       <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
         <input type="checkbox" id="jsSame" name="jan_samarth_same" checked
+               style="margin:0;width:16px;height:16px;flex-shrink:0"
                onchange="document.getElementById('jsInput').style.display = this.checked ? 'none' : 'block';">
-        <label for="jsSame" style="margin:0;font-weight:400">Same as consumer name ({{ proj.customer.name }})</label>
+        <label for="jsSame" style="margin:0;font-weight:400;line-height:1.2">Same as consumer name ({{ proj.customer.name }})</label>
       </div>
       <input type="text" id="jsInput" name="jan_samarth_id" style="display:none"
              placeholder="Enter the Jan Samarth ID for this consumer"/>
@@ -55,10 +56,10 @@
         <label>Discom ID <span style="color:var(--muted);font-weight:400">(optional)</span></label>
         <input type="text" name="discom_id" placeholder="If different from Consumer ID"/>
       </div>
-      <div class="form-group">
+      <!-- <div class="form-group">
         <label>Channel Partner <span style="color:var(--muted);font-weight:400">(optional)</span></label>
         <input type="text" name="channel_partner" placeholder="If any"/>
-      </div>
+      </div> -->
     </div>
 
     <button type="submit" class="btn btn-primary" style="margin-top:8px">📄 Generate preview</button>
