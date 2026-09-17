@@ -17,6 +17,7 @@ from decimal import Decimal
 import os
 import re
 import uuid
+import shutil
 from solar_app_software.rts_feasibility import build_rts_feasibility_pdf
 from pywebpush import webpush, WebPushException
 from urllib.parse import quote_plus 
