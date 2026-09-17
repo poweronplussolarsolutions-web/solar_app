@@ -1901,65 +1901,65 @@ def _get_service_report_records(mode, single_date=None, days=None):
 
     return sorted(records, key=lambda r: r.scheduled_date)
 
-@app.route('/projects/<int:pid>/rts_feasibility')
-@login_required
-@roles_required('admin', 'documents', 'documents_k', 'office', 'coordinator', 'director')
-def rts_feasibility_form(pid):
-    proj = Project.query.get_or_404(pid)
-    return render_template('rts_feasibility_form.html', proj=proj)
+# @app.route('/projects/<int:pid>/rts_feasibility')
+# @login_required
+# @roles_required('admin', 'documents', 'documents_k', 'office', 'coordinator', 'director')
+# def rts_feasibility_form(pid):
+#     proj = Project.query.get_or_404(pid)
+#     return render_template('rts_feasibility_form.html', proj=proj)
  
  
-@app.route('/projects/<int:pid>/rts_feasibility/generate', methods=['POST'])
-@login_required
-@roles_required('admin', 'documents', 'documents_k', 'office', 'coordinator', 'director')
-def generate_rts_feasibility(pid):
-    proj = Project.query.get_or_404(pid)
+# @app.route('/projects/<int:pid>/rts_feasibility/generate', methods=['POST'])
+# @login_required
+# @roles_required('admin', 'documents', 'documents_k', 'office', 'coordinator', 'director')
+# def generate_rts_feasibility(pid):
+#     proj = Project.query.get_or_404(pid)
  
-    jan_samarth_id  = (proj.customer.name if request.form.get('jan_samarth_same')
-                        else _clean(request.form.get('jan_samarth_id', ''), 60))
-    rts_applied     = _safe_float(request.form.get('rts_capacity_applied_kw'))
-    project_cost    = _safe_float(request.form.get('project_cost'))
-    discom_id       = _clean(request.form.get('discom_id', ''), 60)
-    channel_partner = _clean(request.form.get('channel_partner', ''), 120)
+#     jan_samarth_id  = (proj.customer.name if request.form.get('jan_samarth_same')
+#                         else _clean(request.form.get('jan_samarth_id', ''), 60))
+#     rts_applied     = _safe_float(request.form.get('rts_capacity_applied_kw'))
+#     project_cost    = _safe_float(request.form.get('project_cost'))
+#     discom_id       = _clean(request.form.get('discom_id', ''), 60)
+#     channel_partner = _clean(request.form.get('channel_partner', ''), 120)
  
-    pdf_path = build_rts_feasibility_pdf(
-        proj, jan_samarth_id, rts_applied, project_cost,
-        discom_id=discom_id, channel_partner=channel_partner,
-        output_dir=tempfile.gettempdir(),
-    )
-    # Move it to a stable, predictable path so the preview page can just
-    # embed it without passing tokens around.
-    final_path = _rts_preview_path(pid)
-    shutil.move(pdf_path, final_path)
+#     pdf_path = build_rts_feasibility_pdf(
+#         proj, jan_samarth_id, rts_applied, project_cost,
+#         discom_id=discom_id, channel_partner=channel_partner,
+#         output_dir=tempfile.gettempdir(),
+#     )
+#     # Move it to a stable, predictable path so the preview page can just
+#     # embed it without passing tokens around.
+#     final_path = _rts_preview_path(pid)
+#     shutil.move(pdf_path, final_path)
  
-    log_action(pid, 'RTS Vendor Feasibility PDF generated')
-    db.session.commit()
-    return redirect(url_for('rts_feasibility_preview', pid=pid))
- 
- 
-@app.route('/projects/<int:pid>/rts_feasibility/preview')
-@login_required
-@roles_required('admin', 'documents', 'documents_k', 'office', 'coordinator', 'director')
-def rts_feasibility_preview(pid):
-    proj = Project.query.get_or_404(pid)
-    if not os.path.isfile(_rts_preview_path(pid)):
-        flash('Generate the PDF first.', 'warning')
-        return redirect(url_for('rts_feasibility_form', pid=pid))
-    return render_template('rts_feasibility_preview.html', proj=proj)
+#     log_action(pid, 'RTS Vendor Feasibility PDF generated')
+#     db.session.commit()
+#     return redirect(url_for('rts_feasibility_preview', pid=pid))
  
  
-@app.route('/projects/<int:pid>/rts_feasibility/file')
-@login_required
-@roles_required('admin', 'documents', 'documents_k', 'office', 'coordinator', 'director')
-def rts_feasibility_file(pid):
-    proj = Project.query.get_or_404(pid)
-    path = _rts_preview_path(pid)
-    if not os.path.isfile(path):
-        abort(404)
-    as_attachment = request.args.get('download') == '1'
-    return send_file(path, as_attachment=as_attachment,
-                      download_name=f'RTS_Feasibility_{proj.project_code}.pdf',
-                      mimetype='application/pdf')
+# @app.route('/projects/<int:pid>/rts_feasibility/preview')
+# @login_required
+# @roles_required('admin', 'documents', 'documents_k', 'office', 'coordinator', 'director')
+# def rts_feasibility_preview(pid):
+#     proj = Project.query.get_or_404(pid)
+#     if not os.path.isfile(_rts_preview_path(pid)):
+#         flash('Generate the PDF first.', 'warning')
+#         return redirect(url_for('rts_feasibility_form', pid=pid))
+#     return render_template('rts_feasibility_preview.html', proj=proj)
+ 
+ 
+# @app.route('/projects/<int:pid>/rts_feasibility/file')
+# @login_required
+# @roles_required('admin', 'documents', 'documents_k', 'office', 'coordinator', 'director')
+# def rts_feasibility_file(pid):
+#     proj = Project.query.get_or_404(pid)
+#     path = _rts_preview_path(pid)
+#     if not os.path.isfile(path):
+#         abort(404)
+#     as_attachment = request.args.get('download') == '1'
+#     return send_file(path, as_attachment=as_attachment,
+#                       download_name=f'RTS_Feasibility_{proj.project_code}.pdf',
+#                       mimetype='application/pdf')
 def build_service_report_pdf(records, mode, output_dir='/tmp', extra_label=''):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
