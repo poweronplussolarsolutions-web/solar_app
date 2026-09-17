@@ -36,7 +36,7 @@ from docx import Document
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RTS_TEMPLATE_PATH = os.path.join(BASE_DIR, 'form_templates', 'RTS_vendor_feasibility_template.docx')
-LIBREOFFICE_BIN = os.environ.get('LIBREOFFICE_BIN', 'soffice')
+LIBREOFFICE_BIN = os.environ.get('LIBREOFFICE_BIN', '/usr/bin/soffice')
 
 # Paragraph indices in the template — these correspond 1:1 to the
 # numbered items on page 1 of the form. If you ever re-save the .docx
@@ -128,31 +128,56 @@ def build_rts_feasibility_docx(
 
 
 def convert_docx_to_pdf(docx_path, output_dir='/tmp'):
-    """Convert a .docx to .pdf using LibreOffice headless mode. Returns
-    the .pdf path. Raises RuntimeError if soffice isn't available."""
-    if not shutil.which(LIBREOFFICE_BIN):
-        raise RuntimeError(
-            'LibreOffice ("soffice") was not found on PATH. Install it with '
-            '`sudo apt-get install -y libreoffice-writer` or set the '
-            'LIBREOFFICE_BIN environment variable to its full path.'
-        )
-    # soffice needs its own writable profile dir per concurrent run,
-    # otherwise parallel requests can clobber each other.
-    with tempfile.TemporaryDirectory() as profile_dir:
-        subprocess.run(
-            [
-                LIBREOFFICE_BIN, '--headless', '--norestore',
-                f'-env:UserInstallation=file://{profile_dir}',
-                '--convert-to', 'pdf', '--outdir', output_dir, docx_path,
-            ],
-            check=True, timeout=60,
-            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-        )
-    pdf_path = os.path.splitext(docx_path)[0] + '.pdf'
-    if not os.path.isfile(pdf_path):
-        raise RuntimeError('LibreOffice did not produce a PDF — check its stderr output.')
-    return pdf_path
+    """Convert a .docx to .pdf using LibreOffice headless mode."""
+    
+    libreoffice_bin = os.environ.get(
+        'LIBREOFFICE_BIN',
+        '/usr/bin/soffice'
+    )
 
+    if not os.path.isfile(libreoffice_bin):
+        raise RuntimeError(
+            f'LibreOffice executable not found at: {libreoffice_bin}'
+        )
+
+    with tempfile.TemporaryDirectory() as profile_dir:
+        result = subprocess.run(
+            [
+                libreoffice_bin,
+                '--headless',
+                '--norestore',
+                f'-env:UserInstallation=file://{profile_dir}',
+                '--convert-to',
+                'pdf',
+                '--outdir',
+                output_dir,
+                docx_path,
+            ],
+            check=False,
+            timeout=60,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            'LibreOffice PDF conversion failed.\n'
+            f'Exit code: {result.returncode}\n'
+            f'STDOUT: {result.stdout}\n'
+            f'STDERR: {result.stderr}'
+        )
+
+    pdf_path = os.path.splitext(docx_path)[0] + '.pdf'
+
+    if not os.path.isfile(pdf_path):
+        raise RuntimeError(
+            'LibreOffice ran but did not produce the expected PDF.\n'
+            f'STDOUT: {result.stdout}\n'
+            f'STDERR: {result.stderr}'
+        )
+
+    return pdf_path
 
 def build_rts_feasibility_pdf(project, jan_samarth_id, rts_capacity_applied_kw,
                                project_cost, discom_id='', channel_partner='',
