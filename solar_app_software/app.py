@@ -2140,7 +2140,7 @@ def generate_rts_feasibility(pid):
     final_path = _rts_preview_path(pid)
     shutil.move(pdf_path, final_path)
 
-    log_action(pid, 'RTS Vendor Feasibility PDF generated')
+    # log_action(pid, 'RTS Vendor Feasibility PDF generated')
     db.session.commit()
     return redirect(url_for('rts_feasibility_preview', pid=pid))
 
