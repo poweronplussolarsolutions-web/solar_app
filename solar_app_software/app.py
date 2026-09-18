@@ -6678,21 +6678,26 @@ def service_management():
         .order_by(cast(Project.project_code, Integer))
         .all())
 
-    filtered = [p for p in candidates
-                if p.status not in ('Cancelled', 'OnHold')
-                and p.work_category != 'Outside'
-                and (p.pending_amount <= 0 or p.status == 'Closed')]
+    # Build the COMPLETE Service Management population first.
+    # These projects are used for global statistics and are never affected
+    # by pagination or the search box.
+    eligible_projects = [p for p in candidates
+                         if p.status not in ('Cancelled', 'OnHold')
+                         and p.work_category != 'Outside'
+                         and (p.pending_amount <= 0 or p.status == 'Closed')]
+
+    # Search only controls the visible project list.
+    filtered = eligible_projects
 
     if search:
         filtered = [
-            p for p in filtered
+            p for p in eligible_projects
             if (
                 search in str(p.project_code).lower()
                 or search in (p.customer.name or '').lower()
                 or search in (p.customer.place or '').lower()
             )
         ]
-
         page = 1
 
     total = len(filtered)
@@ -6730,25 +6735,22 @@ def service_management():
             'total': total_r, 'pct': pct, 'next': next_v, 'next_locked': next_locked,
         })
 
-    # Stats are calculated from ALL eligible projects, independently of
-    # pagination/search. The project list remains paginated, but the stats
-    # always represent the complete Service Management population.
-    stats_rows = (db.session.query(ServiceRecord.status, func.count(ServiceRecord.id))
-        .join(Project)
-        .filter(Project.id.in_(has_service),
-                Project.status.notin_(['Cancelled', 'OnHold']),
-                Project.work_category != 'Outside')
-        .group_by(ServiceRecord.status).all())
-    status_counts = dict(stats_rows)
+    # GLOBAL STATS:
+    # Always use the complete eligible project population. Neither pagination
+    # nor the search box is allowed to change these numbers.
+    eligible_ids = [p.id for p in eligible_projects]
 
-    # Upcoming is intentionally different: count at most ONE Upcoming visit
-    # per project, using that project's very next actionable visit.
-    # This is calculated across all eligible projects, not just page_projects.
     all_service_records = (ServiceRecord.query
-        .filter(ServiceRecord.project_id.in_([p.id for p in filtered]))
+        .filter(ServiceRecord.project_id.in_(eligible_ids))
         .order_by(ServiceRecord.project_id, ServiceRecord.visit_number)
-        .all()) if filtered else []
+        .all()) if eligible_ids else []
 
+    status_counts = {}
+    for rec in all_service_records:
+        status_counts[rec.status] = status_counts.get(rec.status, 0) + 1
+
+    # Upcoming is different: count at most ONE upcoming schedule per project,
+    # using that project's very next actionable visit.
     all_records_by_project = {}
     for rec in all_service_records:
         all_records_by_project.setdefault(rec.project_id, []).append(rec)
@@ -6772,7 +6774,7 @@ def service_management():
             upcoming_projects += 1
 
     stats = {
-        'projects':  total,
+        'projects':  len(eligible_projects),
         'overdue':   status_counts.get('Overdue', 0),
         'due':       status_counts.get('Due', 0),
         'completed': status_counts.get('Completed', 0),
