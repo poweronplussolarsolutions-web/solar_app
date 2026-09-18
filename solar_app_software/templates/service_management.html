@@ -772,25 +772,19 @@
 document.getElementById('sm-list').addEventListener('click', function(e) {
   var head = e.target.closest('.sm-card-head');
   if (!head) return;
+
   var pid  = head.getAttribute('data-pid');
   var body = document.getElementById('body-' + pid);
   var chev = document.getElementById('chev-' + pid);
+
   if (!body) return;
 
   var open = body.classList.toggle('open');
-  if (chev) chev.classList.toggle('open', open);
 
-  if (open && !body.dataset.loaded) {
-    body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--hint)">Loading…</div>';
-    fetch('/api/projects/' + pid + '/service_visits')
-      .then(r => r.json())
-      .then(visits => {
-        body.innerHTML = renderVisitRows(pid, visits); // build the same markup client-side
-        body.dataset.loaded = '1';
-      });
+  if (chev) {
+    chev.classList.toggle('open', open);
   }
 });
-
 function toggleInline(id) {
   var el = document.getElementById(id);
   if (!el) return;
