@@ -6577,50 +6577,91 @@ def app_install_map():
         status_filter=status_filter)
 @app.route('/service')
 @login_required
-@roles_required('admin', 'onsite', 'coordinator')
+@roles_required('admin', 'onsite', 'coordinator', 'director', 'service')
 def service_management():
-    refresh_service_statuses()
-    today = date.today()
+    page     = request.args.get('page', 1, type=int)
+    per_page = 30
 
-    overdue  = ServiceRecord.query.filter_by(status='Overdue').order_by(ServiceRecord.scheduled_date).all()
-    due      = ServiceRecord.query.filter_by(status='Due').order_by(ServiceRecord.scheduled_date).all()
+    has_service = (db.session.query(Project.id)
+        .join(ServiceRecord, ServiceRecord.project_id == Project.id)
+        .filter(Project.status.notin_(['Cancelled']))
+        .distinct()
+        .subquery())
 
-    # Only the next pending visit per project
-    from sqlalchemy import func
-    subq = (db.session.query(
-                ServiceRecord.project_id,
-                func.min(ServiceRecord.visit_number).label('min_visit')
-            )
-            .filter(ServiceRecord.status == 'Upcoming')
-            .group_by(ServiceRecord.project_id)
-            .subquery())
+    candidates = (Project.query
+        .options(
+            joinedload(Project.customer),
+            joinedload(Project.coordinator),
+            joinedload(Project.subsidy),
+            joinedload(Project.bank_excess),
+            selectinload(Project.payments),
+            selectinload(Project.expenses),
+            selectinload(Project.waivers),
+            selectinload(Project.payment_excesses),
+        )
+        .filter(Project.id.in_(has_service))
+        .order_by(cast(Project.project_code, Integer))
+        .all())
 
-    upcoming = (ServiceRecord.query
-                .join(subq, db.and_(
-                    ServiceRecord.project_id == subq.c.project_id,
-                    ServiceRecord.visit_number == subq.c.min_visit
-                ))
-                .order_by(ServiceRecord.scheduled_date)
-                .limit(20).all())
+    filtered = [p for p in candidates
+                if p.status not in ('Cancelled', 'OnHold')
+                and p.work_category != 'Outside'
+                and (p.pending_amount <= 0 or p.status == 'Closed')]
 
-    recent = (ServiceRecord.query
-              .filter_by(status='Completed')
-              .order_by(ServiceRecord.completed_date.desc())
-              .limit(10).all())
+    total = len(filtered)
+    start = (page - 1) * per_page
+    page_projects = filtered[start:start + per_page]
+    total_pages = max(1, (total + per_page - 1) // per_page)
 
-    completed_year = ServiceRecord.query.filter(
-        ServiceRecord.status == 'Completed',
-        db.extract('year', ServiceRecord.completed_date) == today.year,
-    ).count()
-    total_active = ServiceRecord.query.filter(
-        ServiceRecord.status.in_(['Upcoming', 'Due', 'Overdue'])
-    ).count()
+    page_ids = [p.id for p in page_projects]
+    all_records = (ServiceRecord.query
+        .filter(ServiceRecord.project_id.in_(page_ids))
+        .order_by(ServiceRecord.project_id, ServiceRecord.visit_number)
+        .all()) if page_ids else []
+    records_by_project = {}
+    for r in all_records:
+        records_by_project.setdefault(r.project_id, []).append(r)
+
+    proj_data = []
+    for p in page_projects:
+        records   = records_by_project.get(p.id, [])
+        annotated = _annotate_service_records(records)
+        done    = sum(1 for r in records if r.status == 'Completed')
+        over    = sum(1 for r in records if r.status == 'Overdue')
+        due     = sum(1 for r in records if r.status == 'Due')
+        skipped = sum(1 for r in records if r.status == 'Skipped')
+        total_r = len(records)
+        pct     = int(done / total_r * 100) if total_r else 0
+        next_v  = next((r for r in records if r.status not in ('Completed', 'Skipped')), None)
+        next_locked = next(
+            (a['locked'] for a in annotated if a['rec'] is next_v), False
+        ) if next_v else False
+
+        proj_data.append({
+            'project': p, 'records': records, 'annotated': annotated,
+            'done': done, 'over': over, 'due': due, 'skipped': skipped,
+            'total': total_r, 'pct': pct, 'next': next_v, 'next_locked': next_locked,
+        })
+
+    stats_rows = (db.session.query(ServiceRecord.status, func.count(ServiceRecord.id))
+        .join(Project)
+        .filter(Project.id.in_(has_service),
+                Project.status.notin_(['Cancelled', 'OnHold']),
+                Project.work_category != 'Outside')
+        .group_by(ServiceRecord.status).all())
+    status_counts = dict(stats_rows)
+    stats = {
+        'projects':  total,
+        'overdue':   status_counts.get('Overdue', 0),
+        'due':       status_counts.get('Due', 0),
+        'completed': status_counts.get('Completed', 0),
+        'upcoming':  status_counts.get('Upcoming', 0),
+        'skipped':   status_counts.get('Skipped', 0),
+    }
 
     return render_template('service_management.html',
-        overdue=overdue, due=due, upcoming=upcoming, recent=recent,
-        total_due=len(overdue)+len(due), completed_year=completed_year,
-        total_active=total_active, today=today)
- 
+                           proj_data=proj_data, stats=stats,
+                           today=date.today(), page=page, total_pages=total_pages)
 @app.route('/projects/<int:pid>/service')
 @login_required
 def project_service(pid):
