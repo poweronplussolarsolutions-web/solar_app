@@ -380,7 +380,11 @@
   <div class="sm-toolbar">
     <div class="sm-search-box">
       <i class="ti ti-search"></i>
-      <input type="text" id="sm-search" placeholder="Search project, customer or place…" oninput="smRender()">
+      <input type="text"
+       id="sm-search"
+       value="{{ search or '' }}"
+       placeholder="Search project, customer or place…"
+       oninput="smSearchServer(this.value)">
     </div>
     <select id="sm-sort" onchange="smRender()">
       <option value="overdue">Overdue first</option>
@@ -806,7 +810,27 @@ function smFilter(key) {
   });
   smRender();
 }
+var smSearchTimer = null;
 
+function smSearchServer(value) {
+    clearTimeout(smSearchTimer);
+
+    var q = value.trim();
+
+    smSearchTimer = setTimeout(function() {
+        var url = new URL(window.location.href);
+
+        if (q) {
+            url.searchParams.set('search', q);
+            url.searchParams.set('page', '1');
+        } else {
+            url.searchParams.delete('search');
+            url.searchParams.set('page', '1');
+        }
+
+        window.location.href = url.toString();
+    }, 400);
+}
 function smRender() {
   var q   = document.getElementById('sm-search').value.toLowerCase().trim();
   var srt = document.getElementById('sm-sort').value;
