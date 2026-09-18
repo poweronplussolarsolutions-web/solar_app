@@ -6582,6 +6582,8 @@ def service_management():
     page     = request.args.get('page', 1, type=int)
     per_page = 30
 
+    search = request.args.get('search', '', type=str).strip().lower()
+
     has_service = (db.session.query(Project.id)
         .join(ServiceRecord, ServiceRecord.project_id == Project.id)
         .filter(Project.status.notin_(['Cancelled']))
@@ -6607,6 +6609,18 @@ def service_management():
                 if p.status not in ('Cancelled', 'OnHold')
                 and p.work_category != 'Outside'
                 and (p.pending_amount <= 0 or p.status == 'Closed')]
+
+    if search:
+        filtered = [
+            p for p in filtered
+            if (
+                search in str(p.project_code).lower()
+                or search in (p.customer.name or '').lower()
+                or search in (p.customer.place or '').lower()
+            )
+        ]
+
+        page = 1
 
     total = len(filtered)
     start = (page - 1) * per_page
@@ -6661,7 +6675,7 @@ def service_management():
 
     return render_template('service_management.html',
                            proj_data=proj_data, stats=stats,
-                           today=date.today(), page=page, total_pages=total_pages)
+                           today=date.today(), page=page, total_pages=total_pages,search=search)
 @app.route('/projects/<int:pid>/service')
 @login_required
 def project_service(pid):
