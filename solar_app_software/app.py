@@ -5057,10 +5057,10 @@ def documents(pid):
             if not AppInstallation.query.filter_by(project_id=pid).first():
                 db.session.add(AppInstallation(project_id=pid, status='Pending', scheduled_date=date.today()))
                 log_action(pid, 'KSEB connection complete → App Installation queued', new_val='Pending')
-                for u in User.query.filter_by(role='service', is_active=True).all():
-                    create_notification(u.id, pid,
-                    f'KSEB connection done for {proj.project_code} — {proj.customer.name} '
-                    f'({proj.inverter_capacity_kw} kW). Schedule app installation.', 'task')
+                # for u in User.query.filter_by(role='service', is_active=True).all():
+                #     create_notification(u.id, pid,
+                #     f'KSEB connection done for {proj.project_code} — {proj.customer.name} '
+                #     f'({proj.inverter_capacity_kw} kW). Schedule app installation.', 'task')
 
     
         if current_user.role == 'admin' and was_complete and proj.doc_staff_id:
@@ -6730,6 +6730,9 @@ def service_management():
             'total': total_r, 'pct': pct, 'next': next_v, 'next_locked': next_locked,
         })
 
+    # Stats are calculated from ALL eligible projects, independently of
+    # pagination/search. The project list remains paginated, but the stats
+    # always represent the complete Service Management population.
     stats_rows = (db.session.query(ServiceRecord.status, func.count(ServiceRecord.id))
         .join(Project)
         .filter(Project.id.in_(has_service),
@@ -6737,12 +6740,43 @@ def service_management():
                 Project.work_category != 'Outside')
         .group_by(ServiceRecord.status).all())
     status_counts = dict(stats_rows)
+
+    # Upcoming is intentionally different: count at most ONE Upcoming visit
+    # per project, using that project's very next actionable visit.
+    # This is calculated across all eligible projects, not just page_projects.
+    all_service_records = (ServiceRecord.query
+        .filter(ServiceRecord.project_id.in_([p.id for p in filtered]))
+        .order_by(ServiceRecord.project_id, ServiceRecord.visit_number)
+        .all()) if filtered else []
+
+    all_records_by_project = {}
+    for rec in all_service_records:
+        all_records_by_project.setdefault(rec.project_id, []).append(rec)
+
+    upcoming_projects = 0
+    for pid, records in all_records_by_project.items():
+        annotated = _annotate_service_records(records)
+        next_rec = next(
+            (r for r in records if r.status not in ('Completed', 'Skipped')),
+            None
+        )
+        if not next_rec:
+            continue
+
+        next_locked = next(
+            (a['locked'] for a in annotated if a['rec'] is next_rec),
+            False
+        )
+
+        if next_rec.status == 'Upcoming' and not next_locked:
+            upcoming_projects += 1
+
     stats = {
         'projects':  total,
         'overdue':   status_counts.get('Overdue', 0),
         'due':       status_counts.get('Due', 0),
         'completed': status_counts.get('Completed', 0),
-        'upcoming':  status_counts.get('Upcoming', 0),
+        'upcoming':  upcoming_projects,
         'skipped':   status_counts.get('Skipped', 0),
     }
 
