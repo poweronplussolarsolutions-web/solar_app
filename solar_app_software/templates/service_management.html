@@ -273,6 +273,60 @@
   border: 0.5px solid var(--border); border-radius: 8px;
   background: var(--bg); color: var(--text);
 }
+
+  /* ── Pagination ── */
+  .sm-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 24px 0 36px;
+  }
+  .sm-page-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 38px;
+    padding: 0 14px;
+    border: 0.5px solid var(--border);
+    border-radius: 9px;
+    background: var(--surface);
+    color: var(--text);
+    text-decoration: none;
+    font-size: 12.5px;
+    font-weight: 600;
+    transition: all .12s;
+  }
+  .sm-page-btn:hover {
+    background: var(--bg);
+    border-color: var(--border-strong, var(--border));
+  }
+  .sm-page-btn.disabled {
+    color: var(--hint);
+    background: var(--bg);
+    cursor: default;
+    pointer-events: none;
+    opacity: .65;
+  }
+  .sm-page-info {
+    padding: 0 8px;
+    font-size: 12.5px;
+    color: var(--muted);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  @media (max-width: 480px) {
+    .sm-pagination { gap: 6px; margin-bottom: 28px; }
+    .sm-page-btn {
+      min-width: 36px;
+      height: 36px;
+      padding: 0 10px;
+      font-size: 12px;
+    }
+  }
+
 </style>
 {% endblock %}
 
@@ -679,6 +733,29 @@
 </div>
 {% endfor %}
 </div>
+
+
+  {% if total_pages > 1 %}
+  <nav class="sm-pagination" aria-label="Service management pagination">
+    {% if page > 1 %}
+      <a class="sm-page-btn"
+         href="{{ url_for('service_management', page=page-1) }}"
+         aria-label="Previous page">← Previous</a>
+    {% else %}
+      <span class="sm-page-btn disabled" aria-disabled="true">← Previous</span>
+    {% endif %}
+
+    <span class="sm-page-info">Page {{ page }} of {{ total_pages }}</span>
+
+    {% if page < total_pages %}
+      <a class="sm-page-btn"
+         href="{{ url_for('service_management', page=page+1) }}"
+         aria-label="Next page">Next →</a>
+    {% else %}
+      <span class="sm-page-btn disabled" aria-disabled="true">Next →</span>
+    {% endif %}
+  </nav>
+  {% endif %}
 
 <div id="sm-empty" style="display:none" class="empty-state">
   <i class="ti ti-filter-off"></i>
