@@ -3420,6 +3420,7 @@ def projects():
     view_all        = request.args.get('view') == 'all'
     page            = request.args.get('page', 1, type=int)
     q = (Project.query
+         .filter(Project.is_deleted == False)
          .join(Customer)
          .outerjoin(ConnectionDetails, ConnectionDetails.project_id == Project.id))
     if current_user.role == 'coordinator':
@@ -3464,7 +3465,7 @@ def projects():
                        status_filter=status_filter, search=search,
                        consumer_search=consumer_search,
                        pending_excess_ids=pending_excess_ids,
-                       view_all=view_all) 
+                       view_all=view_all)
 from sqlalchemy.exc import IntegrityError 
 @app.route('/projects/new', methods=['GET', 'POST'])
 @login_required
