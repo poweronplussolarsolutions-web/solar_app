@@ -468,9 +468,11 @@
         <span class="dot"></span> Work status
       </a>
       {% endif %}
+      {% if current_user.role != 'service' %}
       <a class="nav-link {% if request.endpoint in ['projects','project_detail'] %}active{% endif %}" href="{{ url_for('projects') }}">
         <span class="dot"></span> Projects
       </a>
+      {% endif %}
       {% if current_user.role in ['admin', 'documents','office'] %}
 <a class="nav-link {% if request.endpoint == 'works_status' %}active{% endif %}" href="{{ url_for('works_status') }}"><span class="dot"></span>Status</a>
 {% endif %}
