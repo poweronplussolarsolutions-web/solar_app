@@ -516,7 +516,7 @@
       
       {% endif %}
 
-      {% if current_user.role in ['admin','service'] %}
+      {% if current_user.role in ['admin'] %}
       <a class="nav-link {% if request.endpoint == 'installations' %}active{% endif %}" href="{{ url_for('installations') }}">
         <span class="dot"></span> App Installations
       </a>
