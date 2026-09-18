@@ -245,12 +245,6 @@
   .inline-form .form-grid {
     display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;
   }
-  @media (max-width: 480px) {
-    .inline-form .form-grid { grid-template-columns: 1fr; }
-    .sm-card-head { flex-wrap: wrap; gap: 8px; }
-    .visit-pills  { display: none; }
-    .sm-bulkbar { top: 0; }
-  }
 
   .empty-state {
     text-align: center; padding: 56px 24px; color: var(--hint); font-size: 14px;
@@ -366,6 +360,377 @@
       height: 36px;
       padding: 0 10px;
       font-size: 12px;
+    }
+  }
+
+
+  /* ── Mobile UI improvements ── */
+  @media (max-width: 700px) {
+    .sm-stat-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .sm-stat {
+      padding: 10px 8px;
+      border-radius: 10px;
+    }
+
+    .sm-stat .val {
+      font-size: 19px;
+    }
+
+    .sm-stat .lbl {
+      font-size: 8.5px;
+      margin-top: 3px;
+      letter-spacing: .03em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sm-toolbar-wrap {
+      padding: 2px 0 10px;
+    }
+
+    .sm-toolbar {
+      gap: 7px;
+      margin-bottom: 8px;
+    }
+
+    .sm-search-box {
+      min-width: 0;
+      flex: 1 1 100%;
+    }
+
+    .sm-toolbar input[type="text"] {
+      font-size: 13px;
+      padding: 10px 10px 10px 34px;
+      min-height: 42px;
+    }
+
+    .sm-toolbar select {
+      flex: 1;
+      min-width: 0;
+      min-height: 40px;
+      font-size: 12px;
+    }
+
+    .filter-pills {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding: 2px 1px 5px;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .filter-pills::-webkit-scrollbar {
+      display: none;
+    }
+
+    .fpill {
+      flex: 0 0 auto;
+      font-size: 11.5px;
+      padding: 7px 11px;
+      white-space: nowrap;
+    }
+
+    .sm-bulkbar {
+      position: sticky;
+      top: 0;
+      margin-bottom: 10px;
+      padding: 9px 10px;
+      gap: 6px;
+      border-radius: 10px;
+    }
+
+    .sm-bulkbar .count-txt {
+      font-size: 11.5px;
+      min-width: 0;
+    }
+
+    .sm-bulkbar button {
+      padding: 7px 9px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .sm-card {
+      border-radius: 12px;
+      margin-bottom: 8px;
+    }
+
+    .sm-card-head {
+      display: grid;
+      grid-template-columns: 18px minmax(42px, auto) minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: start;
+      padding: 11px 10px;
+    }
+
+    .sm-proj-code {
+      font-size: 11.5px;
+      min-width: 0;
+      padding-top: 2px;
+    }
+
+    .sm-proj-info {
+      min-width: 0;
+      width: 100%;
+    }
+
+    .sm-proj-name {
+      font-size: 14px;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+
+    .sm-project-details {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 8px;
+      margin-top: 6px;
+    }
+
+    .sm-detail-item {
+      min-width: 0;
+      gap: 4px;
+      font-size: 10.5px;
+      line-height: 1.35;
+    }
+
+    .sm-detail-item i {
+      font-size: 13px;
+    }
+
+    .sm-detail-item span {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .sm-detail-item.sm-address {
+      grid-column: 1 / -1;
+    }
+
+    .sm-proj-meta {
+      font-size: 10.5px;
+      margin-top: 5px;
+    }
+
+    .visit-pills {
+      display: none;
+    }
+
+    .sm-progress {
+      grid-column: 3 / 4;
+      min-width: 0;
+      width: 100%;
+      margin-top: 4px;
+    }
+
+    .sm-next-label {
+      grid-column: 4 / 5;
+      min-width: 54px;
+      text-align: right;
+      align-self: center;
+    }
+
+    .sm-next-badge {
+      font-size: 9.5px;
+      padding: 3px 6px;
+      white-space: nowrap;
+    }
+
+    .sm-next-label > div {
+      font-size: 9px !important;
+      margin-top: 2px !important;
+    }
+
+    .sm-chevron {
+      grid-column: 4 / 5;
+      grid-row: 1;
+      justify-self: end;
+      font-size: 17px;
+      line-height: 1;
+      margin-top: 1px;
+    }
+
+    .sm-card-body {
+      overflow: hidden;
+    }
+
+    .status-banner {
+      padding: 9px 10px;
+      gap: 7px;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .status-banner a {
+      display: inline-block;
+      margin-left: 0 !important;
+      margin-top: 4px;
+    }
+
+    .visit-row {
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr);
+      gap: 9px;
+      padding: 11px 10px;
+    }
+
+    .vrow-num {
+      width: 32px;
+      height: 32px;
+      font-size: 11px;
+    }
+
+    .vrow-title {
+      gap: 5px;
+      margin-bottom: 5px;
+    }
+
+    .vrow-title strong {
+      font-size: 12.5px;
+    }
+
+    .vrow-title > span:not(.vstatus-pill):not(.check-chip) {
+      font-size: 10px !important;
+    }
+
+    .vstatus-pill,
+    .check-chip {
+      font-size: 9.5px;
+      padding: 3px 7px;
+    }
+
+    .vrow-meta {
+      font-size: 10.5px;
+      line-height: 1.45;
+    }
+
+    .visit-notes {
+      font-size: 10.5px;
+      padding: 6px 8px;
+      margin-top: 6px;
+    }
+
+    .vrow-actions {
+      gap: 5px;
+      margin-top: 8px;
+    }
+
+    .vrow-actions .btn {
+      flex: 1 1 auto;
+      min-height: 36px;
+      padding: 7px 8px;
+      font-size: 11px;
+    }
+
+    .inline-form {
+      padding: 10px;
+      margin-top: 9px;
+      border-radius: 9px;
+    }
+
+    .inline-form .form-grid {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .inline-form .form-grid .full {
+      grid-column: auto;
+    }
+
+    .inline-form .form-group input,
+    .inline-form .form-group select,
+    .inline-form .form-group textarea {
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    .sm-pdf-panel {
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+
+    .sm-pdf-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .sm-pdf-row .form-group,
+    .sm-pdf-row select,
+    .sm-pdf-row input,
+    .sm-pdf-row button {
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .sm-pagination {
+      gap: 5px;
+      margin: 16px 0 24px;
+    }
+
+    .sm-page-btn {
+      min-width: 0;
+      flex: 1;
+      height: 38px;
+      padding: 0 8px;
+      font-size: 11px;
+    }
+
+    .sm-page-info {
+      font-size: 11px;
+      padding: 0 3px;
+    }
+  }
+
+  @media (max-width: 420px) {
+    .sm-stat-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .sm-stat:last-child {
+      grid-column: span 2;
+    }
+
+    .sm-card-head {
+      grid-template-columns: 18px 40px minmax(0, 1fr) 18px;
+      gap: 7px;
+    }
+
+    .sm-project-details {
+      grid-template-columns: 1fr;
+    }
+
+    .sm-detail-item.sm-address {
+      grid-column: auto;
+    }
+
+    .sm-next-label {
+      grid-column: 3 / 4;
+      grid-row: 2;
+      justify-self: start;
+      text-align: left;
+      margin-top: 2px;
+    }
+
+    .sm-progress {
+      grid-column: 3 / 5;
+      grid-row: 3;
+    }
+
+    .sm-chevron {
+      grid-column: 4;
+      grid-row: 1;
+    }
+
+    .vrow-actions .btn {
+      flex: 1 1 100%;
     }
   }
 
