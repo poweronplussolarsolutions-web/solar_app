@@ -795,23 +795,55 @@
 </div>
 
 {% elif current_user.role == 'service' %}
-<div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+<div class="stats-grid" style="grid-template-columns:repeat(6,minmax(0,1fr))">
   <div class="stat-card">
-    <div class="stat-label">Pending</div>
-    <div class="stat-value" style="color:var(--amber-600)">{{ data.pending_count }}</div>
-    <div class="stat-sub">Awaiting scheduling</div>
+    <div class="stat-label">Projects</div>
+    <div class="stat-value" style="color:var(--text)">{{ data.service_stats.projects }}</div>
   </div>
+
   <div class="stat-card">
-    <div class="stat-label">Scheduled</div>
-    <div class="stat-value" style="color:var(--blue-600)">{{ data.scheduled_count }}</div>
-    <div class="stat-sub">Date confirmed</div>
+    <div class="stat-label">Overdue</div>
+    <div class="stat-value" style="color:#dc2626">{{ data.service_stats.overdue }}</div>
+    <div class="stat-sub">Needs attention</div>
   </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Due</div>
+    <div class="stat-value" style="color:#ea580c">{{ data.service_stats.due }}</div>
+    <div class="stat-sub">Due now</div>
+  </div>
+
   <div class="stat-card">
     <div class="stat-label">Completed</div>
-    <div class="stat-value" style="color:var(--green-600)">{{ data.completed }}</div>
+    <div class="stat-value" style="color:#16a34a">{{ data.service_stats.completed }}</div>
     <div class="stat-sub">All time</div>
   </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Upcoming</div>
+    <div class="stat-value" style="color:#2563eb">{{ data.service_stats.upcoming }}</div>
+    <div class="stat-sub">Next schedule / project</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-label">Skipped</div>
+    <div class="stat-value" style="color:#94a3b8">{{ data.service_stats.skipped }}</div>
+    <div class="stat-sub">Skipped visits</div>
+  </div>
 </div>
+
+<style>
+@media (max-width:1100px) {
+  .stats-grid {
+    grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  }
+}
+@media (max-width:700px) {
+  .stats-grid {
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  }
+}
+</style>
 
 {# ── QUICK LINKS ── #}
 <div class="card service-quick-links-card" style="margin-bottom:16px">

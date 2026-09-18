@@ -3303,13 +3303,86 @@ def dashboard():
             Notification.created_at.desc()).all()
 
     elif role == 'service':
+        # Keep the Service Dashboard stats aligned with Service Management.
+        # Upcoming is counted only once per project, using that project's
+        # next actionable service visit (first visit not Completed/Skipped).
+        refresh_service_statuses()
+
         pending  = AppInstallation.query.filter_by(status='Pending').all()
         scheduled = AppInstallation.query.filter_by(status='Scheduled').all()
+
         data['installs']        = pending
         data['scheduled']       = scheduled
         data['pending_count']   = len(pending)
         data['scheduled_count'] = len(scheduled)
         data['completed']       = AppInstallation.query.filter_by(status='Completed').count()
+
+        # Same eligible project set used by Service Management.
+        has_service = (db.session.query(Project.id)
+            .join(ServiceRecord, ServiceRecord.project_id == Project.id)
+            .filter(Project.status.notin_(['Cancelled']))
+            .distinct()
+            .subquery())
+
+        service_projects = (Project.query
+            .options(
+                joinedload(Project.customer),
+                joinedload(Project.subsidy),
+                joinedload(Project.bank_excess),
+                selectinload(Project.payments),
+                selectinload(Project.expenses),
+                selectinload(Project.waivers),
+                selectinload(Project.payment_excesses),
+            )
+            .filter(Project.id.in_(has_service))
+            .all())
+
+        eligible_service_projects = [
+            p for p in service_projects
+            if p.status not in ('Cancelled', 'OnHold')
+            and p.work_category != 'Outside'
+            and (p.pending_amount <= 0 or p.status == 'Closed')
+        ]
+
+        eligible_ids = [p.id for p in eligible_service_projects]
+
+        service_records = (ServiceRecord.query
+            .filter(ServiceRecord.project_id.in_(eligible_ids))
+            .order_by(ServiceRecord.project_id, ServiceRecord.visit_number)
+            .all()) if eligible_ids else []
+
+        records_by_project = {}
+        for rec in service_records:
+            records_by_project.setdefault(rec.project_id, []).append(rec)
+
+        # Count each service status the same way Service Management does.
+        data['service_stats'] = {
+            'projects':  len(eligible_service_projects),
+            'overdue':   sum(1 for r in service_records if r.status == 'Overdue'),
+            'due':       sum(1 for r in service_records if r.status == 'Due'),
+            'completed': sum(1 for r in service_records if r.status == 'Completed'),
+            'skipped':   sum(1 for r in service_records if r.status == 'Skipped'),
+            'upcoming':  0,
+        }
+
+        # Upcoming = one count per project, based on its very next
+        # non-completed/non-skipped visit. Locked next visits are excluded.
+        for pid, records in records_by_project.items():
+            annotated = _annotate_service_records(records)
+            next_rec = next(
+                (r for r in records if r.status not in ('Completed', 'Skipped')),
+                None
+            )
+            if not next_rec:
+                continue
+
+            next_locked = next(
+                (a['locked'] for a in annotated if a['rec'] is next_rec),
+                False
+            )
+
+            if next_rec.status == 'Upcoming' and not next_locked:
+                data['service_stats']['upcoming'] += 1
 
     return render_template('dashboard.html', data=data)
 @app.route('/onsite')
