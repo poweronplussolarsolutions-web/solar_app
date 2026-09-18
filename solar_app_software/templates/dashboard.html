@@ -813,54 +813,86 @@
   </div>
 </div>
 
-{# ── PENDING — needs scheduling ── #}
-{% if data.installs %}
-<div class="card" style="margin-bottom:16px">
-  <div class="card-title">
-    Needs scheduling
-    <span class="badge badge-Delayed" style="margin-left:6px">{{ data.pending_count }}</span>
-  </div>
-  <div class="table-wrap">
-  <table>
-    <thead>
-      <tr>
-        <th>Project</th><th>Customer</th><th>kW</th><th>Type</th><th>Schedule date</th><th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for i in data.installs %}
-      <tr>
-        <td>
-          <a href="{{ url_for('project_detail', pid=i.project_id) }}"
-             style="font-weight:500;color:var(--amber-600)">
-            {{ i.project.project_code }}
-          </a>
-        </td>
-        <td>{{ i.project.customer.name }}</td>
-        <td style="font-size:12px;color:var(--muted)">{{ i.project.system_kw }} kW</td>
-        <td><span class="badge badge-{{ i.project.project_type }}">{{ i.project.project_type }}</span></td>
-        <td>
-          <form method="POST" action="{{ url_for('update_installation', pid=i.project_id) }}" 
-                style="display:flex;gap:6px;align-items:center">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="status" value="Scheduled">
-            <input type="date" name="scheduled_date" required
-                   style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border);
-                          border-radius:var(--radius);background:transparent;color:var(--fg)">
-            <button type="submit" class="btn btn-sm">Set date</button>
-          </form>
-        </td>
-        <td>
-          <a href="{{ url_for('project_detail', pid=i.project_id) }}"
-             class="btn btn-sm">View</a>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{# ── QUICK LINKS ── #}
+<div class="card service-quick-links-card" style="margin-bottom:16px">
+  <div class="card-title">Quick Links</div>
+
+  <div class="service-quick-links">
+    <a href="{{ url_for('service_management') }}" class="btn service-quick-link">
+      <span>Service Management</span>
+      <span>→</span>
+    </a>
+
+    <a href="{{ url_for('service_management') }}" class="btn service-quick-link">
+      <span>Service Services</span>
+      <span>→</span>
+    </a>
+
+    <a href="{{ url_for('download_service_report_pdf', mode='overdue') }}"
+       class="btn service-quick-link">
+      <span>Download Overdue Report</span>
+      <span>↓</span>
+    </a>
+
+    <a href="{{ url_for('service_management') }}" class="btn service-quick-link">
+      <span>Pending Services</span>
+      <span class="badge badge-Delayed">{{ data.pending_count }}</span>
+    </a>
+
+    <a href="{{ url_for('service_management') }}" class="btn service-quick-link">
+      <span>Scheduled Services</span>
+      <span class="badge badge-InProgress">{{ data.scheduled_count }}</span>
+    </a>
+
+    <a href="{{ url_for('service_management') }}" class="btn service-quick-link">
+      <span>Completed Services</span>
+      <span class="badge badge-Completed">{{ data.completed }}</span>
+    </a>
   </div>
 </div>
-{% endif %}
+
+<style>
+.service-quick-links {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+}
+
+.service-quick-link {
+  min-height:42px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:9px 12px;
+  text-align:left;
+  font-size:12px;
+  text-decoration:none;
+}
+
+.service-quick-link:hover {
+  transform:translateY(-1px);
+}
+
+@media (max-width:700px) {
+  .service-quick-links {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:7px;
+  }
+
+  .service-quick-link {
+    min-height:40px;
+    padding:8px 10px;
+    font-size:11px;
+  }
+}
+
+@media (max-width:420px) {
+  .service-quick-links {
+    grid-template-columns:1fr;
+  }
+}
+</style>
 
 {# ── SCHEDULED — ready to complete ── #}
 {% if data.scheduled %}
