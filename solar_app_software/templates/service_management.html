@@ -767,22 +767,15 @@
     </div>
   </form>
 </div>
-{# Count Upcoming once per project, using only that project's very next schedule. #}
-{% set upcoming_projects = namespace(count=0) %}
-{% for pd in proj_data %}
-  {% if pd.next and pd.next.status == 'Upcoming' and not pd.next_locked %}
-    {% set upcoming_projects.count = upcoming_projects.count + 1 %}
-  {% endif %}
-{% endfor %}
 
 <div class="sm-stat-grid">
   {% for label, val, accent in [
-    ('Projects',   stats.projects,             'var(--text)'),
-    ('Overdue',    stats.overdue,              '#dc2626'),
-    ('Due soon',   stats.due,                 '#ea580c'),
-    ('Completed',  stats.completed,            '#16a34a'),
-    ('Upcoming',   upcoming_projects.count,    '#2563eb'),
-    ('Skipped',    stats.skipped,              '#94a3b8'),
+    ('Projects',   stats.projects,   'var(--text)'),
+    ('Overdue',    stats.overdue,    '#dc2626'),
+    ('Due soon',   stats.due,       '#ea580c'),
+    ('Completed',  stats.completed,  '#16a34a'),
+    ('Upcoming',   stats.upcoming,   '#2563eb'),
+    ('Skipped',    stats.skipped,   '#94a3b8'),
   ] %}
   <div class="sm-stat" style="--stat-accent:{{ accent }}">
     <div class="val" style="color:{{ accent }}">{{ val }}</div>
