@@ -409,7 +409,7 @@
   </div>
 </div>
 
-{% if current_user.role in ['admin', 'onsite'] %}
+{% if current_user.role in ['admin', 'service'] %}
 <div class="sm-bulkbar" id="sm-bulkbar">
   <span class="count-txt"><span id="sm-selected-count">0</span> visit(s) selected</span>
   <button type="button" class="btn-go" onclick="toggleInline('bulk-complete-form')">
