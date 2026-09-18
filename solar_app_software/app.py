@@ -6616,7 +6616,7 @@ def service_management():
         ServiceRecord.status.in_(['Upcoming', 'Due', 'Overdue'])
     ).count()
 
-    return render_template('service_dashboard.html',
+    return render_template('service_management.html',
         overdue=overdue, due=due, upcoming=upcoming, recent=recent,
         total_due=len(overdue)+len(due), completed_year=completed_year,
         total_active=total_active, today=today)
