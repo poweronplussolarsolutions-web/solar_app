@@ -823,10 +823,10 @@
       <span>→</span>
     </a>
 
-    <a href="{{ url_for('service_management') }}" class="btn service-quick-link">
+    <!-- <a href="{{ url_for('service_management') }}" class="btn service-quick-link">
       <span>Service Services</span>
       <span>→</span>
-    </a>
+    </a> -->
 
     <a href="{{ url_for('download_service_report_pdf', mode='overdue') }}"
        class="btn service-quick-link">
@@ -839,10 +839,10 @@
       <span class="badge badge-Delayed">{{ data.pending_count }}</span>
     </a>
 
-    <a href="{{ url_for('service_management') }}" class="btn service-quick-link">
+    <!-- <a href="{{ url_for('service_management') }}" class="btn service-quick-link">
       <span>Scheduled Services</span>
       <span class="badge badge-InProgress">{{ data.scheduled_count }}</span>
-    </a>
+    </a> -->
 
     <a href="{{ url_for('service_management') }}" class="btn service-quick-link">
       <span>Completed Services</span>
