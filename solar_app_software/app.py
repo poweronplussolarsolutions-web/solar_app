@@ -6578,7 +6578,7 @@ def app_install_map():
 @app.route('/service')
 @login_required
 @roles_required('admin', 'onsite', 'coordinator')
-def service_dashboard():
+def service_management():
     refresh_service_statuses()
     today = date.today()
 
