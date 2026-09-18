@@ -6577,7 +6577,7 @@ def app_install_map():
         status_filter=status_filter)
 @app.route('/service')
 @login_required
-@roles_required('admin', 'onsite', 'coordinator', 'director', 'service')
+@roles_required('admin', 'director', 'service')
 def service_management():
     page     = request.args.get('page', 1, type=int)
     per_page = 30
@@ -6732,7 +6732,7 @@ def project_service(pid):
                            proj_data=proj_data, stats=stats, today=date.today())
 @app.route('/service/<int:sid>/complete', methods=['POST'])
 @login_required
-@roles_required('admin', 'onsite')
+@roles_required('admin', 'service')
 def complete_service(sid):
     rec = ServiceRecord.query.get_or_404(sid)
 
@@ -6784,7 +6784,7 @@ def complete_service(sid):
     return redirect(request.referrer or url_for('project_service', pid=rec.project_id))
 @app.route('/service/bulk_complete', methods=['POST'])
 @login_required
-@roles_required('admin', 'onsite')
+@roles_required('admin', 'service')
 def bulk_complete_service():
     ids                 = request.form.getlist('service_ids')
     completed_date_str  = request.form.get('completed_date', '')
@@ -6869,7 +6869,7 @@ def unskip_service(sid):
 
 @app.route('/service/<int:sid>/reschedule', methods=['POST'])
 @login_required
-@roles_required('admin', 'onsite')
+@roles_required('admin', 'service')
 def reschedule_service(sid):
     rec           = ServiceRecord.query.get_or_404(sid)
     new_date_str  = request.form.get('new_date', '')

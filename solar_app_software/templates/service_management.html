@@ -475,10 +475,10 @@
 
   <div class="sm-card-head" data-pid="{{ p.id }}">
 
-    {% if current_user.role in ['admin', 'onsite'] and pd.next and not pd.next_locked %}
+    {% if current_user.role in ['admin', 'service'] and pd.next and not pd.next_locked %}
 <input type="checkbox" class="sm-select-box" data-sid="{{ pd.next.id }}" data-pid="{{ p.id }}"
        onclick="event.stopPropagation(); smToggleSelect(this)">
-{% elif current_user.role in ['admin', 'onsite'] %}
+{% elif current_user.role in ['admin', 'service'] %}
 <span style="width:18px;flex-shrink:0"></span>
 {% endif %}
 
@@ -624,7 +624,7 @@
           {% endif %}
 
           {% if (not locked or current_user.role == 'admin') and rec.status not in ['Completed', 'Skipped'] %}
-            {% if current_user.role in ['admin', 'onsite'] %}
+            {% if current_user.role in ['admin', 'service'] %}
             <div class="vrow-actions">
               {% if locked and current_user.role == 'admin' %}
               <span style="font-size:11px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;
