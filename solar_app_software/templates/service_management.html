@@ -299,6 +299,48 @@
     font-weight: 600;
     transition: all .12s;
   }
+  .sm-project-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 5px 18px;
+  margin-top: 7px;
+}
+
+.sm-detail-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.sm-detail-item i {
+  font-size: 14px;
+  color: var(--primary, #1A3C5E);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.sm-detail-item strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.sm-detail-item.sm-address {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 700px) {
+  .sm-project-details {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  .sm-detail-item.sm-address {
+    grid-column: auto;
+  }
+}
   .sm-page-btn:hover {
     background: var(--bg);
     border-color: var(--border-strong, var(--border));
@@ -488,21 +530,84 @@
     </div>
 
     <div class="sm-proj-info">
-      <div class="sm-proj-name">{{ p.customer.name }}</div>
-      <div class="sm-proj-meta">
-        {{ p.inverter_capacity_kw }} kW · {{ p.project_type }}
-        {% if p.customer.place %} · {{ p.customer.place }}{% endif %}
-        {% if p.coordinator %} · {{ p.coordinator.full_name }}{% endif %}
-        {% set kseb_doc = p.documents | selectattr('doc_type','eq','KSEB Connection') | first | default(none) %}
-        {% if kseb_doc and kseb_doc.status in ['Received','Completed'] %}
-          · <span style="color:#16a34a;font-weight:500">⚡ KSEB Connected</span>
-        {% endif %}
-        {% set stage_badge_color = '#16a34a' if p.status in ['Completed','Closed']
-                                    else '#d97706' if p.status == 'Delayed'
-                                    else 'var(--muted)' %}
-        · <span style="color:{{ stage_badge_color }}">{{ p.stage }}</span>
-      </div>
+
+  <!-- Customer Name -->
+  <div class="sm-proj-name">
+    {{ p.customer.name }}
+  </div>
+
+  <!-- Project Details -->
+  <div class="sm-project-details">
+
+    <div class="sm-detail-item">
+      <i class="ti ti-solar-panel"></i>
+      <span>
+        <strong>Panel:</strong>
+        {{ p.panel_capacity_kw }} kW
+      </span>
     </div>
+
+    <div class="sm-detail-item">
+      <i class="ti ti-bolt"></i>
+      <span>
+        <strong>Inverter:</strong>
+        {{ p.inverter_capacity_kw }} kW
+      </span>
+    </div>
+
+    <div class="sm-detail-item">
+      <i class="ti ti-phone"></i>
+      <span>
+        <strong>Phone:</strong>
+        {{ p.customer.phone or 'Not available' }}
+      </span>
+    </div>
+
+    <div class="sm-detail-item">
+      <i class="ti ti-user"></i>
+      <span>
+        <strong>Coordinator:</strong>
+        {{ p.coordinator.full_name if p.coordinator else 'Not assigned' }}
+      </span>
+    </div>
+
+    <div class="sm-detail-item sm-address">
+      <i class="ti ti-map-pin"></i>
+      <span>
+        <strong>Address:</strong>
+        {{ p.customer.full_address or 'Address not available' }}
+      </span>
+    </div>
+
+  </div>
+
+  <!-- Existing project status information -->
+  <div class="sm-proj-meta">
+
+    {{ p.project_type }}
+
+    {% set kseb_doc = p.documents
+      | selectattr('doc_type','eq','KSEB Connection')
+      | first
+      | default(none) %}
+
+    <!-- {% if kseb_doc and kseb_doc.status in ['Received','Completed'] %}
+      · <span style="color:#16a34a;font-weight:500">
+        ⚡ KSEB Connected
+      </span>
+    {% endif %} -->
+
+    <!-- {% set stage_badge_color = '#16a34a' if p.status in ['Completed','Closed']
+                                else '#d97706' if p.status == 'Delayed'
+                                else 'var(--muted)' %}
+
+    · <span style="color:{{ stage_badge_color }}">
+      {{ p.stage }}
+    </span> -->
+
+  </div>
+
+</div>
 
     <div class="visit-pills">
       {% for a in pd.annotated %}
