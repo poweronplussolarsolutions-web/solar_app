@@ -128,41 +128,7 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 </script>
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-  document.querySelectorAll('form').forEach(function (form) {
-    var action = form.getAttribute('action') || '';
-    var isAllowed = action.includes('/hold') || action.includes('/cancel') || action.includes('/uncancel') || action.includes('/delete');
-    if (!isAllowed) {
-      form.querySelectorAll('input, select, textarea, button').forEach(function (el) {
-        el.disabled = true;
-      });
-    }
-  });
-  document.querySelectorAll('button, a.btn').forEach(function (el) {
-    var onclick = el.getAttribute('onclick') || '';
-    var href    = el.getAttribute('href')    || '';
-    var isToggle       = onclick.includes('togglePanel');
-    var isHoldForm     = el.closest('form') && (
-                           (el.closest('form').getAttribute('action') || '').includes('/hold') ||
-                           (el.closest('form').getAttribute('action') || '').includes('/cancel') ||
-                           (el.closest('form').getAttribute('action') || '').includes('/uncancel') ||
-                           (el.closest('form').getAttribute('action') || '').includes('/delete')
-                         );
-    var isBack         = href.includes('/projects') && el.textContent.trim().startsWith('←');
-    var isNotification = el.id === 'notif-btn' || el.closest('#notif-btn') ||
-                         el.classList.contains('notif-btn') || el.closest('.notif-btn') ||
-                         onclick.includes('notif') || href.includes('notif');
-    if (!isToggle && !isHoldForm && !isBack && !isNotification) {
-      el.style.pointerEvents = 'none';
-      el.style.opacity       = '0.4';
-      el.style.cursor        = 'not-allowed';
-      el.removeAttribute('href');
-    }
-  });
-});
-</script>
-{% endif %}
+
 {% endif %}
 {% if current_user.role == 'admin' %}
   {% set missing = [] %}
