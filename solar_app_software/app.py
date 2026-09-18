@@ -426,7 +426,17 @@ limiter = Limiter(
     storage_uri='memory://',    # swap to 'redis://localhost:6379' in production
 )
 # setup_logging(app)
+from flask_apscheduler import APScheduler
 
+scheduler = APScheduler()
+scheduler.init_app(app)
+
+@scheduler.task('cron', id='refresh_service_statuses_job', hour=0, minute=5)
+def scheduled_refresh_service_statuses():
+    with app.app_context():
+        refresh_service_statuses()
+
+scheduler.start()
 # ── Security headers (injected on every response) ────────────────────────────
 @app.after_request
 def set_security_headers(response):
@@ -5067,78 +5077,26 @@ def works_status():
                            done_statuses=DONE_STATUSES,
                            doc_staff_list=doc_staff_list,
                            is_office=is_office)
-@app.route('/service_management')
+@app.route('/api/projects/<int:pid>/service_visits')
 @login_required
-@roles_required('admin', 'onsite', 'coordinator','director','service')
-def service_management():
-    refresh_service_statuses()
-
-    has_service = (db.session.query(Project.id)
-        .join(ServiceRecord, ServiceRecord.project_id == Project.id)
-        .filter(Project.status.notin_(['Cancelled']))
-        .distinct()
-        .subquery())
-
-    projects = (Project.query
-    .options(
-        joinedload(Project.customer),
-        joinedload(Project.coordinator),
-        joinedload(Project.payments),
-        joinedload(Project.subsidy),
-    )
-    .filter(Project.id.in_(has_service))
-    .order_by(cast(Project.project_code, Integer))
-    .all())
-
-    # Exclude OnHold too, not just Cancelled — a held project's service
-    # schedule shouldn't read as "actionable" even if pending_amount is 0.
-    projects = [p for p in projects
-            if p.status not in ('Cancelled', 'OnHold')
-            and p.work_category != 'Outside'                  
-            and (p.pending_amount <= 0 or p.status == 'Closed')]
-    proj_data = []
-    for p in projects:
-        records   = sorted(p.service_records, key=lambda r: r.visit_number)
-        annotated = _annotate_service_records(records)
-        done    = sum(1 for r in records if r.status == 'Completed')
-        over    = sum(1 for r in records if r.status == 'Overdue')
-        due     = sum(1 for r in records if r.status == 'Due')
-        skipped = sum(1 for r in records if r.status == 'Skipped')
-        total   = len(records)
-        pct     = int(done / total * 100) if total else 0
-        next_v  = next((r for r in records if r.status not in ('Completed', 'Skipped')), None)
-        next_locked = next(
-            (a['locked'] for a in annotated if a['rec'] is next_v), False
-        ) if next_v else False
-
-        proj_data.append({
-            'project':     p,
-            'records':     records,
-            'annotated':   annotated,
-            'done':        done,
-            'over':        over,
-            'due':         due,
-            'skipped':     skipped,
-            'total':       total,
-            'pct':         pct,
-            'next':        next_v,
-            'next_locked': next_locked,
-        })
-
-    all_records = [r for pd in proj_data for r in pd['records']]
-    stats = {
-        'projects':  len(proj_data),
-        'overdue':   sum(1 for r in all_records if r.status == 'Overdue'),
-        'due':       sum(1 for r in all_records if r.status == 'Due'),
-        'completed': sum(1 for r in all_records if r.status == 'Completed'),
-        'upcoming':  sum(1 for pd in proj_data if pd['next'] and pd['next'].status == 'Upcoming'),
-        'skipped':   sum(1 for r in all_records if r.status == 'Skipped'),
-    }
-
-    return render_template('service_management.html',
-                           proj_data=proj_data,
-                           stats=stats,
-                           today=date.today())
+def api_project_service_visits(pid):
+    records = (ServiceRecord.query
+        .filter_by(project_id=pid)
+        .order_by(ServiceRecord.visit_number)
+        .all())
+    annotated = _annotate_service_records(records)
+    return jsonify([{
+        'id': a['rec'].id,
+        'visit_number': a['rec'].visit_number,
+        'status': a['rec'].status,
+        'state': a['state'],
+        'locked': a['locked'],
+        'scheduled_date': a['rec'].scheduled_date.isoformat(),
+        'completed_date': a['rec'].completed_date.isoformat() if a['rec'].completed_date else None,
+        'panel_cleaning': a['rec'].panel_cleaning,
+        'notes': a['rec'].notes,
+        'technician': a['rec'].technician.full_name if a['rec'].technician else None,
+    } for a in annotated])
 
 @app.route('/projects/<int:pid>/connection_details', methods=['POST'])
 @login_required
