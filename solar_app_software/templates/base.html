@@ -558,6 +558,8 @@
       </a>
       <a class="nav-link {% if request.endpoint in 'manage_document_stages' %}active{% endif %}" href="{{ url_for('manage_document_stages') }}">
         <span class="dot"></span>Document Stages</a>
+      <a class="nav-link {% if request.endpoint in 'deleted_projects' %}active{% endif %}" href="{{ url_for('deleted_projects') }}">
+  <span class="dot"></span>Deleted Projects</a>
         <a class="nav-link {% if request.endpoint in 'admin_change_password' %}active{% endif %}" href="{{ url_for('admin_change_password') }}">
         <span class="dot"></span>Change Password</a>  
         {% endif %}

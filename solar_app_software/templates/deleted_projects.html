@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Deleted Projects{% endblock %}
+{% block page_title %}Deleted Projects{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-title">Deleted projects ({{ projects | length }})</div>
+  {% if projects %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>MNRE No.</th><th>Customer</th><th>Deleted by</th><th>Deleted on</th><th>Reason</th><th></th></tr></thead>
+    <tbody>
+      {% for p in projects %}
+      <tr>
+        <td>{{ p.project_code }}</td>
+        <td>{{ p.customer.name }}</td>
+        <td>{{ p.deleter.full_name if p.deleter else '—' }}</td>
+        <td>{{ p.deleted_at | date_fmt }}</td>
+        <td style="font-size:12px;color:var(--muted)">{{ p.deleted_reason or '—' }}</td>
+        <td>
+          <a href="{{ url_for('project_detail', pid=p.id) }}" class="btn btn-sm">View</a>
+          <form method="POST" action="{{ url_for('restore_deleted_project', pid=p.id) }}" style="display:inline"
+                onsubmit="return confirm('Restore this project?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-primary">↩ Restore</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div style="color:var(--hint);font-size:13px">No deleted projects.</div>
+  {% endif %}
+</div>
+{% endblock %}

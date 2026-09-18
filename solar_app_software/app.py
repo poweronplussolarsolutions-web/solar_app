@@ -600,6 +600,13 @@ class Project(db.Model):
     coordinator_name = db.Column(db.String(120), nullable=True)
     work_category = db.Column(db.Enum('Installation','Outside'), nullable=False, default='Installation')
 
+    # ── Admin-only soft delete — distinct from status='Cancelled' ──────────
+    is_deleted      = db.Column(db.Boolean, default=False, nullable=False)
+    deleted_at      = db.Column(db.DateTime, nullable=True)
+    deleted_by      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    deleted_reason  = db.Column(db.String(500), nullable=True)
+    deleter         = db.relationship('User', foreign_keys=[deleted_by])
+    
     @property
     def contract_amount(self):
         return float(self.total_amount or 0)
@@ -3006,17 +3013,18 @@ def dashboard():
     data = {}
 
     if role in ('admin','director'):
-        data['total']     = Project.query.count()
-        data['inprog']    = Project.query.filter_by(status='InProgress').count()
-        data['completed'] = Project.query.filter(Project.status.in_(['Completed','Closed'])).count()
-        data['onhold']    = Project.query.filter_by(status='OnHold').count()
-        data['cancelled'] = Project.query.filter_by(status='Cancelled').count()
-        data['delayed']   = Project.query.filter_by(status='Delayed').count()
-        data['projects']  = Project.query.order_by(Project.updated_at.desc()).paginate(
+        data['total']     = Project.query.filter_by(is_deleted=False).count()
+        data['inprog']    = Project.query.filter_by(is_deleted=False, status='InProgress').count()
+        data['completed'] = Project.query.filter(Project.is_deleted == False, Project.status.in_(['Completed','Closed'])).count()
+        data['onhold']    = Project.query.filter_by(is_deleted=False, status='OnHold').count()
+        data['cancelled'] = Project.query.filter_by(is_deleted=False, status='Cancelled').count()
+        data['delayed']   = Project.query.filter_by(is_deleted=False, status='Delayed').count()
+        data['projects']  = Project.query.filter_by(is_deleted=False).order_by(Project.updated_at.desc()).paginate(
             page=request.args.get('page', 1, type=int), per_page=15, error_out=False)
 
         active_projects = Project.query.filter(
-    Project.status != 'Cancelled'
+    Project.status != 'Cancelled',
+    Project.is_deleted == False,
     ).options(
     joinedload(Project.subsidy),
     selectinload(Project.expenses),
@@ -3026,7 +3034,6 @@ def dashboard():
 
         data['collected'] = sum(p.effective_collected for p in active_projects)
         data['total_amt'] = sum(p.total_receivable   for p in active_projects)
-
     elif role == 'coordinator':
         my_projects    = Project.query.filter_by(coordinator_id=current_user.id).order_by(Project.updated_at.desc()).all()
         my_project_ids = [p.id for p in my_projects]
@@ -3924,6 +3931,63 @@ def edit_project(pid):
                            doc_staff=doc_staff, coordinators=coordinators,office=office,
                            documents_k=documents_k,
                            other_coord_names=other_coord_names)
+
+@app.route('/projects/<int:pid>/delete', methods=['POST'])
+@login_required
+@roles_required('admin')
+def delete_project(pid):
+    proj = Project.query.get_or_404(pid)
+    if proj.is_deleted:
+        flash('Project is already deleted.', 'warning')
+        return redirect(url_for('project_detail', pid=pid))
+
+    reason = _clean(request.form.get('reason', ''), 500)
+    if not reason:
+        flash('Please provide a reason for deletion.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+
+    proj.is_deleted     = True
+    proj.deleted_at     = datetime.utcnow()
+    proj.deleted_by     = current_user.id
+    proj.deleted_reason = reason
+
+    log_action(pid, f'Project deleted by {current_user.full_name}. Reason: {reason}',
+               old_val=proj.status, new_val='Deleted')
+    db.session.commit()
+    flash(f'Project {proj.project_code} has been deleted.', 'success')
+    return redirect(url_for('projects'))
+
+
+@app.route('/projects/<int:pid>/restore_deleted', methods=['POST'])
+@login_required
+@roles_required('admin')
+def restore_deleted_project(pid):
+    proj = Project.query.get_or_404(pid)
+    if not proj.is_deleted:
+        flash('Project is not deleted.', 'warning')
+        return redirect(url_for('deleted_projects'))
+
+    proj.is_deleted     = False
+    proj.deleted_at     = None
+    proj.deleted_by     = None
+    proj.deleted_reason = None
+
+    log_action(pid, f'Project restored from deletion by {current_user.full_name}',
+               old_val='Deleted', new_val=proj.status)
+    db.session.commit()
+    flash(f'Project {proj.project_code} has been restored.', 'success')
+    return redirect(url_for('deleted_projects'))
+
+
+@app.route('/admin/deleted_projects')
+@login_required
+@roles_required('admin')
+def deleted_projects():
+    projects = (Project.query
+                .filter_by(is_deleted=True)
+                .order_by(Project.deleted_at.desc())
+                .all())
+    return render_template('deleted_projects.html', projects=projects)
 @app.route('/projects/<int:pid>/geo_tag/delete_photo', methods=['POST'])
 @login_required
 @roles_required('admin', 'onsite', 'coordinator', 'documents', 'office', 'documents_k', 'director')
@@ -4003,6 +4067,9 @@ def complete_site_visit(vid, pid):
 @login_required
 def project_detail(pid):
     proj        = Project.query.get_or_404(pid)
+    if proj.is_deleted and current_user.role != 'admin':
+        flash('This project no longer exists.', 'danger')
+        return redirect(url_for('projects'))
     stages      = get_document_stages()
     logs        = ProjectLog.query.filter_by(project_id=pid).order_by(ProjectLog.created_at.desc()).all()
     workers     = Worker.query.filter_by(is_active=True).all()

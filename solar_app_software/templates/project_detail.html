@@ -276,6 +276,30 @@ document.addEventListener('DOMContentLoaded', function () {
   </div>
 
   <div>
+    {% if current_user.role == 'admin' and not proj.is_deleted %}
+<button class="btn btn-danger btn-sm" onclick="togglePanel('deletePanel')" style="margin:5px">
+  🗑 Delete Project
+</button>
+<div id="deletePanel" style="display:none;margin:10px 0 4px 0;border:1px solid #fca5a5;border-radius:var(--radius);background:#fff1f1;padding:16px">
+  <div style="font-size:13px;font-weight:600;color:#b91c1c;margin-bottom:8px">🗑 Delete Project</div>
+  <p style="font-size:13px;color:#7f1d1d;margin-bottom:10px">
+    This removes <strong>{{ proj.project_code }} — {{ proj.customer.name }}</strong> from all normal views and counts.
+    It is not the same as cancelling — only an admin can restore it from the Deleted Projects list.
+  </p>
+  <form method="POST" action="{{ url_for('delete_project', pid=proj.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group" style="margin-bottom:10px">
+      <label style="font-size:12px">Reason for deletion (required)</label>
+      <textarea name="reason" rows="2" required placeholder="Enter reason…"
+        style="width:100%;margin-top:4px;font-size:13px"></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button type="submit" class="btn btn-danger btn-sm">Confirm Delete</button>
+      <button type="button" class="btn btn-sm" onclick="togglePanel('deletePanel')">Dismiss</button>
+    </div>
+  </form>
+</div>
+{% endif %}
     {% if current_user.role in ['admin', 'coordinator','documents','office','documents_k'] and proj.status not in ['Cancelled', 'Closed'] %}
     <button class="btn btn-danger btn-sm" onclick="togglePanel('cancelPanel')" style="margin:5px">
       ✕ Cancel Project
