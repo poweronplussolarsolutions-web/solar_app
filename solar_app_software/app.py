@@ -86,7 +86,22 @@ def get_expected_docs(project_type, project_subtype=None, loan_subtype=None, wor
 
 
 
+POST_ONSITE_STAGES = ('Connection', 'Subsidy', 'Payment')
 
+
+def _onsite_work_started(p):
+    """True once any step after Feasibility has actually begun — a later
+    stage, or any onsite phase (structure / installation / electrical)
+    that is no longer NotStarted."""
+    if p.stage in POST_ONSITE_STAGES:
+        return True
+    op = p.onsite_progress
+    if not op:
+        return False
+    return any(
+        (s or 'NotStarted') != 'NotStarted'
+        for s in (op.structure_work_status, op.installation_status, op.electrical_status)
+    )
 def get_doc_completion(project):
     expected = get_expected_docs(project.project_type, project.project_subtype,
                                   project.loan_subtype, project.work_category)
@@ -155,8 +170,7 @@ def _compute_daily_tasks(user):
                 continue
             if p.status in ('Cancelled', 'OnHold', 'Completed', 'Closed'):
                 continue
-            op = p.onsite_progress
-            if op and op.structure_work_status != 'NotStarted':
+            if _onsite_work_started(p):
                 continue
             tasks.append({
                 'key': f'feas_expired_{p.id}', 'type': 'feasibility_expired',
