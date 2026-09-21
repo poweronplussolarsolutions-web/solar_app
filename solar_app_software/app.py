@@ -3687,12 +3687,12 @@ def new_project():
                 f'You have been assigned to {proj.project_code}-{proj.customer.name} '
                 f'({proj.project_type}, {proj.inverter_capacity_kw} kW).', 'task',
             )
-        if proj.doc_staff_id:
-            create_notification(
-                proj.doc_staff_id, proj.id,
-                f'You have been assigned to {proj.project_code}-{proj.customer.name} '
-                f'({proj.project_type}, {proj.inverter_capacity_kw} kW).', 'task',
-            )
+        # if proj.doc_staff_id:
+        #     create_notification(
+        #         proj.doc_staff_id, proj.id,
+        #         f'You have been assigned to {proj.project_code}-{proj.customer.name} '
+        #         f'({proj.project_type}, {proj.inverter_capacity_kw} kW).', 'task',
+        #     )
         # ── Notify onsite team of new work ────────────────────────────────
         if proj.work_category != 'Outside':
             if proj.project_type == 'Cash':
