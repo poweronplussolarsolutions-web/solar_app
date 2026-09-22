@@ -480,7 +480,7 @@
       <a class="nav-link {% if request.endpoint in 'change_password' %}active{% endif %}" href="{{ url_for('change_password') }}">
         <span class="dot"></span>Change Password</a> 
       {% endif %}
-       {% if current_user.role == 'documents_k' %}
+       {% if current_user.role in ['documents_k','documents'] %}
 <a class="nav-link {% if request.endpoint in 'job_card_page' %}active{% endif %}" href="{{ url_for('job_card_page') }}">
         <span class="dot"></span>Job Card</a>
 {% endif %}
