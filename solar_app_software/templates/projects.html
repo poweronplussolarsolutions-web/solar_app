@@ -78,7 +78,7 @@
     </thead>
     <tbody>
       {% for p in projects %}
-      <tr>
+      <tr class="row-clickable" data-href="{{ url_for('project_detail', pid=p.id) }}">
         <td style="font-weight:500">{{ p.project_code }}</td>
         <td>{{ p.customer.name }}</td>
         <!-- <td style="font-size:12px;color:var(--muted)">{{ p.customer.district }}</td> -->
@@ -191,4 +191,12 @@
   <div style="text-align:center;padding:32px;color:var(--hint);font-size:13px">No projects found.</div>
   {% endif %}
 </div>
+<script>
+document.querySelectorAll('.row-clickable').forEach(function(row) {
+  row.addEventListener('click', function(e) {
+    if (e.target.closest('a,button')) return;
+    window.location.href = row.dataset.href;
+  });
+});
+</script>
 {% endblock %}
