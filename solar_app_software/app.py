@@ -1413,6 +1413,32 @@ class PushSubscription(db.Model):
     user_agent = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user       = db.relationship('User', backref='push_subscriptions') 
+
+
+from sqlalchemy.orm import with_loader_criteria
+from sqlalchemy import event
+from sqlalchemy.orm import Session as _SASession
+
+@event.listens_for(_SASession, 'do_orm_execute')
+def _hide_deleted_projects(execute_state):
+    """Global filter: every ORM query touching Project (directly, via a
+    join, or via a relationship load) automatically excludes soft-deleted
+    projects — dashboards, /projects, /works_status, /service, /onsite,
+    reports, notifications, search, everywhere. Pass
+    execution_options(include_deleted=True) on a query to see deleted
+    rows — used only by the admin Deleted Projects page and the
+    delete/restore routes."""
+    if not execute_state.is_select:
+        return
+    if execute_state.execution_options.get('include_deleted', False):
+        return
+    execute_state.statement = execute_state.statement.options(
+        with_loader_criteria(
+            Project,
+            lambda cls: cls.is_deleted == False,
+            include_aliases=True,
+        )
+    )
 from urllib.parse import urlparse
 
 ALLOWED_MAPS_HOSTS = ('google.com', 'goo.gl', 'maps.app.goo.gl')
@@ -4044,44 +4070,71 @@ def delete_project(pid):
         flash('Please provide a reason for deletion.', 'danger')
         return redirect(url_for('project_detail', pid=pid))
 
+    original_code = proj.project_code
+    # Rename off the real MNRE number — the unique constraint on
+    # project_code would otherwise block a new project from reusing it.
+    freed_code = f'DEL-{original_code}-{int(datetime.utcnow().timestamp())}'
+
     proj.is_deleted     = True
     proj.deleted_at     = datetime.utcnow()
     proj.deleted_by     = current_user.id
-    proj.deleted_reason = reason
+    proj.deleted_reason = f'[Original MNRE: {original_code}] {reason}'
+    proj.project_code   = freed_code
 
-    log_action(pid, f'Project deleted by {current_user.full_name}. Reason: {reason}',
+    log_action(pid, f'Project deleted by {current_user.full_name}. '
+                     f'Original MNRE: {original_code}. Reason: {reason}',
                old_val=proj.status, new_val='Deleted')
     db.session.commit()
-    flash(f'Project {proj.project_code} has been deleted.', 'success')
+    flash(f'Project {original_code} has been deleted. '
+          f'MNRE number {original_code} is now free for the next new project.', 'success')
     return redirect(url_for('projects'))
-
 
 @app.route('/projects/<int:pid>/restore_deleted', methods=['POST'])
 @login_required
 @roles_required('admin')
 def restore_deleted_project(pid):
-    proj = Project.query.get_or_404(pid)
+    proj = Project.query.execution_options(include_deleted=True).filter_by(id=pid).first()
+    if proj is None:
+        abort(404)
     if not proj.is_deleted:
         flash('Project is not deleted.', 'warning')
         return redirect(url_for('deleted_projects'))
 
+    reason = _clean(request.form.get('reason', ''), 500)
+
+    # Recover the original MNRE number if nobody has taken it since.
+    restored_code = proj.project_code
+    m = re.match(r'^DEL-(.+)-\d+$', proj.project_code)
+    if m:
+        candidate = m.group(1)
+        taken = Project.query.execution_options(include_deleted=True).filter(
+            Project.project_code == candidate, Project.id != pid
+        ).first()
+        if not taken:
+            restored_code = candidate
+
+    proj.project_code   = restored_code
     proj.is_deleted     = False
     proj.deleted_at     = None
     proj.deleted_by     = None
     proj.deleted_reason = None
 
-    log_action(pid, f'Project restored from deletion by {current_user.full_name}',
+    log_action(pid, f'Project restored from deletion by {current_user.full_name}. '
+                     f'Reason: {reason or "Not provided"}',
                old_val='Deleted', new_val=proj.status)
     db.session.commit()
-    flash(f'Project {proj.project_code} has been restored.', 'success')
+    flash(f'Project {proj.project_code} has been restored.'
+          + ('' if restored_code == (m.group(1) if m else proj.project_code)
+             else ' Note: original MNRE number was already reused by another project, kept the deletion-tagged code.'),
+          'success')
     return redirect(url_for('deleted_projects'))
-
 
 @app.route('/admin/deleted_projects')
 @login_required
 @roles_required('admin')
 def deleted_projects():
     projects = (Project.query
+                .execution_options(include_deleted=True)
                 .filter_by(is_deleted=True)
                 .order_by(Project.deleted_at.desc())
                 .all())
@@ -4165,9 +4218,6 @@ def complete_site_visit(vid, pid):
 @login_required
 def project_detail(pid):
     proj        = Project.query.get_or_404(pid)
-    if proj.is_deleted and current_user.role != 'admin':
-        flash('This project no longer exists.', 'danger')
-        return redirect(url_for('projects'))
     stages      = get_document_stages()
     logs        = ProjectLog.query.filter_by(project_id=pid).order_by(ProjectLog.created_at.desc()).all()
     workers     = Worker.query.filter_by(is_active=True).all()
