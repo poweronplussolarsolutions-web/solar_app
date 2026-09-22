@@ -7627,6 +7627,7 @@ def _wa_payment_message(proj, kind='confirmation'):
     Builds the standard 'Payment Details' WhatsApp message:
 
     *Payment Details – Power On Plus Solar Solutions*
+    
     <Customer Name>
     <Place>
 
@@ -7635,6 +7636,11 @@ def _wa_payment_message(proj, kind='confirmation'):
     Please find below the payment details for the ongoing work:
 
     Work Amount : ₹...
+    CD Payment : ₹...
+    Meter Charge : ₹...
+    Load Charge : ₹...
+    Additional Charge : ₹...
+    Total Amount : ₹...
     Loan first amount credited: ₹...
     Loan 2nd amount credited: ₹...
     Balance payable: ₹...
@@ -7657,6 +7663,26 @@ def _wa_payment_message(proj, kind='confirmation'):
     lines.append('Please find below the payment details for the ongoing work:')
     lines.append('')
     lines.append(f'Work Amount : {_wa_money(proj.total_amount)}/-')
+
+    # ── CD Payment / Meter / Load / Additional charges ─────────────────────
+    expense_labels = {
+        'CD Payment': 'CD Payment',
+        'Meter':      'Meter Charge',
+        'Load':       'Load Charge',
+        'Additional': 'Additional Charge',
+    }
+    charges_total = 0.0
+    for exp in proj.expenses:
+        amt = float(exp.amount or 0)
+        if amt <= 0:
+            continue
+        label = expense_labels.get(exp.expense_type, exp.expense_type)
+        lines.append(f'{label} : {_wa_money(amt)}/-')
+        charges_total += amt
+
+    if charges_total > 0:
+        total_amount = float(proj.total_amount or 0) + charges_total
+        lines.append(f'Total Amount : {_wa_money(total_amount)}/-')
 
     if proj.project_type == 'Loan':
         instalments = proj.bank_instalments
