@@ -251,6 +251,8 @@
           <th style="text-align:right">Contract</th>
           <th style="text-align:right">Collected</th>
           <th style="text-align:right">Pending</th>
+          <th style="text-align:right">Excess</th>
+          <th style="text-align:right">Discounted</th>
           <th style="text-align:center">1st Payment</th>
           <th style="text-align:center">2nd Payment</th>
           <th>Coordinator</th>
@@ -469,7 +471,7 @@ function renderTable(projects) {
       <td style="text-align:center">
         <span class="aw-status-pill" style="background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
       </td>
-      ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${tdTick(p.first_payment)}${tdTick(p.second_payment)}${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
+      ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${tdr(p.excess)}${tdr(p.discounted)}${tdTick(p.first_payment)}${tdTick(p.second_payment)}${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
     </tr>`;
   }).join('');
 }

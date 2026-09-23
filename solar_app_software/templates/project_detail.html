@@ -760,6 +760,66 @@ document.addEventListener('DOMContentLoaded', function () {
       {% endif %}
       {% endif %}{# end work_category == 'Outside' / else #}
     </div>{# end payment summary card #}
+    {% if current_user.role in ['admin', 'director'] and proj.coordinator_id %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div class="card-title" style="margin:0">
+      Coordinator commission
+      <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:6px">
+        — {{ proj.coordinator.full_name }}
+      </span>
+    </div>
+    <button class="btn btn-sm btn-primary" onclick="togglePanel('commissionForm')">+ Add commission</button>
+  </div>
+
+  {% if proj.commissions %}
+  <div class="table-wrap">
+    <table style="font-size:13px">
+      <thead><tr><th>Date</th><th>Amount</th><th>Basis</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody>
+        {% for c in proj.commissions | sort(attribute='commission_date', reverse=True) %}
+        <tr>
+          <td>{{ c.commission_date | date_fmt }}</td>
+          <td style="font-weight:500">{{ c.amount | inr }}</td>
+          <td><span class="tag">{{ c.basis }}{% if c.projects|length > 1 %} ({{ c.projects|length }} projects){% endif %}</span></td>
+          <td><span class="badge badge-{{ 'Completed' if c.status == 'Paid' else 'Created' }}">{{ c.status }}</span></td>
+          <td style="font-size:12px;color:var(--muted)">{{ c.notes or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="color:var(--hint);font-size:13px;padding:4px 0">No commission recorded for {{ proj.coordinator.full_name }} on this project yet.</div>
+  {% endif %}
+
+  <div id="commissionForm" style="display:none;margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
+    <form method="POST" action="{{ url_for('new_commission') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="coordinator_id" value="{{ proj.coordinator_id }}">
+      <input type="hidden" name="project_ids" value="{{ proj.id }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Amount (₹)</label>
+          <input type="number" name="amount" step="0.01" min="1" required/>
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" name="commission_date" value="{{ today.isoformat() if today is defined else '' }}"/>
+        </div>
+        <div class="form-group full">
+          <label>Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="text" name="notes" placeholder="e.g. Cash-work commission for this install"/>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button type="submit" class="btn btn-primary btn-sm">Save commission</button>
+        <button type="button" class="btn btn-sm" onclick="togglePanel('commissionForm')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
   </div>{# end right column div #}
 </div>{# end two-col #}
 

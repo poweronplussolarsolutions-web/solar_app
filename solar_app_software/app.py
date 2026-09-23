@@ -1413,7 +1413,30 @@ class PushSubscription(db.Model):
     user_agent = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user       = db.relationship('User', backref='push_subscriptions') 
+commission_project = db.Table(
+    'commission_project',
+    db.Column('commission_id', db.Integer, db.ForeignKey('coordinator_commissions.id'), primary_key=True),
+    db.Column('project_id',    db.Integer, db.ForeignKey('projects.id'), primary_key=True),
+)
 
+class CoordinatorCommission(db.Model):
+    __tablename__ = 'coordinator_commissions'
+    id              = db.Column(db.Integer, primary_key=True)
+    coordinator_id  = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    amount          = db.Column(db.Numeric(10, 2), nullable=False)
+    commission_date = db.Column(db.Date, nullable=False, default=date.today)
+    basis           = db.Column(db.Enum('PerProject', 'Bulk', 'Manual'), default='Manual')
+    notes           = db.Column(db.String(500), nullable=True)
+    status          = db.Column(db.Enum('Pending', 'Paid'), default='Pending', nullable=False)
+    paid_date       = db.Column(db.Date, nullable=True)
+    paid_method     = db.Column(db.String(50), nullable=True)
+    paid_reference  = db.Column(db.String(100), nullable=True)
+    created_by      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+
+    coordinator = db.relationship('User', foreign_keys=[coordinator_id], backref='commissions')
+    creator     = db.relationship('User', foreign_keys=[created_by])
+    projects    = db.relationship('Project', secondary=commission_project, backref='commissions')
 
 from sqlalchemy.orm import with_loader_criteria
 from sqlalchemy import event
@@ -8636,7 +8659,12 @@ STATUS_COLORS_HTML = {
     'Lead':       ('#e2e3e5', '#383d41'),
 }
 
-
+def _project_excess_discount(p):
+    pending_excess = sum(float(e.amount) for e in p.payment_excesses if e.status == 'Pending')
+    if p.project_type == 'Loan' and p.bank_excess and not p.bank_excess.returned:
+        pending_excess += float(p.bank_excess.excess_amount)
+    discounted = float(p.total_waived)
+    return pending_excess, discounted
 def _inr_fmt(v):
     try:
         return f'₹{float(v or 0):,.0f}'
@@ -8946,7 +8974,7 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
 
     ws.row_dimensions[5].height = 20
     headers = ['MNRE No.', 'Customer', 'Phone', 'Place', 'Sub Co', 'Type', 'Subtype', 'Status',
-                'Contract (₹)', 'Collected (₹)', 'Pending (₹)']
+                'Contract (₹)', 'Collected (₹)', 'Pending (₹)', 'Excess (₹)', 'Discounted (₹)']
     if show_payments:
         headers += ['1st Payment', '2nd Payment']
     headers += ['Coordinator', 'Doc Staff', 'Created']
@@ -8966,12 +8994,13 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         ws.row_dimensions[row].height = 17
         coord_name = p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—')
 
+        excess, discounted = _project_excess_discount(p)
         vals = [p.project_code, p.customer.name, p.customer.phone or '—', p.customer.place or '—', p.customer.sub_co or '—',
                 p.project_type, p.project_subtype or '—', p.status,
-                float(p.total_amount or 0), float(p.collected_amount or 0), pend]
-        fmts   = [None, None, None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0']
+                float(p.total_amount or 0), float(p.collected_amount or 0), pend, excess, discounted]
+        fmts   = [None, None, None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0''₹#,##0', '₹#,##0']
         aligns = ['center', 'left', 'center', 'left', 'center', 'center', 'center', 'center',
-                  'right', 'right', 'right']
+                  'right', 'right', 'right''right', 'right']
         tick_col_indices = []
 
         if show_payments:
@@ -9185,6 +9214,7 @@ def all_works_preview_data():
     def _to_dict(p):
         bg, fg = STATUS_COLORS_HTML.get(p.status, ('#fff', '#000'))
         instalments = p.bank_instalments if p.project_type == 'Loan' else {}
+        excess, discounted = _project_excess_discount(p)
         return {
             'code':          p.project_code,
             'customer':      p.customer.name,
@@ -9202,11 +9232,16 @@ def all_works_preview_data():
             'pending':       _inr_fmt(p.pending_amount),
             'first_payment':  'First' in instalments,
             'second_payment': 'Second' in instalments,
+            'excess':        _inr_fmt(excess) if excess > 0.01 else '—',
+        'discounted':    _inr_fmt(discounted) if discounted > 0.01 else '—',
+        'first_payment':  'First' in instalments,
+        'second_payment': 'Second' in instalments,
             'coordinator':   p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—'),
             'doc_staff':     p.doc_staff.full_name if p.doc_staff else '—',
             'created':       p.created_at.strftime('%d %b %Y'),
         }
-
+    total_excess     = sum(_project_excess_discount(p)[0] for p in projects)
+    total_discounted = sum(_project_excess_discount(p)[1] for p in projects)
     kpis = {
         'Total':     len(projects),
         'Cash':      cash_count,
@@ -9218,6 +9253,8 @@ def all_works_preview_data():
         'Value':     _inr_fmt(total_val),
         'Collected': _inr_fmt(collected),
         'Pending':   _inr_fmt(pending),
+        'Excess Pending': _inr_fmt(total_excess),
+        'Discounted':     _inr_fmt(total_discounted),
     }
     if payment_stage_filter in ('FirstPending', 'SecondPending'):
         kpis['Payment Pending'] = len(projects)
