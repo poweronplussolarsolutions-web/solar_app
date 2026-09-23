@@ -48,6 +48,13 @@
                value="{{ proj.customer.phone or '' }}"/>
       </div>
       <div class="form-group">
+        <label>Alt Phone <span style="color:var(--muted);font-weight:400;font-size:11px">(optional)</span></label>
+        <input name="customer_alt_phone" type="tel" pattern="[0-9]{10}" maxlength="10"
+               inputmode="numeric"
+               value="{{ proj.customer.alt_phone or '' }}"
+               oninput="this.value=this.value.replace(/\D/g,'').slice(0,10)"/>
+      </div>
+      <div class="form-group">
         <label>Email</label>
         <input name="customer_email" type="email"
                value="{{ proj.customer.email or '' }}"/>
@@ -120,12 +127,10 @@
              style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
     </div>
     <div class="form-group">
-  <label>Alt Phone <span style="color:var(--muted);font-weight:400;font-size:11px">(optional)</span></label>
-  <input name="customer_alt_phone" type="tel" pattern="[0-9]{10}" maxlength="10"
-         inputmode="numeric"
-         value="{{ proj.customer.alt_phone or '' }}"
-         oninput="this.value=this.value.replace(/\D/g,'').slice(0,10)"/>
-</div>
+      <label>Alt Phone</label>
+      <input type="text" value="{{ proj.customer.alt_phone or '—' }}" disabled
+             style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
+    </div>
     <div class="form-group">
       <label>Address</label>
       <input type="text"
