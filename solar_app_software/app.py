@@ -4285,6 +4285,90 @@ def update_transformer_capacity(pid):
     else:
         flash('No change.', 'info')
     return redirect(url_for('project_detail', pid=pid))
+@app.route('/admin/commissions/new', methods=['POST'])
+@login_required
+@roles_required('admin', 'director')
+def new_commission():
+    coord_id = request.form.get('coordinator_id', type=int)
+    amount   = _safe_float(request.form.get('amount'))
+    pids     = request.form.getlist('project_ids')
+
+    if not coord_id or amount <= 0:
+        flash('Please provide a valid coordinator and amount.', 'danger')
+        return redirect(request.referrer or url_for('dashboard'))
+
+    coord = User.query.get_or_404(coord_id)
+    basis = 'PerProject' if len(pids) == 1 else ('Bulk' if len(pids) > 1 else 'Manual')
+
+    comm = CoordinatorCommission(
+        coordinator_id=coord_id, amount=amount,
+        commission_date=date.fromisoformat(request.form['commission_date'])
+                         if request.form.get('commission_date') else date.today(),
+        basis=basis,
+        notes=_clean(request.form.get('notes', ''), 500),
+        created_by=current_user.id,
+    )
+    if pids:
+        comm.projects = Project.query.filter(Project.id.in_(pids)).all()
+    db.session.add(comm)
+    db.session.flush()
+
+    for pid in pids:
+        log_action(int(pid), f'Commission of ₹{amount:,.0f} recorded for {coord.full_name}',
+                   new_val=str(amount))
+
+    db.session.commit()
+    flash(f'Commission of ₹{amount:,.0f} added for {coord.full_name}.', 'success')
+    return redirect(request.referrer or url_for('dashboard'))
+
+
+@app.route('/admin/commissions')
+@login_required
+@roles_required('admin', 'director')
+def commissions():
+    coord_id = request.args.get('coordinator_id', type=int)
+    status_f = request.args.get('status', '')
+    q = CoordinatorCommission.query.options(
+        joinedload(CoordinatorCommission.coordinator),
+        joinedload(CoordinatorCommission.projects),
+    )
+    if coord_id:
+        q = q.filter_by(coordinator_id=coord_id)
+    if status_f in ('Pending', 'Paid'):
+        q = q.filter_by(status=status_f)
+    records = q.order_by(CoordinatorCommission.commission_date.desc()).all()
+
+    coordinators = User.query.filter(
+        User.role.in_(['coordinator', 'director']), User.is_active == True
+    ).order_by(User.full_name).all()
+
+    return render_template('commissions.html', records=records,
+                           coordinators=coordinators, coord_id=coord_id, status_f=status_f)
+
+
+@app.route('/admin/commissions/<int:cid>/mark_paid', methods=['POST'])
+@login_required
+@roles_required('admin', 'director')
+def mark_commission_paid(cid):
+    comm = CoordinatorCommission.query.get_or_404(cid)
+    comm.status        = 'Paid'
+    comm.paid_date      = date.fromisoformat(request.form['paid_date']) if request.form.get('paid_date') else date.today()
+    comm.paid_method    = request.form.get('paid_method') or None
+    comm.paid_reference = _clean(request.form.get('paid_reference', ''), 100) or None
+    db.session.commit()
+    flash('Commission marked as paid.', 'success')
+    return redirect(url_for('commissions'))
+
+
+@app.route('/admin/commissions/<int:cid>/delete', methods=['POST'])
+@login_required
+@roles_required('admin')
+def delete_commission(cid):
+    comm = CoordinatorCommission.query.get_or_404(cid)
+    db.session.delete(comm)
+    db.session.commit()
+    flash('Commission entry deleted.', 'warning')
+    return redirect(url_for('commissions'))
 @app.route('/projects/<int:pid>/expenses', methods=['POST'])
 @login_required
 @roles_required('admin', 'documents','office','documents_k')
@@ -8998,7 +9082,7 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         vals = [p.project_code, p.customer.name, p.customer.phone or '—', p.customer.place or '—', p.customer.sub_co or '—',
                 p.project_type, p.project_subtype or '—', p.status,
                 float(p.total_amount or 0), float(p.collected_amount or 0), pend, excess, discounted]
-        fmts   = [None, None, None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0''₹#,##0', '₹#,##0']
+        fmts   = [None, None, None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0','₹#,##0', '₹#,##0']
         aligns = ['center', 'left', 'center', 'left', 'center', 'center', 'center', 'center',
                   'right', 'right', 'right''right', 'right']
         tick_col_indices = []
@@ -9234,8 +9318,7 @@ def all_works_preview_data():
             'second_payment': 'Second' in instalments,
             'excess':        _inr_fmt(excess) if excess > 0.01 else '—',
         'discounted':    _inr_fmt(discounted) if discounted > 0.01 else '—',
-        'first_payment':  'First' in instalments,
-        'second_payment': 'Second' in instalments,
+        
             'coordinator':   p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—'),
             'doc_staff':     p.doc_staff.full_name if p.doc_staff else '—',
             'created':       p.created_at.strftime('%d %b %Y'),
