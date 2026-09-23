@@ -760,7 +760,7 @@ document.addEventListener('DOMContentLoaded', function () {
       {% endif %}
       {% endif %}{# end work_category == 'Outside' / else #}
     </div>{# end payment summary card #}
-    {% if current_user.role in ['admin', 'director'] and proj.coordinator_id %}
+    {% if current_user.role in ['admin', 'director'] %}
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div class="card-title" style="margin:0">
