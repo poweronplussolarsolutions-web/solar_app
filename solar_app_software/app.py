@@ -1845,7 +1845,59 @@ def create_service_schedule(project):
     #     f'Service schedule created for {project.project_code} — {project.customer.name}. '
     #     f'10 panel-cleaning visits over 5 years starting {base.strftime("%d %b %Y")}.', 'info')
     # log_action(project.id, 'Service schedule created (10 visits x 6 months)', new_val='Upcoming')
+@app.route('/service/<int:sid>/edit', methods=['POST'])
+@login_required
+@roles_required('admin','service')
+def edit_service(sid):
+    rec = ServiceRecord.query.get_or_404(sid)
+    if rec.status != 'Completed':
+        flash('Only completed visits can be edited this way.', 'danger')
+        return redirect(request.referrer or url_for('project_service', pid=rec.project_id))
 
+    completed_date_str = request.form.get('completed_date', '')
+    new_date = date.fromisoformat(completed_date_str) if completed_date_str else rec.completed_date
+    if new_date and new_date > date.today():
+        flash('Completion date cannot be in the future.', 'danger')
+        return redirect(request.referrer or url_for('project_service', pid=rec.project_id))
+
+    old_date = rec.completed_date
+    rec.completed_date = new_date
+    rec.panel_cleaning = 'panel_cleaning' in request.form
+    rec.notes = _clean(request.form.get('notes', ''), 1000)
+
+    log_action(rec.project_id,
+        f'Service visit #{rec.visit_number} edited (completed date {old_date} → {new_date})',
+        old_val=str(old_date), new_val=str(new_date))
+    db.session.commit()
+    flash(f'Service visit #{rec.visit_number} updated.', 'success')
+    return redirect(request.referrer or url_for('project_service', pid=rec.project_id))
+
+
+@app.route('/service/<int:sid>/uncomplete', methods=['POST'])
+@login_required
+@roles_required('admin','service')
+def uncomplete_service(sid):
+    rec = ServiceRecord.query.get_or_404(sid)
+    if rec.status != 'Completed':
+        flash('This visit is not marked complete.', 'warning')
+        return redirect(request.referrer or url_for('project_service', pid=rec.project_id))
+
+    old_completed_date = rec.completed_date
+    rec.status         = 'Upcoming' if rec.scheduled_date >= date.today() else 'Overdue'
+    rec.completed_date = None
+    rec.conducted_by   = None
+    rec.panel_cleaning = False
+    rec.notes          = _clean(request.form.get('reason', ''), 500) or rec.notes
+
+    log_action(rec.project_id,
+        f'Service visit #{rec.visit_number} un-marked complete '
+        f'(was completed on {old_completed_date}) by {current_user.full_name}',
+        old_val='Completed', new_val=rec.status)
+    db.session.commit()
+    flash(f'Visit #{rec.visit_number} reverted to {rec.status}. '
+          f'Note: if completing it had auto-rescheduled later visits, those dates were not reverted.',
+          'warning')
+    return redirect(request.referrer or url_for('project_service', pid=rec.project_id))
 def _add_months(base_date, months):
     year_offset, month_offset = divmod(base_date.month - 1 + months, 12)
     year  = base_date.year + year_offset
@@ -1981,7 +2033,51 @@ def _get_service_report_records(mode, single_date=None, days=None):
         records = [r for r in next_records if r.status == 'Overdue']
 
     return sorted(records, key=lambda r: r.scheduled_date)
+@app.route('/service/completed_by_date')
+@login_required
+@roles_required('admin')
+def service_completed_by_date():
+    date_str  = _clean(request.args.get('date', ''), 10)
+    start_str = _clean(request.args.get('start_date', ''), 10)
+    end_str   = _clean(request.args.get('end_date', ''), 10)
 
+    target_date = start_date = end_date = None
+    try:
+        if date_str:
+            target_date = date.fromisoformat(date_str)
+        if start_str:
+            start_date = date.fromisoformat(start_str)
+        if end_str:
+            end_date = date.fromisoformat(end_str)
+    except ValueError:
+        flash('Invalid date provided.', 'danger')
+        return redirect(url_for('service_completed_by_date'))
+
+    if start_date and end_date and start_date > end_date:
+        flash('Start date must be before end date.', 'danger')
+        return redirect(url_for('service_completed_by_date'))
+
+    records = []
+    searched = bool(target_date or (start_date and end_date))
+    if searched:
+        q = (ServiceRecord.query
+             .join(Project)
+             .options(joinedload(ServiceRecord.project).joinedload(Project.customer),
+                      joinedload(ServiceRecord.project).joinedload(Project.coordinator),
+                      joinedload(ServiceRecord.technician))
+             .filter(ServiceRecord.status == 'Completed',
+                     ServiceRecord.completed_date.isnot(None)))
+        if target_date:
+            q = q.filter(ServiceRecord.completed_date == target_date)
+        else:
+            q = q.filter(ServiceRecord.completed_date >= start_date,
+                         ServiceRecord.completed_date <= end_date)
+        records = q.order_by(ServiceRecord.completed_date.desc(),
+                              cast(Project.project_code, Integer)).all()
+
+    return render_template('service_completed_by_date.html',
+        records=records, date_str=date_str, start_str=start_str, end_str=end_str,
+        searched=searched, today=date.today())
 # @app.route('/projects/<int:pid>/rts_feasibility')
 # @login_required
 # @roles_required('admin', 'documents', 'documents_k', 'office', 'coordinator', 'director')
@@ -6832,6 +6928,39 @@ def service_management():
 
     search = request.args.get('search', '', type=str).strip().lower()
 
+    # ── Completed-by-date lookup (admin only) ──────────────────────────
+    cbd_date_str  = _clean(request.args.get('cbd_date', ''), 10)
+    cbd_start_str = _clean(request.args.get('cbd_start', ''), 10)
+    cbd_end_str   = _clean(request.args.get('cbd_end', ''), 10)
+    cbd_records   = []
+    cbd_searched  = False
+
+    if current_user.role == 'admin' and (cbd_date_str or (cbd_start_str and cbd_end_str)):
+        try:
+            cbd_date  = date.fromisoformat(cbd_date_str) if cbd_date_str else None
+            cbd_start = date.fromisoformat(cbd_start_str) if cbd_start_str else None
+            cbd_end   = date.fromisoformat(cbd_end_str) if cbd_end_str else None
+        except ValueError:
+            cbd_date = cbd_start = cbd_end = None
+            flash('Invalid date provided for completed-by-date search.', 'danger')
+
+        if cbd_date or (cbd_start and cbd_end and cbd_start <= cbd_end):
+            cbd_searched = True
+            q = (ServiceRecord.query
+                 .join(Project)
+                 .options(joinedload(ServiceRecord.project).joinedload(Project.customer),
+                          joinedload(ServiceRecord.project).joinedload(Project.coordinator),
+                          joinedload(ServiceRecord.technician))
+                 .filter(ServiceRecord.status == 'Completed',
+                         ServiceRecord.completed_date.isnot(None)))
+            if cbd_date:
+                q = q.filter(ServiceRecord.completed_date == cbd_date)
+            else:
+                q = q.filter(ServiceRecord.completed_date >= cbd_start,
+                             ServiceRecord.completed_date <= cbd_end)
+            cbd_records = q.order_by(ServiceRecord.completed_date.desc(),
+                                      cast(Project.project_code, Integer)).all()
+
     has_service = (db.session.query(Project.id)
         .join(ServiceRecord, ServiceRecord.project_id == Project.id)
         .filter(Project.status.notin_(['Cancelled']))
@@ -6853,15 +6982,11 @@ def service_management():
         .order_by(cast(Project.project_code, Integer))
         .all())
 
-    # Build the COMPLETE Service Management population first.
-    # These projects are used for global statistics and are never affected
-    # by pagination or the search box.
     eligible_projects = [p for p in candidates
                          if p.status not in ('Cancelled', 'OnHold')
                          and p.work_category != 'Outside'
                          and (p.pending_amount <= 0 or p.status == 'Closed')]
 
-    # Search only controls the visible project list.
     filtered = eligible_projects
 
     if search:
@@ -6910,9 +7035,6 @@ def service_management():
             'total': total_r, 'pct': pct, 'next': next_v, 'next_locked': next_locked,
         })
 
-    # GLOBAL STATS:
-    # Always use the complete eligible project population. Neither pagination
-    # nor the search box is allowed to change these numbers.
     eligible_ids = [p.id for p in eligible_projects]
 
     all_service_records = (ServiceRecord.query
@@ -6924,8 +7046,6 @@ def service_management():
     for rec in all_service_records:
         status_counts[rec.status] = status_counts.get(rec.status, 0) + 1
 
-    # Upcoming is different: count at most ONE upcoming schedule per project,
-    # using that project's very next actionable visit.
     all_records_by_project = {}
     for rec in all_service_records:
         all_records_by_project.setdefault(rec.project_id, []).append(rec)
@@ -6959,7 +7079,9 @@ def service_management():
 
     return render_template('service_management.html',
                            proj_data=proj_data, stats=stats,
-                           today=date.today(), page=page, total_pages=total_pages,search=search)
+                           today=date.today(), page=page, total_pages=total_pages, search=search,
+                           cbd_records=cbd_records, cbd_searched=cbd_searched,
+                           cbd_date_str=cbd_date_str, cbd_start_str=cbd_start_str, cbd_end_str=cbd_end_str)
 @app.route('/projects/<int:pid>/service')
 @login_required
 def project_service(pid):
