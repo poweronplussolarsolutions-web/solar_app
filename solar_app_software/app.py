@@ -3803,7 +3803,10 @@ def edit_project(pid):
         new_type     = request.form['project_type']
         new_subtype  = request.form.get('project_subtype') or None
         # new_loan_sub = request.form.get('loan_subtype') or None
-        new_amount   = _safe_float(request.form.get('total_amount'))
+        if current_user.role == 'coordinator':
+            new_amount = float(proj.total_amount or 0)   # coordinators can't change this — ignore whatever was posted
+        else:
+            new_amount = _safe_float(request.form.get('total_amount'))  
 
         proj.inverter_capacity_kw = _safe_float(request.form.get('inverter_capacity_kw'))
         proj.panel_capacity_kw    = _safe_float(request.form.get('panel_capacity_kw'))
@@ -9317,7 +9320,7 @@ def all_works_preview_data():
             'first_payment':  'First' in instalments,
             'second_payment': 'Second' in instalments,
             'excess':        _inr_fmt(excess) if excess > 0.01 else '—',
-        'discounted':    _inr_fmt(discounted) if discounted > 0.01 else '—',
+            'discounted':    _inr_fmt(discounted) if discounted > 0.01 else '—',
         
             'coordinator':   p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—'),
             'doc_staff':     p.doc_staff.full_name if p.doc_staff else '—',

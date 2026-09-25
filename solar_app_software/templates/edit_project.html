@@ -252,12 +252,12 @@
           {% endif %}
         </label>
         {% if current_user.role == 'coordinator' %}
-        <input type="number" value="{{ proj.total_amount|int }}" disabled
-               style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
-        {% else %}
-        <input name="total_amount" type="number" step="1" min="0"
-               value="{{ proj.total_amount|int }}"/>
-        {% endif %}
+<input name="total_amount" type="number" value="{{ proj.total_amount|int }}" readonly
+       style="background:var(--bg);color:var(--muted);cursor:not-allowed"/>
+{% else %}
+<input name="total_amount" type="number" step="1" min="0"
+       value="{{ proj.total_amount|int }}"/>
+{% endif %}
         {% if proj.collected_amount and proj.collected_amount > 0 %}
         <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
           {{ proj.collected_amount|inr }} already collected
