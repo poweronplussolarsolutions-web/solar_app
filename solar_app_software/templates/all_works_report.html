@@ -191,6 +191,14 @@
       </select>
     </div>
     <div class="aw-filter-group">
+  <label>Commission</label>
+  <select id="commissionFilter" onchange="loadData()">
+    <option value="All">All</option>
+    <option value="Given">Commission Given</option>
+    <option value="NotGiven">No Commission</option>
+  </select>
+</div>
+    <div class="aw-filter-group">
     <label>Month (by Created Date)</label>
     <select id="monthFilter" onchange="onMonthChange()">
       <option value="">All Time</option>
@@ -253,6 +261,7 @@
           <th style="text-align:right">Pending</th>
           <th style="text-align:right">Excess</th>
           <th style="text-align:right">Discounted</th>
+          <th style="text-align:center">Commission</th>
           <th style="text-align:center">1st Payment</th>
           <th style="text-align:center">2nd Payment</th>
           <th>Coordinator</th>
@@ -342,6 +351,7 @@ function currentFilters() {
     amount_filter:  document.getElementById('amountFilter').value,
     payment_stage:  document.getElementById('paymentStageFilter').value,
     coordinator:    document.getElementById('coordinatorFilter').value,
+    commission:     document.getElementById('commissionFilter').value,
   };
   const month = document.getElementById('monthFilter').value;
   if (month) {
@@ -368,6 +378,7 @@ function resetFilters() {
   document.getElementById('amountFilter').value = 'All';
   document.getElementById('paymentStageFilter').value = 'All';
   document.getElementById('coordinatorFilter').value = 'All';
+  document.getElementById('commissionFilter').value = 'All';
   document.getElementById('monthFilter').value = '';
   document.getElementById('yearFilter').disabled = true;
   document.getElementById('searchFilter').value = '';
@@ -390,6 +401,7 @@ function renderChips(filters) {
     work_category: { Installation: 'Installation', Outside: 'Outside' },
     amount_filter: { Zero: '₹0 Work Amount', NonZero: 'Non-zero Work Amount' },
     payment_stage: { FirstPending: 'First Payment Not Received', SecondPending: 'Second Payment Not Received' },
+    commission:    { Given: 'Commission Given', NotGiven: 'No Commission' },
   };
   const monthNames = ['', 'January','February','March','April','May','June',
                        'July','August','September','October','November','December'];
@@ -428,7 +440,7 @@ function loadData() {
   const filters = currentFilters();
   renderChips(filters);
   document.getElementById('worksBody').innerHTML =
-    '<tr><td colspan="16" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>';
+    '<tr><td colspan="18" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>';
 
   fetch(`/admin/all_works/preview_data?${buildQS(filters)}`)
     .then(r => r.json())
@@ -438,7 +450,7 @@ function loadData() {
     })
     .catch(() => {
       document.getElementById('worksBody').innerHTML =
-        '<tr><td colspan="16" style="text-align:center;padding:30px;color:red">Failed to load.</td></tr>';
+        '<tr><td colspan="18" style="text-align:center;padding:30px;color:red">Failed to load.</td></tr>';
     });
 }
 
@@ -460,7 +472,7 @@ function renderTable(projects) {
 
   const body = document.getElementById('worksBody');
   if (!projects.length) {
-    body.innerHTML = '<tr><td colspan="17" style="text-align:center;padding:30px;color:var(--hint)">No projects match these filters.</td></tr>';
+    body.innerHTML = '<tr><td colspan="18" style="text-align:center;padding:30px;color:var(--hint)">No projects match these filters.</td></tr>';
     return;
   }
 
@@ -471,7 +483,7 @@ function renderTable(projects) {
       <td style="text-align:center">
         <span class="aw-status-pill" style="background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
       </td>
-      ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${tdr(p.excess)}${tdr(p.discounted)}${tdTick(p.first_payment)}${tdTick(p.second_payment)}${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
+      ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${tdr(p.excess)}${tdr(p.discounted)}${tdTick(p.commission)}${tdTick(p.first_payment)}${tdTick(p.second_payment)}${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
     </tr>`;
   }).join('');
 }

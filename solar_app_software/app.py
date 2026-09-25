@@ -9137,9 +9137,10 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
     wb.save(path)
     return path
 def build_allworks_full_report(projects, project_type_filter='All', work_category_filter='All',
-                                output_dir='/tmp', month=None, year=None, payment_stage_filter='All'):
+                                output_dir='/tmp', month=None, year=None, payment_stage_filter='All',
+                                commission_filter='All'):
     """System-wide all-works sheet — every project, optionally filtered by Cash/Loan,
-    Installation/Outside, and by pending bank instalment (First/Second)."""
+    Installation/Outside, pending bank instalment (First/Second), and commission status."""
     wb = Workbook()
     ws = wb.active
     ws.title = 'All Works'
@@ -9155,11 +9156,24 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         filter_bits.append(project_type_filter)
     if work_category_filter != 'All':
         filter_bits.append(work_category_filter)
+    if commission_filter == 'Given':
+        filter_bits.append('Commission Given')
+    elif commission_filter == 'NotGiven':
+        filter_bits.append('No Commission')
     if month and year:
         filter_bits.append(f'{calendar.month_name[month]} {year}')
     subtitle = f'All Works — {" · ".join(filter_bits)}' if filter_bits else 'All Works — System Wide'
 
     show_payments = payment_stage_filter in ('FirstPending', 'SecondPending')
+
+    headers = ['MNRE No.', 'Customer', 'Phone', 'Place', 'Sub Co', 'Type', 'Subtype', 'Status',
+                'Contract (₹)', 'Collected (₹)', 'Pending (₹)', 'Excess (₹)', 'Discounted (₹)',
+                'Commission']
+    if show_payments:
+        headers += ['1st Payment', '2nd Payment']
+    headers += ['Coordinator', 'Doc Staff', 'Created']
+
+    last_col_letter = get_column_letter(len(headers))
 
     titles = [
         ('Power On Plus Solar Solutions', C_HEADER_BG, C_HEADER_FG, 14, False, True),
@@ -9167,7 +9181,6 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         (f'Generated: {date.today().strftime("%d %b %Y")}', C_ALT_BG, '444444', 10, True, True),
         ('', 'FFFFFF', '000000', 8, False, False),
     ]
-    last_col_letter = 'O' if show_payments else 'M'
     for r, (txt, bg_c, fg_c, sz, italic, center) in enumerate(titles, 1):
         ws.merge_cells(f'A{r}:{last_col_letter}{r}')
         c = ws[f'A{r}']
@@ -9182,11 +9195,6 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
     ws.row_dimensions[4].height = 8
 
     ws.row_dimensions[5].height = 20
-    headers = ['MNRE No.', 'Customer', 'Phone', 'Place', 'Sub Co', 'Type', 'Subtype', 'Status',
-                'Contract (₹)', 'Collected (₹)', 'Pending (₹)', 'Excess (₹)', 'Discounted (₹)']
-    if show_payments:
-        headers += ['1st Payment', '2nd Payment']
-    headers += ['Coordinator', 'Doc Staff', 'Created']
     for col, h in enumerate(headers, 1):
         _style_header_cell(ws.cell(5, col), h)
 
@@ -9204,19 +9212,21 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         coord_name = p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—')
 
         excess, discounted = _project_excess_discount(p)
+        has_commission = bool(p.commissions)
         vals = [p.project_code, p.customer.name, p.customer.phone or '—', p.customer.place or '—', p.customer.sub_co or '—',
                 p.project_type, p.project_subtype or '—', p.status,
-                float(p.total_amount or 0), float(p.collected_amount or 0), pend, excess, discounted]
-        fmts   = [None, None, None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0','₹#,##0', '₹#,##0']
+                float(p.total_amount or 0), float(p.collected_amount or 0), pend, excess, discounted,
+                '✓' if has_commission else '✗']
+        fmts   = [None, None, None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0', '₹#,##0', '₹#,##0', None]
         aligns = ['center', 'left', 'center', 'left', 'center', 'center', 'center', 'center',
-                  'right', 'right', 'right''right', 'right']
-        tick_col_indices = []
+                  'right', 'right', 'right', 'right', 'right', 'center']
+        tick_col_indices = [len(vals)]
 
         if show_payments:
             instalments = p.bank_instalments if p.project_type == 'Loan' else {}
             first_done  = 'First'  in instalments
             second_done = 'Second' in instalments
-            tick_col_indices = [len(vals) + 1, len(vals) + 2]
+            tick_col_indices += [len(vals) + 1, len(vals) + 2]
             vals   += ['✓' if first_done else '✗', '✓' if second_done else '✗']
             fmts   += [None, None]
             aligns += ['center', 'center']
@@ -9257,7 +9267,7 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
             cell.fill = _fill(C_TOTAL_BG)
             cell.border = _border()
 
-    col_widths = [12, 24, 14, 16, 12, 8, 10, 12, 14, 14, 14]
+    col_widths = [12, 24, 14, 16, 12, 8, 10, 12, 14, 14, 14, 12, 12, 12]
     if show_payments:
         col_widths += [12, 12]
     col_widths += [20, 20, 13]
@@ -9271,11 +9281,12 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         fname_bits.append('SecondPending')
     elif project_type_filter != 'All':
         fname_bits.append(project_type_filter)
+    if commission_filter != 'All':
+        fname_bits.append(commission_filter)
     fname = '_'.join(fname_bits) + '.xlsx'
     path = os.path.join(output_dir, fname)
     wb.save(path)
     return path
-
 # ─────────────────────────────────────────────────────────────────────────────
 # NEW ROUTES — paste after the existing download_docstaff_report route
 # ─────────────────────────────────────────────────────────────────────────────
@@ -9301,7 +9312,8 @@ from sqlalchemy.orm import selectinload, joinedload
 
 def _get_all_works_projects(project_type_filter, work_category_filter='All', status_filter='All',
                              month=None, year=None, amount_filter='All', search='',
-                             payment_stage_filter='All', coordinator_filter='All'):
+                             payment_stage_filter='All', coordinator_filter='All',
+                             commission_filter='All'):
     q = (Project.query
          .join(Customer)
          .options(
@@ -9312,6 +9324,7 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
              selectinload(Project.expenses),
              selectinload(Project.waivers),
              selectinload(Project.payments),
+             selectinload(Project.commissions),
          )
          .filter(Project.status != 'Cancelled'))
 
@@ -9323,7 +9336,6 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
     if work_category_filter in ('Installation', 'Outside'):
         q = q.filter(Project.work_category == work_category_filter)
 
-    # ── Multi-select status filter ──────────────────────────────────────
     status_list = _parse_status_filter(status_filter)
     if status_list:
         q = q.filter(Project.status.in_(status_list))
@@ -9355,6 +9367,11 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
             p for p in projects
             if (p.coordinator.full_name if p.coordinator else p.coordinator_name) == coordinator_filter
         ]
+
+    if commission_filter == 'Given':
+        projects = [p for p in projects if p.commissions]
+    elif commission_filter == 'NotGiven':
+        projects = [p for p in projects if not p.commissions]
 
     return projects
 STATUS_FILTER_MAP = {
@@ -9401,14 +9418,16 @@ def all_works_preview_data():
     work_category_filter  = request.args.get('work_category', 'All')
     status_filter          = request.args.get('status', 'All')
     amount_filter           = request.args.get('amount_filter', 'All')
-    payment_stage_filter    = request.args.get('payment_stage', 'All')
-    coordinator_filter      = _clean(request.args.get('coordinator', 'All'), 120) or 'All'
-    search                  = _clean(request.args.get('q', ''), 100)
+    payment_stage_filter     = request.args.get('payment_stage', 'All')
+    coordinator_filter       = _clean(request.args.get('coordinator', 'All'), 120) or 'All'
+    commission_filter        = request.args.get('commission', 'All')
+    search                    = _clean(request.args.get('q', ''), 100)
     month = request.args.get('month', type=int)
     year  = request.args.get('year', type=int)
     projects = _get_all_works_projects(project_type_filter, work_category_filter,
                                         status_filter, month, year, amount_filter, search,
-                                        payment_stage_filter, coordinator_filter)
+                                        payment_stage_filter, coordinator_filter,
+                                        commission_filter)
 
     total_val = sum(float(p.total_amount or 0) for p in projects)
     collected = sum(float(p.collected_amount or 0) for p in projects)
@@ -9419,6 +9438,7 @@ def all_works_preview_data():
     cash_count = sum(1 for p in projects if p.project_type == 'Cash')
     loan_count = sum(1 for p in projects if p.project_type == 'Loan')
     outside_count = sum(1 for p in projects if p.work_category == 'Outside')
+    commission_given_count = sum(1 for p in projects if p.commissions)
 
     def _to_dict(p):
         bg, fg = STATUS_COLORS_HTML.get(p.status, ('#fff', '#000'))
@@ -9443,7 +9463,7 @@ def all_works_preview_data():
             'second_payment': 'Second' in instalments,
             'excess':        _inr_fmt(excess) if excess > 0.01 else '—',
             'discounted':    _inr_fmt(discounted) if discounted > 0.01 else '—',
-        
+            'commission':    bool(p.commissions),
             'coordinator':   p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—'),
             'doc_staff':     p.doc_staff.full_name if p.doc_staff else '—',
             'created':       p.created_at.strftime('%d %b %Y'),
@@ -9463,6 +9483,7 @@ def all_works_preview_data():
         'Pending':   _inr_fmt(pending),
         'Excess Pending': _inr_fmt(total_excess),
         'Discounted':     _inr_fmt(total_discounted),
+        'Commission Given': commission_given_count,
     }
     if payment_stage_filter in ('FirstPending', 'SecondPending'):
         kpis['Payment Pending'] = len(projects)
@@ -9483,16 +9504,19 @@ def all_works_download():
     amount_filter            = request.args.get('amount_filter', 'All')
     payment_stage_filter     = request.args.get('payment_stage', 'All')
     coordinator_filter       = _clean(request.args.get('coordinator', 'All'), 120) or 'All'
+    commission_filter        = request.args.get('commission', 'All')
     search                    = _clean(request.args.get('q', ''), 100)
     month = request.args.get('month', type=int)
     year  = request.args.get('year', type=int)
     projects = _get_all_works_projects(project_type_filter, work_category_filter,
                                         status_filter, month, year, amount_filter, search,
-                                        payment_stage_filter, coordinator_filter)
+                                        payment_stage_filter, coordinator_filter,
+                                        commission_filter)
 
     effective_type_filter = 'Loan' if payment_stage_filter in ('FirstPending', 'SecondPending') else project_type_filter
     path = build_allworks_full_report(projects, effective_type_filter, work_category_filter,
-                                       tempfile.gettempdir(), month, year, payment_stage_filter)
+                                       tempfile.gettempdir(), month, year, payment_stage_filter,
+                                       commission_filter)
 
     parts = ['AllWorks']
     if payment_stage_filter == 'FirstPending':
@@ -9511,6 +9535,8 @@ def all_works_download():
         parts.append('NonZeroAmount')
     if coordinator_filter != 'All':
         parts.append(re.sub(r'[^A-Za-z0-9]+', '', coordinator_filter))
+    if commission_filter != 'All':
+        parts.append(commission_filter)
     if month and year:
         parts.append(f'{calendar.month_abbr[month]}{year}')
     if search:
