@@ -6,6 +6,8 @@
 <div class="card" style="max-width:720px">
   <form method="POST" action="{{ url_for('new_project') }}" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="confirm_duplicate_phone" id="confirm_duplicate_phone"
+           value="{{ form_data.confirm_duplicate_phone if form_data else '0' }}">
 
     <div style="font-size:13px;font-weight:500;margin-bottom:14px;color:var(--muted)">Customer details</div>
 
@@ -13,52 +15,62 @@
   <div class="form-grid">
     <div class="form-group">
       <label>Customer name *</label>
-      <input name="customer_name" type="text" required placeholder="Full name"/>
+      <input name="customer_name" type="text" required placeholder="Full name"
+             value="{{ form_data.customer_name if form_data else '' }}"/>
     </div>
     <div class="form-group">
       <label>Phone</label>
-      <input name="phone" type="tel" placeholder="10-digit mobile"/>
+      <input name="phone" type="tel" placeholder="10-digit mobile"
+             value="{{ form_data.phone if form_data else '' }}"/>
     </div>
     <div class="form-group">
   <label>Alt Phone <span style="color:var(--muted);font-weight:400;font-size:11px">(optional)</span></label>
   <input name="alt_phone" type="tel" pattern="[0-9]{10}" maxlength="10"
          inputmode="numeric" placeholder="10-digit alternate number"
+         value="{{ form_data.alt_phone if form_data else '' }}"
          oninput="this.value=this.value.replace(/\D/g,'').slice(0,10)"/>
 </div>
     <div class="form-group">
       <label>Email</label>
-      <input name="email" type="email" placeholder="customer@email.com"/>
+      <input name="email" type="email" placeholder="customer@email.com"
+             value="{{ form_data.email if form_data else '' }}"/>
     </div>
     <div class="form-group">
       <label>House name</label>
-      <input name="house_name" type="text" placeholder="e.g. Sreelakshmi Bhavan"/>
+      <input name="house_name" type="text" placeholder="e.g. Sreelakshmi Bhavan"
+             value="{{ form_data.house_name if form_data else '' }}"/>
     </div>
     <div class="form-group">
       <label>Place</label>
-      <input name="place" type="text" placeholder="e.g. Kodungallur"/>
+      <input name="place" type="text" placeholder="e.g. Kodungallur"
+             value="{{ form_data.place if form_data else '' }}"/>
     </div>
     <div class="form-group">
       <label>Post</label>
-      <input name="post" type="text" placeholder="e.g. Kodungallur PO"/>
+      <input name="post" type="text" placeholder="e.g. Kodungallur PO"
+             value="{{ form_data.post if form_data else '' }}"/>
     </div>
     <div class="form-group">
       <label>Pincode</label>
-      <input name="pincode" type="text" maxlength="6" placeholder="680001"/>
+      <input name="pincode" type="text" maxlength="6" placeholder="680001"
+             value="{{ form_data.pincode if form_data else '' }}"/>
     </div>
     <div class="form-group">
       <label>Village</label>
-      <input name="village" type="text" placeholder="e.g. Kodungallur"/>
+      <input name="village" type="text" placeholder="e.g. Kodungallur"
+             value="{{ form_data.village if form_data else '' }}"/>
     </div>
     <div class="form-group">
       <label>Taluk</label>
-      <input name="taluk" type="text" placeholder="e.g. Kodungallur"/>
+      <input name="taluk" type="text" placeholder="e.g. Kodungallur"
+             value="{{ form_data.taluk if form_data else '' }}"/>
     </div>
     <div class="form-group">
       <label>District</label>
       <select name="district">
         <option value="">Select district</option>
         {% for d in ['Thiruvananthapuram','Kollam','Pathanamthitta','Alappuzha','Kottayam','Idukki','Ernakulam','Thrissur','Palakkad','Malappuram','Kozhikode','Wayanad','Kannur','Kasaragod'] %}
-        <option>{{ d }}</option>
+        <option {% if form_data and form_data.district == d %}selected{% endif %}>{{ d }}</option>
         {% endfor %}
       </select>
     </div>
@@ -76,7 +88,7 @@
 <div class="form-group">
   <label>MNRE Number</label>
   <input name="project_code" type="text"
-       value="{{ suggested_code or '' }}"
+       value="{{ (form_data.project_code if form_data else '') or suggested_code or '' }}"
        pattern="\d*" title="Digits only — no letters or spaces"
        placeholder="Leave blank to auto-assign"/>
 <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
@@ -91,43 +103,43 @@
 <div class="form-group">
   <label>MNRE Number</label>
   <input type="text" value="Auto-assigned on save{% if suggested_code %} (next: {{ suggested_code }}){% endif %}" disabled/>
-  <!-- <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
-    Only admins can set the MNRE number manually.
-  </span> -->
 </div>
 {% endif %}
 
       <div class="form-group">
         <label>Inverter capacity (kW) *</label>
-        <input name="inverter_capacity_kw" type="number" step="any" min="0.01" required placeholder="e.g. 5"/>
+        <input name="inverter_capacity_kw" type="number" step="any" min="0.01" required placeholder="e.g. 5"
+               value="{{ form_data.inverter_capacity_kw if form_data else '' }}"/>
       </div>
       <div class="form-group">
         <label>Panel capacity (kW) *</label>
-        <input name="panel_capacity_kw" type="number" step="any" min="0.01" required placeholder="e.g. 6"/>
+        <input name="panel_capacity_kw" type="number" step="any" min="0.01" required placeholder="e.g. 6"
+               value="{{ form_data.panel_capacity_kw if form_data else '' }}"/>
       </div>
       <div class="form-group">
   <label>Structure capacity (kW) <span style="color:var(--muted);font-weight:400;font-size:11px">(optional — only if different from panel kW)</span></label>
-  <input name="structure_capacity_kw" type="number" step="any" min="0.01" placeholder="e.g. 5"/>
+  <input name="structure_capacity_kw" type="number" step="any" min="0.01" placeholder="e.g. 5"
+         value="{{ form_data.structure_capacity_kw if form_data else '' }}"/>
 </div>
       <div class="form-group">
         <label>Project type *</label>
         <select name="project_type" id="project_type" required onchange="toggleLoanSubtype()">
-          <option value="Cash">Cash</option>
-          <option value="Loan">Loan</option>
+          <option value="Cash" {% if form_data and form_data.project_type == 'Cash' %}selected{% endif %}>Cash</option>
+          <option value="Loan" {% if form_data and form_data.project_type == 'Loan' %}selected{% endif %}>Loan</option>
         </select>
       </div>
       <div class="form-group">
   <label>Work category *</label>
   <select name="work_category" id="work_category_select" onchange="toggleOutsideWork()">
-    <option value="Installation" selected>Installation (Cash/Loan)</option>
-    <option value="Outside">Outside Work (paperwork only)</option>
+    <option value="Installation" {% if not form_data or form_data.work_category == 'Installation' %}selected{% endif %}>Installation (Cash/Loan)</option>
+    <option value="Outside" {% if form_data and form_data.work_category == 'Outside' %}selected{% endif %}>Outside Work (paperwork only)</option>
   </select>
 </div>
       <div class="form-group">
         <label>Project subtype</label>
         <select name="project_subtype">
-          <option value="DCR">DCR (with subsidy)</option>
-          <option value="Non-DCR">Non-DCR (no subsidy)</option>
+          <option value="DCR" {% if not form_data or form_data.project_subtype == 'DCR' %}selected{% endif %}>DCR (with subsidy)</option>
+          <option value="Non-DCR" {% if form_data and form_data.project_subtype == 'Non-DCR' %}selected{% endif %}>Non-DCR (no subsidy)</option>
         </select>
       </div>
       <div class="form-group">
@@ -135,41 +147,31 @@
   <select name="roof_type" id="roof_type_select" onchange="toggleOtherRoof()">
     <option value="">— Select —</option>
     {% for rt, label in [('Flat','Flat'),('Sheet','Sheet'),('Slope','Slope'),('Tile','Tile'),('Clay Tile','Clay Tile (Oodu)')] %}
-    <option value="{{ rt }}">{{ label }}</option>
+    <option value="{{ rt }}" {% if form_data and form_data.roof_type == rt %}selected{% endif %}>{{ label }}</option>
     {% endfor %}
-    <option value="Other">Other (type manually)…</option>
+    <option value="Other" {% if form_data and form_data.roof_type == 'Other' %}selected{% endif %}>Other (type manually)…</option>
   </select>
 </div>
 <div class="form-group" id="other-roof-field" style="display:none">
   <label>Roof type <span style="color:var(--muted);font-weight:400;font-size:11px">(not in list)</span></label>
-  <input name="roof_type_other" id="roof_type_other" type="text" maxlength="60" placeholder="e.g. Asbestos sheet"/>
+  <input name="roof_type_other" id="roof_type_other" type="text" maxlength="60" placeholder="e.g. Asbestos sheet"
+         value="{{ form_data.roof_type_other if form_data else '' }}"/>
 </div>
 <div class="form-group">
   <label>Inverter type</label>
   <select name="inverter_type">
     <option value="">— Select —</option>
     {% for it in ['Ongrid','Offgrid','Hybrid','Micro Inverter'] %}
-    <option value="{{ it }}">{{ it }}</option>
+    <option value="{{ it }}" {% if form_data and form_data.inverter_type == it %}selected{% endif %}>{{ it }}</option>
     {% endfor %}
   </select>
 </div>
-      <!-- <div class="form-group" id="loan-subtype-field" style="display:none">
-        <label>Loan type</label>
-        <select name="loan_subtype" id="loan_subtype">
-          <option value="">— Select —</option>
-          <option value="Assisted">Assisted</option>
-          <option value="Self">Self</option>
-        </select>
-        <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
-          <strong>Assisted:</strong> Docs team submits bank file (SBI etc.)<br>
-          <strong>Self:</strong> Bank handles own paperwork (Bajaj etc.)
-        </span>
-      </div> -->
 
       <div class="form-group">
         <label>Total contract amount (₹)</label>
         <input name="total_amount" type="text" inputmode="decimal" pattern="[0-9]*\.?[0-9]*"
        placeholder="0"
+       value="{{ form_data.total_amount if form_data else '' }}"
        oninput="this.value=this.value.replace(/[^0-9.]/g,'').replace(/(\..*?)\..*/g,'$1')"/>
       </div>
 
@@ -179,11 +181,13 @@
     <option value="">— Unassigned —</option>
     {% for u in coordinators %}
     <option value="{{ u.id }}"
-      {% if u.id == current_user.id and current_user.role == 'coordinator' %}selected{% endif %}>
+      {% if form_data %}
+        {% if form_data.coordinator_id == u.id|string %}selected{% endif %}
+      {% elif u.id == current_user.id and current_user.role == 'coordinator' %}selected{% endif %}>
       {{ u.full_name }}
     </option>
     {% endfor %}
-    <option value="__other__">Other (type name)…</option>
+    <option value="__other__" {% if form_data and form_data.coordinator_id == '__other__' %}selected{% endif %}>Other (type name)…</option>
   </select>
   {% if current_user.role == 'coordinator' %}
   <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
@@ -196,7 +200,8 @@
   <input name="coordinator_name_other" id="coordinator_name_other" type="text"
          list="other_coord_datalist"
          autocomplete="off"
-         placeholder="Full name of coordinator"/>
+         placeholder="Full name of coordinator"
+         value="{{ form_data.coordinator_name_other if form_data else '' }}"/>
   <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
     Start typing — if this person already exists, pick them from the list instead of creating a new entry.
   </span>
@@ -208,7 +213,8 @@
 </div>
 <div class="form-group">
   <label>Sub C/O <span style="color:var(--muted);font-weight:400;font-size:11px">(optional)</span></label>
-  <input name="sub_co" type="text" placeholder="e.g. Sub C/O "/>
+  <input name="sub_co" type="text" placeholder="e.g. Sub C/O "
+         value="{{ form_data.sub_co if form_data else '' }}"/>
 </div>
 
       <div class="form-group">
@@ -216,20 +222,20 @@
         <select name="doc_staff_id">
           <option value="">— Assign staff —</option>
           {% for u in doc_staff %}
-          <option value="{{ u.id }}">{{ u.full_name }}</option>
+          <option value="{{ u.id }}" {% if form_data and form_data.doc_staff_id == u.id|string %}selected{% endif %}>{{ u.full_name }}</option>
           {% endfor %}
           {% for u in office %}
-          <option value="{{u.id}}">{{u.full_name}}</option>
+          <option value="{{u.id}}" {% if form_data and form_data.doc_staff_id == u.id|string %}selected{% endif %}>{{u.full_name}}</option>
           {% endfor %}
           {% for u in documents_k %}
-          <option value="{{u.id}}">{{u.full_name}}</option>
+          <option value="{{u.id}}" {% if form_data and form_data.doc_staff_id == u.id|string %}selected{% endif %}>{{u.full_name}}</option>
           {% endfor %}
         </select>
       </div>
 
       <div class="form-group full">
         <label>Notes</label>
-        <textarea name="notes" rows="2" placeholder="Any additional notes…"></textarea>
+        <textarea name="notes" rows="2" placeholder="Any additional notes…">{{ form_data.notes if form_data else '' }}</textarea>
       </div>
 
     </div>
@@ -305,5 +311,57 @@ function toggleOutsideWork() {
   
 }
 toggleOutsideWork();
+</script>
+<script>
+(function () {
+  const form = document.querySelector('form[action="{{ url_for("new_project") }}"]');
+  const confirmField = document.getElementById('confirm_duplicate_phone');
+  const phoneInput = document.querySelector('input[name="phone"]');
+  const custIdField = document.querySelector('input[name="customer_id"]');
+  let phoneChecked = confirmField.value === '1';   // already confirmed if we're re-rendering after a confirm
+
+  if (phoneInput) {
+    phoneInput.addEventListener('input', function () {
+      phoneChecked = false;
+      confirmField.value = '0';
+    });
+  }
+
+  form.addEventListener('submit', async function (e) {
+    if (custIdField && custIdField.value) return;   // existing customer picked — nothing to check
+    if (confirmField.value === '1' && phoneChecked) return;
+
+    const phone = phoneInput ? phoneInput.value.trim() : '';
+    if (!phone) return;
+
+    e.preventDefault();
+
+    try {
+      const resp = await fetch('{{ url_for("api_check_duplicate_phone") }}?phone=' + encodeURIComponent(phone));
+      const data = await resp.json();
+
+      if (data.duplicate) {
+        const lines = data.matches.map(m =>
+          `${m.name} (${m.place}) — Projects: ${m.projects.length ? m.projects.join(', ') : 'none'}`
+        ).join('\n');
+        const proceed = confirm(
+          `Phone number ${phone} is already registered to:\n\n${lines}\n\n` +
+          `Is this genuinely a different customer? Click OK to proceed anyway, or Cancel to review.`
+        );
+        if (proceed) {
+          confirmField.value = '1';
+          phoneChecked = true;
+          form.submit();
+        }
+      } else {
+        confirmField.value = '1';
+        phoneChecked = true;
+        form.submit();
+      }
+    } catch (err) {
+      form.submit();
+    }
+  });
+})();
 </script>
 {% endblock %}

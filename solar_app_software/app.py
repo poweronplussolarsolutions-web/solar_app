@@ -522,7 +522,40 @@ def _clean_phone(phone: str) -> str:
     if digits.startswith('0') and len(digits) == 11:
         digits = digits[1:]
     return digits
-
+def _build_form_data():
+    """Snapshot the submitted form fields so the New Project template can
+    repopulate them if we need to re-render the form after a validation
+    warning (duplicate phone, invalid format, etc.) instead of losing
+    everything the user typed."""
+    return {
+        'customer_name':          request.form.get('customer_name', ''),
+        'phone':                  request.form.get('phone', ''),
+        'alt_phone':              request.form.get('alt_phone', ''),
+        'email':                  request.form.get('email', ''),
+        'house_name':             request.form.get('house_name', ''),
+        'place':                  request.form.get('place', ''),
+        'post':                   request.form.get('post', ''),
+        'pincode':                request.form.get('pincode', ''),
+        'village':                request.form.get('village', ''),
+        'taluk':                  request.form.get('taluk', ''),
+        'district':               request.form.get('district', ''),
+        'project_code':           request.form.get('project_code', ''),
+        'inverter_capacity_kw':   request.form.get('inverter_capacity_kw', ''),
+        'panel_capacity_kw':      request.form.get('panel_capacity_kw', ''),
+        'structure_capacity_kw':  request.form.get('structure_capacity_kw', ''),
+        'project_type':           request.form.get('project_type', 'Cash'),
+        'work_category':          request.form.get('work_category', 'Installation'),
+        'project_subtype':        request.form.get('project_subtype', 'DCR'),
+        'roof_type':              request.form.get('roof_type', ''),
+        'roof_type_other':        request.form.get('roof_type_other', ''),
+        'inverter_type':          request.form.get('inverter_type', ''),
+        'total_amount':           request.form.get('total_amount', ''),
+        'coordinator_id':         request.form.get('coordinator_id', ''),
+        'coordinator_name_other': request.form.get('coordinator_name_other', ''),
+        'sub_co':                 request.form.get('sub_co', ''),
+        'doc_staff_id':           request.form.get('doc_staff_id', ''),
+        'notes':                  request.form.get('notes', ''),
+    }
 # ─────────────────────────────────────────────────────────────────────────────
 # MODELS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -569,7 +602,7 @@ class Customer(db.Model):
     __tablename__ = 'customers'
     id         = db.Column(db.Integer, primary_key=True)
     name       = db.Column(db.String(120), nullable=False)
-    phone      = db.Column(db.String(20))
+    phone      = db.Column(db.String(20), unique=True)
     alt_phone  = db.Column(db.String(20))
     email      = db.Column(db.String(120))
     house_name = db.Column(db.String(120))
@@ -3645,9 +3678,6 @@ def new_project():
         raw_structure = request.form.get('structure_capacity_kw', '').strip()
         structure_kw  = _safe_float(raw_structure) if raw_structure else None
 
-        # Only admin may type an MNRE number by hand. Everyone else always
-        # gets an auto-assigned one — this also means the race-condition
-        # retry below is the only path normal users ever hit.
         manual_code = (_clean(request.form.get('project_code', ''), 20)
                        if current_user.role == 'admin' else '')
 
@@ -3689,6 +3719,22 @@ def new_project():
                                documents_k=documents_k,
                                other_coord_names=other_coord_names)
 
+            # ── NEW: block duplicate customer phone numbers ──────────────
+            if phone_clean:
+                existing_cust = Customer.query.filter_by(phone=phone_clean).first()
+                if existing_cust:
+                    flash(
+                        f'Phone number {phone_clean} is already registered to customer '
+                        f'"{existing_cust.name}". Please search for the existing customer '
+                        f'instead of creating a duplicate entry.',
+                        'danger'
+                    )
+                    return render_template('new_project.html', customers=customers,
+                                   doc_staff=doc_staff, suggested_code=suggested_code,
+                                   coordinators=coordinators, office=office,
+                                   documents_k=documents_k,
+                                   other_coord_names=other_coord_names)
+
             cust = Customer(
         name       = _clean(request.form.get('customer_name', ''), 120),
         phone      = phone_clean or None,
@@ -3703,8 +3749,23 @@ def new_project():
         taluk      = _clean(request.form.get('taluk', ''), 120) or None,
         sub_co     = request.form.get('sub_co','').strip() or None,
         )
-        db.session.add(cust)
-        db.session.flush()
+        #guard against a race where two requests slip past the
+        # pre-check above at the same instant — the DB unique constraint
+        # is the real backstop, this just turns it into a clean flash
+        # instead of a 500 error. ──────────────────────────────────────
+        try:
+            with db.session.begin_nested():
+                db.session.add(cust)
+                db.session.flush()
+        except IntegrityError:
+            db.session.rollback()
+            flash('That phone number was just registered by another request. '
+                  'Please search for the existing customer instead.', 'danger')
+            return render_template('new_project.html', customers=customers,
+                                   doc_staff=doc_staff, suggested_code=suggested_code,
+                                   coordinators=coordinators, office=office,
+                                   documents_k=documents_k,
+                                   other_coord_names=other_coord_names)
         cust_id = cust.id
 
         # Resolve coordinator
@@ -3745,9 +3806,6 @@ def new_project():
 
         proj = None
         if manual_code:
-            # Admin-typed number — one attempt, with a SAVEPOINT so a race
-            # with another insert doesn't roll back the customer we just
-            # flushed above.
             try:
                 with db.session.begin_nested():
                     proj = _make_project(manual_code)
@@ -3763,9 +3821,6 @@ def new_project():
                                        documents_k=documents_k,
                                        other_coord_names=other_coord_names)
         else:
-            # Auto-assigned number — retry on collision instead of erroring.
-            # Two users hitting "create" at the same moment will now each
-            # end up with a different number instead of one of them failing.
             candidate = next_project_code() or '1781'
             for _attempt in range(20):
                 try:
@@ -3787,7 +3842,7 @@ def new_project():
                                        other_coord_names=other_coord_names)
 
         log_action(proj.id, 'Project created', new_val='Created')
-        geo_photo    = request.files.get('geo_photo_1')   # ← was 'geo_photo'
+        geo_photo    = request.files.get('geo_photo_1')
         maps_url_raw = _clean(request.form.get('maps_url', ''), 500)
         has_photo    = False
         if (geo_photo and geo_photo.filename) or maps_url_raw:
@@ -3817,7 +3872,6 @@ def new_project():
             log_action(proj.id, 'Pre-work site photo/location added at project creation',
                        new_val='Photo' if has_photo else 'Location only')
 
-        # ── Additional site photos (2 & 3) ────────────────────────────────
         extra_count = 0
         for idx, field_name in enumerate(('geo_photo_2', 'geo_photo_3'), start=2):
             f = request.files.get(field_name)
@@ -3832,13 +3886,6 @@ def new_project():
                 f'You have been assigned to {proj.project_code}-{proj.customer.name} '
                 f'({proj.project_type}, {proj.inverter_capacity_kw} kW).', 'task',
             )
-        # if proj.doc_staff_id:
-        #     create_notification(
-        #         proj.doc_staff_id, proj.id,
-        #         f'You have been assigned to {proj.project_code}-{proj.customer.name} '
-        #         f'({proj.project_type}, {proj.inverter_capacity_kw} kW).', 'task',
-        #     )
-        # ── Notify onsite team of new work ────────────────────────────────
         if proj.work_category != 'Outside':
             if proj.project_type == 'Cash':
                 notify_onsite_team(proj.id,
@@ -6774,7 +6821,27 @@ def api_stock_meta():
         'brands':     sorted(brands),
         'units':      sorted(units),
     })
+@app.route('/api/check_duplicate_phone')
+@login_required
+def api_check_duplicate_phone():
+    raw_phone = request.args.get('phone', '')
+    phone_clean = _clean_phone(raw_phone)
+    if not phone_clean or not _validate_phone(phone_clean):
+        return jsonify({'duplicate': False})
 
+    existing = Customer.query.filter_by(phone=phone_clean).all()
+    if not existing:
+        return jsonify({'duplicate': False})
+
+    matches = []
+    for c in existing:
+        codes = [p.project_code for p in c.projects]
+        matches.append({
+            'name': c.name,
+            'place': c.place or '—',
+            'projects': codes,
+        })
+    return jsonify({'duplicate': True, 'matches': matches})
 # ─────────────────────────────────────────────────────────────────────────────
 # SUBSIDY
 # ─────────────────────────────────────────────────────────────────────────────
