@@ -948,6 +948,16 @@ class DayBookEntry(db.Model):
     updated_at  = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     creator     = db.relationship('User', foreign_keys=[created_by])
     updater     = db.relationship('User', foreign_keys=[updated_by])
+class DayBookPhoto(db.Model):
+    __tablename__ = 'daybook_photos'
+    id            = db.Column(db.Integer, primary_key=True)
+    entry_date    = db.Column(db.Date, nullable=False, index=True)
+    photo_path    = db.Column(db.String(255), nullable=False)
+    original_name = db.Column(db.String(200), nullable=True)
+    caption       = db.Column(db.String(200), nullable=True)
+    uploaded_by   = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    uploaded_at   = db.Column(db.DateTime, default=datetime.utcnow)
+    uploader      = db.relationship('User', foreign_keys=[uploaded_by])
 class Worker(db.Model):
     __tablename__ = 'workers'
     id           = db.Column(db.Integer, primary_key=True)
@@ -10468,6 +10478,10 @@ def daybook():
                      DayBookEntry.vch_type.ilike(f'%{search}%'))
     entries = q.order_by(DayBookEntry.id).all()
 
+    photos = (DayBookPhoto.query.filter_by(entry_date=target)
+              .options(joinedload(DayBookPhoto.uploader))
+              .order_by(DayBookPhoto.uploaded_at).all())
+
     total_debit  = sum(float(e.debit or 0) for e in entries)
     total_credit = sum(float(e.credit or 0) for e in entries)
 
@@ -10476,12 +10490,11 @@ def daybook():
                     .order_by(DayBookEntry.entry_date.desc())
                     .limit(10).all())
 
-    return render_template('daybook.html', entries=entries, target=target,
+    return render_template('daybook.html', entries=entries, photos=photos, target=target,
                            prev_date=target - timedelta(days=1),
                            next_date=target + timedelta(days=1),
                            search=search, total_debit=total_debit,
                            total_credit=total_credit, recent_dates=recent_dates)
-
 
 @app.route('/daybook/upload', methods=['POST'])
 @login_required
@@ -10590,7 +10603,103 @@ def daybook_delete(eid):
     db.session.commit()
     flash('Entry deleted.', 'warning')
     return redirect(url_for('daybook', date=d.isoformat()))
+DAYBOOK_PHOTO_DIR = os.environ.get(
+    'DAYBOOK_PHOTO_DIR',
+    os.path.join(BASE_DIR, 'private_uploads', 'daybook_photos')
+)
+DAYBOOK_PHOTO_EXTS = ('.jpg', '.jpeg', '.png', '.webp')
+DAYBOOK_PHOTO_MAX_MB = 10
 
+
+@app.route('/daybook/photos/upload', methods=['POST'])
+@login_required
+@roles_required(*DAYBOOK_ROLES)
+@limiter.limit('20 per minute')
+def daybook_photo_upload():
+    d = _parse_daybook_date(request.form.get('entry_date'))
+    if not d:
+        flash('Invalid date.', 'danger')
+        return redirect(url_for('daybook'))
+
+    files = [f for f in request.files.getlist('photos') if f and f.filename]
+    if not files:
+        flash('Please choose at least one photo.', 'danger')
+        return redirect(url_for('daybook', date=d.isoformat()))
+
+    caption = _clean(request.form.get('caption', ''), 200) or None
+    os.makedirs(DAYBOOK_PHOTO_DIR, exist_ok=True)
+
+    saved = skipped = 0
+    for f in files:
+        ext = os.path.splitext(f.filename)[1].lower()
+        if ext not in DAYBOOK_PHOTO_EXTS:
+            skipped += 1
+            continue
+        f.stream.seek(0, os.SEEK_END)
+        size = f.stream.tell()
+        f.stream.seek(0)
+        if size > DAYBOOK_PHOTO_MAX_MB * 1024 * 1024:
+            skipped += 1
+            continue
+
+        fname = f'daybook_{d.isoformat()}_{uuid.uuid4().hex[:12]}{ext}'
+        fpath = os.path.join(DAYBOOK_PHOTO_DIR, fname)
+        f.save(fpath)
+        db.session.add(DayBookPhoto(
+            entry_date=d, photo_path=fpath,
+            original_name=_clean(f.filename, 200),
+            caption=caption, uploaded_by=current_user.id,
+        ))
+        saved += 1
+    db.session.commit()
+
+    if saved:
+        msg = f'{saved} photo(s) uploaded.'
+        if skipped:
+            msg += f' {skipped} skipped (only JPG/PNG/WEBP up to {DAYBOOK_PHOTO_MAX_MB} MB).'
+        flash(msg, 'success')
+    else:
+        flash(f'No photos uploaded. Only JPG/PNG/WEBP up to {DAYBOOK_PHOTO_MAX_MB} MB are allowed.', 'danger')
+    return redirect(url_for('daybook', date=d.isoformat()))
+
+
+@app.route('/daybook/photos/<int:photo_id>')
+@login_required
+@roles_required(*DAYBOOK_ROLES)
+def daybook_photo_view(photo_id):
+    photo = DayBookPhoto.query.get_or_404(photo_id)
+    if not os.path.isfile(photo.photo_path):
+        abort(404)
+    return send_file(photo.photo_path)
+
+
+@app.route('/daybook/photos/<int:photo_id>/download')
+@login_required
+@roles_required(*DAYBOOK_ROLES)
+def daybook_photo_download(photo_id):
+    photo = DayBookPhoto.query.get_or_404(photo_id)
+    if not os.path.isfile(photo.photo_path):
+        abort(404)
+    ext = os.path.splitext(photo.photo_path)[1]
+    return send_file(photo.photo_path, as_attachment=True,
+                     download_name=f'DayBook_{photo.entry_date.isoformat()}_{photo.id}{ext}')
+
+
+@app.route('/daybook/photos/<int:photo_id>/delete', methods=['POST'])
+@login_required
+@roles_required(*DAYBOOK_ROLES)
+def daybook_photo_delete(photo_id):
+    photo = DayBookPhoto.query.get_or_404(photo_id)
+    d = photo.entry_date
+    if os.path.isfile(photo.photo_path):
+        try:
+            os.remove(photo.photo_path)
+        except OSError:
+            pass
+    db.session.delete(photo)
+    db.session.commit()
+    flash('Photo deleted.', 'warning')
+    return redirect(url_for('daybook', date=d.isoformat()))
 
 def build_daybook_excel(entries, target, output_dir='/tmp'):
     wb = Workbook()
