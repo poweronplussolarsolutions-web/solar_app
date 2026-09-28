@@ -8393,7 +8393,7 @@ def _wa_payment_message(proj, kind='confirmation'):
 # EXCEL REPORT GENERATION  (unchanged from original — omitted for brevity)
 # ─────────────────────────────────────────────────────────────────────────────
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
