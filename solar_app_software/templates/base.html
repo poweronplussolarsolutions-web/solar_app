@@ -458,7 +458,7 @@
 
     <nav>
       <div class="nav-section">Main</div>
-      {% if current_user.role != 'stocks' %}
+            {% if current_user.role not in ['stocks','finance'] %}
 <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
   <span class="dot"></span> Dashboard
 </a>
@@ -476,7 +476,7 @@
       {% if current_user.role in ['admin', 'documents','office'] %}
 <a class="nav-link {% if request.endpoint == 'works_status' %}active{% endif %}" href="{{ url_for('works_status') }}"><span class="dot"></span>Status</a>
 {% endif %}
-      {% if current_user.role in ['coordinator','documents','payments','onsite','appinstall','office','documents_k','director'] %}
+      {% if current_user.role in ['coordinator','documents','payments','onsite','appinstall','office','documents_k','director','finance'] %}
       <a class="nav-link {% if request.endpoint in 'change_password' %}active{% endif %}" href="{{ url_for('change_password') }}">
         <span class="dot"></span>Change Password</a> 
       {% endif %}
@@ -509,7 +509,12 @@
   <span class="dot"></span> Write-offs
 </a>
       {% endif %}
-      {% if current_user.role in ('admin','accounts') %}<a href="{{ url_for('daybook') }}">Day Book</a>{% endif %}
+            {% if current_user.role in ['admin','finance'] %}
+      <div class="nav-section">Accounts</div>
+      <a class="nav-link {% if request.endpoint == 'daybook' %}active{% endif %}" href="{{ url_for('daybook') }}">
+        <span class="dot"></span> Day Book
+      </a>
+      {% endif %}
       {% if current_user.role in ['admin','onsite'] %}
       <div class="nav-section">Operations</div>
       <a class="nav-link {% if request.endpoint == 'workers' %}active{% endif %}" href="{{ url_for('workers') }}">
@@ -778,6 +783,17 @@ function closeSidebar() {
       <path d="M1 2.5A1.5 1.5 0 012.5 1h11A1.5 1.5 0 0115 2.5v11a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 011 13.5v-11zM2.5 2a.5.5 0 00-.5.5v11a.5.5 0 00.5.5h11a.5.5 0 00.5-.5v-11a.5.5 0 00-.5-.5h-11zM4 5.5a.5.5 0 01.5-.5h7a.5.5 0 010 1h-7a.5.5 0 01-.5-.5zm0 3a.5.5 0 01.5-.5h7a.5.5 0 010 1h-7a.5.5 0 01-.5-.5zm0 3a.5.5 0 01.5-.5h4a.5.5 0 010 1h-4a.5.5 0 01-.5-.5z"/>
     </svg>
     Projects
+  </a>
+  {% endif %}
+    {% if current_user.role == 'accounts' %}
+  <a href="{{ url_for('daybook') }}"
+     style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+            gap:3px;font-size:10px;color:{% if request.endpoint=='daybook' %}var(--amber-800){% else %}var(--muted){% endif %};
+            background:{% if request.endpoint=='daybook' %}var(--amber-50){% else %}transparent{% endif %}">
+    <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M2 1.5A1.5 1.5 0 013.5 0h9A1.5 1.5 0 0114 1.5v13a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 14.5v-13zM4 4v1h8V4H4zm0 3v1h8V7H4zm0 3v1h5v-1H4z"/>
+    </svg>
+    Day Book
   </a>
   {% endif %}
   <button onclick="toggleSidebar()"
