@@ -602,7 +602,7 @@ class Customer(db.Model):
     __tablename__ = 'customers'
     id         = db.Column(db.Integer, primary_key=True)
     name       = db.Column(db.String(120), nullable=False)
-    phone      = db.Column(db.String(20), unique=True)
+    phone      = db.Column(db.String(20))
     alt_phone  = db.Column(db.String(20))
     email      = db.Column(db.String(120))
     house_name = db.Column(db.String(120))
@@ -7640,14 +7640,14 @@ def change_user_status(user_id):
 @roles_required('admin', 'director')
 def admin_analytics():
     from collections import defaultdict, Counter
- 
+
     today       = date.today()
     month_start = today.replace(day=1)
     all_projs   = Project.query.all()
     live_projs  = [p for p in all_projs if p.status != 'Cancelled']
     all_pays    = Payment.query.all()
- 
-    # ── Trend series (unchanged from before) ────────────────────────────────
+
+    # ── Trend series ────────────────────────────────────────────────────────
     def _monthly_iter(n):
         result = []
         for i in range(n - 1, -1, -1):
@@ -7656,210 +7656,499 @@ def admin_analytics():
                 ref = (ref - timedelta(days=1)).replace(day=1)
             result.append(ref)
         return result
- 
+
     monthly_refs = _monthly_iter(12)
- 
+
     weekly_projects, weekly_payments = defaultdict(int), defaultdict(float)
+
     for i in range(7, -1, -1):
         ws, we = today - timedelta(weeks=i), today - timedelta(weeks=i - 1)
         label = ws.strftime('%d %b')
-        weekly_projects[label] = sum(1 for p in all_projs if ws <= p.created_at.date() < we)
-        weekly_payments[label] = sum(float(p.amount) for p in all_pays if ws <= p.payment_date < we)
- 
-    monthly_projects = {r.strftime('%b %Y'): sum(
-        1 for p in all_projs if p.created_at.year == r.year and p.created_at.month == r.month
-    ) for r in monthly_refs}
-    monthly_payments = {r.strftime('%b %Y'): sum(
-        float(p.amount) for p in all_pays if p.payment_date.year == r.year and p.payment_date.month == r.month
-    ) for r in monthly_refs}
- 
+
+        weekly_projects[label] = sum(
+            1 for p in all_projs
+            if ws <= p.created_at.date() < we
+        )
+
+        # Ignore payments without a project and payments belonging
+        # to Cancelled / OnHold projects.
+        weekly_payments[label] = sum(
+            float(p.amount or 0)
+            for p in all_pays
+            if p.project is not None
+            and p.project.status not in ['Cancelled', 'OnHold']
+            and ws <= p.payment_date < we
+        )
+
+    monthly_projects = {
+        r.strftime('%b %Y'): sum(
+            1 for p in all_projs
+            if p.created_at.year == r.year
+            and p.created_at.month == r.month
+        )
+        for r in monthly_refs
+    }
+
+    monthly_payments = {
+        r.strftime('%b %Y'): sum(
+            float(p.amount or 0)
+            for p in all_pays
+            if p.project is not None
+            and p.project.status not in ['Cancelled', 'OnHold']
+            and p.payment_date.year == r.year
+            and p.payment_date.month == r.month
+        )
+        for r in monthly_refs
+    }
+
     yearly_projects, yearly_payments = defaultdict(int), defaultdict(float)
+
     for i in range(4, -1, -1):
         yr = today.year - i
-        yearly_projects[str(yr)] = sum(1 for p in all_projs if p.created_at.year == yr)
-        yearly_payments[str(yr)] = sum(float(p.amount) for p in all_pays if p.payment_date.year == yr)
- 
+
+        yearly_projects[str(yr)] = sum(
+            1 for p in all_projs
+            if p.created_at.year == yr
+        )
+
+        yearly_payments[str(yr)] = sum(
+            float(p.amount or 0)
+            for p in all_pays
+            if p.project is not None
+            and p.project.status not in ['Cancelled', 'OnHold']
+            and p.payment_date.year == yr
+        )
+
     status_counts = Counter(p.status for p in all_projs)
     type_counts   = Counter(p.project_type for p in all_projs)
- 
+
     # ── LIVE coordinator ranking — recomputed fresh on every page load ──────
-    coordinators  = User.query.filter(
-        User.role.in_(['coordinator', 'director']), User.is_active == True
+    coordinators = User.query.filter(
+        User.role.in_(['coordinator', 'director']),
+        User.is_active == True
     ).order_by(User.full_name).all()
- 
+
     coord_ranking = []
+
     for c in coordinators:
-        mine        = [p for p in live_projs if p.coordinator_id == c.id]
-        this_month  = [p for p in mine if p.created_at.date() >= month_start]
-        active_now  = [p for p in mine if p.status in ('InProgress', 'Delayed', 'Lead', 'Created')]
-        closed_m    = [p for p in this_month if p.status == 'Closed']
+        mine = [
+            p for p in live_projs
+            if p.coordinator_id == c.id
+        ]
+
+        this_month = [
+            p for p in mine
+            if p.created_at.date() >= month_start
+        ]
+
+        active_now = [
+            p for p in mine
+            if p.status in ('InProgress', 'Delayed', 'Lead', 'Created')
+        ]
+
+        closed_m = [
+            p for p in this_month
+            if p.status == 'Closed'
+        ]
+
         collected_m = sum(
-            float(pay.amount) for p in mine for pay in p.payments
+            float(pay.amount or 0)
+            for p in mine
+            for pay in p.payments
             if pay.payment_date >= month_start
         )
+
         coord_ranking.append({
             'name':        c.full_name,
             'new_month':   len(this_month),
             'live_active': len(active_now),
             'closed_m':    len(closed_m),
-            'delayed':     sum(1 for p in mine if p.status == 'Delayed'),
+            'delayed':     sum(
+                1 for p in mine
+                if p.status == 'Delayed'
+            ),
             'collected_m': collected_m,
             'total':       len(mine),
         })
-    coord_ranking.sort(key=lambda r: (r['live_active'], r['new_month']), reverse=True)
+
+    coord_ranking.sort(
+        key=lambda r: (r['live_active'], r['new_month']),
+        reverse=True
+    )
+
     coord_ranking = coord_ranking[:10]
+
     for i, r in enumerate(coord_ranking, 1):
         r['rank'] = i
- 
-    # ── Documents-staff activity ranking — logged updates, last 30 days ─────
+
+    # ── Documents-staff activity ranking — logged updates, last 30 days ────
     activity_cutoff = datetime.utcnow() - timedelta(days=30)
-    doc_staff_all   = User.query.filter(
-        User.role.in_(list(DOC_STAFF_ROLES) + ['office']), User.is_active == True
+
+    doc_staff_all = User.query.filter(
+        User.role.in_(list(DOC_STAFF_ROLES) + ['office']),
+        User.is_active == True
     ).order_by(User.full_name).all()
+
     staff_ids = [u.id for u in doc_staff_all]
- 
+
     log_counts = dict(
-        db.session.query(ProjectLog.done_by, func.count(ProjectLog.id))
-        .filter(ProjectLog.created_at >= activity_cutoff, ProjectLog.done_by.in_(staff_ids))
-        .group_by(ProjectLog.done_by).all()
+        db.session.query(
+            ProjectLog.done_by,
+            func.count(ProjectLog.id)
+        )
+        .filter(
+            ProjectLog.created_at >= activity_cutoff,
+            ProjectLog.done_by.in_(staff_ids)
+        )
+        .group_by(ProjectLog.done_by)
+        .all()
     ) if staff_ids else {}
- 
+
     doc_activity = []
+
     for u in doc_staff_all:
-        assigned = [p for p in live_projs if p.doc_staff_id == u.id]
-        updates  = log_counts.get(u.id, 0)
+        assigned = [
+            p for p in live_projs
+            if p.doc_staff_id == u.id
+        ]
+
+        updates = log_counts.get(u.id, 0)
+
         if not assigned and not updates:
             continue
-        total_docs = sum(len(get_expected_docs(p.project_type, p.project_subtype, p.loan_subtype)) for p in assigned)
-        done_docs  = sum(get_doc_completion(p)[0] for p in assigned)
+
+        total_docs = sum(
+            len(
+                get_expected_docs(
+                    p.project_type,
+                    p.project_subtype,
+                    p.loan_subtype
+                )
+            )
+            for p in assigned
+        )
+
+        done_docs = sum(
+            get_doc_completion(p)[0]
+            for p in assigned
+        )
+
         doc_activity.append({
-            'name':        u.full_name,
+            'name': u.full_name,
             'updates_30d': updates,
             'active_docs': len(assigned),
-            'per_project': round(updates / len(assigned), 1) if assigned else 0.0,
-            'doc_pct':     int(done_docs / total_docs * 100) if total_docs > 0 else 0,
+            'per_project': (
+                round(updates / len(assigned), 1)
+                if assigned else 0.0
+            ),
+            'doc_pct': (
+                int(done_docs / total_docs * 100)
+                if total_docs > 0 else 0
+            ),
         })
-    doc_activity.sort(key=lambda r: r['updates_30d'], reverse=True)
+
+    doc_activity.sort(
+        key=lambda r: r['updates_30d'],
+        reverse=True
+    )
+
     for i, r in enumerate(doc_activity, 1):
         r['rank'] = i
- 
+
     # ── Onsite work analytics ────────────────────────────────────────────────
-    onsite_projs = [p for p in live_projs if p.work_category != 'Outside']
-    PHASE_ORDER  = ['NotStarted', 'InProgress', 'Completed']
- 
+    onsite_projs = [
+        p for p in live_projs
+        if p.work_category != 'Outside'
+    ]
+
+    PHASE_ORDER = [
+        'NotStarted',
+        'InProgress',
+        'Completed'
+    ]
+
     def _phase_status(p, attr):
         op = p.onsite_progress
         return getattr(op, attr) if op else 'NotStarted'
- 
-    struct_counts  = {k: sum(1 for p in onsite_projs if _phase_status(p, 'structure_work_status') == k) for k in PHASE_ORDER}
-    install_counts = {k: sum(1 for p in onsite_projs if _phase_status(p, 'installation_status') == k) for k in PHASE_ORDER}
-    elec_counts    = {k: sum(1 for p in onsite_projs if _phase_status(p, 'electrical_status') == k) for k in PHASE_ORDER}
- 
+
+    struct_counts = {
+        k: sum(
+            1 for p in onsite_projs
+            if _phase_status(p, 'structure_work_status') == k
+        )
+        for k in PHASE_ORDER
+    }
+
+    install_counts = {
+        k: sum(
+            1 for p in onsite_projs
+            if _phase_status(p, 'installation_status') == k
+        )
+        for k in PHASE_ORDER
+    }
+
+    elec_counts = {
+        k: sum(
+            1 for p in onsite_projs
+            if _phase_status(p, 'electrical_status') == k
+        )
+        for k in PHASE_ORDER
+    }
+
     def _avg_days(attr_start, attr_end):
         spans = []
+
         for p in onsite_projs:
             op = p.onsite_progress
+
             if not op:
                 continue
-            s, e = getattr(op, attr_start), getattr(op, attr_end)
+
+            s = getattr(op, attr_start)
+            e = getattr(op, attr_end)
+
             if s and e and e >= s:
                 spans.append((e - s).days)
-        return round(sum(spans) / len(spans), 1) if spans else 0
- 
+
+        return (
+            round(sum(spans) / len(spans), 1)
+            if spans else 0
+        )
+
     avg_days = {
-        'structure':    _avg_days('structure_start_date', 'structure_end_date'),
-        'installation': _avg_days('installation_start_date', 'installation_end_date'),
-        'electrical':   _avg_days('electrical_start_date', 'electrical_end_date'),
+        'structure': _avg_days(
+            'structure_start_date',
+            'structure_end_date'
+        ),
+        'installation': _avg_days(
+            'installation_start_date',
+            'installation_end_date'
+        ),
+        'electrical': _avg_days(
+            'electrical_start_date',
+            'electrical_end_date'
+        ),
     }
- 
-    materials_pending   = sum(1 for p in onsite_projs for m in p.materials if m.dispatch_status != 'Delivered')
-    materials_delivered = sum(1 for p in onsite_projs for m in p.materials if m.dispatch_status == 'Delivered')
+
+    materials_pending = sum(
+        1
+        for p in onsite_projs
+        for m in p.materials
+        if m.dispatch_status != 'Delivered'
+    )
+
+    materials_delivered = sum(
+        1
+        for p in onsite_projs
+        for m in p.materials
+        if m.dispatch_status == 'Delivered'
+    )
+
     projects_onsite_now = sum(
-        1 for p in onsite_projs
+        1
+        for p in onsite_projs
         if _phase_status(p, 'structure_work_status') == 'InProgress'
         or _phase_status(p, 'installation_status') == 'InProgress'
         or _phase_status(p, 'electrical_status') == 'InProgress'
     )
- 
-    active_stage_projs = [p for p in onsite_projs if p.status in ('InProgress', 'Delayed')]
+
+    active_stage_projs = [
+        p for p in onsite_projs
+        if p.status in ('InProgress', 'Delayed')
+    ]
+
     stage_days = defaultdict(list)
+
     for p in active_stage_projs:
         stage_days[p.stage].append(p.days_in_stage)
+
     avg_stage = sorted(
-        [{'stage': s, 'avg_days': round(sum(v) / len(v), 1), 'count': len(v)} for s, v in stage_days.items() if v],
-        key=lambda r: r['avg_days'], reverse=True,
+        [
+            {
+                'stage': s,
+                'avg_days': round(sum(v) / len(v), 1),
+                'count': len(v)
+            }
+            for s, v in stage_days.items()
+            if v
+        ],
+        key=lambda r: r['avg_days'],
+        reverse=True
     )
- 
-    workers = Worker.query.filter_by(is_active=True).all()
+
+    workers = Worker.query.filter_by(
+        is_active=True
+    ).all()
+
     worker_stats = []
+
     for w in workers:
-        days       = sum(float(a.days_worked or 0) for a in w.assignments)
-        earned     = sum(float(jc.final_amount or 0) for jc in w.job_cards if jc.status in ('Approved', 'Paid'))
-        active_now = sum(1 for a in w.assignments if a.status in ('Assigned', 'Active'))
+        days = sum(
+            float(a.days_worked or 0)
+            for a in w.assignments
+        )
+
+        earned = sum(
+            float(jc.final_amount or 0)
+            for jc in w.job_cards
+            if jc.status in ('Approved', 'Paid')
+        )
+
+        active_now = sum(
+            1
+            for a in w.assignments
+            if a.status in ('Assigned', 'Active')
+        )
+
         if days or earned or active_now:
-            worker_stats.append({'name': w.name, 'days': days, 'earned': earned, 'active_now': active_now})
-    worker_stats.sort(key=lambda r: r['days'], reverse=True)
+            worker_stats.append({
+                'name': w.name,
+                'days': days,
+                'earned': earned,
+                'active_now': active_now
+            })
+
+    worker_stats.sort(
+        key=lambda r: r['days'],
+        reverse=True
+    )
+
     worker_stats = worker_stats[:10]
- 
+
     onsite_stats = {
-        'struct_counts':       struct_counts,
-        'install_counts':      install_counts,
-        'elec_counts':         elec_counts,
-        'avg_days':            avg_days,
-        'materials_pending':   materials_pending,
+        'struct_counts': struct_counts,
+        'install_counts': install_counts,
+        'elec_counts': elec_counts,
+        'avg_days': avg_days,
+        'materials_pending': materials_pending,
         'materials_delivered': materials_delivered,
         'projects_onsite_now': projects_onsite_now,
-        'total_onsite':        len(onsite_projs),
+        'total_onsite': len(onsite_projs),
     }
- 
+
     chart_data = {
-        'weekly_labels':    list(weekly_projects.keys()),
-        'weekly_projects':  list(weekly_projects.values()),
-        'weekly_payments':  list(weekly_payments.values()),
-        'monthly_labels':   list(monthly_projects.keys()),
+        'weekly_labels': list(weekly_projects.keys()),
+        'weekly_projects': list(weekly_projects.values()),
+        'weekly_payments': list(weekly_payments.values()),
+
+        'monthly_labels': list(monthly_projects.keys()),
         'monthly_projects': list(monthly_projects.values()),
         'monthly_payments': list(monthly_payments.values()),
-        'yearly_labels':    list(yearly_projects.keys()),
-        'yearly_projects':  list(yearly_projects.values()),
-        'yearly_payments':  list(yearly_payments.values()),
-        'status_labels':    list(status_counts.keys()),
-        'status_counts':    list(status_counts.values()),
-        'type_labels':      list(type_counts.keys()),
-        'type_counts':      list(type_counts.values()),
- 
-        'coord_names':    [r['name'].split()[0] for r in coord_ranking],
-        'coord_live':     [r['live_active'] for r in coord_ranking],
-        'coord_new':      [r['new_month'] for r in coord_ranking],
-        'coord_closed_m': [r['closed_m'] for r in coord_ranking],
- 
-        'doc_activity_names':   [r['name'].split()[0] for r in doc_activity],
-        'doc_activity_updates': [r['updates_30d'] for r in doc_activity],
- 
-        'struct_labels':  PHASE_ORDER, 'struct_counts':  [struct_counts[k] for k in PHASE_ORDER],
-        'install_labels': PHASE_ORDER, 'install_counts': [install_counts[k] for k in PHASE_ORDER],
-        'elec_labels':    PHASE_ORDER, 'elec_counts':    [elec_counts[k] for k in PHASE_ORDER],
- 
-        'avg_stage_labels': [r['stage'] for r in avg_stage],
-        'avg_stage_days':   [r['avg_days'] for r in avg_stage],
- 
-        'worker_names':  [r['name'] for r in worker_stats],
-        'worker_days':   [r['days'] for r in worker_stats],
-        'worker_earned': [r['earned'] for r in worker_stats],
-        'materials_delivered': onsite_stats['materials_delivered'],
-        'materials_pending': onsite_stats['materials_pending'],
+
+        'yearly_labels': list(yearly_projects.keys()),
+        'yearly_projects': list(yearly_projects.values()),
+        'yearly_payments': list(yearly_payments.values()),
+
+        'status_labels': list(status_counts.keys()),
+        'status_counts': list(status_counts.values()),
+
+        'type_labels': list(type_counts.keys()),
+        'type_counts': list(type_counts.values()),
+
+        'coord_names': [
+            r['name'].split()[0]
+            for r in coord_ranking
+        ],
+        'coord_live': [
+            r['live_active']
+            for r in coord_ranking
+        ],
+        'coord_new': [
+            r['new_month']
+            for r in coord_ranking
+        ],
+        'coord_closed_m': [
+            r['closed_m']
+            for r in coord_ranking
+        ],
+
+        'doc_activity_names': [
+            r['name'].split()[0]
+            for r in doc_activity
+        ],
+        'doc_activity_updates': [
+            r['updates_30d']
+            for r in doc_activity
+        ],
+
+        'struct_labels': PHASE_ORDER,
+        'struct_counts': [
+            struct_counts[k]
+            for k in PHASE_ORDER
+        ],
+
+        'install_labels': PHASE_ORDER,
+        'install_counts': [
+            install_counts[k]
+            for k in PHASE_ORDER
+        ],
+
+        'elec_labels': PHASE_ORDER,
+        'elec_counts': [
+            elec_counts[k]
+            for k in PHASE_ORDER
+        ],
+
+        'avg_stage_labels': [
+            r['stage']
+            for r in avg_stage
+        ],
+        'avg_stage_days': [
+            r['avg_days']
+            for r in avg_stage
+        ],
+
+        'worker_names': [
+            r['name']
+            for r in worker_stats
+        ],
+        'worker_days': [
+            r['days']
+            for r in worker_stats
+        ],
+        'worker_earned': [
+            r['earned']
+            for r in worker_stats
+        ],
+
+        'materials_delivered': onsite_stats[
+            'materials_delivered'
+        ],
+        'materials_pending': onsite_stats[
+            'materials_pending'
+        ],
     }
- 
-    total_collected = sum(float(p.amount) for p in all_pays if p.project.status not in ['Cancelled', 'OnHold'])
-    total_value     = sum(float(p.total_amount or 0) for p in all_projs if p.status not in ['Cancelled', 'OnHold'])
- 
-    return render_template('admin_analytics.html',
-        total_projects=len(all_projs), total_collected=total_collected,
-        total_value=total_value, total_pending=total_value - total_collected,
+
+    # ── Financial totals ────────────────────────────────────────────────────
+    # Payments without a linked project are ignored.
+    # Cancelled / OnHold projects are excluded.
+    total_collected = sum(
+        float(p.amount or 0)
+        for p in all_pays
+        if p.project is not None
+        and p.project.status not in ['Cancelled', 'OnHold']
+    )
+
+    total_value = sum(
+        float(p.total_amount or 0)
+        for p in all_projs
+        if p.status not in ['Cancelled', 'OnHold']
+    )
+
+    return render_template(
+        'admin_analytics.html',
+        total_projects=len(all_projs),
+        total_collected=total_collected,
+        total_value=total_value,
+        total_pending=total_value - total_collected,
         chart_data=chart_data,
-        coord_ranking=coord_ranking, doc_activity=doc_activity,
-        onsite_stats=onsite_stats, avg_stage=avg_stage, worker_stats=worker_stats,
-        month_label=today.strftime('%B %Y'))
- 
+        coord_ranking=coord_ranking,
+        doc_activity=doc_activity,
+        onsite_stats=onsite_stats,
+        avg_stage=avg_stage,
+        worker_stats=worker_stats,
+        month_label=today.strftime('%B %Y')
+    )
 
 # ─────────────────────────────────────────────────────────────────────────────
 # API — JSON ENDPOINTS
