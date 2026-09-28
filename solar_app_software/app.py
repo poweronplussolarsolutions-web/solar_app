@@ -3019,7 +3019,7 @@ def login():
         session.regenerate() if hasattr(session, 'regenerate') else None
         if u.role == 'stocks':
             return redirect(url_for('stock_dashboard'))
-        if u.role == 'accounts':
+        if u.role == 'finance':
             return redirect(url_for('daybook'))
         return redirect(url_for('dashboard'))
 
@@ -3223,7 +3223,7 @@ def reorder_document_stages():
 def dashboard():
     if current_user.role == 'stocks':
         return redirect(url_for('stock_dashboard'))
-    if current_user.role == 'accounts':
+    if current_user.role == 'finance':
         return redirect(url_for('daybook'))
     cutoff = datetime.utcnow() - timedelta(days=180)
     update_rows  = Project.query.filter(
@@ -10339,7 +10339,7 @@ def clear_all_service_records():
 # ─────────────────────────────────────────────────────────────────────────────
 # DAY BOOK
 # ─────────────────────────────────────────────────────────────────────────────
-DAYBOOK_ROLES = ('admin', 'accounts')
+DAYBOOK_ROLES = ('admin', 'finance')
 
 
 def _parse_daybook_date(v):
