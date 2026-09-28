@@ -509,7 +509,7 @@
   <span class="dot"></span> Write-offs
 </a>
       {% endif %}
-
+      {% if current_user.role in ('admin','accounts') %}<a href="{{ url_for('daybook') }}">Day Book</a>{% endif %}
       {% if current_user.role in ['admin','onsite'] %}
       <div class="nav-section">Operations</div>
       <a class="nav-link {% if request.endpoint == 'workers' %}active{% endif %}" href="{{ url_for('workers') }}">

@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Day Book — {{ target|date_fmt }}</h2>
+
+<form method="get" action="{{ url_for('daybook') }}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+  <a href="{{ url_for('daybook', date=prev_date.isoformat()) }}">◀ Prev</a>
+  <input type="date" name="date" value="{{ target.isoformat() }}">
+  <a href="{{ url_for('daybook', date=next_date.isoformat()) }}">Next ▶</a>
+  <input type="text" name="q" value="{{ search }}" placeholder="Search particulars / Vch no.">
+  <button type="submit">Filter</button>
+  <a href="{{ url_for('daybook_download', date=target.isoformat()) }}">⬇ Download Excel</a>
+</form>
+
+{% if recent_dates %}
+<div style="margin-bottom:12px">Recent days:
+  {% for d, n in recent_dates %}
+    <a href="{{ url_for('daybook', date=d.isoformat()) }}">{{ d|date_fmt }} ({{ n }})</a>{% if not loop.last %} · {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('daybook_upload') }}" enctype="multipart/form-data" style="margin-bottom:16px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="file" name="daybook_file" accept=".xlsx,.xlsm" required>
+  <button type="submit">Upload Day Book (.xlsx)</button>
+</form>
+
+<table border="1" cellpadding="6" style="border-collapse:collapse;width:100%">
+  <thead>
+    <tr><th>Date</th><th>Particulars</th><th>Vch Type</th><th>Vch No.</th>
+        <th>Debit Amount</th><th>Credit Amount</th>
+        <th>Debit Amount<br><small>Inwards Qty</small></th>
+        <th>Credit Amount<br><small>Outwards Qty</small></th><th></th></tr>
+  </thead>
+  <tbody>
+  {% for e in entries %}
+    <tr>
+      <td>{{ e.entry_date|date_fmt }}</td>
+      <td>{{ e.particulars }}</td>
+      <td>{{ e.vch_type or '' }}</td>
+      <td>{{ e.vch_no or '' }}</td>
+      <td style="text-align:right">{{ '%.2f'|format(e.debit|float) if e.debit else '' }}</td>
+      <td style="text-align:right">{{ '%.2f'|format(e.credit|float) if e.credit else '' }}</td>
+      <td style="text-align:right">{{ e.inwards_qty or '' }}</td>
+      <td style="text-align:right">{{ e.outwards_qty or '' }}</td>
+      <td>
+        <button type="button" onclick="document.getElementById('edit-{{ e.id }}').style.display='table-row'">Edit</button>
+        <form method="post" action="{{ url_for('daybook_delete', eid=e.id) }}" style="display:inline" onsubmit="return confirm('Delete this entry?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit">Delete</button>
+        </form>
+      </td>
+    </tr>
+    <tr id="edit-{{ e.id }}" style="display:none">
+      <td colspan="9">
+        <form method="post" action="{{ url_for('daybook_edit', eid=e.id) }}" style="display:flex;gap:6px;flex-wrap:wrap">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="date" name="entry_date" value="{{ e.entry_date.isoformat() }}" required>
+          <input name="particulars" value="{{ e.particulars }}" required>
+          <input name="vch_type" value="{{ e.vch_type or '' }}" placeholder="Vch Type">
+          <input name="vch_no" value="{{ e.vch_no or '' }}" placeholder="Vch No.">
+          <input name="debit" value="{{ e.debit or '' }}" placeholder="Debit">
+          <input name="credit" value="{{ e.credit or '' }}" placeholder="Credit">
+          <input name="inwards_qty" value="{{ e.inwards_qty or '' }}" placeholder="Inwards Qty">
+          <input name="outwards_qty" value="{{ e.outwards_qty or '' }}" placeholder="Outwards Qty">
+          <button type="submit">Save</button>
+          <button type="button" onclick="document.getElementById('edit-{{ e.id }}').style.display='none'">Cancel</button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="9" style="text-align:center">No entries for this day.</td></tr>
+  {% endfor %}
+  </tbody>
+  {% if entries %}
+  <tfoot>
+    <tr><th colspan="4">Total ({{ entries|length }})</th>
+        <th style="text-align:right">{{ '%.2f'|format(total_debit) }}</th>
+        <th style="text-align:right">{{ '%.2f'|format(total_credit) }}</th><th colspan="3"></th></tr>
+  </tfoot>
+  {% endif %}
+</table>
+
+<h3 style="margin-top:20px">Add entry manually</h3>
+<form method="post" action="{{ url_for('daybook_add') }}" style="display:flex;gap:6px;flex-wrap:wrap">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="date" name="entry_date" value="{{ target.isoformat() }}" required>
+  <input name="particulars" placeholder="Particulars" required>
+  <input name="vch_type" placeholder="Vch Type">
+  <input name="vch_no" placeholder="Vch No.">
+  <input name="debit" placeholder="Debit">
+  <input name="credit" placeholder="Credit">
+  <input name="inwards_qty" placeholder="Inwards Qty">
+  <input name="outwards_qty" placeholder="Outwards Qty">
+  <button type="submit">Add</button>
+</form>
+{% endblock %}

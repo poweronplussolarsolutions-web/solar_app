@@ -568,7 +568,7 @@ class User(UserMixin, db.Model):
     phone=db.Column(db.String(20),unique=True,nullable=False)
     password   = db.Column(db.String(512), nullable=False)   
     full_name  = db.Column(db.String(120), nullable=False)
-    role       = db.Column(db.Enum('admin','coordinator','documents','payments','onsite','service','office','documents_k','stocks','director'), nullable=False)
+    role       = db.Column(db.Enum('admin','coordinator','documents','payments','onsite','service','office','documents_k','stocks','director','finance'), nullable=False)
     is_active  = db.Column(db.Boolean, default=True)
     is_deleted  = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -930,6 +930,24 @@ class PaymentExcess(db.Model):
             'Retained': 'Retained as company income',
             'Adjusted': 'Adjusted against other dues',
         }.get(self.action, '—')
+class DayBookEntry(db.Model):
+    __tablename__ = 'daybook_entries'
+    id          = db.Column(db.Integer, primary_key=True)
+    entry_date  = db.Column(db.Date, nullable=False, index=True)
+    particulars = db.Column(db.String(255), nullable=False)
+    vch_type    = db.Column(db.String(50), nullable=True)
+    vch_no      = db.Column(db.String(50), nullable=True)
+    debit       = db.Column(db.Numeric(14, 2), default=0)
+    credit      = db.Column(db.Numeric(14, 2), default=0)
+    inwards_qty  = db.Column(db.String(50), nullable=True)   # 2nd "Debit Amount" column (Inwards Qty)
+    outwards_qty = db.Column(db.String(50), nullable=True)   # 2nd "Credit Amount" column (Outwards Qty), e.g. "354.00 Cr"
+    source      = db.Column(db.String(20), default='Manual')  # Upload / Manual
+    created_by  = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    updated_by  = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at  = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    creator     = db.relationship('User', foreign_keys=[created_by])
+    updater     = db.relationship('User', foreign_keys=[updated_by])
 class Worker(db.Model):
     __tablename__ = 'workers'
     id           = db.Column(db.Integer, primary_key=True)
@@ -3001,6 +3019,8 @@ def login():
         session.regenerate() if hasattr(session, 'regenerate') else None
         if u.role == 'stocks':
             return redirect(url_for('stock_dashboard'))
+        if u.role == 'accounts':
+            return redirect(url_for('daybook'))
         return redirect(url_for('dashboard'))
 
     return render_template('login.html',csrf_token=csrf_token)
@@ -3203,6 +3223,8 @@ def reorder_document_stages():
 def dashboard():
     if current_user.role == 'stocks':
         return redirect(url_for('stock_dashboard'))
+    if current_user.role == 'accounts':
+        return redirect(url_for('daybook'))
     cutoff = datetime.utcnow() - timedelta(days=180)
     update_rows  = Project.query.filter(
         Project.status == 'InProgress',
@@ -10314,7 +10336,340 @@ def clear_all_service_records():
     log_action(0, f'All service records cleared by {current_user.full_name}: {count} deleted') if count else None
     flash(f'{count} service record(s) deleted. Only payment-completed projects will get fresh schedules from now on.', 'warning')
     return redirect(url_for('service_management'))
+# ─────────────────────────────────────────────────────────────────────────────
+# DAY BOOK
+# ─────────────────────────────────────────────────────────────────────────────
+DAYBOOK_ROLES = ('admin', 'accounts')
 
+
+def _parse_daybook_date(v):
+    if v is None or v == '':
+        return None
+    if isinstance(v, datetime):
+        return v.date()
+    if isinstance(v, date):
+        return v
+    s = str(v).strip()
+    for fmt in ('%d-%b-%y', '%d-%b-%Y', '%d-%m-%Y', '%d/%m/%Y', '%Y-%m-%d'):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _daybook_amount(v):
+    if v is None or v == '':
+        return 0.0
+    if isinstance(v, (int, float)):
+        return round(abs(float(v)), 2)
+    s = str(v).strip().replace(',', '')
+    s = re.sub(r'\s*(Dr|Cr)\.?$', '', s, flags=re.I)
+    try:
+        return round(abs(float(s)), 2)
+    except ValueError:
+        return 0.0
+
+
+def _daybook_text(v, maxlen=255):
+    if v is None:
+        return None
+    if isinstance(v, float):
+        v = int(v) if v.is_integer() else v
+    return str(v).strip()[:maxlen] or None
+
+
+def _daybook_qty(v):
+    if v is None or v == '':
+        return None
+    if isinstance(v, (int, float)):
+        return f'{float(v):.2f}'
+    return str(v).strip()[:50] or None
+
+
+def _parse_daybook_excel(stream):
+    """Reads a Tally-style Day Book sheet. Finds the header row by 'Particulars',
+    maps columns by header text (1st Debit/Credit Amount = amounts, 2nd pair =
+    Inwards/Outwards Qty), carries the date forward on blank-date rows."""
+    wb = load_workbook(stream, data_only=True)
+    ws = wb.active
+
+    header_row, hdr = None, []
+    for r in range(1, min(ws.max_row, 40) + 1):
+        vals = [str(c.value).strip().lower() if c.value is not None else '' for c in ws[r]]
+        if 'particulars' in vals:
+            header_row, hdr = r, vals
+            break
+    if not header_row:
+        raise ValueError('Could not find a header row containing "Particulars".')
+
+    def _find(prefix):
+        return next((i for i, v in enumerate(hdr) if v.startswith(prefix)), None)
+
+    c_date, c_part = _find('date'), _find('particulars')
+    c_type, c_no   = _find('vch type'), _find('vch no')
+    debit_cols  = [i for i, v in enumerate(hdr) if v == 'debit amount']
+    credit_cols = [i for i, v in enumerate(hdr) if v == 'credit amount']
+    if not debit_cols or not credit_cols:
+        raise ValueError('Could not find "Debit Amount" / "Credit Amount" columns.')
+
+    def _cell(row, idx):
+        return row[idx].value if idx is not None and idx < len(row) else None
+
+    rows, last_date = [], None
+    for r in range(header_row + 1, ws.max_row + 1):
+        row = ws[r]
+        texts = [str(c.value).strip().lower() for c in row if c.value is not None]
+        if not texts or any(t in ('inwards qty', 'outwards qty') for t in texts):
+            continue
+
+        d = _parse_daybook_date(_cell(row, c_date))
+        if d:
+            last_date = d
+        particulars = _daybook_text(_cell(row, c_part))
+        if not particulars or particulars.lower().startswith('grand total') or not last_date:
+            continue
+
+        rows.append({
+            'entry_date':   last_date,
+            'particulars':  particulars,
+            'vch_type':     _daybook_text(_cell(row, c_type), 50),
+            'vch_no':       _daybook_text(_cell(row, c_no), 50),
+            'debit':        _daybook_amount(_cell(row, debit_cols[0])),
+            'credit':       _daybook_amount(_cell(row, credit_cols[0])),
+            'inwards_qty':  _daybook_qty(_cell(row, debit_cols[1])) if len(debit_cols) > 1 else None,
+            'outwards_qty': _daybook_qty(_cell(row, credit_cols[1])) if len(credit_cols) > 1 else None,
+        })
+    return rows
+
+
+def _daybook_key(d, particulars, vch_type, vch_no, debit, credit):
+    return (d, (particulars or '').lower(), (vch_type or '').lower(),
+            vch_no or '', round(float(debit or 0), 2), round(float(credit or 0), 2))
+
+
+@app.route('/daybook')
+@login_required
+@roles_required(*DAYBOOK_ROLES)
+def daybook():
+    date_str = _clean(request.args.get('date', ''), 10)
+    target = date.today()
+    if date_str:
+        try:
+            target = date.fromisoformat(date_str)
+        except ValueError:
+            flash('Invalid date.', 'warning')
+    search = _clean(request.args.get('q', ''), 100)
+
+    q = DayBookEntry.query.filter_by(entry_date=target)
+    if search:
+        q = q.filter(DayBookEntry.particulars.ilike(f'%{search}%') |
+                     DayBookEntry.vch_no.ilike(f'%{search}%') |
+                     DayBookEntry.vch_type.ilike(f'%{search}%'))
+    entries = q.order_by(DayBookEntry.id).all()
+
+    total_debit  = sum(float(e.debit or 0) for e in entries)
+    total_credit = sum(float(e.credit or 0) for e in entries)
+
+    recent_dates = (db.session.query(DayBookEntry.entry_date, func.count(DayBookEntry.id))
+                    .group_by(DayBookEntry.entry_date)
+                    .order_by(DayBookEntry.entry_date.desc())
+                    .limit(10).all())
+
+    return render_template('daybook.html', entries=entries, target=target,
+                           prev_date=target - timedelta(days=1),
+                           next_date=target + timedelta(days=1),
+                           search=search, total_debit=total_debit,
+                           total_credit=total_credit, recent_dates=recent_dates)
+
+
+@app.route('/daybook/upload', methods=['POST'])
+@login_required
+@roles_required(*DAYBOOK_ROLES)
+@limiter.limit('20 per minute')
+def daybook_upload():
+    file = request.files.get('daybook_file')
+    if not file or not file.filename:
+        flash('Please choose an Excel file.', 'danger')
+        return redirect(url_for('daybook'))
+    if os.path.splitext(file.filename)[1].lower() not in ('.xlsx', '.xlsm'):
+        flash('Only .xlsx files are supported. Re-save the .xls file as .xlsx first.', 'danger')
+        return redirect(url_for('daybook'))
+
+    try:
+        rows = _parse_daybook_excel(file.stream)
+    except Exception as e:
+        flash(f'Could not read the file: {e}', 'danger')
+        return redirect(url_for('daybook'))
+
+    if not rows:
+        flash('No entries found in the file.', 'warning')
+        return redirect(url_for('daybook'))
+
+    dates = {r['entry_date'] for r in rows}
+    existing = {
+        _daybook_key(e.entry_date, e.particulars, e.vch_type, e.vch_no, e.debit, e.credit)
+        for e in DayBookEntry.query.filter(DayBookEntry.entry_date.in_(dates)).all()
+    }
+
+    added = skipped = 0
+    for r in rows:
+        key = _daybook_key(r['entry_date'], r['particulars'], r['vch_type'],
+                           r['vch_no'], r['debit'], r['credit'])
+        if key in existing:
+            skipped += 1
+            continue
+        existing.add(key)
+        db.session.add(DayBookEntry(**r, source='Upload',
+                                    created_by=current_user.id, updated_by=current_user.id))
+        added += 1
+    db.session.commit()
+
+    msg = f'{added} entr{"y" if added == 1 else "ies"} imported.'
+    if skipped:
+        msg += f' {skipped} duplicate(s) skipped.'
+    flash(msg, 'success' if added else 'warning')
+    return redirect(url_for('daybook', date=max(dates).isoformat()))
+
+
+@app.route('/daybook/add', methods=['POST'])
+@login_required
+@roles_required(*DAYBOOK_ROLES)
+def daybook_add():
+    d = _parse_daybook_date(request.form.get('entry_date'))
+    particulars = _clean(request.form.get('particulars', ''), 255)
+    if not d or not particulars:
+        flash('Date and particulars are required.', 'danger')
+        return redirect(url_for('daybook'))
+    db.session.add(DayBookEntry(
+        entry_date=d, particulars=particulars,
+        vch_type=_clean(request.form.get('vch_type', ''), 50) or None,
+        vch_no=_clean(request.form.get('vch_no', ''), 50) or None,
+        debit=_safe_float(request.form.get('debit')),
+        credit=_safe_float(request.form.get('credit')),
+        inwards_qty=_clean(request.form.get('inwards_qty', ''), 50) or None,
+        outwards_qty=_clean(request.form.get('outwards_qty', ''), 50) or None,
+        source='Manual', created_by=current_user.id, updated_by=current_user.id,
+    ))
+    db.session.commit()
+    flash('Entry added.', 'success')
+    return redirect(url_for('daybook', date=d.isoformat()))
+
+
+@app.route('/daybook/<int:eid>/edit', methods=['POST'])
+@login_required
+@roles_required(*DAYBOOK_ROLES)
+def daybook_edit(eid):
+    e = DayBookEntry.query.get_or_404(eid)
+    d = _parse_daybook_date(request.form.get('entry_date')) or e.entry_date
+    particulars = _clean(request.form.get('particulars', ''), 255)
+    if not particulars:
+        flash('Particulars cannot be empty.', 'danger')
+        return redirect(url_for('daybook', date=e.entry_date.isoformat()))
+    e.entry_date   = d
+    e.particulars  = particulars
+    e.vch_type     = _clean(request.form.get('vch_type', ''), 50) or None
+    e.vch_no       = _clean(request.form.get('vch_no', ''), 50) or None
+    e.debit        = _safe_float(request.form.get('debit'))
+    e.credit       = _safe_float(request.form.get('credit'))
+    e.inwards_qty  = _clean(request.form.get('inwards_qty', ''), 50) or None
+    e.outwards_qty = _clean(request.form.get('outwards_qty', ''), 50) or None
+    e.updated_by   = current_user.id
+    db.session.commit()
+    flash('Entry updated.', 'success')
+    return redirect(url_for('daybook', date=d.isoformat()))
+
+
+@app.route('/daybook/<int:eid>/delete', methods=['POST'])
+@login_required
+@roles_required(*DAYBOOK_ROLES)
+def daybook_delete(eid):
+    e = DayBookEntry.query.get_or_404(eid)
+    d = e.entry_date
+    db.session.delete(e)
+    db.session.commit()
+    flash('Entry deleted.', 'warning')
+    return redirect(url_for('daybook', date=d.isoformat()))
+
+
+def build_daybook_excel(entries, target, output_dir='/tmp'):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Day Book'
+    _page_setup(ws)
+
+    titles = [
+        ('Power On Plus Solar Solutions', C_HEADER_BG, C_HEADER_FG, 14, False),
+        ('Day Book', C_SUBHDR_BG, C_HEADER_FG, 11, False),
+        (f'For {target.strftime("%d-%b-%y")}', C_ALT_BG, '444444', 10, True),
+    ]
+    for r, (txt, bg_c, fg_c, sz, italic) in enumerate(titles, 1):
+        ws.merge_cells(f'A{r}:H{r}')
+        c = ws[f'A{r}']
+        c.value = txt
+        c.font  = _font(bold=not italic, color=fg_c, size=sz, italic=italic)
+        c.fill  = _fill(bg_c)
+        c.alignment = _center()
+    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[2].height = 22
+
+    for col, h in enumerate(['Date', 'Particulars', 'Vch Type', 'Vch No.',
+                             'Debit Amount', 'Credit Amount', 'Debit Amount', 'Credit Amount'], 1):
+        _style_header_cell(ws.cell(5, col), h)
+    for col, h in enumerate(['', '', '', '', '', '', 'Inwards Qty', 'Outwards Qty'], 1):
+        _style_header_cell(ws.cell(6, col), h, bg=C_SUBHDR_BG)
+    ws.freeze_panes = 'A7'
+
+    row = 7
+    for i, e in enumerate(entries):
+        bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        vals = [e.entry_date.strftime('%d-%b-%y'), e.particulars, e.vch_type or '', e.vch_no or '',
+                float(e.debit or 0) or None, float(e.credit or 0) or None,
+                e.inwards_qty or '', e.outwards_qty or '']
+        fmts = [None, None, None, None, '#,##0.00', '#,##0.00', None, None]
+        aligns = ['center', 'left', 'left', 'center', 'right', 'right', 'right', 'right']
+        for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
+            _style_data_cell(ws.cell(row, col), val, bg=bg, align=aln, number_fmt=fmt)
+        ws.row_dimensions[row].height = 17
+        row += 1
+
+    total_d = sum(float(e.debit or 0) for e in entries)
+    total_c = sum(float(e.credit or 0) for e in entries)
+    for col in range(1, 9):
+        cell = ws.cell(row, col)
+        if col == 2:
+            _style_data_cell(cell, f'Total — {len(entries)} entries', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
+        elif col == 5:
+            _style_data_cell(cell, total_d, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='#,##0.00')
+        elif col == 6:
+            _style_data_cell(cell, total_c, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='#,##0.00')
+        else:
+            cell.fill = _fill(C_TOTAL_BG)
+            cell.border = _border()
+
+    for i, w in enumerate([13, 38, 14, 10, 16, 16, 14, 14], 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    path = os.path.join(output_dir, f'DayBook_{target.isoformat()}.xlsx')
+    wb.save(path)
+    return path
+
+
+@app.route('/daybook/download')
+@login_required
+@roles_required(*DAYBOOK_ROLES)
+def daybook_download():
+    try:
+        target = date.fromisoformat(_clean(request.args.get('date', ''), 10))
+    except ValueError:
+        flash('Invalid date.', 'danger')
+        return redirect(url_for('daybook'))
+    entries = (DayBookEntry.query.filter_by(entry_date=target)
+               .order_by(DayBookEntry.id).all())
+    path = build_daybook_excel(entries, target, tempfile.gettempdir())
+    return send_file(path, as_attachment=True,
+        download_name=f'DayBook_{target.isoformat()}.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 # ─────────────────────────────────────────────────────────────────────────────
 # DB INIT & SEED
 # ─────────────────────────────────────────────────────────────────────────────
