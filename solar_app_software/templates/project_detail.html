@@ -172,10 +172,46 @@ document.addEventListener('DOMContentLoaded', function () {
       <tr><td style="color:var(--muted);padding:5px 0">Place</td><td style="font-size:12px">{{ proj.customer.place or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Post</td><td style="font-size:12px">{{ proj.customer.post or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Pin</td><td style="font-size:12px">{{ proj.customer.pincode or '—' }}</td></tr>
+      <tr>
+        <td colspan="2" style="padding:8px 0 4px">
+          <div style="display:flex;gap:6px">
+            <button type="button" class="btn btn-sm" id="addr-tab-comm"
+                    onclick="togglePanelAddr('comm')" style="background:var(--accent,#2563eb);color:#fff">
+              Communication
+            </button>
+            <button type="button" class="btn btn-sm" id="addr-tab-aadhaar"
+                    onclick="togglePanelAddr('aadhaar')">
+              Aadhaar
+            </button>
+          </div>
+        </td>
+      </tr>
+
+      <tbody id="addr-comm-rows">
+      <tr><td style="color:var(--muted);padding:5px 0">House</td><td style="font-size:12px">{{ proj.customer.house_name or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Place</td><td style="font-size:12px">{{ proj.customer.place or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Post</td><td style="font-size:12px">{{ proj.customer.post or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Pin</td><td style="font-size:12px">{{ proj.customer.pincode or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Village</td><td style="font-size:12px">{{ proj.customer.village or '—' }}</td></tr>
       <tr><td style="color:var(--muted);padding:5px 0">Taluk</td><td style="font-size:12px">{{ proj.customer.taluk or '—' }}</td></tr>
-            <tr><td style="color:var(--muted);padding:5px 0">District</td><td style="font-size:12px">{{ proj.customer.district or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">District</td><td style="font-size:12px">{{ proj.customer.district or '—' }}</td></tr>
+      </tbody>
 
+      <tbody id="addr-aadhaar-rows" style="display:none">
+      {% if proj.customer.aadhaar_same is not false %}
+      <tr><td style="color:var(--muted);padding:5px 0" colspan="2">
+        <span style="color:var(--hint);font-size:12px">Same as communication address above</span>
+      </td></tr>
+      {% else %}
+      <tr><td style="color:var(--muted);padding:5px 0">House</td><td style="font-size:12px">{{ proj.customer.aadhaar_house_name or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Place</td><td style="font-size:12px">{{ proj.customer.aadhaar_place or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Post</td><td style="font-size:12px">{{ proj.customer.aadhaar_post or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Pin</td><td style="font-size:12px">{{ proj.customer.aadhaar_pincode or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Village</td><td style="font-size:12px">{{ proj.customer.aadhaar_village or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">Taluk</td><td style="font-size:12px">{{ proj.customer.aadhaar_taluk or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);padding:5px 0">District</td><td style="font-size:12px">{{ proj.customer.aadhaar_district or '—' }}</td></tr>
+      {% endif %}
+      </tbody>
       {% if proj.work_category == 'Outside' %}
       <tr><td style="color:var(--muted);padding:5px 0">Work category</td><td><span class="badge">Outside Work</span></td></tr>
       {% endif %}
@@ -378,6 +414,16 @@ document.addEventListener('DOMContentLoaded', function () {
       if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
     }
     </script>
+    <script>
+function togglePanelAddr(which) {
+  document.getElementById('addr-comm-rows').style.display    = (which === 'comm')    ? '' : 'none';
+  document.getElementById('addr-aadhaar-rows').style.display = (which === 'aadhaar') ? '' : 'none';
+  document.getElementById('addr-tab-comm').style.background    = (which === 'comm')    ? 'var(--accent,#2563eb)' : '';
+  document.getElementById('addr-tab-comm').style.color         = (which === 'comm')    ? '#fff' : '';
+  document.getElementById('addr-tab-aadhaar').style.background = (which === 'aadhaar') ? 'var(--accent,#2563eb)' : '';
+  document.getElementById('addr-tab-aadhaar').style.color      = (which === 'aadhaar') ? '#fff' : '';
+}
+</script>
 
     {# Stage & status card #}
 {% if proj.work_category != 'Outside' %}

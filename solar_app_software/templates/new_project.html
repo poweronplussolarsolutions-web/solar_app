@@ -76,7 +76,65 @@
     </div>
   </div>
 </div>
-
+<div style="border-top:0.5px solid var(--border);margin:16px 0 14px;font-size:13px;font-weight:500;padding-top:14px;color:var(--muted)">
+  Aadhaar address
+</div>
+<label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;cursor:pointer">
+  <input type="checkbox" name="aadhaar_same" id="aadhaar_same" value="1"
+         {% if not form_data or form_data.aadhaar_same != '0' %}checked{% endif %}
+         onchange="toggleAadhaarFields()">
+  Aadhaar address is same as communication address
+</label>
+<div id="aadhaar-fields" style="display:none">
+  <div class="form-grid">
+    <div class="form-group">
+      <label>House name</label>
+      <input name="aadhaar_house_name" type="text"
+             value="{{ form_data.aadhaar_house_name if form_data else '' }}"/>
+    </div>
+    <div class="form-group">
+      <label>Place</label>
+      <input name="aadhaar_place" type="text"
+             value="{{ form_data.aadhaar_place if form_data else '' }}"/>
+    </div>
+    <div class="form-group">
+      <label>Post</label>
+      <input name="aadhaar_post" type="text"
+             value="{{ form_data.aadhaar_post if form_data else '' }}"/>
+    </div>
+    <div class="form-group">
+      <label>Pincode</label>
+      <input name="aadhaar_pincode" type="text" maxlength="6"
+             value="{{ form_data.aadhaar_pincode if form_data else '' }}"/>
+    </div>
+    <div class="form-group">
+      <label>Village</label>
+      <input name="aadhaar_village" type="text"
+             value="{{ form_data.aadhaar_village if form_data else '' }}"/>
+    </div>
+    <div class="form-group">
+      <label>Taluk</label>
+      <input name="aadhaar_taluk" type="text"
+             value="{{ form_data.aadhaar_taluk if form_data else '' }}"/>
+    </div>
+    <div class="form-group">
+      <label>District</label>
+      <select name="aadhaar_district">
+        <option value="">Select district</option>
+        {% for d in ['Thiruvananthapuram','Kollam','Pathanamthitta','Alappuzha','Kottayam','Idukki','Ernakulam','Thrissur','Palakkad','Malappuram','Kozhikode','Wayanad','Kannur','Kasaragod'] %}
+        <option {% if form_data and form_data.aadhaar_district == d %}selected{% endif %}>{{ d }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+</div>
+<script>
+function toggleAadhaarFields() {
+  const same = document.getElementById('aadhaar_same').checked;
+  document.getElementById('aadhaar-fields').style.display = same ? 'none' : 'block';
+}
+toggleAadhaarFields();
+</script>
     <div style="border-top:0.5px solid var(--border);margin:16px 0 14px;font-size:13px;font-weight:500;padding-top:14px;color:var(--muted)">
       Project details
     </div>

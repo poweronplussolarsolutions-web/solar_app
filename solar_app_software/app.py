@@ -522,6 +522,21 @@ def _clean_phone(phone: str) -> str:
     if digits.startswith('0') and len(digits) == 11:
         digits = digits[1:]
     return digits
+AADHAAR_ADDR_FIELDS = (
+    ('house_name', 120), ('place', 120), ('post', 120), ('pincode', 10),
+    ('village', 120), ('taluk', 120), ('district', 80),
+)
+
+def _apply_aadhaar_address(cust, form):
+    """Set the customer's Aadhaar address from a submitted form.
+    'Same as communication' clears the Aadhaar columns and keeps only the flag."""
+    same = 'aadhaar_same' in form
+    cust.aadhaar_same = same
+    for name, limit in AADHAAR_ADDR_FIELDS:
+        cust.__setattr__(
+            f'aadhaar_{name}',
+            None if same else (_clean(form.get(f'aadhaar_{name}', ''), limit) or None)
+        )
 def _build_form_data():
     """Snapshot the submitted form fields so the New Project template can
     repopulate them if we need to re-render the form after a validation
@@ -615,6 +630,16 @@ class Customer(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     projects   = db.relationship('Project', backref='customer', lazy=True)
     sub_co=db.Column(db.String(120), nullable=True)
+    # ── Aadhaar address — separate from communication address above ────────
+    aadhaar_same       = db.Column(db.Boolean, default=True, nullable=False)
+    aadhaar_house_name = db.Column(db.String(120), nullable=True)
+    aadhaar_place      = db.Column(db.String(120), nullable=True)
+    aadhaar_post       = db.Column(db.String(120), nullable=True)
+    aadhaar_pincode    = db.Column(db.String(10),  nullable=True)
+    aadhaar_village    = db.Column(db.String(120), nullable=True)
+    aadhaar_taluk      = db.Column(db.String(120), nullable=True)
+    aadhaar_district   = db.Column(db.String(80),  nullable=True)
+
     @property
     def full_address(self):
         parts = [self.house_name, self.place, self.post, self.village, self.district, self.pincode]
@@ -3781,6 +3806,7 @@ def new_project():
         taluk      = _clean(request.form.get('taluk', ''), 120) or None,
         sub_co     = request.form.get('sub_co','').strip() or None,
         )
+        _apply_aadhaar_address(cust, request.form)
         #guard against a race where two requests slip past the
         # pre-check above at the same instant — the DB unique constraint
         # is the real backstop, this just turns it into a clean flash
@@ -4075,6 +4101,7 @@ def edit_project(pid):
             proj.customer.district   = _clean(request.form.get('customer_district', ''), 80) or None
             proj.customer.taluk      = _clean(request.form.get('customer_taluk', ''), 120) or None
             proj.customer.sub_co     = request.form.get('customer_sub_co', '').strip() or None
+            _apply_aadhaar_address(proj.customer, request.form)
     
             new_stage  = request.form.get('stage')
             new_status = request.form.get('status')
