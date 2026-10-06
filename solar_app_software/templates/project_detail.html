@@ -2568,6 +2568,90 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 {% endif %}
 {# ══════════════════════════════════════════════════════
+   SERVICE DONE BEFORE PAYMENT CLOSURE
+   Only shown while no service schedule exists yet.
+   ══════════════════════════════════════════════════════ #}
+{% if proj.work_category != 'Outside'
+      and not proj.service_records
+      and proj.status not in ['Cancelled']
+      and current_user.role in ['admin', 'service'] %}
+<div class="card" id="pre-service">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div class="card-title" style="margin:0">
+      Service before closure
+      <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:6px">
+        — added to the schedule automatically when the project completes
+      </span>
+    </div>
+    <button type="button" class="btn btn-sm" onclick="togglePanel('preServiceForm')">＋ Record service</button>
+  </div>
+
+  {% if proj.pre_service_logs %}
+  <div class="table-wrap">
+    <table style="font-size:13px">
+      <thead>
+        <tr><th>Date</th><th>Panel cleaning</th><th>Notes</th><th>By</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for l in proj.pre_service_logs | sort(attribute='service_date') %}
+        <tr>
+          <td>{{ l.service_date | date_fmt }}</td>
+          <td>
+            {% if l.panel_cleaning %}<span style="color:var(--green-600)">☀ Done</span>
+            {% else %}<span style="color:var(--hint)">—</span>{% endif %}
+          </td>
+          <td style="font-size:12px;color:var(--muted)">{{ l.notes or '—' }}</td>
+          <td style="font-size:12px;color:var(--muted)">{{ l.recorder.full_name if l.recorder else '—' }}</td>
+          <td>
+            <form method="POST" action="{{ url_for('delete_pre_service', lid=l.id) }}"
+                  onsubmit="return confirm('Remove this service entry?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-danger">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div style="margin-top:8px;font-size:12px;color:var(--hint)">
+    These will become Visit 1{% if proj.pre_service_logs|length > 1 %}–{{ proj.pre_service_logs|length }}{% endif %}
+    when the schedule is created, and later visits will be timed from the last one.
+  </div>
+  {% else %}
+  <div style="color:var(--hint);font-size:13px;padding:2px 0">
+    No service recorded yet. Use this only if a visit was done before payment closed.
+  </div>
+  {% endif %}
+
+  <div id="preServiceForm" style="display:none;margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
+    <form method="POST" action="{{ url_for('add_pre_service', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Date of service</label>
+          <input type="date" name="service_date" max="{{ today.isoformat() }}" required/>
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-end">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" name="panel_cleaning" value="1" checked>
+            <span style="font-size:13px">Panel cleaning done</span>
+          </label>
+        </div>
+        <div class="form-group full">
+          <label>Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="text" name="notes" placeholder="e.g. Customer complaint, inverter check…"/>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        <button type="button" class="btn btn-sm" onclick="togglePanel('preServiceForm')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{# ══════════════════════════════════════════════════════
    SERVICE VISITS SUMMARY
    ══════════════════════════════════════════════════════ #}
 {% if proj.work_category != 'Outside' and proj.service_records %}

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Access requests — Admin{% endblock %}
+{% block page_title %}Access requests{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('manage_users') }}" class="btn btn-sm">← Users</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:20px">
+  <h3 style="margin:0 0 4px;font-size:16px">Waiting for review ({{ pending|length }})</h3>
+  <p style="margin:0 0 16px;color:var(--text-muted,#64748b);font-size:13px">
+    Approving creates the account with the password the person chose. Admin accounts are created from Users, not from here.
+  </p>
+
+  {% if not pending %}
+    <p style="margin:0;color:var(--text-muted,#64748b)">No requests are waiting.</p>
+  {% endif %}
+
+  {% for r in pending %}
+  <div style="border-top:1px solid #e5e7eb;padding:16px 0">
+    <div style="display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-between">
+      <div>
+        <strong>{{ r.full_name }}</strong>
+        <span style="color:var(--text-muted,#64748b)">@{{ r.username }}</span>
+        <div style="font-size:13px;color:var(--text-muted,#64748b);margin-top:2px">
+          {% if r.email %}{{ r.email }}{% endif %}{% if r.email and r.phone %} · {% endif %}{% if r.phone %}+91 {{ r.phone }}{% endif %}
+          · requested {{ r.created_at.strftime('%d %b %Y, %I:%M %p') }}
+        </div>
+        {% if r.note %}<div style="font-size:13px;margin-top:6px">“{{ r.note }}”</div>{% endif %}
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start">
+        <form method="POST" action="{{ url_for('approve_registration', rid=r.id) }}"
+              style="display:flex;gap:8px;flex-wrap:wrap">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="role" required aria-label="Role for {{ r.full_name }}">
+            <option value="">Choose role</option>
+            {% for role in roles %}<option value="{{ role }}">{{ role }}</option>{% endfor %}
+          </select>
+          <button type="submit" class="btn btn-primary btn-sm">Approve</button>
+        </form>
+
+        <form method="POST" action="{{ url_for('reject_registration', rid=r.id) }}"
+              style="display:flex;gap:8px;flex-wrap:wrap"
+              onsubmit="return confirm('Reject this request?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="text" name="reason" maxlength="300" placeholder="Reason (optional)" aria-label="Rejection reason">
+          <button type="submit" class="btn btn-sm">Reject</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% if recent %}
+<div class="card">
+  <h3 style="margin:0 0 12px;font-size:16px">Recently reviewed</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Username</th><th>Decision</th><th>Reviewed</th><th>Note</th></tr>
+      </thead>
+      <tbody>
+        {% for r in recent %}
+        <tr>
+          <td>{{ r.full_name }}</td>
+          <td>{{ r.username }}</td>
+          <td>{{ r.status }}</td>
+          <td>{{ r.reviewed_at.strftime('%d %b %Y') if r.reviewed_at else '—' }}</td>
+          <td>{{ r.review_note or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

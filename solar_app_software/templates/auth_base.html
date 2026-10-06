@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+
+  <title>{% block title %}Sign in{% endblock %} — Power On Plus</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --night: #0f2740;
+      --panel: #1b4f7e;
+      --cell: #2a6aa3;
+      --sun: #f6a821;
+      --sun-deep: #dd8f0b;
+      --mist: #f3f6fa;
+      --ink: #13202e;
+      --muted: #5a6a7a;
+      --line: #cfd9e4;
+      --danger: #a8261d;
+      --danger-bg: #fdecea;
+      --ok: #17683a;
+      --ok-bg: #e8f5ee;
+      --info: #1b4f7e;
+      --info-bg: #e9f1f9;
+      --warn: #7a4b00;
+      --warn-bg: #fff3d6;
+      --font-head: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
+      --font-body: 'Public Sans', 'Segoe UI', system-ui, sans-serif;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+    }
+
+    body {
+      font-family: var(--font-body);
+      color: var(--ink);
+      background: #fff;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────── */
+    .auth {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    }
+
+    .auth-hero {
+      position: relative;
+      background: var(--night);
+      color: #fff;
+      padding: 56px;
+      overflow: hidden;
+    }
+
+    .hero-art {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100%;
+      height: 80%;
+    }
+
+    .hero-copy {
+      position: relative;
+      max-width: 22ch;
+    }
+
+    .hero-copy h2 {
+      margin: 0;
+      font-family: var(--font-head);
+      font-size: clamp(28px, 3.2vw, 44px);
+      line-height: 1.08;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .auth-main {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+    }
+
+    .auth-panel {
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 40px;
+    }
+
+    .brand img {
+      width: 44px;
+      height: 44px;
+      object-fit: contain;
+    }
+
+    .brand b {
+      display: block;
+      font-family: var(--font-head);
+      font-size: 18px;
+      line-height: 1.1;
+    }
+
+    .brand span {
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-family: var(--font-head);
+      font-size: 28px;
+      line-height: 1.15;
+      letter-spacing: -0.015em;
+      font-weight: 700;
+    }
+
+    .lede {
+      margin: 0 0 26px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    /* ── Form controls ──────────────────────────────────────── */
+    .field {
+      margin-bottom: 18px;
+    }
+
+    .field > label,
+    .label-row label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13.5px;
+      font-weight: 600;
+    }
+
+    .label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    .label-row label {
+      margin-bottom: 6px;
+    }
+
+    .req {
+      color: var(--danger);
+    }
+
+    .field input,
+    .field textarea {
+      width: 100%;
+      height: 46px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-size: 16px;
+      transition: border-color .15s, box-shadow .15s;
+    }
+
+    .field textarea {
+      height: 76px;
+      padding: 10px 14px;
+      resize: vertical;
+    }
+
+    .field input:focus,
+    .field textarea:focus {
+      outline: none;
+      border-color: var(--cell);
+      box-shadow: 0 0 0 3px rgba(42, 106, 163, .22);
+    }
+
+    .hint {
+      margin-top: 6px;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
+    .pw {
+      position: relative;
+    }
+
+    .pw input {
+      padding-right: 68px;
+    }
+
+    .pw button {
+      position: absolute;
+      right: 6px;
+      top: 6px;
+      height: 34px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: 6px;
+      background: none;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--cell);
+      cursor: pointer;
+    }
+
+    .rules {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 14px;
+      margin-top: 8px;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
+    .rules .ok {
+      color: var(--ok);
+      font-weight: 600;
+    }
+
+    .rules .ok::before {
+      content: "✓ ";
+    }
+
+    .btn {
+      display: block;
+      width: 100%;
+      height: 48px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--sun);
+      color: var(--ink);
+      font: inherit;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+    }
+
+    .btn:hover {
+      background: var(--sun-deep);
+    }
+
+    .btn:disabled {
+      opacity: .6;
+      cursor: default;
+    }
+
+    .link {
+      color: var(--cell);
+      font-weight: 600;
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    .link:hover {
+      text-decoration: underline;
+    }
+
+    .foot {
+      margin-top: 28px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    button:focus-visible,
+    .link:focus-visible,
+    .btn:focus-visible {
+      outline: 2px solid var(--cell);
+      outline-offset: 2px;
+    }
+
+    /* ── Email / phone switch ───────────────────────────────── */
+    .seg {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      margin-bottom: 10px;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--mist);
+    }
+
+    .seg button {
+      height: 36px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .seg button[aria-selected="true"] {
+      background: #fff;
+      color: var(--ink);
+      box-shadow: 0 1px 2px rgba(15, 39, 64, .18);
+    }
+
+    .phone {
+      display: flex;
+      gap: 8px;
+    }
+
+    .phone > span {
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--mist);
+      font-size: 15px;
+    }
+
+    /* ── Notices ────────────────────────────────────────────── */
+    .notice {
+      margin-bottom: 20px;
+      padding: 11px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .notice--danger {
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+
+    .notice--success {
+      background: var(--ok-bg);
+      color: var(--ok);
+    }
+
+    .notice--info {
+      background: var(--info-bg);
+      color: var(--info);
+    }
+
+    .notice--warning {
+      background: var(--warn-bg);
+      color: var(--warn);
+    }
+
+    /* Honeypot — real users never see or focus this */
+    .hp {
+      position: absolute;
+      left: -9999px;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+    }
+
+    /* ── Small screens: form only ───────────────────────────── */
+    @media (max-width: 860px) {
+      .auth {
+        grid-template-columns: 1fr;
+      }
+
+      .auth-hero {
+        display: none;
+      }
+
+      .auth-main {
+        align-items: flex-start;
+        padding: 28px 20px 40px;
+      }
+
+      .brand {
+        margin-bottom: 28px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="auth">
+
+  <aside class="auth-hero">
+
+    <svg
+      class="hero-art"
+      viewBox="0 0 600 720"
+      preserveAspectRatio="xMidYMax meet"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <defs>
+
+        <pattern
+          id="cells"
+          x="70"
+          y="480"
+          width="46"
+          height="30"
+          patternUnits="userSpaceOnUse"
+        >
+          <rect
+            x=".5"
+            y=".5"
+            width="45"
+            height="29"
+            fill="#1b4f7e"
+            stroke="#3f86bf"
+            stroke-width="1"
+          />
+          <line
+            x1="23"
+            y1="0"
+            x2="23"
+            y2="30"
+            stroke="#2f6ea6"
+            stroke-width=".6"
+          />
+        </pattern>
+
+        <linearGradient
+          id="glint"
+          x1="0"
+          y1="0"
+          x2="1"
+          y2="1"
+        >
+          <stop
+            offset="0"
+            stop-color="#fff"
+            stop-opacity=".22"
+          />
+          <stop
+            offset=".45"
+            stop-color="#fff"
+            stop-opacity="0"
+          />
+        </linearGradient>
+
+      </defs>
+
+      <line
+        x1="0"
+        y1="430"
+        x2="600"
+        y2="430"
+        stroke="#fff"
+        stroke-opacity=".16"
+      />
+
+      <path
+        d="M60 430 A240 240 0 0 1 540 430"
+        fill="none"
+        stroke="#fff"
+        stroke-opacity=".3"
+        stroke-width="2"
+        stroke-dasharray="1 9"
+        stroke-linecap="round"
+      />
+
+      {# Positioned by the script below so the sun sits where it is in the sky right now #}
+      <g
+        id="sun"
+        transform="translate(300 190)"
+      >
+        <circle
+          r="38"
+          fill="#f6a821"
+          fill-opacity=".16"
+        />
+        <circle
+          r="22"
+          fill="#f6a821"
+        />
+      </g>
+
+      <rect
+        x="70"
+        y="480"
+        width="460"
+        height="180"
+        rx="4"
+        fill="url(#cells)"
+        stroke="#3f86bf"
+      />
+
+      <rect
+        x="70"
+        y="480"
+        width="460"
+        height="180"
+        rx="4"
+        fill="url(#glint)"
+      />
+
+    </svg>
+
+    <div class="hero-copy">
+      <h2>
+        Every rooftop, from site visit to subsidy.
+      </h2>
+    </div>
+
+  </aside>
+
+
+  <main class="auth-main">
+
+    <div class="auth-panel">
+
+      <div class="brand">
+
+        <img
+          src="{{ url_for('static', filename='logo.webp') }}"
+          alt=""
+        >
+
+        <div>
+          <b>Power On Plus</b>
+          <span>Solar Solutions</span>
+        </div>
+
+      </div>
+
+
+      <h1>
+        {% block heading %}{% endblock %}
+      </h1>
+
+      <p class="lede">
+        {% block lede %}{% endblock %}
+      </p>
+
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+
+        {% for cat, msg in messages %}
+
+          <div
+            class="notice notice--{{ cat if cat in ('danger','success','info','warning') else 'info' }}"
+            role="{{ 'alert' if cat == 'danger' else 'status' }}"
+          >
+            {{ msg }}
+          </div>
+
+        {% endfor %}
+
+      {% endwith %}
+
+
+      {% block content %}{% endblock %}
+
+    </div>
+
+  </main>
+
+</div>
+
+
+<script>
+  // Sun position:
+  // sunrise 6:00 at the left end of the arc,
+  // sunset 18:00 at the right end.
+
+  (function () {
+
+    var sun = document.getElementById('sun');
+
+    if (!sun) {
+      return;
+    }
+
+    var d = new Date();
+
+    var h =
+      d.getHours() +
+      d.getMinutes() / 60;
+
+    var t =
+      Math.min(
+        1,
+        Math.max(
+          0,
+          (h - 6) / 12
+        )
+      );
+
+    var a =
+      Math.PI * (1 - t);
+
+    var x =
+      300 +
+      240 * Math.cos(a);
+
+    var y =
+      430 -
+      240 * Math.sin(a);
+
+    sun.setAttribute(
+      'transform',
+      'translate(' +
+      x.toFixed(1) +
+      ' ' +
+      y.toFixed(1) +
+      ')'
+    );
+
+    if (h < 6 || h > 18) {
+      sun.setAttribute(
+        'opacity',
+        '.35'
+      );
+    }
+
+  })();
+</script>
+
+
+{% block scripts %}{% endblock %}
+
+</body>
+</html>

@@ -28,6 +28,9 @@ import tempfile, calendar
 from flask import abort 
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func
+import re
+from datetime import datetime, date
+from openpyxl import load_workbook
 # from solar_app_software.logging_system import (
 #     setup_logging, security_log,
 #     log_login_attempt, log_lockout, log_password_change,
@@ -315,6 +318,76 @@ def _snapshot_today_tasks(user, tasks):
             urgency=t['urgency'],
         ))
     db.session.commit()
+def _pending_excess_settlements():
+    """Pending excess settlements, exactly ONE row per project, oldest first.
+    Returns (items, total).
+
+    Per project:
+      - Customer excess = sum of its pending PaymentExcess rows (source Customer)
+      - Bank excess     = the larger of (pending PaymentExcess rows with source Bank)
+                          and the unreturned BankExcessReturn. They describe the same
+                          overshoot, so they are not added together.
+      - Row amount      = Customer excess + Bank excess
+    """
+    today = date.today()
+    by_project = {}   # project_id -> {'project', 'customer', 'bank_pay', 'bank_ret', 'date'}
+
+    def _row(project):
+        return by_project.setdefault(project.id, {
+            'project': project, 'customer': 0.0, 'bank_pay': 0.0,
+            'bank_ret': 0.0, 'date': None,
+        })
+
+    def _older(row, d):
+        d = d or today
+        row['date'] = d if row['date'] is None else min(row['date'], d)
+
+    pay_excess = (PaymentExcess.query
+        .join(Project)
+        .options(joinedload(PaymentExcess.project).joinedload(Project.customer))
+        .filter(PaymentExcess.status == 'Pending',
+                Project.status != 'Cancelled')
+        .all())
+    for e in pay_excess:
+        row = _row(e.project)
+        if e.source == 'Customer':
+            row['customer'] += float(e.amount or 0)
+        else:
+            row['bank_pay'] += float(e.amount or 0)
+        _older(row, e.detected_date or (e.created_at.date() if e.created_at else None))
+
+    bank_excess = (BankExcessReturn.query
+        .join(Project)
+        .options(joinedload(BankExcessReturn.project).joinedload(Project.customer))
+        .filter(BankExcessReturn.returned == False,
+                Project.status != 'Cancelled')
+        .all())
+    for e in bank_excess:
+        row = _row(e.project)
+        row['bank_ret'] += float(e.excess_amount or 0)
+        _older(row, e.received_date or (e.created_at.date() if e.created_at else None))
+
+    items = []
+    for r in by_project.values():
+        bank = max(r['bank_pay'], r['bank_ret'])
+        amount = r['customer'] + bank
+        if amount <= 0.01:
+            continue
+        kinds = []
+        if r['customer'] > 0.01:
+            kinds.append('Customer')
+        if bank > 0.01:
+            kinds.append('Bank')
+        items.append({
+            'project': r['project'],
+            'kinds':   kinds,
+            'amount':  amount,
+            'date':    r['date'],
+            'days':    (today - r['date']).days,
+        })
+
+    items.sort(key=lambda x: x['date'])
+    return items, sum(i['amount'] for i in items)
 def _compute_payment_reminder_tasks(user):
     """Daily reminder list for Payments staff — projects where the customer
     promised a payment on or before today and it hasn't come in yet."""
@@ -372,15 +445,16 @@ def require_desktop_client_on_app_subdomain():
     return None
 
 # ── Secret key: MUST be set via environment variable in production ────────────
+_INSECURE_DEV_KEY = 'solar-dev-only-insecure-key-change-me'
 _secret = os.environ.get('SECRET_KEY', '')
-if not _secret:
+if not _secret or _secret == _INSECURE_DEV_KEY:
+    if os.environ.get('FLASK_ENV') == 'production':
+        raise RuntimeError('SECRET_KEY must be set to a long random value in production. '
+                           'Generate one with: python -c "import secrets; print(secrets.token_hex(32))"')
     import warnings
-    warnings.warn(
-        "SECRET_KEY env var not set — using insecure fallback. "
-        "Set SECRET_KEY before deploying to production.",
-        stacklevel=1,
-    )
-    _secret = 'solar-dev-only-insecure-key-change-me'
+    warnings.warn('SECRET_KEY env var not set — using an insecure dev key. '
+                  'Password-reset links are disabled while this is the case.', stacklevel=1)
+    _secret = _INSECURE_DEV_KEY
 app.config['SECRET_KEY'] = _secret
 db_port=os.getenv("DB_PORT")or"3306"
 app.config['SQLALCHEMY_DATABASE_URI']=os.getenv("DATABASE_URL")
@@ -591,6 +665,10 @@ class User(UserMixin, db.Model):
     # Login-attempt tracking persisted to DB (supplements in-memory cache)
     failed_logins   = db.Column(db.Integer, default=0)
     locked_until    = db.Column(db.DateTime, nullable=True)
+    photo                 = db.Column(db.String(255), nullable=True)
+    designation           = db.Column(db.String(80),  nullable=True)
+    joined_on             = db.Column(db.Date, nullable=True)
+    must_change_password  = db.Column(db.Boolean, default=False, nullable=False)
 
     def set_password(self, raw: str):
         self.password = generate_password_hash(raw, method='scrypt')
@@ -611,7 +689,30 @@ class User(UserMixin, db.Model):
     def reset_login_attempts(self):
         self.failed_logins = 0
         self.locked_until  = None
+PASSWORD_CHANGE_EXEMPT = {'change_password', 'logout', 'static', 'service_worker'}
 
+
+@app.before_request
+def enforce_account_state():
+    if not current_user.is_authenticated:
+        return None
+
+    # Deactivated / deleted after login → end the session immediately
+    if current_user.is_deleted or not current_user.is_active or current_user.status != 'active':
+        logout_user()
+        session.clear()
+        flash('Your account is no longer active. Contact admin.', 'danger')
+        return redirect(url_for('login'))
+
+    # Forced password change — applies to already logged-in sessions too
+    if current_user.must_change_password:
+        if request.endpoint in PASSWORD_CHANGE_EXEMPT or request.endpoint is None:
+            return None
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'password_change_required'}), 403
+        flash('Please change your password to continue.', 'warning')
+        return redirect(url_for('change_password'))
+    return None
 
 class Customer(db.Model):
     __tablename__ = 'customers'
@@ -1141,7 +1242,20 @@ class ServiceRecord(db.Model):
             self.status not in ('Completed', 'Skipped')
             and self.scheduled_date < date.today()
         )
-
+class PreServiceLog(db.Model):
+    """A service visit done before the project's schedule exists.
+    Applied automatically when create_service_schedule() runs."""
+    __tablename__ = 'pre_service_logs'
+    id                = db.Column(db.Integer, primary_key=True)
+    project_id        = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False, index=True)
+    service_date      = db.Column(db.Date, nullable=False)
+    panel_cleaning    = db.Column(db.Boolean, default=True)
+    notes             = db.Column(db.String(500), nullable=True)
+    recorded_by       = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at        = db.Column(db.DateTime, default=datetime.utcnow)
+    applied_record_id = db.Column(db.Integer, db.ForeignKey('service_records.id'), nullable=True)
+    project  = db.relationship('Project', backref='pre_service_logs')
+    recorder = db.relationship('User', foreign_keys=[recorded_by])
 
 class SiteVisit(db.Model):
     __tablename__ = 'site_visits'
@@ -1662,7 +1776,61 @@ def _save_extra_site_photo(pid, file, project_code, index):
     photo = ProjectSitePhoto(project_id=pid, photo_path=fpath, uploaded_by=current_user.id)
     db.session.add(photo)
     return photo
+PROFILE_PHOTO_DIR = os.environ.get(
+    'PROFILE_PHOTO_DIR',
+    os.path.join(BASE_DIR, 'private_uploads', 'profile_photos')
+)
+PROFILE_PHOTO_MAX_MB = 2
 
+
+def _delete_profile_photo(filename):
+    if not filename:
+        return
+    path = os.path.join(PROFILE_PHOTO_DIR, os.path.basename(filename))
+    if os.path.isfile(path):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def save_profile_photo(file_storage, user_id):
+    """Validate, square-crop to 256px, save as JPEG. Returns filename or None."""
+    if not file_storage or not file_storage.filename:
+        return None
+    if os.path.splitext(file_storage.filename)[1].lower() not in ('.jpg', '.jpeg', '.png', '.webp'):
+        return None
+    file_storage.stream.seek(0, os.SEEK_END)
+    size = file_storage.stream.tell()
+    file_storage.stream.seek(0)
+    if size > PROFILE_PHOTO_MAX_MB * 1024 * 1024:
+        return None
+    try:
+        from PIL import Image, ImageOps
+        img = Image.open(file_storage.stream)
+        img.verify()
+        file_storage.stream.seek(0)
+        img = Image.open(file_storage.stream)
+        img = ImageOps.exif_transpose(img).convert('RGB')
+        img = ImageOps.fit(img, (256, 256), Image.LANCZOS)
+    except Exception:
+        return None
+    os.makedirs(PROFILE_PHOTO_DIR, exist_ok=True)
+    fname = f'user_{user_id}_{uuid.uuid4().hex[:8]}.jpg'
+    img.save(os.path.join(PROFILE_PHOTO_DIR, fname), 'JPEG', quality=85)
+    return fname
+
+
+@app.route('/user_photo/<int:user_id>')
+@login_required
+def user_photo(user_id):
+    u = db.session.get(User, user_id)
+    if not u or not u.photo:
+        abort(404)
+    path = os.path.join(PROFILE_PHOTO_DIR, os.path.basename(u.photo))
+    if not os.path.isfile(path):
+        abort(404)
+    return send_file(path)
 
 @app.route('/site_photo/<int:photo_id>')
 @login_required
@@ -1926,7 +2094,8 @@ def create_service_schedule(project):
             scheduled_date = sched,
             status         = 'Upcoming',
         ))
-
+    db.session.flush()                        
+    _apply_pre_service_logs(project)
     # notify_onsite_team(project.id,
     #     f'Service schedule created for {project.project_code} — {project.customer.name}. '
     #     f'10 panel-cleaning visits over 5 years starting {base.strftime("%d %b %Y")}.', 'info')
@@ -2164,6 +2333,47 @@ def service_completed_by_date():
     return render_template('service_completed_by_date.html',
         records=records, date_str=date_str, start_str=start_str, end_str=end_str,
         searched=searched, today=date.today())
+@app.route('/projects/<int:pid>/pre_service', methods=['POST'])
+@login_required
+@roles_required('admin', 'service')
+def add_pre_service(pid):
+    proj = Project.query.get_or_404(pid)
+    if ServiceRecord.query.filter_by(project_id=pid).first():
+        flash('Service schedule already exists — complete the visit from Service Management instead.', 'warning')
+        return redirect(url_for('project_detail', pid=pid))
+    try:
+        d = date.fromisoformat(request.form.get('service_date', ''))
+    except ValueError:
+        flash('Please enter a valid service date.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+    if d > date.today():
+        flash('Service date cannot be in the future.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+
+    db.session.add(PreServiceLog(
+        project_id=pid, service_date=d,
+        panel_cleaning='panel_cleaning' in request.form,
+        notes=_clean(request.form.get('notes', ''), 500) or None,
+        recorded_by=current_user.id))
+    log_action(pid, f'Service done before payment closure recorded ({d})', new_val='Pending schedule')
+    db.session.commit()
+    flash('Service recorded. It will be added to the schedule automatically when the project completes.', 'success')
+    return redirect(url_for('project_detail', pid=pid))
+
+
+@app.route('/pre_service/<int:lid>/delete', methods=['POST'])
+@login_required
+@roles_required('admin', 'service')
+def delete_pre_service(lid):
+    l = PreServiceLog.query.get_or_404(lid)
+    if l.applied_record_id:
+        flash('Already applied to the schedule — use Undo complete in Service Management.', 'danger')
+        return redirect(url_for('project_detail', pid=l.project_id))
+    pid = l.project_id
+    db.session.delete(l)
+    db.session.commit()
+    flash('Entry removed.', 'warning')
+    return redirect(url_for('project_detail', pid=pid))
 # @app.route('/projects/<int:pid>/rts_feasibility')
 # @login_required
 # @roles_required('admin', 'documents', 'documents_k', 'office', 'coordinator', 'director')
@@ -2430,8 +2640,43 @@ def rts_feasibility_file(pid):
     return send_file(path, as_attachment=as_attachment,
                       download_name=f'RTS_Feasibility_{proj.project_code}.pdf',
                       mimetype='application/pdf')
+
+def _has_pending_excess(proj):
+    """True if any customer/bank excess still needs settlement."""
+    if PaymentExcess.query.filter_by(project_id=proj.id, status='Pending').first():
+        return True
+    return bool(BankExcessReturn.query.filter_by(project_id=proj.id, returned=False).first())
+
+
+def _close_if_fully_paid(proj):
+    """Jump straight to Payment / Closed when nothing is pending and no excess
+    is waiting for settlement. Returns True if the project was closed."""
+    if proj.total_receivable <= 0:
+        return False
+    if proj.pending_amount > 0.01 or _has_pending_excess(proj):
+        return False
+
+    old_stage, old_status = proj.stage, proj.status
+    proj.stage  = 'Payment'
+    proj.status = 'Closed'
+    proj.staged_changed_at = datetime.utcnow()
+    log_action(proj.id, f'Auto-closed: fully paid, no excess ({old_stage} → Payment)',
+               old_val=old_status, new_val='Closed')
+
+    create_service_schedule(proj)   # already skips Outside-work projects
+
+    code = f'{proj.project_code} — {proj.customer.name}'
+    if proj.coordinator_id:
+        create_notification(proj.coordinator_id, proj.id,
+            f'{code}: Fully paid. Project closed.', 'info')
+    if proj.doc_staff_id:
+        create_notification(proj.doc_staff_id, proj.id,
+            f'{code}: Fully paid. Project closed.', 'info')
+    return True
 def auto_advance_stage(proj):
     if proj.status in ('Cancelled', 'OnHold', 'Completed', 'Closed'):
+        return
+    if _close_if_fully_paid(proj):      
         return
     if proj.work_category == 'Outside':
         _auto_advance_outside_stage(proj)
@@ -2993,73 +3238,59 @@ def index():
     return redirect(url_for('login'))
 
 
+_DUMMY_HASH = generate_password_hash(secrets.token_hex(16), method='scrypt')
+_LOGIN_FAIL = 'Invalid username or password. If you keep failing, the account locks for a while.'
+ 
+ 
 @app.route('/login', methods=['GET', 'POST'])
-@limiter.limit('20 per minute; 5 per 10 seconds')   # ← brute-force throttle
+@limiter.limit('20 per minute; 5 per 10 seconds')   # brute-force throttle
 def login():
     csrf_token = generate_csrf()
     if request.method == 'POST':
-        username = _clean(request.form.get('username', ''), 80)
+        username = _clean(request.form.get('username', ''), 80).lower()
         password = request.form.get('password', '')
-
-        # Generic error message — never reveal whether username exists
-        _fail_msg = 'Invalid credentials.'
-
+ 
         u = User.query.filter_by(username=username).first()
-
+ 
         if not u:
-            # log_login_attempt(username, False, 'unknown_user')
-            flash(_fail_msg, 'danger')
+            check_password_hash(_DUMMY_HASH, password)     # equalise timing
+            flash(_LOGIN_FAIL, 'danger')
             return redirect(url_for('login'))
-
-        # Account locked?
+ 
+        password_ok = u.check_password(password)
+ 
+        # Locked: say nothing different, and don't let a correct password through.
         if u.is_locked():
-            remaining = int((u.locked_until - datetime.utcnow()).total_seconds() / 60) + 1
-            # log_lockout(username, remaining)
-            flash(f'Account temporarily locked. Try again in {remaining} minute(s).', 'danger')
+            flash(_LOGIN_FAIL, 'danger')
             return redirect(url_for('login'))
-
-        # Wrong password
-        if not u.check_password(password):
+ 
+        if not password_ok:
             u.record_failed_login()
             db.session.commit()
-            # log_login_attempt(username, False, 'bad_password')
-            if u.is_locked():
-                # log_lockout(username, LOCKOUT_MINUTES)
-                flash(f'Too many failed attempts. Account locked for {LOCKOUT_MINUTES} minutes.', 'danger')
-            else:
-                remaining_attempts = MAX_LOGIN_ATTEMPTS - u.failed_logins
-                flash(f'{_fail_msg} {remaining_attempts} attempt(s) remaining.', 'danger')
+            flash(_LOGIN_FAIL, 'danger')
             return redirect(url_for('login'))
-
-        # Inactive account
-        if u.status != 'active':
-            # log_login_attempt(username, False, 'inactive')
-            flash('Your account is not active. Contact admin.', 'danger')
-            return redirect(url_for('login'))
+ 
+        # Password is correct from here on, so account-state messages no longer
+        # reveal anything the person doesn't already know.
         if u.is_deleted:
-            # log_login_attempt(username, False, 'deleted')
             flash('This account no longer exists. Contact admin.', 'danger')
             return redirect(url_for('login'))
-
-        # if u.status != 'active':
-        #     flash('Your account is not active. Contact admin.', 'danger')
-        #     return redirect(url_for('login'))
-        # Success
+        if u.status != 'active' or not u.is_active:
+            flash('Your account is not active. Contact admin.', 'danger')
+            return redirect(url_for('login'))
+ 
         u.reset_login_attempts()
         db.session.commit()
-                              
+ 
         login_user(u)
-        session.permanent = True 
-        # Regenerate session to prevent session fixation
-        session.regenerate() if hasattr(session, 'regenerate') else None
+        session.permanent = True
         if u.role == 'stocks':
             return redirect(url_for('stock_dashboard'))
         if u.role == 'finance':
             return redirect(url_for('daybook'))
         return redirect(url_for('dashboard'))
-
-    return render_template('login.html',csrf_token=csrf_token)
-
+ 
+    return render_template('login.html', csrf_token=csrf_token)
 
 @app.route('/logout')
 @login_required
@@ -3075,48 +3306,52 @@ def logout():
 @login_required
 @limiter.limit('10 per minute')
 def change_password():
+    forced = bool(current_user.must_change_password)
     if request.method == 'POST':
         current_pw = request.form.get('current_password', '')
         new_pw     = request.form.get('new_password', '')
         confirm_pw = request.form.get('confirm_password', '')
- 
+
         if not current_user.check_password(current_pw):
             flash('Current password is incorrect.', 'danger')
             return redirect(url_for('change_password'))
- 
+
         if new_pw != confirm_pw:
             flash('New passwords do not match.', 'danger')
             return redirect(url_for('change_password'))
- 
+
+        if new_pw == current_pw:
+            flash('New password must be different from the current one.', 'danger')
+            return redirect(url_for('change_password'))
+
         errors = _validate_password(new_pw)
         if errors:
             flash(f'Password must contain: {", ".join(errors)}.', 'danger')
             return redirect(url_for('change_password'))
- 
+
         current_user.set_password(new_pw)
-        current_user.reset_login_attempts()   # clear any lingering lockout
+        current_user.must_change_password = False
+        current_user.reset_login_attempts()
         db.session.flush()
- 
-        # Notify all admins that this user changed their own password
+
         admins = User.query.filter_by(role='admin', is_active=True).all()
         for admin in admins:
-            if admin.id != current_user.id:   # don't notify yourself if you're admin
+            if admin.id != current_user.id:
                 db.session.add(Notification(
                     user_id=admin.id,
-                    project_id=None,           # no project context
+                    project_id=None,
                     message=(
                         f'{current_user.full_name} ({current_user.username}) '
                         f'changed their own password.'
                     ),
                     notif_type='info',
                 ))
-        
+
         db.session.commit()
-        # log_password_change(current_user.username, current_user.username)
         flash('Password changed successfully.', 'success')
         return redirect(url_for('dashboard'))
- 
-    return render_template('change_password.html')
+
+    return render_template('change_password.html', forced=forced)
 @app.route('/admin/change_password', methods=['GET', 'POST'])
 @login_required
 @roles_required('admin')
@@ -3147,6 +3382,7 @@ def admin_change_password():
             return render_template('admin_change_password.html', users=users, selected_user=selected_user)
  
         target.set_password(new_pw)
+        target.must_change_password = True
         target.reset_login_attempts()   # clear any lockout on the target account
         db.session.flush()
         target_project = None
@@ -3531,6 +3767,7 @@ def dashboard():
         data['projects']        = Project.query.filter(
             Project.status.notin_(['Closed', 'Cancelled', 'OnHold'])).paginate(
             page=request.args.get('page', 1, type=int), per_page=20, error_out=False)
+        data['excess_pending'], data['excess_pending_total'] = _pending_excess_settlements()
 
     elif role == 'onsite':
         
@@ -3715,21 +3952,23 @@ def projects():
                        consumer_search=consumer_search,
                        pending_excess_ids=pending_excess_ids,
                        view_all=view_all)
-from sqlalchemy.exc import IntegrityError 
+from sqlalchemy.exc import IntegrityError
+
+
 @app.route('/projects/new', methods=['GET', 'POST'])
 @login_required
-@roles_required('coordinator','admin','documents','office','documents_k','director')
+@roles_required('coordinator', 'admin', 'documents', 'office', 'documents_k', 'director')
 @limiter.limit('30 per minute')
 def new_project():
     coordinators = User.query.filter(
-    User.role.in_(['coordinator', 'director'])
+        User.role.in_(['coordinator', 'director'])
     ).order_by(User.full_name).all()
-    customers       = Customer.query.order_by(Customer.name).all()
-    doc_staff       = User.query.filter_by(role='documents', is_active=True).all()
-    office = User.query.filter_by(role='office').all()
-    documents_k=User.query.filter_by(role='documents_k').all()
-    suggested_code  = next_project_code()
-    other_coord_names = _get_other_coord_names()          
+    customers         = Customer.query.order_by(Customer.name).all()
+    doc_staff         = User.query.filter_by(role='documents', is_active=True).all()
+    office            = User.query.filter_by(role='office').all()
+    documents_k       = User.query.filter_by(role='documents_k').all()
+    suggested_code    = next_project_code()
+    other_coord_names = _get_other_coord_names()
 
     if request.method == 'POST':
         raw_structure = request.form.get('structure_capacity_kw', '').strip()
@@ -3744,7 +3983,8 @@ def new_project():
                                    doc_staff=doc_staff, suggested_code=suggested_code,
                                    coordinators=coordinators, office=office,
                                    documents_k=documents_k,
-                                   other_coord_names=other_coord_names)   
+                                   other_coord_names=other_coord_names)
+
         cust_id = request.form.get('customer_id')
         if not cust_id:
             raw_phone     = _clean(request.form.get('phone', ''), 20)
@@ -3757,26 +3997,26 @@ def new_project():
             if raw_phone and not _validate_phone(phone_clean):
                 flash('Phone number must be a valid 10-digit number.', 'danger')
                 return render_template('new_project.html', customers=customers,
-                               doc_staff=doc_staff, suggested_code=suggested_code,
-                               coordinators=coordinators, office=office,
-                               documents_k=documents_k,
-                               other_coord_names=other_coord_names)
+                                       doc_staff=doc_staff, suggested_code=suggested_code,
+                                       coordinators=coordinators, office=office,
+                                       documents_k=documents_k,
+                                       other_coord_names=other_coord_names)
             if raw_alt_phone and not _validate_phone(alt_phone_clean):
                 flash('Alternate phone number must be a valid 10-digit number.', 'danger')
                 return render_template('new_project.html', customers=customers,
-                               doc_staff=doc_staff, suggested_code=suggested_code,
-                               coordinators=coordinators, office=office,
-                               documents_k=documents_k,
-                               other_coord_names=other_coord_names)
+                                       doc_staff=doc_staff, suggested_code=suggested_code,
+                                       coordinators=coordinators, office=office,
+                                       documents_k=documents_k,
+                                       other_coord_names=other_coord_names)
             if raw_email and not _validate_email_format(raw_email):
                 flash('Please enter a valid email address.', 'danger')
                 return render_template('new_project.html', customers=customers,
-                               doc_staff=doc_staff, suggested_code=suggested_code,
-                               coordinators=coordinators, office=office,
-                               documents_k=documents_k,
-                               other_coord_names=other_coord_names)
+                                       doc_staff=doc_staff, suggested_code=suggested_code,
+                                       coordinators=coordinators, office=office,
+                                       documents_k=documents_k,
+                                       other_coord_names=other_coord_names)
 
-            # ── NEW: block duplicate customer phone numbers ──────────────
+            # ── Block duplicate customer phone numbers ──────────────
             if phone_clean:
                 existing_cust = Customer.query.filter_by(phone=phone_clean).first()
                 if existing_cust:
@@ -3787,53 +4027,53 @@ def new_project():
                         'danger'
                     )
                     return render_template('new_project.html', customers=customers,
-                                   doc_staff=doc_staff, suggested_code=suggested_code,
-                                   coordinators=coordinators, office=office,
-                                   documents_k=documents_k,
-                                   other_coord_names=other_coord_names)
+                                           doc_staff=doc_staff, suggested_code=suggested_code,
+                                           coordinators=coordinators, office=office,
+                                           documents_k=documents_k,
+                                           other_coord_names=other_coord_names)
 
             cust = Customer(
-        name       = _clean(request.form.get('customer_name', ''), 120),
-        phone      = phone_clean or None,
-        alt_phone  = alt_phone_clean or None,     # ← NEW
-        email      = raw_email or None,
-        house_name = _clean(request.form.get('house_name', ''), 120) or None,
-        place      = _clean(request.form.get('place', ''), 120) or None,
-        post       = _clean(request.form.get('post', ''), 120) or None,
-        pincode    = _clean(request.form.get('pincode', ''), 10) or None,
-        village    = _clean(request.form.get('village', ''), 120) or None,
-        district   = _clean(request.form.get('district', ''), 80) or None,
-        taluk      = _clean(request.form.get('taluk', ''), 120) or None,
-        sub_co     = request.form.get('sub_co','').strip() or None,
-        )
-        _apply_aadhaar_address(cust, request.form)
-        #guard against a race where two requests slip past the
-        # pre-check above at the same instant — the DB unique constraint
-        # is the real backstop, this just turns it into a clean flash
-        # instead of a 500 error. ──────────────────────────────────────
-        try:
-            with db.session.begin_nested():
-                db.session.add(cust)
-                db.session.flush()
-        except IntegrityError:
-            db.session.rollback()
-            flash('That phone number was just registered by another request. '
-                  'Please search for the existing customer instead.', 'danger')
-            return render_template('new_project.html', customers=customers,
-                                   doc_staff=doc_staff, suggested_code=suggested_code,
-                                   coordinators=coordinators, office=office,
-                                   documents_k=documents_k,
-                                   other_coord_names=other_coord_names)
-        cust_id = cust.id
+                name       = _clean(request.form.get('customer_name', ''), 120),
+                phone      = phone_clean or None,
+                alt_phone  = alt_phone_clean or None,
+                email      = raw_email or None,
+                house_name = _clean(request.form.get('house_name', ''), 120) or None,
+                place      = _clean(request.form.get('place', ''), 120) or None,
+                post       = _clean(request.form.get('post', ''), 120) or None,
+                pincode    = _clean(request.form.get('pincode', ''), 10) or None,
+                village    = _clean(request.form.get('village', ''), 120) or None,
+                district   = _clean(request.form.get('district', ''), 80) or None,
+                taluk      = _clean(request.form.get('taluk', ''), 120) or None,
+                sub_co     = request.form.get('sub_co', '').strip() or None,
+            )
+            _apply_aadhaar_address(cust, request.form)
+
+            # Guard against a race where two requests slip past the
+            # pre-check above at the same instant — the DB unique constraint
+            # is the real backstop, this just turns it into a clean flash
+            # instead of a 500 error.
+            try:
+                with db.session.begin_nested():
+                    db.session.add(cust)
+                    db.session.flush()
+            except IntegrityError:
+                db.session.rollback()
+                flash('That phone number was just registered by another request. '
+                      'Please search for the existing customer instead.', 'danger')
+                return render_template('new_project.html', customers=customers,
+                                       doc_staff=doc_staff, suggested_code=suggested_code,
+                                       coordinators=coordinators, office=office,
+                                       documents_k=documents_k,
+                                       other_coord_names=other_coord_names)
+            cust_id = cust.id
 
         # Resolve coordinator
-        raw_coord_id    = request.form.get('coordinator_id') or ''
+        raw_coord_id     = request.form.get('coordinator_id') or ''
         coord_name_other = _clean(request.form.get('coordinator_name_other', ''), 120)
 
         if raw_coord_id == '__other__':
             resolved_coord_id   = None
-            resolved_coord_name = _normalize_coord_name(coord_name_other) or None   # ← changed
-        
+            resolved_coord_name = _normalize_coord_name(coord_name_other) or None
         else:
             resolved_coord_id   = int(raw_coord_id) if raw_coord_id else None
             resolved_coord_name = None
@@ -3842,24 +4082,26 @@ def new_project():
 
         def _make_project(pcode):
             return Project(
-                project_code         = pcode,
-                customer_id          = cust_id,
-                inverter_capacity_kw = _safe_float(request.form.get('inverter_capacity_kw')),
-                panel_capacity_kw    = _safe_float(request.form.get('panel_capacity_kw')),
+                project_code          = pcode,
+                customer_id           = cust_id,
+                inverter_capacity_kw  = _safe_float(request.form.get('inverter_capacity_kw')),
+                panel_capacity_kw     = _safe_float(request.form.get('panel_capacity_kw')),
                 structure_capacity_kw = structure_kw,
-                project_type         = request.form['project_type'],
-                status               = 'InProgress',
-                stage                = 'Documentation',
-                project_subtype      = request.form.get('project_subtype') or None,
-                total_amount         = _safe_float(request.form.get('total_amount', 0)),
-                coordinator_id       = resolved_coord_id,
-                doc_staff_id         = request.form.get('doc_staff_id') or None,
-                notes                = notes_val,
-                roof_type            = request.form.get('roof_type') or None,
-                roof_type_other      = _clean(request.form.get('roof_type_other', ''), 60) or None,
-                inverter_type        = request.form.get('inverter_type') or None,
-                coordinator_name     = resolved_coord_name,
-                work_category        = request.form.get('work_category') if request.form.get('work_category') in ('Installation', 'Outside') else 'Installation',
+                project_type          = request.form['project_type'],
+                status                = 'InProgress',
+                stage                 = 'Documentation',
+                project_subtype       = request.form.get('project_subtype') or None,
+                total_amount          = _safe_float(request.form.get('total_amount', 0)),
+                coordinator_id        = resolved_coord_id,
+                doc_staff_id          = request.form.get('doc_staff_id') or None,
+                notes                 = notes_val,
+                roof_type             = request.form.get('roof_type') or None,
+                roof_type_other       = _clean(request.form.get('roof_type_other', ''), 60) or None,
+                inverter_type         = request.form.get('inverter_type') or None,
+                coordinator_name      = resolved_coord_name,
+                work_category         = request.form.get('work_category')
+                                        if request.form.get('work_category') in ('Installation', 'Outside')
+                                        else 'Installation',
             )
 
         proj = None
@@ -3900,12 +4142,13 @@ def new_project():
                                        other_coord_names=other_coord_names)
 
         log_action(proj.id, 'Project created', new_val='Created')
+
         geo_photo    = request.files.get('geo_photo_1')
         maps_url_raw = _clean(request.form.get('maps_url', ''), 500)
         has_photo    = False
         if (geo_photo and geo_photo.filename) or maps_url_raw:
             tag = ProjectGeoTag(project_id=proj.id, uploaded_by=current_user.id,
-                                 uploaded_at=datetime.utcnow())
+                                uploaded_at=datetime.utcnow())
             if geo_photo and geo_photo.filename:
                 ext = os.path.splitext(geo_photo.filename)[1].lower()
                 if ext in ('.jpg', '.jpeg', '.png'):
@@ -3946,19 +4189,24 @@ def new_project():
             )
         if proj.work_category != 'Outside':
             if proj.project_type == 'Cash':
-                notify_onsite_team(proj.id,
-                f'New cash work: {proj.project_code} — {proj.customer.name} '
-                f'({proj.inverter_capacity_kw} kW). Assigned by {current_user.full_name}.', 'task')
+                notify_onsite_team(
+                    proj.id,
+                    f'New cash work: {proj.project_code} — {proj.customer.name} '
+                    f'({proj.inverter_capacity_kw} kW). Assigned by {current_user.full_name}.',
+                    'task')
             elif proj.project_type == 'Loan':
-                notify_onsite_team(proj.id,
-                f'New loan work: {proj.project_code} — {proj.customer.name} '
-                f'({proj.inverter_capacity_kw} kW). Awaiting first bank payment before site work begins.', 'info')
+                notify_onsite_team(
+                    proj.id,
+                    f'New loan work: {proj.project_code} — {proj.customer.name} '
+                    f'({proj.inverter_capacity_kw} kW). Awaiting first bank payment before site work begins.',
+                    'info')
+
         db.session.commit()
         flash(f'Project {proj.project_code} created successfully!', 'success')
         return redirect(url_for('project_detail', pid=proj.id))
 
-    return render_template('new_project.html',coordinators=coordinators, customers=customers,
-                           doc_staff=doc_staff, suggested_code=suggested_code,office=office,
+    return render_template('new_project.html', coordinators=coordinators, customers=customers,
+                           doc_staff=doc_staff, suggested_code=suggested_code, office=office,
                            documents_k=documents_k,
                            other_coord_names=other_coord_names)
 @app.route('/projects/<int:pid>/edit', methods=['GET', 'POST'])
@@ -4663,6 +4911,8 @@ def return_bank_excess(pid):
 
     log_action(pid, f'Bank excess settled: ₹{float(exc.excess_amount):,.0f} — {exc.action_label}',
                new_val=action)
+    db.session.flush()
+    auto_advance_stage(exc.project)
     db.session.commit()
     flash(f'Bank excess of ₹{float(exc.excess_amount):,.0f} marked as {exc.action_label}.', 'success')
     return redirect(url_for('project_detail', pid=pid))
@@ -4688,6 +4938,8 @@ def settle_payment_excess(eid):
     log_action(exc.project_id,
         f'Payment excess of ₹{float(exc.amount):,.0f} settled: {exc.action_label}',
         new_val=exc.action)
+    db.session.flush()
+    auto_advance_stage(exc.project)
     db.session.commit()
     flash(f'Excess of ₹{float(exc.amount):,.0f} marked as {exc.action_label}.', 'success')
     return redirect(url_for('project_detail', pid=exc.project_id))
@@ -5030,7 +5282,8 @@ def add_payment(pid):
             f'Loan work {proj.project_code} — {proj.customer.name} '
             f'({proj.inverter_capacity_kw} kW): First bank payment of ₹{amount:,.0f} received. ', 'task')
 
-        auto_advance_stage(proj)
+    db.session.flush()          
+    auto_advance_stage(proj)    
     active_reminder = PaymentReminder.query.filter_by(project_id=pid, status='Pending').first()
     if active_reminder:
         active_reminder.status      = 'Done'
@@ -5262,13 +5515,14 @@ def payments_dashboard():
         Project.status.notin_(['Closed', 'Cancelled', 'OnHold'])
     ).order_by(Project.updated_at.desc()).paginate(
         page=request.args.get('page', 1, type=int), per_page=20, error_out=False)
-
+    excess_pending, excess_pending_total = _pending_excess_settlements()
     return render_template('payments.html',
         total_collected=total_collected, total_pending=total_pending,
         total_value=total_value, recent_payments=recent_payments,
         pending_projs=pending_projs, page=page, pay_page=pay_page,
         pay_date=pay_date_str, date_total=date_total,
-        recovered_total=recovered_total)
+        recovered_total=recovered_total,excess_pending=excess_pending,                                        # ← NEW
+        excess_pending_total=excess_pending_total)
 @app.route('/projects/<int:pid>/payment_reminder', methods=['POST'])
 @login_required
 @roles_required('admin', 'payments')
@@ -7484,175 +7738,181 @@ def restore_user(user_id):
     flash(f'User {u.username} restored successfully.', 'success')
     return redirect(url_for('manage_users'))
 
+VALID_ROLES = ('admin', 'coordinator', 'documents', 'payments', 'onsite', 'service',
+               'office', 'documents_k', 'stocks', 'director', 'finance')
+
+
+def _parse_user_common(form):
+    """Shared parsing/validation for new/edit user forms.
+    Returns (data_dict, error_message_or_None)."""
+    raw_email = _clean(form.get('email', ''), 120).lower()
+    raw_phone = _clean(form.get('phone', ''), 20)
+    phone_clean = _clean_phone(raw_phone)
+    if phone_clean and len(phone_clean) != 10:
+        phone_clean = ''
+
+    if not raw_email and not phone_clean:
+        return None, 'Please provide at least an email address or a phone number.'
+    if raw_email and not _validate_email_format(raw_email):
+        return None, 'Please enter a valid email address.'
+    if raw_phone and not phone_clean:
+        return None, 'Please enter a valid 10-digit phone number.'
+
+    joined_on = None
+    if form.get('joined_on'):
+        try:
+            joined_on = date.fromisoformat(form['joined_on'])
+        except ValueError:
+            return None, 'Invalid joining date.'
+
+    return {
+        'full_name':   _clean(form.get('full_name', ''), 120),
+        'raw_email':   raw_email,
+        'phone':       phone_clean,
+        'designation': _clean(form.get('designation', ''), 80) or None,
+        'joined_on':   joined_on,
+        'role':        form.get('role', ''),
+        'must_change': 'must_change_password' in form,
+    }, None
+
+
 @app.route('/admin/users/new', methods=['GET', 'POST'])
 @login_required
 @roles_required('admin')
 def new_user():
     if request.method == 'POST':
-        username  = _clean(request.form.get('username', ''), 80).lower()
-        full_name = _clean(request.form.get('full_name', ''), 120)
-        role      = request.form.get('role', '')
-        password  = request.form.get('password', '')
-        raw_email = _clean(request.form.get('email', ''), 120).lower()
-        raw_phone = _clean(request.form.get('phone', ''), 20)
- 
-        # ── Normalise phone: keep digits only, strip leading +91 / 0 ────────
-        phone_digits = ''.join(c for c in raw_phone if c.isdigit())
-        if phone_digits.startswith('91') and len(phone_digits) == 12:
-            phone_digits = phone_digits[2:]          # strip country code
-        if phone_digits.startswith('0') and len(phone_digits) == 11:
-            phone_digits = phone_digits[1:]
-        phone_clean = phone_digits if len(phone_digits) == 10 else ''
- 
-        # ── At least one contact method required ────────────────────────────
-        if not raw_email and not phone_clean:
-            flash('Please provide at least an email address or a phone number.', 'danger')
+        username = _clean(request.form.get('username', ''), 80).lower()
+        password = request.form.get('password', '')
+        data, err = _parse_user_common(request.form)
+
+        if not err and not data['full_name']:
+            err = 'Full name is required.'
+        if not err and not re.match(r'^[a-z0-9_]+$', username):
+            err = 'Username may contain only lowercase letters, digits and underscores.'
+        if not err and data['role'] not in VALID_ROLES:
+            err = 'Please select a valid role.'
+        if not err:
+            pw_errors = _validate_password(password)
+            if pw_errors:
+                err = f'Password must contain: {", ".join(pw_errors)}.'
+        if not err and User.query.filter_by(username=username).first():
+            err = 'Username already taken.'
+        if not err and data['phone'] and User.query.filter_by(phone=data['phone']).first():
+            err = 'Phone number is already registered.'
+
+        if err:
+            flash(err, 'danger')
             return render_template('new_user.html')
- 
-        # ── Validate email format when provided ─────────────────────────────
-        if raw_email and not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', raw_email):
-            flash('Please enter a valid email address.', 'danger')
-            return render_template('new_user.html')
- 
-        # ── Validate phone when provided ─────────────────────────────────────
-        if raw_phone and not phone_clean:
-            flash('Please enter a valid 10-digit phone number.', 'danger')
-            return render_template('new_user.html')
- 
-        # ── Password strength ────────────────────────────────────────────────
-        errors = _validate_password(password)
-        if errors:
-            flash(f'Password must contain: {", ".join(errors)}.', 'danger')
-            return render_template('new_user.html')
- 
-        # ── Duplicate username ───────────────────────────────────────────────
-        if User.query.filter_by(username=username).first():
-            flash('Username already taken.', 'danger')
-            return render_template('new_user.html')
- 
-        # ── Duplicate email (only when a real email is provided) ─────────────
-        # if raw_email and User.query.filter(
-        #         db.func.lower(User.email) == raw_email,
-        #         ~User.email.like('%@noemail.local')).first():
-        #     flash('Email address is already registered.', 'danger')
-        #     return render_template('new_user.html')
- 
-        # ── Duplicate phone ──────────────────────────────────────────────────
-        if phone_clean and User.query.filter_by(phone=phone_clean).first():
-            flash('Phone number is already registered.', 'danger')
-            return render_template('new_user.html')
- 
-        # ── Build the email stored in DB ─────────────────────────────────────
-        # When no email is given, use a placeholder so User.email is never NULL.
-        # The login route looks up by phone first in that case.
-        stored_email = raw_email if raw_email else f'{username}@noemail.local'
- 
+
         u = User(
-            username  = username,
-            email     = stored_email,
-            phone     = phone_clean or None,
-            full_name = full_name,
-            role      = role,
+            username    = username,
+            email       = data['raw_email'] or f'{username}@noemail.local',
+            phone       = data['phone'] or None,
+            full_name   = data['full_name'],
+            role        = data['role'],
+            designation = data['designation'],
+            joined_on   = data['joined_on'],
+            must_change_password = data['must_change'],
         )
         u.set_password(password)
         db.session.add(u)
+        db.session.flush()   # need u.id for the photo filename
+
+        photo = request.files.get('photo')
+        if photo and photo.filename:
+            fname = save_profile_photo(photo, u.id)
+            if fname:
+                u.photo = fname
+            else:
+                flash('Photo skipped — use a JPG/PNG/WEBP under 2 MB.', 'warning')
+
         db.session.commit()
-        # log_admin_action('CREATE_USER', target=u.username, detail=u.role)
- 
-        contact_info = raw_email if raw_email else f'+91 {phone_clean}'
-        flash(
-            f'User {u.username} created. ',
-            'success'
-        )
+        flash(f'User {u.username} created.', 'success')
         return redirect(url_for('manage_users'))
- 
+
     return render_template('new_user.html')
+
 
 @app.route('/admin/users/<int:user_id>/edit', methods=['GET', 'POST'])
 @login_required
 @roles_required('admin')
 def edit_user(user_id):
     u = User.query.get_or_404(user_id)
- 
+    is_self = (u.id == current_user.id)
+
     if request.method == 'POST':
-        full_name  = _clean(request.form.get('full_name', ''), 120)
-        username   = _clean(request.form.get('username',  ''), 80).lower()
-        role       = request.form.get('role', u.role)
-        new_pw     = request.form.get('password', '')
-        raw_email  = _clean(request.form.get('email', ''), 120).lower()
-        raw_phone  = _clean(request.form.get('phone', ''), 20)
- 
-        # ── Normalise phone ───────────────────────────────────────────────
-        phone_digits = ''.join(c for c in raw_phone if c.isdigit())
-        if phone_digits.startswith('91') and len(phone_digits) == 12:
-            phone_digits = phone_digits[2:]
-        if phone_digits.startswith('0') and len(phone_digits) == 11:
-            phone_digits = phone_digits[1:]
-        phone_clean = phone_digits if len(phone_digits) == 10 else ''
- 
-        # ── At least one contact method ───────────────────────────────────
-        if not raw_email and not phone_clean:
-            flash('Please provide at least an email address or a phone number.', 'danger')
-            return render_template('edit_user.html', user=u)
- 
-        # ── Validate email format ─────────────────────────────────────────
-        if raw_email and not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', raw_email):
-            flash('Please enter a valid email address.', 'danger')
-            return render_template('edit_user.html', user=u)
- 
-        # ── Validate phone ────────────────────────────────────────────────
-        if raw_phone and not phone_clean:
-            flash('Please enter a valid 10-digit phone number.', 'danger')
-            return render_template('edit_user.html', user=u)
- 
-        # ── Duplicate username (exclude self) ─────────────────────────────
-        if User.query.filter(User.username == username, User.id != user_id).first():
-            flash('Username already taken.', 'danger')
-            return render_template('edit_user.html', user=u)
- 
-        # ── Duplicate email (exclude self and @noemail.local rows) ─────────
-        if raw_email and User.query.filter(
-                db.func.lower(User.email) == raw_email,
+        new_pw = request.form.get('password', '')
+        data, err = _parse_user_common(request.form)
+
+        # Username is immutable; role/status of your own account are locked.
+        new_role   = u.role if is_self else data['role'] if data else u.role
+        new_active = u.is_active if is_self else ('is_active' in request.form)
+
+        if not err and not data['full_name']:
+            err = 'Full name is required.'
+        if not err and new_role not in VALID_ROLES:
+            err = 'Please select a valid role.'
+        if not err and data['phone'] and User.query.filter(
+                User.phone == data['phone'], User.id != user_id).first():
+            err = 'Phone number is already registered.'
+        if not err and data['raw_email'] and User.query.filter(
+                db.func.lower(User.email) == data['raw_email'],
                 User.id != user_id,
                 ~User.email.like('%@noemail.local')).first():
-            flash('Email address is already registered.', 'danger')
+            err = 'Email address is already registered.'
+        if not err and new_pw:
+            pw_errors = _validate_password(new_pw)
+            if pw_errors:
+                err = f'Password must contain: {", ".join(pw_errors)}.'
+
+        # Never leave the system without an active admin
+        if not err and u.role == 'admin' and (new_role != 'admin' or not new_active):
+            other_admins = User.query.filter(
+                User.role == 'admin', User.is_active == True,
+                User.is_deleted == False, User.id != u.id).count()
+            if other_admins == 0:
+                err = 'This is the only active admin — assign another admin first.'
+
+        if err:
+            flash(err, 'danger')
             return render_template('edit_user.html', user=u)
- 
-        # ── Duplicate phone (exclude self) ────────────────────────────────
-        if phone_clean and User.query.filter(
-                User.phone == phone_clean,
-                User.id != user_id).first():
-            flash('Phone number is already registered.', 'danger')
-            return render_template('edit_user.html', user=u)
- 
-        # ── Password strength (only when a new password is supplied) ──────
+
+        u.full_name   = data['full_name']
+        u.email       = data['raw_email'] or f'{u.username}@noemail.local'
+        u.phone       = data['phone'] or None
+        u.designation = data['designation']
+        u.joined_on   = data['joined_on']
+
+        if not is_self:
+            role_changed = (u.role != new_role)
+            u.role = new_role
+            u.is_active = new_active
+            u.status = 'active' if new_active else 'inactive'
+            if role_changed:
+                create_notification(u.id, None,
+                    f'Your role was changed to {new_role} by {current_user.full_name}.', 'info')
+
         if new_pw:
-            errors = _validate_password(new_pw)
-            if errors:
-                flash(f'Password must contain: {", ".join(errors)}.', 'danger')
-                return render_template('edit_user.html', user=u)
             u.set_password(new_pw)
- 
-        # ── Build stored email ────────────────────────────────────────────
-        stored_email = raw_email if raw_email else f'{username}@noemail.local'
- 
-        u.full_name = full_name
-        u.username  = username
-        u.email     = stored_email
-        u.phone     = phone_clean or None
-        u.role      = role
- 
+            u.reset_login_attempts()
+        u.must_change_password = data['must_change'] or bool(new_pw and data['must_change'])
+
+        if request.form.get('remove_photo') and u.photo:
+            _delete_profile_photo(u.photo)
+            u.photo = None
+        photo = request.files.get('photo')
+        if photo and photo.filename:
+            fname = save_profile_photo(photo, u.id)
+            if fname:
+                _delete_profile_photo(u.photo)
+                u.photo = fname
+            else:
+                flash('Photo skipped — use a JPG/PNG/WEBP under 2 MB.', 'warning')
+
         db.session.commit()
-        # log_admin_action('EDIT_USER', target=u.username)
- 
-        contact_info = raw_email if raw_email else f'+91 {phone_clean}'
-        flash(
-            f'User {u.username} updated. '
-            f'OTP login contact: {contact_info}.',
-            'success'
-        )
+        flash(f'User {u.username} updated.', 'success')
         return redirect(url_for('manage_users'))
- 
+
     return render_template('edit_user.html', user=u)
 
 @app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
@@ -8318,37 +8578,35 @@ def _wa_money(v):
     except Exception:
         return '₹0'
 
+def _apply_pre_service_logs(project):
+    logs = (PreServiceLog.query
+            .filter_by(project_id=project.id, applied_record_id=None)
+            .order_by(PreServiceLog.service_date, PreServiceLog.id).all())
+    if not logs:
+        return
+    free = (ServiceRecord.query
+            .filter(ServiceRecord.project_id == project.id,
+                    ServiceRecord.status.notin_(['Completed', 'Skipped']))
+            .order_by(ServiceRecord.visit_number).all())
 
+    last = None
+    for log, rec in zip(logs, free):          # oldest log -> visit 1, next -> visit 2 ...
+        rec.status         = 'Completed'
+        rec.completed_date = log.service_date
+        rec.conducted_by   = log.recorded_by
+        rec.panel_cleaning = log.panel_cleaning
+        rec.notes          = ((log.notes or '') + ' [Done before payment closure]').strip()
+        log.applied_record_id = rec.id
+        log_action(project.id,
+            f'Pre-payment service ({log.service_date}) applied to visit #{rec.visit_number}',
+            new_val='Completed')
+        last = rec
+
+    if last:
+        db.session.flush()
+        # shift the remaining visits to a fresh 6-month cadence from the last real service
+        _reschedule_future_visits(last, last.completed_date)
 def _wa_payment_message(proj, kind='confirmation'):
-    """
-    Builds the standard 'Payment Details' WhatsApp message:
-
-    *Payment Details – Power On Plus Solar Solutions*
-    
-    <Customer Name>
-    <Place>
-
-    Dear Customer,
-    Greetings from Power On Plus Solar Solutions. We hope you are doing well.
-    Please find below the payment details for the ongoing work:
-
-    Work Amount : ₹...
-    CD Payment : ₹...
-    Meter Charge : ₹...
-    Load Charge : ₹...
-    Additional Charge : ₹...
-    Total Amount : ₹...
-    Loan first amount credited: ₹...
-    Loan 2nd amount credited: ₹...
-    Balance payable: ₹...
-
-    Kindly review ...
-    Bank details + GPay for payment
-    Thank you for your cooperation.
-
-    Best regards,
-    Power On Plus Solar Solutions
-    """
     customer = proj.customer
     lines = ['*Payment Details – Power On Plus Solar Solutions*']
     lines.append(customer.name)
@@ -8361,25 +8619,37 @@ def _wa_payment_message(proj, kind='confirmation'):
     lines.append('')
     lines.append(f'Work Amount : {_wa_money(proj.total_amount)}/-')
 
-    # ── CD Payment / Meter / Load / Additional charges ─────────────────────
+    # ── Charges ────────────────────────────────────────────────────────────
+    # Company-paid charges are added to the total (same as proj.total_receivable).
+    # Customer-paid charges are listed for information only and NOT added.
     expense_labels = {
         'CD Payment': 'CD Payment',
         'Meter':      'Meter Charge',
         'Load':       'Load Charge',
         'Additional': 'Additional Charge',
     }
-    charges_total = 0.0
-    for exp in proj.expenses:
-        amt = float(exp.amount or 0)
-        if amt <= 0:
-            continue
-        label = expense_labels.get(exp.expense_type, exp.expense_type)
-        lines.append(f'{label} : {_wa_money(amt)}/-')
-        charges_total += amt
+    company_charges = [e for e in proj.expenses
+                       if e.paid_by == 'Company' and float(e.amount or 0) > 0]
+    customer_charges = [e for e in proj.expenses
+                        if e.paid_by == 'Customer' and float(e.amount or 0) > 0]
 
-    if charges_total > 0:
-        total_amount = float(proj.total_amount or 0) + charges_total
-        lines.append(f'Total Amount : {_wa_money(total_amount)}/-')
+    for exp in company_charges:
+        label = expense_labels.get(exp.expense_type, exp.expense_type)
+        tag = ' ✓ Recovered' if exp.recovered else ''
+        lines.append(f'{label} : {_wa_money(exp.amount)}/-{tag}')
+
+    if company_charges:
+        lines.append(f'Total Amount : {_wa_money(proj.total_receivable)}/-')
+
+    if customer_charges:
+        lines.append('')
+        lines.append('Paid by you directly (not included in total):')
+        for exp in customer_charges:
+            label = expense_labels.get(exp.expense_type, exp.expense_type)
+            lines.append(f'{label} : {_wa_money(exp.amount)}/-')
+        lines.append('')
+
+    recovered_total = proj.recovered_expense_total
 
     if proj.project_type == 'Loan':
         instalments = proj.bank_instalments
@@ -8387,11 +8657,12 @@ def _wa_payment_message(proj, kind='confirmation'):
             lines.append(f"Loan first amount credited: {_wa_money(instalments['First'].amount)}/-")
         if 'Second' in instalments:
             lines.append(f"Loan 2nd amount credited: {_wa_money(instalments['Second'].amount)}/-")
-        customer_total = sum(float(p.amount) for p in proj.payments if p.payment_source == 'Customer')
+        customer_total = sum(float(p.amount) for p in proj.payments
+                             if p.payment_source == 'Customer') + recovered_total
         if customer_total > 0:
             lines.append(f'Amount paid by you: {_wa_money(customer_total)}/-')
     else:
-        collected = float(proj.collected_amount or 0)
+        collected = float(proj.collected_amount or 0) + recovered_total
         if collected > 0:
             lines.append(f'Amount received so far: {_wa_money(collected)}/-')
 
@@ -10387,14 +10658,29 @@ def _parse_daybook_date(v):
     if isinstance(v, date):
         return v
     s = str(v).strip()
-    for fmt in ('%d-%b-%y', '%d-%b-%Y', '%d-%m-%Y', '%d/%m/%Y', '%Y-%m-%d'):
+    for fmt in ('%d-%b-%y', '%d-%b-%Y', '%d-%m-%Y', '%d/%m/%Y',
+                '%d/%m/%y', '%d-%m-%y', '%Y-%m-%d'):
         try:
             return datetime.strptime(s, fmt).date()
         except ValueError:
             continue
     return None
 
-
+def _parse_daybook_date(v):
+    if v is None or v == '':
+        return None
+    if isinstance(v, datetime):
+        return v.date()
+    if isinstance(v, date):
+        return v
+    s = str(v).strip()
+    for fmt in ('%d-%b-%y', '%d-%b-%Y', '%d-%m-%Y', '%d/%m/%Y',
+                '%d/%m/%y', '%d-%m-%y', '%Y-%m-%d'):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
 def _daybook_amount(v):
     if v is None or v == '':
         return 0.0
@@ -10424,21 +10710,27 @@ def _daybook_qty(v):
     return str(v).strip()[:50] or None
 
 
-def _parse_daybook_excel(stream):
-    """Reads a Tally-style Day Book sheet. Finds the header row by 'Particulars',
-    maps columns by header text (1st Debit/Credit Amount = amounts, 2nd pair =
-    Inwards/Outwards Qty), carries the date forward on blank-date rows."""
-    wb = load_workbook(stream, data_only=True)
-    ws = wb.active
-
-    header_row, hdr = None, []
-    for r in range(1, min(ws.max_row, 40) + 1):
-        vals = [str(c.value).strip().lower() if c.value is not None else '' for c in ws[r]]
-        if 'particulars' in vals:
-            header_row, hdr = r, vals
-            break
-    if not header_row:
-        raise ValueError('Could not find a header row containing "Particulars".')
+def _parse_daybook_excel(stream, fallback_date=None):
+    """Reads either Day Book layout. `fallback_date` is used only for the new
+    layout when the file itself carries no date."""
+    grids = _load_daybook_grids(stream)
+ 
+    rows = []
+    for _, sheet_rows in grids:                         # old Tally layout first
+        parsed = _parse_tally_grid(sheet_rows)
+        if parsed is not None:
+            rows.extend(parsed)
+    if rows:
+        return rows
+ 
+    entry_date = _find_sheet_date(grids) or fallback_date
+    if not entry_date:
+        raise ValueError('This file has no date in it. Pick a date in the upload form and try again.')
+    for _, sheet_rows in grids:
+        rows.extend(_parse_block_grid(sheet_rows, entry_date))
+    if not rows:
+        raise ValueError('No entries found — expected Particulars / Vch Type / Vch No. / Debit / Credit columns.')
+    return rows
 
     def _find(prefix):
         return next((i for i, v in enumerate(hdr) if v.startswith(prefix)), None)
@@ -10451,7 +10743,7 @@ def _parse_daybook_excel(stream):
         raise ValueError('Could not find "Debit Amount" / "Credit Amount" columns.')
 
     def _cell(row, idx):
-        return row[idx].value if idx is not None and idx < len(row) else None
+        return row[idx] if idx is not None and idx < len(row) else None
 
     rows, last_date = [], None
     for r in range(header_row + 1, ws.max_row + 1):
@@ -10484,7 +10776,114 @@ def _daybook_key(d, particulars, vch_type, vch_no, debit, credit):
     return (d, (particulars or '').lower(), (vch_type or '').lower(),
             vch_no or '', round(float(debit or 0), 2), round(float(credit or 0), 2))
 
+def _find_sheet_date(grids):
+    """New-format files carry the date as text (e.g. '29/09/26') near the top of
+    the Sale&Purchase sheet. Look through the first few rows of every sheet."""
+    for _, rows in grids:
+        for row in rows[:6]:
+            for v in row:
+                if v is None:
+                    continue
+                if isinstance(v, (datetime, date)) or re.fullmatch(r'\s*\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s*', str(v)):
+                    d = _parse_daybook_date(v)
+                    if d:
+                        return d
+    return None
 
+def _parse_tally_grid(rows):
+    """Old format: one sheet with a Date column. Returns None if this sheet isn't that format."""
+    header_row, hdr = None, []
+    for i, row in enumerate(rows[:40]):
+        vals = [str(c).strip().lower() if c is not None else '' for c in row]
+        if 'particulars' in vals and any(v.startswith('date') for v in vals):
+            header_row, hdr = i, vals
+            break
+    if header_row is None:
+        return None
+ 
+    def _find(prefix):
+        return next((i for i, v in enumerate(hdr) if v.startswith(prefix)), None)
+ 
+    c_date, c_part = _find('date'), _find('particulars')
+    c_type, c_no = _find('vch type'), _find('vch no')
+    debit_cols = [i for i, v in enumerate(hdr) if v == 'debit amount']
+    credit_cols = [i for i, v in enumerate(hdr) if v == 'credit amount']
+    if not debit_cols or not credit_cols:
+        raise ValueError('Could not find "Debit Amount" / "Credit Amount" columns.')
+ 
+    out, last_date = [], None
+    for row in rows[header_row + 1:]:
+        texts = [str(c).strip().lower() for c in row if c is not None]
+        if not texts or any(t in ('inwards qty', 'outwards qty') for t in texts):
+            continue
+        d = _parse_daybook_date(_cell(row, c_date))
+        if d:
+            last_date = d
+        particulars = _daybook_text(_cell(row, c_part))
+        if not particulars or particulars.lower().startswith('grand total') or not last_date:
+            continue
+        out.append({
+            'entry_date':   last_date,
+            'particulars':  particulars,
+            'vch_type':     _daybook_text(_cell(row, c_type), 50),
+            'vch_no':       _daybook_text(_cell(row, c_no), 50),
+            'debit':        _daybook_amount(_cell(row, debit_cols[0])),
+            'credit':       _daybook_amount(_cell(row, credit_cols[0])),
+            'inwards_qty':  _daybook_qty(_cell(row, debit_cols[1])) if len(debit_cols) > 1 else None,
+            'outwards_qty': _daybook_qty(_cell(row, credit_cols[1])) if len(credit_cols) > 1 else None,
+        })
+    return out
+ 
+ 
+_SKIP_NAMES = ('opening balance', 'closing balance', 'total', 'total:', 'grand total')
+ 
+ 
+def _parse_block_grid(rows, entry_date):
+    """New format: sheets made of one or more side-by-side blocks, each headed by
+    Particulars | Vch Type | Vch No. | Debit | Credit (e.g. Cash, Bank, Sales, Purchase).
+    Section titles, opening/closing balances and total rows are skipped."""
+    out, blocks = [], []
+    for row in rows:
+        vals = [str(c).strip().lower() if c is not None else '' for c in row]
+ 
+        if 'particulars' in vals:                       # (re)build column map from header row
+            starts = [i for i, v in enumerate(vals) if v == 'particulars']
+            blocks = []
+            for n, s in enumerate(starts):
+                end = starts[n + 1] if n + 1 < len(starts) else len(vals)
+                m = {'part': s}
+                for i in range(s + 1, end):
+                    v = vals[i]
+                    if v.startswith('vch type'):
+                        m['type'] = i
+                    elif v.startswith('vch no'):
+                        m['no'] = i
+                    elif v.startswith('debit'):
+                        m['debit'] = i
+                    elif v.startswith('credit'):
+                        m['credit'] = i
+                blocks.append(m)
+            continue
+ 
+        for m in blocks:
+            particulars = _daybook_text(_cell(row, m['part']))
+            if not particulars or particulars.strip().lower() in _SKIP_NAMES:
+                continue
+            vch_type = _daybook_text(_cell(row, m.get('type')), 50)
+            vch_no = _daybook_text(_cell(row, m.get('no')), 50)
+            if not vch_type and not vch_no:             # section titles like "B2B SALE", "CASH"
+                continue
+            out.append({
+                'entry_date':   entry_date,
+                'particulars':  particulars,
+                'vch_type':     vch_type,
+                'vch_no':       vch_no,
+                'debit':        _daybook_amount(_cell(row, m.get('debit'))),
+                'credit':       _daybook_amount(_cell(row, m.get('credit'))),
+                'inwards_qty':  None,
+                'outwards_qty': None,
+            })
+    return out
 @app.route('/daybook')
 @login_required
 @roles_required(*DAYBOOK_ROLES)
@@ -10532,12 +10931,13 @@ def daybook_upload():
     if not file or not file.filename:
         flash('Please choose an Excel file.', 'danger')
         return redirect(url_for('daybook'))
-    if os.path.splitext(file.filename)[1].lower() not in ('.xlsx', '.xlsm'):
-        flash('Only .xlsx files are supported. Re-save the .xls file as .xlsx first.', 'danger')
+    if os.path.splitext(file.filename)[1].lower() not in ('.xlsx', '.xlsm', '.xls'):
+        flash('Only .xlsx / .xls files are supported.', 'danger')
         return redirect(url_for('daybook'))
 
+    fallback = _parse_daybook_date(request.form.get('entry_date'))
     try:
-        rows = _parse_daybook_excel(file.stream)
+        rows = _parse_daybook_excel(file.stream, fallback_date=fallback)
     except Exception as e:
         flash(f'Could not read the file: {e}', 'danger')
         return redirect(url_for('daybook'))
@@ -10862,7 +11262,366 @@ def mark_delayed():
     db.session.commit()
     print(f'✓ Marked {len(stale)} project(s) as Delayed.')
 
-
+import hashlib
+import smtplib
+import threading
+from email.message import EmailMessage
+from itsdangerous import URLSafeTimedSerializer, BadSignature   # ships with Flask
+ 
+RESET_TOKEN_MAX_AGE = 3600                                       # seconds
+REGISTRATION_ROLES  = [r for r in VALID_ROLES if r != 'admin']   # admins are made from Users, not here
+ 
+ 
+class RegistrationRequest(db.Model):
+    __tablename__ = 'registration_requests'
+    id            = db.Column(db.Integer, primary_key=True)
+    full_name     = db.Column(db.String(120), nullable=False)
+    username      = db.Column(db.String(80),  nullable=False, index=True)
+    email         = db.Column(db.String(120), nullable=True)
+    phone         = db.Column(db.String(20),  nullable=True)
+    password_hash = db.Column(db.String(512), nullable=False)
+    note          = db.Column(db.String(300), nullable=True)
+    status        = db.Column(db.Enum('Pending', 'Approved', 'Rejected'),
+                              nullable=False, default='Pending', index=True)
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
+    reviewed_by   = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    reviewed_at   = db.Column(db.DateTime, nullable=True)
+    review_note   = db.Column(db.String(300), nullable=True)
+    reviewer      = db.relationship('User', foreign_keys=[reviewed_by])
+ 
+ 
+# ── Helpers ──────────────────────────────────────────────────────────────────
+def _real_email(u):
+    return u.email if u.email and not u.email.endswith('@noemail.local') else None
+ 
+ 
+def _smtp_configured():
+    return bool(os.environ.get('SMTP_HOST'))
+ 
+ 
+_INSECURE_DEV_KEY = 'solar-dev-only-insecure-key-change-me'   # same constant as the fallback in app.py
+ 
+ 
+def _secret_key_is_safe():
+    return app.config['SECRET_KEY'] != _INSECURE_DEV_KEY
+ 
+ 
+def _public_url(endpoint, **values):
+    """Links that go out by email must point at a host a normal browser can open.
+    The app subdomain (DESKTOP_HOST) rejects requests without the desktop key, so:
+      - PUBLIC_BASE_URL set  -> always use it
+      - otherwise            -> use the request host, unless that is DESKTOP_HOST
+    Returns None when no safe link can be built; callers must handle that."""
+    base = os.environ.get('PUBLIC_BASE_URL', '').rstrip('/')
+    if base:
+        return base + url_for(endpoint, **values)
+    if (request.host or '').split(':', 1)[0].lower() == DESKTOP_HOST:
+        app.logger.warning('PUBLIC_BASE_URL is not set and the request came via the desktop host; '
+                           'not building an emailed link.')
+        return None
+    return url_for(endpoint, _external=True, **values)
+ 
+ 
+def _send_email(to, subject, body):
+    """Fire-and-forget so the response time doesn't depend on the mail server."""
+    if not to or not _smtp_configured():
+        return False
+ 
+    def _worker():
+        try:
+            msg = EmailMessage()
+            msg['Subject'] = subject
+            msg['From'] = os.environ.get('MAIL_FROM') or os.environ.get('SMTP_USER', '')
+            msg['To'] = to
+            msg.set_content(body)
+            with smtplib.SMTP(os.environ['SMTP_HOST'],
+                              int(os.environ.get('SMTP_PORT', '587')), timeout=10) as s:
+                s.starttls()
+                if os.environ.get('SMTP_USER'):
+                    s.login(os.environ['SMTP_USER'], os.environ.get('SMTP_PASSWORD', ''))
+                s.send_message(msg)
+        except Exception as ex:
+            app.logger.error('Email send failed: %r', ex)
+ 
+    threading.Thread(target=_worker, daemon=True).start()
+    return True
+ 
+ 
+def _reset_serializer():
+    return URLSafeTimedSerializer(app.config['SECRET_KEY'], salt='password-reset')
+ 
+ 
+def _pw_fingerprint(u):
+    # Changes whenever the password changes, so a reset link works exactly once.
+    return hashlib.sha256((u.password or '').encode()).hexdigest()[:16]
+ 
+ 
+def make_reset_token(u):
+    return _reset_serializer().dumps({'u': u.id, 'f': _pw_fingerprint(u)})
+ 
+ 
+def load_reset_user(token):
+    if not _secret_key_is_safe():
+        return None
+    try:
+        data = _reset_serializer().loads(token, max_age=RESET_TOKEN_MAX_AGE)
+    except BadSignature:            # also covers SignatureExpired
+        return None
+    if not isinstance(data, dict):
+        return None
+    u = db.session.get(User, data.get('u'))
+    if not u or u.is_deleted or not u.is_active or u.status != 'active':
+        return None
+    if not secrets.compare_digest(str(data.get('f', '')), _pw_fingerprint(u)):
+        return None
+    return u
+ 
+ 
+def _admins():
+    return User.query.filter_by(role='admin', is_active=True, is_deleted=False).all()
+ 
+ 
+def _notify_admins_reset_request(u):
+    """No email on file (or SMTP not set up): tell admins so they can reset by hand."""
+    since = datetime.utcnow() - timedelta(hours=12)
+    target = url_for('admin_change_password', user_id=u.id)
+    contact = u.phone or _real_email(u) or 'no contact on file'
+    for admin in _admins():
+        already = Notification.query.filter(
+            Notification.user_id == admin.id,
+            Notification.notif_type == 'password_reset',
+            Notification.is_read == False,
+            Notification.created_at >= since,
+            Notification.message.like(f'%({u.username})%'),
+        ).first()
+        if already:
+            continue
+        db.session.add(Notification(
+            user_id=admin.id, project_id=None, notif_type='password_reset',
+            message=f'{u.full_name} ({u.username}) asked for a password reset. Contact: {contact}.'[:255],
+            action_url=target,
+        ))
+        send_push_notification(admin.id, 'Password reset requested',
+                               f'{u.full_name} needs a password reset.', url=target)
+    db.session.commit()
+ 
+ 
+# ── Forgot / reset password ──────────────────────────────────────────────────
+@app.route('/forgot_password', methods=['GET', 'POST'])
+@limiter.limit('5 per hour; 3 per minute', methods=['POST'])
+def forgot_password():
+    if current_user.is_authenticated:
+        return redirect(url_for('change_password'))
+ 
+    if request.method == 'POST':
+        ident = _clean(request.form.get('identifier', ''), 120).lower()
+        if ident:
+            matches = User.query.filter(
+                User.is_deleted == False, User.is_active == True,
+                db.or_(User.username == ident, db.func.lower(User.email) == ident),
+            ).all()
+            if len(matches) == 1:
+                u = matches[0]
+                email = _real_email(u)
+                link = None
+                if email and _smtp_configured() and _secret_key_is_safe():
+                    link = _public_url('reset_password', token=make_reset_token(u))
+                if link:
+                    _send_email(
+                        email, 'Reset your Power On Plus password',
+                        f'Hi {u.full_name},\n\n'
+                        f'Use this link to choose a new password. It works once and expires in 1 hour:\n\n'
+                        f'{link}\n\n'
+                        f"If you didn't ask for this, ignore this email — your password stays the same.\n")
+                else:
+                    # No email, no SMTP, unsafe key, or no browser-safe host: an admin resets it by hand.
+                    _notify_admins_reset_request(u)
+            elif len(matches) > 1:
+                app.logger.warning('Password reset: %r matched %d accounts, skipped', ident, len(matches))
+ 
+        # Same answer whether or not an account matched — don't reveal who has one.
+        flash("If we found an account, reset instructions are on their way. "
+              "If nothing arrives within a few minutes, contact your admin.", 'info')
+        return redirect(url_for('login'))
+ 
+    return render_template('forgot_password.html')
+ 
+ 
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+@limiter.limit('10 per minute')
+def reset_password(token):
+    u = load_reset_user(token)
+    if not u:
+        flash('This reset link is invalid or has expired. Request a new one.', 'danger')
+        return redirect(url_for('forgot_password'))
+ 
+    if request.method == 'POST':
+        new_pw     = request.form.get('new_password', '')
+        confirm_pw = request.form.get('confirm_password', '')
+        errors = _validate_password(new_pw)
+        if new_pw != confirm_pw:
+            flash('The two passwords do not match.', 'danger')
+        elif errors:
+            flash(f'Password must contain: {", ".join(errors)}.', 'danger')
+        else:
+            u.set_password(new_pw)
+            u.must_change_password = False
+            u.reset_login_attempts()
+            db.session.commit()
+            flash('Password updated. Sign in with your new password.', 'success')
+            return redirect(url_for('login'))
+ 
+    return render_template('reset_password.html', token=token, username=u.username)
+ 
+ 
+# ── Self-registration (goes to an admin for approval) ────────────────────────
+@app.route('/register', methods=['GET', 'POST'])
+@limiter.limit('5 per hour', methods=['POST'])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+ 
+    if request.method == 'POST':
+        sent_msg = 'Request sent. An admin will review it — you can sign in once it is approved.'
+        if request.form.get('website'):                 # honeypot: bots fill this in
+            flash(sent_msg, 'success')
+            return redirect(url_for('login'))
+ 
+        full_name = _clean(request.form.get('full_name', ''), 120)
+        username  = _clean(request.form.get('username', ''), 80).lower()
+        email     = _clean(request.form.get('email', ''), 120).lower()
+        phone_raw = _clean(request.form.get('phone', ''), 20)
+        phone     = _clean_phone(phone_raw)
+        password  = request.form.get('password', '')
+        confirm   = request.form.get('confirm_password', '')
+        note      = _clean(request.form.get('note', ''), 300) or None
+ 
+        err = None
+        if not full_name:
+            err = 'Full name is required.'
+        elif not re.match(r'^[a-z0-9_]+$', username):
+            err = 'Username may contain only lowercase letters, digits and underscores.'
+        elif not email and not phone:
+            err = 'Add an email address or a phone number.'
+        elif email and not _validate_email_format(email):
+            err = 'Enter a valid email address.'
+        elif phone_raw and (len(phone) != 10 or not _validate_phone(phone)):
+            err = 'Enter a valid 10-digit phone number.'
+        elif password != confirm:
+            err = 'The two passwords do not match.'
+        else:
+            pw_errors = _validate_password(password)
+            if pw_errors:
+                err = f'Password must contain: {", ".join(pw_errors)}.'
+ 
+        if not err:
+            taken = (
+                User.query.filter_by(username=username).first()
+                or RegistrationRequest.query.filter_by(username=username, status='Pending').first()
+                or (phone and (User.query.filter_by(phone=phone).first()
+                               or RegistrationRequest.query.filter_by(phone=phone, status='Pending').first()))
+            )
+            if taken:
+                err = 'That username or phone number is already registered or waiting for approval. Ask an admin for help.'
+ 
+        if err:
+            flash(err, 'danger')
+            return render_template('register.html', form=request.form)
+ 
+        db.session.add(RegistrationRequest(
+            full_name=full_name, username=username,
+            email=email or None, phone=phone or None,
+            password_hash=generate_password_hash(password, method='scrypt'),
+            note=note,
+        ))
+        target = url_for('admin_registrations')
+        for admin in _admins():
+            db.session.add(Notification(
+                user_id=admin.id, project_id=None, notif_type='registration',
+                message=f'{full_name} ({username}) requested access. Review and assign a role.'[:255],
+                action_url=target,
+            ))
+            send_push_notification(admin.id, 'New access request', f'{full_name} requested access.', url=target)
+        db.session.commit()
+        flash(sent_msg, 'success')
+        return redirect(url_for('login'))
+ 
+    return render_template('register.html', form={})
+ 
+ 
+# ── Admin: review access requests ────────────────────────────────────────────
+@app.route('/admin/registrations')
+@login_required
+@roles_required('admin')
+def admin_registrations():
+    pending = (RegistrationRequest.query.filter_by(status='Pending')
+               .order_by(RegistrationRequest.created_at).all())
+    recent = (RegistrationRequest.query.filter(RegistrationRequest.status != 'Pending')
+              .order_by(RegistrationRequest.reviewed_at.desc()).limit(20).all())
+    return render_template('admin_registrations.html', pending=pending, recent=recent,
+                           roles=REGISTRATION_ROLES)
+ 
+ 
+@app.route('/admin/registrations/<int:rid>/approve', methods=['POST'])
+@login_required
+@roles_required('admin')
+def approve_registration(rid):
+    r = RegistrationRequest.query.get_or_404(rid)
+    if r.status != 'Pending':
+        flash('This request was already reviewed.', 'warning')
+        return redirect(url_for('admin_registrations'))
+ 
+    role = request.form.get('role', '')
+    if role not in REGISTRATION_ROLES:
+        flash('Choose a role before approving.', 'danger')
+        return redirect(url_for('admin_registrations'))
+ 
+    # Re-check: someone may have taken the username/phone since the request was made.
+    if (User.query.filter_by(username=r.username).first()
+            or (r.phone and User.query.filter_by(phone=r.phone).first())):
+        flash('That username or phone number is now in use. Reject this request instead.', 'danger')
+        return redirect(url_for('admin_registrations'))
+ 
+    u = User(
+        username=r.username,
+        email=r.email or f'{r.username}@noemail.local',
+        phone=r.phone or None,
+        full_name=r.full_name,
+        role=role,
+        password=r.password_hash,            # already hashed with scrypt
+        must_change_password=False,          # they chose this password themselves
+    )
+    db.session.add(u)
+    r.status      = 'Approved'
+    r.reviewed_by = current_user.id
+    r.reviewed_at = datetime.utcnow()
+    db.session.commit()
+ 
+    if r.email:
+        login_link = _public_url('login')
+        _send_email(r.email, 'Your Power On Plus account is ready',
+                    f'Hi {r.full_name},\n\nYour account is approved. '
+                    f'Sign in with the username "{r.username}" and the password you chose.'
+                    + (f'\n\n{login_link}\n' if login_link else '\n'))
+    flash(f'{r.full_name} approved as {role}.', 'success')
+    return redirect(url_for('admin_registrations'))
+ 
+ 
+@app.route('/admin/registrations/<int:rid>/reject', methods=['POST'])
+@login_required
+@roles_required('admin')
+def reject_registration(rid):
+    r = RegistrationRequest.query.get_or_404(rid)
+    if r.status != 'Pending':
+        flash('This request was already reviewed.', 'warning')
+        return redirect(url_for('admin_registrations'))
+    r.status      = 'Rejected'
+    r.reviewed_by = current_user.id
+    r.reviewed_at = datetime.utcnow()
+    r.review_note = _clean(request.form.get('reason', ''), 300) or None
+    db.session.commit()
+    flash(f'Request from {r.full_name} rejected.', 'warning')
+    return redirect(url_for('admin_registrations'))
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()

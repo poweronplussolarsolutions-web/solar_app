@@ -1,0 +1,365 @@
+{#
+  _user_form.html — shared by new_user.html and edit_user.html
+  Context: `user` (omit when creating), optional `roles_list` = [(value, label, description), ...]
+  Pass roles_list from the route to control which roles the current admin may assign.
+#}
+{% set is_edit        = user is defined and user %}
+{% set has_real_email = is_edit and user.email and not user.email.endswith('@noemail.local') %}
+{% set has_phone      = is_edit and user.phone and user.phone|length > 0 %}
+{% set start_phone    = has_phone and not has_real_email %}
+{% set is_self        = is_edit and current_user is defined and current_user.id == user.id %}
+{% set role_list      = roles_list or [
+    ('admin',       'Admin',                   'Full access, including user management.'),
+    ('director',    'Director',                'Company-wide view of projects, payments and reports.'),
+    ('coordinator', 'Coordinator',             'Manages assigned projects and site coordination.'),
+    ('office',      'Office',                  'Office staff access to projects and documents.'),
+    ('documents',   'Documents Team',          'Handles document workflows for all projects.'),
+    ('documents_k', 'Documents Team — Branch', 'Handles document workflows for branch projects only.'),
+    ('payments',    'Payments Team',           'Records and reviews payments and waivers.'),
+    ('onsite',      'On-site Management',      'Updates installation progress and deliveries.'),
+    ('service',     'Service Team',            'Manages service schedules and visits.'),
+    ('stocks',      'Stocks',                  'Manages inventory, purchases and sales.'),
+    ('finance',     'Finance',                 'Finance reports and reconciliation.'),
+] %}
+
+<style>
+  .uf-card { max-width: 640px; width: 100%; box-sizing: border-box; padding: 0; overflow: hidden; }
+  .uf-head { background: linear-gradient(135deg, #1A3C5E, #2E6DA4); padding: 18px 24px; }
+  .uf-head h5 { color: #fff; margin: 0; font-size: 16px; font-weight: 600; }
+  .uf-head p  { color: rgba(255,255,255,.75); margin: 4px 0 0; font-size: 12.5px; }
+  .uf-body { padding: 24px; }
+  .uf-section { margin-bottom: 28px; }
+  .uf-section-title { font-size: 14px; font-weight: 600; color: #1A3C5E; margin: 0 0 4px; }
+  .uf-section-sub { font-size: 12.5px; color: var(--text-muted, #64748b); margin: 0 0 14px;
+                    padding-bottom: 10px; border-bottom: 1px solid #e5e7eb; }
+  .uf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .uf-grid .form-group { min-width: 0; }
+  .uf-hint { display: block; margin-top: 4px; font-size: 11.5px; color: var(--text-muted, #64748b); }
+  .uf-req { color: #dc2626; }
+
+  /* Photo */
+  .uf-photo { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; }
+  .uf-avatar { width: 84px; height: 84px; border-radius: 50%; background: #e2e8f0; color: #475569;
+               display: flex; align-items: center; justify-content: center; font-size: 26px;
+               font-weight: 600; overflow: hidden; flex-shrink: 0; border: 2px solid #fff;
+               box-shadow: 0 0 0 1px #cbd5e1; }
+  .uf-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .uf-photo-actions { display: flex; flex-direction: column; gap: 6px; }
+  .uf-photo-actions input[type=file] { display: none; }
+  .uf-remove { font-size: 12.5px; color: #475569; display: flex; align-items: center; gap: 6px; }
+
+  /* Contact tabs */
+  .uf-tabs { display: flex; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden; margin-bottom: 10px; }
+  .uf-tab { flex: 1; padding: 9px 0; font-size: 13px; font-weight: 600; border: none; cursor: pointer;
+            background: #f1f5f9; color: #64748b; transition: background .2s, color .2s; }
+  .uf-tab.is-active { background: #1A3C5E; color: #fff; }
+  .uf-tab:focus-visible, .uf-pw-toggle:focus-visible { outline: 2px solid #2E6DA4; outline-offset: 2px; }
+  .uf-phone { display: flex; gap: 8px; align-items: center; }
+  .uf-prefix { background: #f1f5f9; border: 1px solid #d1d5db; border-radius: 6px; padding: 9px 12px;
+               font-size: 13px; color: #374151; white-space: nowrap; }
+
+  /* Role hint */
+  .uf-role-hint { margin-top: 8px; padding: 9px 12px; border-radius: 6px; background: #f1f5f9;
+                  font-size: 12.5px; color: #334155; min-height: 18px; }
+  .uf-role-hint.is-warn { background: #fef3c7; color: #92400e; }
+
+  /* Password */
+  .uf-pw { position: relative; }
+  .uf-pw-toggle { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none;
+                  border: none; cursor: pointer; color: #64748b; font-size: 12.5px; padding: 4px 6px; }
+  .uf-rules { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; font-size: 11.5px; color: #94a3b8; }
+  .uf-rules span.ok { color: #15803d; }
+
+  .uf-check { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: #334155; margin-bottom: 10px; }
+  .uf-check input { margin-top: 3px; }
+  .uf-check small { display: block; color: var(--text-muted, #64748b); font-size: 11.5px; }
+
+  .uf-actions { display: flex; gap: 10px; flex-wrap: wrap; padding-top: 4px; }
+  .uf-actions .btn { flex: 1; min-width: 120px; justify-content: center; text-align: center; }
+
+  @media (max-width: 560px) {
+    .uf-grid { grid-template-columns: 1fr; }
+    .uf-body { padding: 18px; }
+  }
+</style>
+
+<div class="card uf-card">
+  <div class="uf-head">
+    <h5>{{ 'Edit staff account' if is_edit else 'Create staff account' }}</h5>
+    <p>{{ 'Update profile, sign-in details and access for this user.' if is_edit
+          else 'The account is active immediately. Staff sign in with an OTP sent to the contact you set here.' }}</p>
+  </div>
+
+  <div class="uf-body">
+    <form method="POST" enctype="multipart/form-data" id="userForm" novalidate
+          action="{{ url_for('edit_user', user_id=user.id) if is_edit else url_for('new_user') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      {# ───────── Profile ───────── #}
+      <div class="uf-section">
+        <h6 class="uf-section-title">Profile</h6>
+        <p class="uf-section-sub">Shown on activity logs, reports and assignments.</p>
+
+        <div class="uf-photo">
+          <div class="uf-avatar" id="avatarBox" aria-hidden="true">
+            {% if is_edit and user.photo %}
+              <img src="{{ url_for('user_photo', user_id=user.id, v=user.photo) }}" alt="">
+            {% endif %}
+          </div>
+          <div class="uf-photo-actions">
+            <label class="btn btn-sm" for="photoInput" style="cursor:pointer">Upload photo</label>
+            <input type="file" name="photo" id="photoInput" accept="image/png,image/jpeg,image/webp">
+            <span class="uf-hint" style="margin:0">JPG, PNG or WebP. Up to 2 MB. Square photos work best.</span>
+            {% if is_edit and user.photo %}
+              <label class="uf-remove"><input type="checkbox" name="remove_photo" value="1" id="removePhoto"> Remove current photo</label>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="fullName">Full name <span class="uf-req">*</span></label>
+          <input id="fullName" name="full_name" type="text" required maxlength="120"
+                 placeholder="e.g. Arun Kumar" value="{{ user.full_name if is_edit else '' }}">
+        </div>
+
+        <div class="uf-grid">
+          <div class="form-group">
+            <label for="username">Username <span class="uf-req">*</span></label>
+            <input id="username" name="username" type="text" required maxlength="80"
+                   pattern="[a-z0-9_]+" title="Lowercase letters, digits and underscores only"
+                   placeholder="lowercase, no spaces"
+                   value="{{ user.username if is_edit else '' }}" {% if is_edit %}readonly{% endif %}>
+            <small class="uf-hint">
+              {{ 'Username cannot be changed.' if is_edit else 'Used in system logs. Cannot be changed later.' }}
+            </small>
+          </div>
+          <div class="form-group">
+            <label for="designation">Designation</label>
+            <input id="designation" name="designation" type="text" maxlength="80"
+                   placeholder="e.g. Senior Coordinator" value="{{ (user.designation or '') if is_edit else '' }}">
+          </div>
+        </div>
+
+        <div class="form-group" style="max-width:260px">
+          <label for="joinedOn">Joining date</label>
+          <input id="joinedOn" name="joined_on" type="date"
+                 value="{{ user.joined_on.strftime('%Y-%m-%d') if is_edit and user.joined_on else '' }}">
+        </div>
+      </div>
+
+      {# ───────── Sign-in ───────── #}
+      <div class="uf-section">
+        <h6 class="uf-section-title">Sign-in</h6>
+        <p class="uf-section-sub">Where login OTPs are delivered, and the fallback password.</p>
+
+        <div class="form-group">
+          <label>Login contact <span class="uf-req">*</span></label>
+          <div class="uf-tabs" role="tablist">
+            <button type="button" class="uf-tab {{ '' if start_phone else 'is-active' }}" id="tabEmail" role="tab"
+                    onclick="switchTab('email')">Email</button>
+            <button type="button" class="uf-tab {{ 'is-active' if start_phone else '' }}" id="tabPhone" role="tab"
+                    onclick="switchTab('phone')">Phone</button>
+          </div>
+
+          <div id="panelEmail" {% if start_phone %}style="display:none"{% endif %}>
+            <input name="email" id="emailInput" type="email" maxlength="120" autocomplete="off"
+                   placeholder="name@poweronplus.in" value="{{ user.email if has_real_email else '' }}">
+            <small class="uf-hint">OTP login codes are sent to this address.</small>
+          </div>
+
+          <div id="panelPhone" {% if not start_phone %}style="display:none"{% endif %}>
+            <div class="uf-phone">
+              <span class="uf-prefix">+91</span>
+              <input name="phone" id="phoneInput" type="tel" maxlength="10" inputmode="numeric"
+                     pattern="[6-9][0-9]{9}" title="Enter a valid 10-digit Indian mobile number"
+                     placeholder="10-digit mobile number" autocomplete="off" style="flex:1"
+                     value="{{ user.phone if has_phone else '' }}">
+            </div>
+            <small class="uf-hint">OTP login codes are sent by SMS to this number.</small>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="pwField">
+            {{ 'New password' if is_edit else 'Password' }}
+            {% if not is_edit %}<span class="uf-req">*</span>{% endif %}
+          </label>
+          <div class="uf-pw">
+            <input id="pwField" name="password" type="password" maxlength="128" autocomplete="new-password"
+                   {% if not is_edit %}required{% endif %}
+                   placeholder="{{ 'Leave blank to keep the current password' if is_edit else 'Create a password' }}"
+                   style="padding-right:64px">
+            <button type="button" class="uf-pw-toggle" id="pwToggle" onclick="togglePw()">Show</button>
+          </div>
+          <div class="uf-rules" id="pwRules" aria-live="polite">
+            <span data-rule="len">8+ characters</span>
+            <span data-rule="upper">1 uppercase letter</span>
+            <span data-rule="digit">1 digit</span>
+          </div>
+          <small class="uf-hint">Used only as an emergency fallback. Standard sign-in uses OTP.</small>
+        </div>
+
+        <label class="uf-check">
+          <input type="checkbox" name="must_change_password" value="1" {% if not is_edit or user.must_change_password %}checked{% endif %}>
+          <span>Ask the user to change the password at next sign-in
+            <small>Recommended when an admin sets or resets the password.</small></span>
+        </label>
+      </div>
+
+      {# ───────── Access ───────── #}
+      <div class="uf-section">
+        <h6 class="uf-section-title">Access</h6>
+        <p class="uf-section-sub">Role decides which pages and actions this user can use.</p>
+
+        <div class="form-group">
+          <label for="roleSelect">Role <span class="uf-req">*</span></label>
+          <select id="roleSelect" name="role" required {% if is_self %}disabled{% endif %}
+                  data-original="{{ user.role if is_edit else '' }}">
+            <option value="">Select a role</option>
+            {% for val, label, desc in role_list %}
+              <option value="{{ val }}" data-desc="{{ desc }}"
+                      {% if is_edit and user.role == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          {% if is_self %}
+            {# Disabled fields are not submitted — the route must keep the existing role. #}
+            <small class="uf-hint">You cannot change your own role or status.</small>
+          {% endif %}
+          <div class="uf-role-hint" id="roleHint">Select a role to see what it can do.</div>
+        </div>
+
+        {% if is_edit %}
+          <label class="uf-check">
+            <input type="checkbox" name="is_active" value="1" {% if user.is_active %}checked{% endif %}
+                   {% if is_self %}disabled{% endif %}>
+            <span>Account is active
+              <small>Turn off to block sign-in without deleting the user or their history.</small></span>
+          </label>
+        {% endif %}
+      </div>
+
+      <div class="uf-actions">
+        <button type="submit" class="btn btn-primary" id="submitBtn">
+          {{ 'Save changes' if is_edit else 'Create account' }}
+        </button>
+        <a href="{{ url_for('manage_users') }}" class="btn">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  var IS_EDIT = {{ 'true' if is_edit else 'false' }};
+  var form = document.getElementById('userForm');
+  var emailInput = document.getElementById('emailInput');
+  var phoneInput = document.getElementById('phoneInput');
+  var pw = document.getElementById('pwField');
+  var roleSel = document.getElementById('roleSelect');
+  var roleHint = document.getElementById('roleHint');
+  var avatar = document.getElementById('avatarBox');
+  var nameInput = document.getElementById('fullName');
+  var photoInput = document.getElementById('photoInput');
+  var hasPhoto = !!avatar.querySelector('img');
+
+  /* ── Contact tabs ── */
+  function setTab(tab, clear) {
+    var isEmail = tab === 'email';
+    document.getElementById('panelEmail').style.display = isEmail ? '' : 'none';
+    document.getElementById('panelPhone').style.display = isEmail ? 'none' : '';
+    document.getElementById('tabEmail').classList.toggle('is-active', isEmail);
+    document.getElementById('tabPhone').classList.toggle('is-active', !isEmail);
+    emailInput.required = isEmail;
+    phoneInput.required = !isEmail;
+    if (clear) { (isEmail ? phoneInput : emailInput).value = ''; }
+  }
+  window.switchTab = function (tab) { setTab(tab, true); };
+  setTab({{ "'phone'" if start_phone else "'email'" }}, false);
+
+  /* ── Avatar (photo preview, initials fallback) ── */
+  function initials() {
+    var parts = nameInput.value.trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '?';
+    return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+  }
+  function renderInitials() { if (!hasPhoto) { avatar.textContent = initials(); } }
+  nameInput.addEventListener('input', renderInitials);
+  renderInitials();
+
+  photoInput.addEventListener('change', function () {
+    var f = photoInput.files[0];
+    if (!f) return;
+    if (f.size > 2 * 1024 * 1024) {
+      alert('Photo must be 2 MB or smaller.');
+      photoInput.value = '';
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      avatar.innerHTML = '';
+      var img = document.createElement('img');
+      img.src = e.target.result; img.alt = '';
+      avatar.appendChild(img);
+      hasPhoto = true;
+      var rm = document.getElementById('removePhoto');
+      if (rm) rm.checked = false;
+    };
+    reader.readAsDataURL(f);
+  });
+
+  /* ── Password ── */
+  window.togglePw = function () {
+    var show = pw.type === 'password';
+    pw.type = show ? 'text' : 'password';
+    document.getElementById('pwToggle').textContent = show ? 'Hide' : 'Show';
+  };
+  function pwState(v) {
+    return { len: v.length >= 8, upper: /[A-Z]/.test(v), digit: /\d/.test(v) };
+  }
+  pw.addEventListener('input', function () {
+    var s = pwState(pw.value);
+    document.querySelectorAll('#pwRules span').forEach(function (el) {
+      el.classList.toggle('ok', s[el.dataset.rule]);
+    });
+  });
+
+  /* ── Role hint ── */
+  function showRoleHint() {
+    var opt = roleSel.options[roleSel.selectedIndex];
+    var changed = IS_EDIT && roleSel.value && roleSel.value !== roleSel.dataset.original;
+    roleHint.textContent = opt && opt.dataset.desc ? opt.dataset.desc : 'Select a role to see what it can do.';
+    if (changed) { roleHint.textContent += ' Role change takes effect on the next request.'; }
+    roleHint.classList.toggle('is-warn', changed || roleSel.value === 'admin');
+    if (roleSel.value === 'admin') { roleHint.textContent += ' Admins can manage every user and setting.'; }
+  }
+  roleSel.addEventListener('change', showRoleHint);
+  showRoleHint();
+
+  /* ── Submit validation ── */
+  form.addEventListener('submit', function (e) {
+    var email = emailInput.value.trim();
+    var phone = phoneInput.value.trim();
+    if (!email && !phone) {
+      e.preventDefault();
+      alert('Provide either an email address or a phone number.');
+      return;
+    }
+    if (!form.checkValidity()) { e.preventDefault(); form.reportValidity(); return; }
+
+    var v = pw.value;
+    if (v) {
+      var s = pwState(v);
+      if (!(s.len && s.upper && s.digit)) {
+        e.preventDefault();
+        alert('Password needs 8+ characters, 1 uppercase letter and 1 digit.');
+        return;
+      }
+    }
+    if (IS_EDIT && roleSel.value !== roleSel.dataset.original && !roleSel.disabled) {
+      var label = roleSel.options[roleSel.selectedIndex].text;
+      if (!confirm('Change this user\u2019s role to ' + label + '?')) { e.preventDefault(); return; }
+    }
+    document.getElementById('submitBtn').disabled = true;
+  });
+})();
+</script>

@@ -625,6 +625,60 @@
     <div class="stat-value">{{ data.projects.total }}</div>
   </div>
 </div>
+{% set excess_items = data.excess_pending %}
+{% set excess_total = data.excess_pending_total %}
+{% if excess_items %}
+<div class="card" style="margin-bottom:16px;border-left:3px solid var(--red-600)">
+  <div style="display:flex;align-items:center;justify-content:space-between;
+              flex-wrap:wrap;gap:8px;margin-bottom:12px">
+    <div class="card-title" style="margin:0">
+      Excess payment settlement pending
+      <span class="badge badge-Delayed" style="margin-left:6px">{{ excess_items | length }}</span>
+    </div>
+    <div style="font-size:13px;color:var(--muted)">
+      Total to settle:
+      <strong style="color:var(--red-600)">{{ excess_total | inr }}</strong>
+    </div>
+  </div>
+
+  <div class="table-wrap" style="max-height:340px;overflow-y:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>Project</th><th>Customer</th><th>Excess from</th>
+          <th>Amount</th><th>Pending since</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for x in excess_items %}
+        <tr>
+          <td>
+            <a href="{{ url_for('project_detail', pid=x.project.id) }}#payments"
+               style="font-weight:500;color:var(--amber-600)">{{ x.project.project_code }}</a>
+          </td>
+          <td>{{ x.project.customer.name }}</td>
+          <td>
+            {% for k in x.kinds %}<span class="tag">{{ k }}</span>{% if not loop.last %} + {% endif %}{% endfor %}
+          </td>
+          <td style="font-weight:500;color:var(--red-600)">{{ x.amount | inr }}</td>
+          <td style="font-size:12px;color:var(--muted)">
+            {{ x.date | date_fmt }}
+            <span style="font-weight:600;margin-left:4px;
+                         color:{% if x.days > 14 %}var(--red-600){% elif x.days > 7 %}var(--amber-600){% else %}var(--muted){% endif %}">
+              · {{ x.days }}d
+            </span>
+          </td>
+          <td>
+            <a href="{{ url_for('project_detail', pid=x.project.id) }}#payments"
+               class="btn btn-sm btn-primary">Settle</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 <div class="card">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
     <div class="card-title" style="margin:0">Payment status by project</div>
