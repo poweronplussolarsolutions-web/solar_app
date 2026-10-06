@@ -504,6 +504,7 @@ import mysql.connector
 import os
 # app.secret_key=os.getenv("SECRET_KEY")
 # ── CSRF protection (covers all POST/PUT/DELETE forms automatically) ──────────
+app.config['WTF_CSRF_SSL_STRICT'] = False
 csrf = CSRFProtect(app)
 
 # ── Rate limiter ─────────────────────────────────────────────────────────────
