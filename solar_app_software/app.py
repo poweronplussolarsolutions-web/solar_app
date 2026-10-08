@@ -5270,27 +5270,27 @@ def project_ledger(pid):
     return render_template('project_ledger.html', proj=proj, entries=entries, totals=totals)
 
 
-@app.route('/api/adjustment_targets')
-@login_required
-@roles_required('admin', 'payments')
-@limiter.limit('60 per minute')
-def api_adjustment_targets():
-    q   = _clean(request.args.get('q', ''), 80)
-    exclude = request.args.get('exclude', type=int)
-    if len(q) < 2:
-        return jsonify([])
-    query = (Project.query.join(Customer)
-             .filter(Project.status.notin_(['Cancelled', 'OnHold']),
-                     Project.work_category != 'Outside',
-                     Customer.name.ilike(f'%{q}%') | Project.project_code.ilike(f'%{q}%')))
-    if exclude:
-        query = query.filter(Project.id != exclude)
-    out = []
-    for p in query.order_by(Project.updated_at.desc()).limit(15).all():
-        pend = p.pending_amount
-        if pend > 0.01:
-            out.append({'code': p.project_code, 'name': p.customer.name, 'pending': round(pend, 2)})
-    return jsonify(out)
+# @app.route('/api/adjustment_targets')
+# @login_required
+# @roles_required('admin', 'payments')
+# @limiter.limit('60 per minute')
+# def api_adjustment_targets():
+#     q   = _clean(request.args.get('q', ''), 80)
+#     exclude = request.args.get('exclude', type=int)
+#     if len(q) < 2:
+#         return jsonify([])
+#     query = (Project.query.join(Customer)
+#              .filter(Project.status.notin_(['Cancelled', 'OnHold']),
+#                      Project.work_category != 'Outside',
+#                      Customer.name.ilike(f'%{q}%') | Project.project_code.ilike(f'%{q}%')))
+#     if exclude:
+#         query = query.filter(Project.id != exclude)
+#     out = []
+#     for p in query.order_by(Project.updated_at.desc()).limit(15).all():
+#         pend = p.pending_amount
+#         if pend > 0.01:
+#             out.append({'code': p.project_code, 'name': p.customer.name, 'pending': round(pend, 2)})
+#     return jsonify(out)
 
 
 @app.route('/payment_excess/<int:eid>/adjust', methods=['POST'])
