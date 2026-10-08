@@ -5293,80 +5293,80 @@ def project_ledger(pid):
 #     return jsonify(out)
 
 
-@app.route('/payment_excess/<int:eid>/adjust', methods=['POST'])
-@login_required
-@roles_required('admin', 'payments')
-@limiter.limit('30 per minute')
-def adjust_excess_to_project(eid):
-    exc  = PaymentExcess.query.with_for_update().filter_by(id=eid).first_or_404()
-    src  = exc.project
-    back = url_for('project_detail', pid=src.id) + '#payments'
+# @app.route('/payment_excess/<int:eid>/adjust', methods=['POST'])
+# @login_required
+# @roles_required('admin', 'payments')
+# @limiter.limit('30 per minute')
+# def adjust_excess_to_project(eid):
+#     exc  = PaymentExcess.query.with_for_update().filter_by(id=eid).first_or_404()
+#     src  = exc.project
+#     back = url_for('project_detail', pid=src.id) + '#payments'
 
-    if exc.status != 'Pending' or exc.remaining <= 0.01:
-        flash('This excess has nothing left to adjust.', 'warning')
-        return redirect(back)
+#     if exc.status != 'Pending' or exc.remaining <= 0.01:
+#         flash('This excess has nothing left to adjust.', 'warning')
+#         return redirect(back)
 
-    code   = _clean(request.form.get('target_code', ''), 20)
-    target = Project.query.filter_by(project_code=code).first()
-    amount = _safe_float(request.form.get('amount'))
-    notes  = _clean(request.form.get('notes', ''), 300) or None
-    try:
-        adj_date = (date.fromisoformat(request.form['adjust_date'])
-                    if request.form.get('adjust_date') else date.today())
-    except ValueError:
-        flash('Invalid date.', 'danger')
-        return redirect(back)
+#     code   = _clean(request.form.get('target_code', ''), 20)
+#     target = Project.query.filter_by(project_code=code).first()
+#     amount = _safe_float(request.form.get('amount'))
+#     notes  = _clean(request.form.get('notes', ''), 300) or None
+#     try:
+#         adj_date = (date.fromisoformat(request.form['adjust_date'])
+#                     if request.form.get('adjust_date') else date.today())
+#     except ValueError:
+#         flash('Invalid date.', 'danger')
+#         return redirect(back)
 
-    err = None
-    if not target:
-        err = f'No project found with MNRE number "{code}".'
-    elif target.id == src.id:
-        err = 'Choose a different project — this excess already belongs to this one.'
-    elif target.status in ('Cancelled', 'OnHold') or target.work_category == 'Outside':
-        err = 'Target project cannot receive adjustments (cancelled, on hold or outside work).'
-    elif amount <= 0:
-        err = 'Enter an amount greater than zero.'
-    elif adj_date > date.today():
-        err = 'Adjustment date cannot be in the future.'
-    elif amount > exc.remaining + 0.01:
-        err = f'Only ₹{exc.remaining:,.0f} of this excess is left to adjust.'
-    elif amount > target.pending_amount + 0.01:
-        err = f'{target.project_code} has only ₹{target.pending_amount:,.0f} pending.'
-    if err:
-        flash(err, 'danger')
-        return redirect(back)
+#     err = None
+#     if not target:
+#         err = f'No project found with MNRE number "{code}".'
+#     elif target.id == src.id:
+#         err = 'Choose a different project — this excess already belongs to this one.'
+#     elif target.status in ('Cancelled', 'OnHold') or target.work_category == 'Outside':
+#         err = 'Target project cannot receive adjustments (cancelled, on hold or outside work).'
+#     elif amount <= 0:
+#         err = 'Enter an amount greater than zero.'
+#     elif adj_date > date.today():
+#         err = 'Adjustment date cannot be in the future.'
+#     elif amount > exc.remaining + 0.01:
+#         err = f'Only ₹{exc.remaining:,.0f} of this excess is left to adjust.'
+#     elif amount > target.pending_amount + 0.01:
+#         err = f'{target.project_code} has only ₹{target.pending_amount:,.0f} pending.'
+#     if err:
+#         flash(err, 'danger')
+#         return redirect(back)
 
-    adj = PaymentAdjustment(excess=exc, from_project=src, to_project=target,
-                            amount=amount, adjust_date=adj_date, notes=notes,
-                            created_by=current_user.id)
-    db.session.add(adj)
-    exc.adjusted_amount = float(exc.adjusted_amount or 0) + amount
+#     adj = PaymentAdjustment(excess=exc, from_project=src, to_project=target,
+#                             amount=amount, adjust_date=adj_date, notes=notes,
+#                             created_by=current_user.id)
+#     db.session.add(adj)
+#     exc.adjusted_amount = float(exc.adjusted_amount or 0) + amount
 
-    if exc.remaining <= 0.01:
-        exc.status               = 'Settled'
-        exc.action               = 'Adjusted'
-        exc.returned_to          = None
-        exc.settlement_date      = adj_date
-        exc.settlement_notes     = 'Fully adjusted to other customer dues (see ledger).'
-        exc.settled_by           = current_user.id
+#     if exc.remaining <= 0.01:
+#         exc.status               = 'Settled'
+#         exc.action               = 'Adjusted'
+#         exc.returned_to          = None
+#         exc.settlement_date      = adj_date
+#         exc.settlement_notes     = 'Fully adjusted to other customer dues (see ledger).'
+#         exc.settled_by           = current_user.id
 
-    src_tag = f'{src.project_code} — {src.customer.name}'
-    tgt_tag = f'{target.project_code} — {target.customer.name}'
-    log_action(src.id,    f'Excess ₹{amount:,.0f} adjusted to {tgt_tag}', new_val=str(amount))
-    log_action(target.id, f'₹{amount:,.0f} adjusted from {src_tag} excess', new_val=str(amount))
-    for u in User.query.filter_by(role='payments', is_active=True).all():
-        if u.id != current_user.id:
-            create_notification(u.id, target.id,
-                f'{tgt_tag}: ₹{amount:,.0f} adjusted from {src_tag} excess.', 'info')
+#     src_tag = f'{src.project_code} — {src.customer.name}'
+#     tgt_tag = f'{target.project_code} — {target.customer.name}'
+#     log_action(src.id,    f'Excess ₹{amount:,.0f} adjusted to {tgt_tag}', new_val=str(amount))
+#     log_action(target.id, f'₹{amount:,.0f} adjusted from {src_tag} excess', new_val=str(amount))
+#     for u in User.query.filter_by(role='payments', is_active=True).all():
+#         if u.id != current_user.id:
+#             create_notification(u.id, target.id,
+#                 f'{tgt_tag}: ₹{amount:,.0f} adjusted from {src_tag} excess.', 'info')
 
-    db.session.flush()
-    db.session.expire(target, ['adjustments_in'])
-    db.session.expire(src, ['adjustments_out'])
-    auto_advance_stage(target)
-    auto_advance_stage(src)
-    db.session.commit()
-    flash(f'₹{amount:,.0f} adjusted from {src.project_code} to {target.project_code}.', 'success')
-    return redirect(back)
+#     db.session.flush()
+#     db.session.expire(target, ['adjustments_in'])
+#     db.session.expire(src, ['adjustments_out'])
+#     auto_advance_stage(target)
+#     auto_advance_stage(src)
+#     db.session.commit()
+#     flash(f'₹{amount:,.0f} adjusted from {src.project_code} to {target.project_code}.', 'success')
+#     return redirect(back)
 
 
 @app.route('/payment_adjustments/<int:aid>/reverse', methods=['POST'])
