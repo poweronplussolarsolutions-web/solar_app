@@ -4953,73 +4953,73 @@ def return_bank_excess(pid):
     db.session.commit()
     flash(f'Bank excess of ₹{left:,.0f} marked as {exc.action_label}.', 'success')
     return redirect(url_for('project_detail', pid=pid))
-def _build_project_ledger(proj):
-    """Tally-style party ledger. Dr = customer owes, Cr = customer paid/credited.
-    Closing balance > 0 → customer owes; < 0 → we hold their excess."""
-    entries = []
+# def _build_project_ledger(proj):
+#     """Tally-style party ledger. Dr = customer owes, Cr = customer paid/credited.
+#     Closing balance > 0 → customer owes; < 0 → we hold their excess."""
+#     entries = []
 
-    def add(d, kind, desc, dr=0.0, cr=0.0):
-        entries.append({'date': d, 'kind': kind, 'desc': desc, 'dr': dr, 'cr': cr})
+#     def add(d, kind, desc, dr=0.0, cr=0.0):
+#         entries.append({'date': d, 'kind': kind, 'desc': desc, 'dr': dr, 'cr': cr})
 
-    created = proj.created_at.date()
-    add(created, 'Contract', 'Contract amount', dr=float(proj.total_amount or 0))
+#     created = proj.created_at.date()
+#     add(created, 'Contract', 'Contract amount', dr=float(proj.total_amount or 0))
 
-    for e in proj.expenses:
-        if e.paid_by == 'Company' and float(e.amount or 0) > 0:
-            add(e.paid_date or e.created_at.date(), 'Expense',
-                f'{e.expense_type} paid by company', dr=float(e.amount))
-            if e.recovered:
-                add(e.recovered_date or e.updated_at.date(), 'Recovery',
-                    f'{e.expense_type} recovered', cr=float(e.amount))
+#     for e in proj.expenses:
+#         if e.paid_by == 'Company' and float(e.amount or 0) > 0:
+#             add(e.paid_date or e.created_at.date(), 'Expense',
+#                 f'{e.expense_type} paid by company', dr=float(e.amount))
+#             if e.recovered:
+#                 add(e.recovered_date or e.updated_at.date(), 'Recovery',
+#                     f'{e.expense_type} recovered', cr=float(e.amount))
 
-    for p in proj.payments:
-        label = f'{p.payment_source} {p.instalment or ""} payment ({p.payment_type})'.replace('  ', ' ')
-        if p.reference_no:
-            label += f' · ref {p.reference_no}'
-        add(p.payment_date, 'Receipt', label, cr=float(p.amount))
+#     for p in proj.payments:
+#         label = f'{p.payment_source} {p.instalment or ""} payment ({p.payment_type})'.replace('  ', ' ')
+#         if p.reference_no:
+#             label += f' · ref {p.reference_no}'
+#         add(p.payment_date, 'Receipt', label, cr=float(p.amount))
 
-    for w in proj.waivers:
-        add(w.waived_date or w.created_at.date(), 'Write-off', w.reason, cr=float(w.amount))
+#     for w in proj.waivers:
+#         add(w.waived_date or w.created_at.date(), 'Write-off', w.reason, cr=float(w.amount))
 
-    sub = proj.subsidy
-    if sub and sub.status == 'Received':
-        sd = sub.updated_at.date() if sub.updated_at else created
-        if float(sub.customer_share or 0) > 0:
-            add(sd, 'Subsidy', 'Subsidy — customer share', cr=float(sub.customer_share))
-        if float(sub.company_share or 0) > 0:
-            add(sd, 'Subsidy', 'Subsidy — company share', cr=float(sub.company_share))
+#     sub = proj.subsidy
+#     if sub and sub.status == 'Received':
+#         sd = sub.updated_at.date() if sub.updated_at else created
+#         if float(sub.customer_share or 0) > 0:
+#             add(sd, 'Subsidy', 'Subsidy — customer share', cr=float(sub.customer_share))
+#         if float(sub.company_share or 0) > 0:
+#             add(sd, 'Subsidy', 'Subsidy — company share', cr=float(sub.company_share))
 
-    # Settled excess (non-transferred part leaves the ledger as a debit)
-    settled_bank_rows = False
-    for exc in proj.payment_excesses:
-        if exc.status == 'Settled':
-            if exc.source == 'Bank':
-                settled_bank_rows = True
-            if exc.remaining > 0.01:
-                add(exc.settlement_date or exc.detected_date, 'Excess', exc.action_label, dr=exc.remaining)
-    be = proj.bank_excess
-    if be and be.returned and not settled_bank_rows and be.remaining > 0.01:
-        add(be.returned_date or created, 'Excess', be.action_label, dr=be.remaining)
+#     # Settled excess (non-transferred part leaves the ledger as a debit)
+#     settled_bank_rows = False
+#     for exc in proj.payment_excesses:
+#         if exc.status == 'Settled':
+#             if exc.source == 'Bank':
+#                 settled_bank_rows = True
+#             if exc.remaining > 0.01:
+#                 add(exc.settlement_date or exc.detected_date, 'Excess', exc.action_label, dr=exc.remaining)
+#     be = proj.bank_excess
+#     if be and be.returned and not settled_bank_rows and be.remaining > 0.01:
+#         add(be.returned_date or created, 'Excess', be.action_label, dr=be.remaining)
 
-    for a in proj.adjustments_out:
-        if a.status == 'Active':
-            add(a.adjust_date, 'Adjustment',
-                f'Excess adjusted to {a.to_project.project_code} — {a.to_project.customer.name}',
-                dr=float(a.amount))
-    for a in proj.adjustments_in:
-        if a.status == 'Active':
-            add(a.adjust_date, 'Adjustment',
-                f'Adjusted from {a.from_project.project_code} — {a.from_project.customer.name}',
-                cr=float(a.amount))
+#     for a in proj.adjustments_out:
+#         if a.status == 'Active':
+#             add(a.adjust_date, 'Adjustment',
+#                 f'Excess adjusted to {a.to_project.project_code} — {a.to_project.customer.name}',
+#                 dr=float(a.amount))
+#     for a in proj.adjustments_in:
+#         if a.status == 'Active':
+#             add(a.adjust_date, 'Adjustment',
+#                 f'Adjusted from {a.from_project.project_code} — {a.from_project.customer.name}',
+#                 cr=float(a.amount))
 
-    entries = [e for _, e in sorted(enumerate(entries), key=lambda t: (t[1]['date'], t[0]))]
-    bal = 0.0
-    for e in entries:
-        bal += e['dr'] - e['cr']
-        e['balance'] = round(bal, 2)
-    totals = {'dr': sum(e['dr'] for e in entries), 'cr': sum(e['cr'] for e in entries),
-              'closing': round(bal, 2)}
-    return entries, totals
+#     entries = [e for _, e in sorted(enumerate(entries), key=lambda t: (t[1]['date'], t[0]))]
+#     bal = 0.0
+#     for e in entries:
+#         bal += e['dr'] - e['cr']
+#         e['balance'] = round(bal, 2)
+#     totals = {'dr': sum(e['dr'] for e in entries), 'cr': sum(e['cr'] for e in entries),
+#               'closing': round(bal, 2)}
+#     return entries, totals
 
 
 def _has_active_outgoing_adjustments(proj):
@@ -5257,8 +5257,8 @@ def _build_project_ledger(proj):
     return entries, totals
 
 
-def _has_active_outgoing_adjustments(proj):
-    return any(a.status == 'Active' for a in proj.adjustments_out)
+# def _has_active_outgoing_adjustments(proj):
+#     return any(a.status == 'Active' for a in proj.adjustments_out)
 
 
 @app.route('/projects/<int:pid>/ledger')
@@ -5369,48 +5369,48 @@ def project_ledger(pid):
 #     return redirect(back)
 
 
-@app.route('/payment_adjustments/<int:aid>/reverse', methods=['POST'])
-@login_required
-@roles_required('admin')
-def reverse_payment_adjustment(aid):
-    adj    = PaymentAdjustment.query.get_or_404(aid)
-    reason = _clean(request.form.get('reason', ''), 300)
-    back   = request.referrer or url_for('project_detail', pid=adj.from_project_id)
+# @app.route('/payment_adjustments/<int:aid>/reverse', methods=['POST'])
+# @login_required
+# @roles_required('admin')
+# def reverse_payment_adjustment(aid):
+#     adj    = PaymentAdjustment.query.get_or_404(aid)
+#     reason = _clean(request.form.get('reason', ''), 300)
+#     back   = request.referrer or url_for('project_detail', pid=adj.from_project_id)
 
-    if adj.status != 'Active':
-        flash('This adjustment is already reversed.', 'warning')
-        return redirect(back)
-    exc = adj.excess
-    if exc.status == 'Settled' and exc.action != 'Adjusted':
-        flash('The remaining excess was settled another way — undo that settlement first.', 'danger')
-        return redirect(back)
+#     if adj.status != 'Active':
+#         flash('This adjustment is already reversed.', 'warning')
+#         return redirect(back)
+#     exc = adj.excess
+#     if exc.status == 'Settled' and exc.action != 'Adjusted':
+#         flash('The remaining excess was settled another way — undo that settlement first.', 'danger')
+#         return redirect(back)
 
-    adj.status         = 'Reversed'
-    adj.reversed_by    = current_user.id
-    adj.reversed_at    = datetime.utcnow()
-    adj.reverse_reason = reason or None
-    exc.adjusted_amount = max(0, float(exc.adjusted_amount or 0) - float(adj.amount))
-    if exc.status == 'Settled':
-        exc.status = 'Pending'
-        exc.action = None
-        exc.settlement_date = exc.settlement_notes = exc.settled_by = None
+#     adj.status         = 'Reversed'
+#     adj.reversed_by    = current_user.id
+#     adj.reversed_at    = datetime.utcnow()
+#     adj.reverse_reason = reason or None
+#     exc.adjusted_amount = max(0, float(exc.adjusted_amount or 0) - float(adj.amount))
+#     if exc.status == 'Settled':
+#         exc.status = 'Pending'
+#         exc.action = None
+#         exc.settlement_date = exc.settlement_notes = exc.settled_by = None
 
-    src, tgt = adj.from_project, adj.to_project
-    log_action(src.id, f'Excess adjustment of ₹{float(adj.amount):,.0f} to {tgt.project_code} reversed. '
-                       f'Reason: {reason or "Not provided"}', old_val='Active', new_val='Reversed')
-    log_action(tgt.id, f'Adjustment of ₹{float(adj.amount):,.0f} from {src.project_code} reversed',
-               old_val='Active', new_val='Reversed')
+#     src, tgt = adj.from_project, adj.to_project
+#     log_action(src.id, f'Excess adjustment of ₹{float(adj.amount):,.0f} to {tgt.project_code} reversed. '
+#                        f'Reason: {reason or "Not provided"}', old_val='Active', new_val='Reversed')
+#     log_action(tgt.id, f'Adjustment of ₹{float(adj.amount):,.0f} from {src.project_code} reversed',
+#                old_val='Active', new_val='Reversed')
 
-    db.session.flush()
-    db.session.expire(tgt, ['adjustments_in'])
-    db.session.expire(src, ['adjustments_out'])
-    if tgt.status in ('Closed', 'Completed') and tgt.pending_amount > 0.01:
-        tgt.status, tgt.stage = 'InProgress', 'Payment'
-        tgt.staged_changed_at = datetime.utcnow()
-    auto_advance_stage(tgt)
-    db.session.commit()
-    flash('Adjustment reversed.', 'warning')
-    return redirect(back)
+#     db.session.flush()
+#     db.session.expire(tgt, ['adjustments_in'])
+#     db.session.expire(src, ['adjustments_out'])
+#     if tgt.status in ('Closed', 'Completed') and tgt.pending_amount > 0.01:
+#         tgt.status, tgt.stage = 'InProgress', 'Payment'
+#         tgt.staged_changed_at = datetime.utcnow()
+#     auto_advance_stage(tgt)
+#     db.session.commit()
+#     flash('Adjustment reversed.', 'warning')
+#     return redirect(back)
 @app.route('/projects/<int:pid>/bank_excess/adjust', methods=['POST'])
 @login_required
 @roles_required('admin', 'payments')
