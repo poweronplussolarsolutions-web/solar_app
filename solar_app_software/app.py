@@ -356,8 +356,8 @@ def _pending_excess_settlements():
                 Project.status != 'Cancelled')
         .all())
     for e in bank_excess:
+        row = _row(e.project)
         row['bank_ret'] += e.remaining
-        row['bank_ret'] += float(e.excess_amount or 0)
         _older(row, e.received_date or (e.created_at.date() if e.created_at else None))
 
     items = []
@@ -4953,6 +4953,37 @@ def return_bank_excess(pid):
     db.session.commit()
     flash(f'Bank excess of ₹{left:,.0f} marked as {exc.action_label}.', 'success')
     return redirect(url_for('project_detail', pid=pid))
+@app.route('/payment_excess/<int:eid>/settle', methods=['POST'])
+@login_required
+@roles_required('admin', 'payments')
+def settle_payment_excess(eid):
+    exc = PaymentExcess.query.get_or_404(eid)
+    action = request.form.get('action')
+    if action not in ('Returned', 'Retained', 'Adjusted'):
+        flash('Please choose a valid settlement option.', 'danger')
+        return redirect(url_for('project_detail', pid=exc.project_id))
+    left = exc.remaining
+    if exc.status != 'Pending' or left <= 0.01:
+        flash('Nothing left to settle on this excess.', 'warning')
+        return redirect(url_for('project_detail', pid=exc.project_id))
+
+    exc.action               = action
+    exc.returned_to          = request.form.get('returned_to') if action == 'Returned' else None
+    exc.settlement_method    = request.form.get('settlement_method') or None
+    exc.settlement_date      = date.fromisoformat(request.form['settlement_date']) if request.form.get('settlement_date') else date.today()
+    exc.settlement_reference = _clean(request.form.get('settlement_reference', ''), 100) or None
+    exc.settlement_notes     = _clean(request.form.get('settlement_notes', ''), 300) or None
+    exc.status               = 'Settled'
+    exc.settled_by           = current_user.id
+
+    log_action(exc.project_id,
+        f'Payment excess of ₹{left:,.0f} settled: {exc.action_label}',
+        new_val=exc.action)
+    db.session.flush()
+    auto_advance_stage(exc.project)
+    db.session.commit()
+    flash(f'Excess of ₹{left:,.0f} marked as {exc.action_label}.', 'success')
+    return redirect(url_for('project_detail', pid=exc.project_id))
 # def _build_project_ledger(proj):
 #     """Tally-style party ledger. Dr = customer owes, Cr = customer paid/credited.
 #     Closing balance > 0 → customer owes; < 0 → we hold their excess."""
@@ -5233,8 +5264,8 @@ def _build_project_ledger(proj):
             if exc.remaining > 0.01:
                 add(exc.settlement_date or exc.detected_date, 'Excess', exc.action_label, dr=exc.remaining)
     be = proj.bank_excess
-    if be and be.returned and not settled_bank_rows:
-        add(be.returned_date or created, 'Excess', be.action_label, dr=float(be.excess_amount))
+    if be and be.returned and not settled_bank_rows and be.remaining > 0.01:
+        add(be.returned_date or created, 'Excess', be.action_label, dr=be.remaining)
 
     for a in proj.adjustments_out:
         if a.status == 'Active':
