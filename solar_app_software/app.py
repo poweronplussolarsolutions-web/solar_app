@@ -5026,13 +5026,13 @@ def _has_active_outgoing_adjustments(proj):
     return any(a.status == 'Active' for a in proj.adjustments_out)
 
 
-@app.route('/projects/<int:pid>/ledger')
-@login_required
-@roles_required('admin', 'payments', 'director')
-def project_ledger(pid):
-    proj = Project.query.get_or_404(pid)
-    entries, totals = _build_project_ledger(proj)
-    return render_template('project_ledger.html', proj=proj, entries=entries, totals=totals)
+# @app.route('/projects/<int:pid>/ledger')
+# @login_required
+# @roles_required('admin', 'payments', 'director')
+# def project_ledger(pid):
+#     proj = Project.query.get_or_404(pid)
+#     entries, totals = _build_project_ledger(proj)
+#     return render_template('project_ledger.html', proj=proj, entries=entries, totals=totals)
 
 
 @app.route('/api/adjustment_targets')
