@@ -872,7 +872,9 @@ function togglePanelAddr(which) {
 {# ── QUICK LINKS ── #}
 <div class="card" style="margin-bottom:16px;padding:12px 20px">
   <div style="display:flex;gap:8px;flex-wrap:wrap">
-    <a href="#payments" class="btn btn-sm">Payments</a>
+    {% if current_user.role in ['admin','payments','director'] and proj.work_category != 'Outside' %}
+<a href="{{ url_for('project_ledger', pid=proj.id) }}" class="btn btn-sm">📒 Ledger</a>
+{% endif %}
     <a href="#documents" class="btn btn-sm">Documents</a>
     {% if proj.project_subtype == 'DCR' and proj.work_category != 'Outside' %}
     <a href="#subsidy" class="btn btn-sm">Subsidy</a>
@@ -1021,6 +1023,44 @@ function togglePanelAddr(which) {
       {% if exc.settlement_notes %}<div style="margin-top:2px">{{ exc.settlement_notes }}</div>{% endif %}
     </div>
     {% elif current_user.role in ['admin','payments'] %}
+    {% if exc.adjusted_amount and exc.adjusted_amount > 0 %}
+<div style="font-size:11px;color:var(--muted);margin-top:2px">
+  ₹{{ '{:,.0f}'.format(exc.adjusted_amount|float) }} already adjusted · remaining {{ exc.remaining | inr }}
+</div>
+{% endif %}
+
+<button type="button" class="btn btn-sm btn-primary" style="margin-top:10px;margin-right:6px"
+        onclick="togglePanel('excessAdjust{{ exc.id }}')">⇄ Adjust to another customer</button>
+<div id="excessAdjust{{ exc.id }}" style="display:none;margin-top:10px;border-top:0.5px solid var(--border);padding-top:12px">
+  <form method="POST" action="{{ url_for('adjust_excess_to_project', eid=exc.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Target project (MNRE no. or customer)</label>
+        <input type="text" name="target_code" list="adjTargets{{ exc.id }}" required autocomplete="off"
+               data-exclude="{{ proj.id }}" class="adj-target-input" placeholder="Type 2+ characters…">
+        <datalist id="adjTargets{{ exc.id }}"></datalist>
+      </div>
+      <div class="form-group">
+        <label>Amount (₹) <span style="color:var(--muted);font-weight:400">max {{ exc.remaining | inr }}</span></label>
+        <input type="number" name="amount" step="0.01" min="1" max="{{ exc.remaining }}" value="{{ exc.remaining }}" required>
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" name="adjust_date" max="{{ today.isoformat() }}" value="{{ today.isoformat() }}">
+      </div>
+      <div class="form-group full">
+        <label>Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+        <input type="text" name="notes" placeholder="e.g. Customer asked to use it for his brother's work">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button type="submit" class="btn btn-primary btn-sm">✓ Confirm adjustment</button>
+      <button type="button" class="btn btn-sm" onclick="togglePanel('excessAdjust{{ exc.id }}')">Cancel</button>
+    </div>
+  </form>
+</div>
+
     <button type="button" class="btn btn-sm btn-warning" style="margin-top:10px"
             onclick="togglePanel('excessSettle{{ exc.id }}')">
       Settle Excess
@@ -1094,7 +1134,56 @@ document.addEventListener('DOMContentLoaded', function() {
   var pendingExcessIds = JSON.parse(el.dataset.pendingIds);
   pendingExcessIds.forEach(toggleReturnedTo);
 });
+document.querySelectorAll('.adj-target-input').forEach(function (inp) {
+  var t;
+  inp.addEventListener('input', function () {
+    clearTimeout(t);
+    var dl = document.getElementById(inp.getAttribute('list'));
+    t = setTimeout(function () {
+      if (inp.value.trim().length < 2) return;
+      fetch('/api/adjustment_targets?q=' + encodeURIComponent(inp.value.trim()) + '&exclude=' + inp.dataset.exclude)
+        .then(function (r) { return r.json(); })
+        .then(function (rows) {
+          dl.innerHTML = rows.map(function (r) {
+            return '<option value="' + r.code + '">' + r.name + ' — pending ₹' + r.pending.toLocaleString('en-IN') + '</option>';
+          }).join('');
+        });
+    }, 250);
+  });
+});
 </script>
+{% endif %}
+{% set all_adj = (proj.adjustments_out + proj.adjustments_in) | sort(attribute='created_at', reverse=True) %}
+{% if all_adj %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-title">Excess adjustments</div>
+  <div class="table-wrap"><table style="font-size:13px">
+    <thead><tr><th>Date</th><th>Direction</th><th>Other project</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for a in all_adj %}
+    {% set outgoing = a.from_project_id == proj.id %}
+    {% set other = a.to_project if outgoing else a.from_project %}
+    <tr style="{% if a.status == 'Reversed' %}opacity:.5;text-decoration:line-through{% endif %}">
+      <td>{{ a.adjust_date | date_fmt }}</td>
+      <td>{{ 'Out →' if outgoing else '← In' }}</td>
+      <td><a href="{{ url_for('project_detail', pid=other.id) }}">{{ other.project_code }} — {{ other.customer.name }}</a></td>
+      <td style="font-weight:500">{{ a.amount | inr }}</td>
+      <td>{{ a.status }}</td>
+      <td>
+        {% if a.status == 'Active' and current_user.role == 'admin' %}
+        <form method="POST" action="{{ url_for('reverse_payment_adjustment', aid=a.id) }}"
+              onsubmit="var r=prompt('Reason for reversal?'); if(r===null) return false; this.reason.value=r; return true;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="reason" value="">
+          <button class="btn btn-sm btn-danger">Reverse</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
 {% endif %}
 {# ══════════════════════════════════════════════════════
    PAYMENTS CARD
@@ -1683,6 +1772,9 @@ document.addEventListener('DOMContentLoaded', function() {
     <button class="btn btn-sm btn-warning" onclick="togglePanel('bankExcessReturnForm')">
       ↩ Settle Excess
     </button>
+        <button class="btn btn-sm btn-primary" onclick="togglePanel('bankExcessAdjust')">
+      ⇄ Adjust to another customer
+    </button>
     <button class="btn btn-sm" onclick="togglePanel('bankExcessEditForm')">
       ✏ Edit
     </button>
@@ -1692,7 +1784,64 @@ document.addEventListener('DOMContentLoaded', function() {
     </button>
     {% endif %}
   </div>
-
+  {% if exc %}
+  {% if exc.adjusted_amount and exc.adjusted_amount > 0 %}
+  <div style="font-size:11px;color:var(--muted);margin-top:8px">
+    ₹{{ '{:,.0f}'.format(exc.adjusted_amount|float) }} already adjusted · remaining {{ exc.remaining | inr }}
+  </div>
+  {% endif %}
+  <div id="bankExcessAdjust" style="display:none;margin-top:12px;border:1px solid var(--amber-200,#fde68a);
+       border-radius:var(--radius);background:#fff;padding:16px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px">⇄ Adjust bank excess to another customer</div>
+    <form method="POST" action="{{ url_for('adjust_bank_excess_to_project', pid=proj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Target project (MNRE no. or customer)</label>
+          <input type="text" name="target_code" list="bankAdjTargets" required autocomplete="off"
+                 id="bankAdjInput" data-exclude="{{ proj.id }}" placeholder="Type 2+ characters…">
+          <datalist id="bankAdjTargets"></datalist>
+        </div>
+        <div class="form-group">
+          <label>Amount (₹) <span style="color:var(--muted);font-weight:400">max {{ exc.remaining | inr }}</span></label>
+          <input type="number" name="amount" step="0.01" min="1" max="{{ exc.remaining }}" value="{{ exc.remaining }}" required>
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" name="adjust_date" max="{{ today.isoformat() }}" value="{{ today.isoformat() }}">
+        </div>
+        <div class="form-group full">
+          <label>Notes <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+          <input type="text" name="notes" placeholder="Any additional info…">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button type="submit" class="btn btn-primary btn-sm">✓ Confirm adjustment</button>
+        <button type="button" class="btn btn-sm" onclick="togglePanel('bankExcessAdjust')">Cancel</button>
+      </div>
+    </form>
+  </div>
+  <script>
+  (function () {
+    var inp = document.getElementById('bankAdjInput');
+    if (!inp) return;
+    var t, dl = document.getElementById('bankAdjTargets');
+    inp.addEventListener('input', function () {
+      clearTimeout(t);
+      t = setTimeout(function () {
+        if (inp.value.trim().length < 2) return;
+        fetch('/api/adjustment_targets?q=' + encodeURIComponent(inp.value.trim()) + '&exclude=' + inp.dataset.exclude)
+          .then(function (r) { return r.json(); })
+          .then(function (rows) {
+            dl.innerHTML = rows.map(function (r) {
+              return '<option value="' + r.code + '">' + r.name + ' — pending ₹' + r.pending.toLocaleString('en-IN') + '</option>';
+            }).join('');
+          });
+      }, 250);
+    });
+  })();
+  </script>
+  {% endif %}
   {# Settlement form #}
   {% if exc %}
   <div id="bankExcessReturnForm" style="display:none;border:1px solid var(--green-200,#bbf7d0);

@@ -320,17 +320,10 @@ def _snapshot_today_tasks(user, tasks):
     db.session.commit()
 def _pending_excess_settlements():
     """Pending excess settlements, exactly ONE row per project, oldest first.
-    Returns (items, total).
-
-    Per project:
-      - Customer excess = sum of its pending PaymentExcess rows (source Customer)
-      - Bank excess     = the larger of (pending PaymentExcess rows with source Bank)
-                          and the unreturned BankExcessReturn. They describe the same
-                          overshoot, so they are not added together.
-      - Row amount      = Customer excess + Bank excess
-    """
+    Returns (items, total). Customer excess uses the REMAINING amount after
+    adjustments to other customers."""
     today = date.today()
-    by_project = {}   # project_id -> {'project', 'customer', 'bank_pay', 'bank_ret', 'date'}
+    by_project = {}
 
     def _row(project):
         return by_project.setdefault(project.id, {
@@ -351,9 +344,9 @@ def _pending_excess_settlements():
     for e in pay_excess:
         row = _row(e.project)
         if e.source == 'Customer':
-            row['customer'] += float(e.amount or 0)
+            row['customer'] += e.remaining
         else:
-            row['bank_pay'] += float(e.amount or 0)
+            row['bank_pay'] += e.remaining
         _older(row, e.detected_date or (e.created_at.date() if e.created_at else None))
 
     bank_excess = (BankExcessReturn.query
@@ -363,7 +356,7 @@ def _pending_excess_settlements():
                 Project.status != 'Cancelled')
         .all())
     for e in bank_excess:
-        row = _row(e.project)
+        row['bank_ret'] += e.remaining
         row['bank_ret'] += float(e.excess_amount or 0)
         _older(row, e.received_date or (e.created_at.date() if e.created_at else None))
 
@@ -822,20 +815,22 @@ class Project(db.Model):
             sub_customer_share = float(self.subsidy.customer_share)
         return max(0, self.total_receivable - self.effective_collected
                - sub_customer_share - self.total_waived)
+    @property
+    def adjusted_in_total(self):
+        return sum(float(a.amount) for a in self.adjustments_in if a.status == 'Active')
 
     @property
+    def adjusted_out_total(self):
+        return sum(float(a.amount) for a in self.adjustments_out if a.status == 'Active')
+    @property
     def settled_retained_excess(self):
-        """Excess payments (customer or bank) that were settled and kept by
-        the company — 'Retained as company income' or 'Adjusted against
-        other dues' — rather than returned to the customer/bank. This money
-        was actually collected, so it should count toward effective_collected
-        even though it's tracked outside the capped collected_amount field."""
         total = 0.0
         for exc in self.payment_excesses:
             if exc.status == 'Settled' and exc.action in ('Retained', 'Adjusted'):
-                total += float(exc.amount or 0)
-        if self.bank_excess and self.bank_excess.returned and self.bank_excess.action in ('Retained', 'Adjusted'):
-            total += float(self.bank_excess.excess_amount or 0)
+                total += float(exc.amount or 0) - float(exc.adjusted_amount or 0)
+        be = self.bank_excess
+        if be and be.returned and be.action in ('Retained', 'Adjusted'):
+            total += float(be.excess_amount or 0) - float(be.adjusted_amount or 0)
         return total
 
     @property
@@ -844,7 +839,7 @@ class Project(db.Model):
         if self.subsidy and self.subsidy.company_share and self.subsidy.status == 'Received':
             company_share = float(self.subsidy.company_share)
         return (float(self.collected_amount or 0) + self.recovered_expense_total
-                + company_share + self.settled_retained_excess)
+                + company_share + self.settled_retained_excess + self.adjusted_in_total)
 
     @property
     def payment_pct(self):
@@ -990,7 +985,11 @@ class BankExcessReturn(db.Model):
     updated_at       = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     project          = db.relationship('Project', backref=db.backref('bank_excess', uselist=False))
     recorder         = db.relationship('User', foreign_keys=[recorded_by])
+    adjusted_amount  = db.Column(db.Numeric(12, 2), nullable=False, default=0)
 
+    @property
+    def remaining(self):
+        return round(float(self.excess_amount or 0) - float(self.adjusted_amount or 0), 2)
     @property
     def action_label(self):
         return {
@@ -1049,7 +1048,11 @@ class PaymentExcess(db.Model):
     project               = db.relationship('Project', backref='payment_excesses')
     recorder              = db.relationship('User', foreign_keys=[recorded_by])
     settler                = db.relationship('User', foreign_keys=[settled_by])
+    adjusted_amount      = db.Column(db.Numeric(12, 2), nullable=False, default=0)
 
+    @property
+    def remaining(self):
+        return round(float(self.amount or 0) - float(self.adjusted_amount or 0), 2)
     @property
     def action_label(self):
         return {
@@ -1057,6 +1060,30 @@ class PaymentExcess(db.Model):
             'Retained': 'Retained as company income',
             'Adjusted': 'Adjusted against other dues',
         }.get(self.action, '—')
+class PaymentAdjustment(db.Model):
+    """Ledger entry: excess held for one customer applied to another project's dues."""
+    __tablename__ = 'payment_adjustments'
+    id              = db.Column(db.Integer, primary_key=True)
+    excess_id       = db.Column(db.Integer, db.ForeignKey('payment_excess.id'), nullable=True)
+    bank_excess_id  = db.Column(db.Integer, db.ForeignKey('bank_excess_returns.id'), nullable=True)
+    from_project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False, index=True)
+    to_project_id   = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False, index=True)
+    amount          = db.Column(db.Numeric(12, 2), nullable=False)
+    adjust_date     = db.Column(db.Date, nullable=False, default=date.today)
+    notes           = db.Column(db.String(300), nullable=True)
+    status          = db.Column(db.Enum('Active', 'Reversed'), nullable=False, default='Active')
+    created_by      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
+    reversed_by     = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    reversed_at     = db.Column(db.DateTime, nullable=True)
+    reverse_reason  = db.Column(db.String(300), nullable=True)
+
+    excess       = db.relationship('PaymentExcess', backref='adjustments')
+    bank_excess  = db.relationship('BankExcessReturn', backref='adjustments')
+    from_project = db.relationship('Project', foreign_keys=[from_project_id], backref='adjustments_out')
+    to_project   = db.relationship('Project', foreign_keys=[to_project_id],   backref='adjustments_in')
+    creator      = db.relationship('User', foreign_keys=[created_by])
+    reverser     = db.relationship('User', foreign_keys=[reversed_by])
 class DayBookEntry(db.Model):
     __tablename__ = 'daybook_entries'
     id          = db.Column(db.Integer, primary_key=True)
@@ -2717,11 +2744,11 @@ def auto_advance_stage(proj):
             proj.status = 'InProgress'
 
     elif proj.stage == 'Payment':
-    # For loan projects, only count up to contract amount — excess is tracked separately
         if proj.project_type == 'Loan':
             bank_total = sum(float(p.amount) for p in proj.payments if p.payment_source == 'Bank')
             customer_total = sum(float(p.amount) for p in proj.payments if p.payment_source == 'Customer')
-            effective = min(bank_total, float(proj.total_receivable)) + customer_total
+            effective = (min(bank_total, float(proj.total_receivable)) + customer_total
+                         + proj.adjusted_in_total)
             fully_paid = proj.total_receivable > 0 and (effective + proj.total_waived) >= float(proj.total_receivable)
         else:
             fully_paid = proj.total_receivable > 0 and proj.pending_amount <= 0
@@ -2730,7 +2757,7 @@ def auto_advance_stage(proj):
                 proj.stage  = 'Subsidy'
                 proj.status = 'InProgress'
             else:
-                proj.stage  = 'Subsidy'  # non-DCR still goes here for warranty/app
+                proj.stage  = 'Subsidy'
                 proj.status = 'InProgress'
                 create_service_schedule(proj)
 
@@ -2743,10 +2770,10 @@ def auto_advance_stage(proj):
             sub = proj.subsidy
             subsidy_done = sub and sub.status == 'Received'
         else:
-            subsidy_done = True  # non-DCR skips subsidy requirement
+            subsidy_done = True
 
         if fully_paid and warranty_done and app_done and subsidy_done:
-            proj.stage  = 'Subsidy'   # stage stays Subsidy
+            proj.stage  = 'Subsidy'
             proj.status = 'Completed'
 
     if proj.status in ('Completed', 'Closed'):
@@ -2939,7 +2966,7 @@ def _reconcile_excess_after_payment_change(proj):
     after a payment edit/delete. Only touches Pending/unsettled excess records —
     already-settled excess is left alone (it's historical, money already moved)."""
 
-    receivable = float(proj.total_receivable)
+    receivable = float(proj.total_receivable) - proj.adjusted_in_total
 
     # ── Customer-side excess (PaymentExcess) ──────────────────────────────
     customer_total = sum(float(p.amount) for p in proj.payments if p.payment_source == 'Customer')
@@ -4868,25 +4895,31 @@ def save_bank_excess(pid):
     if proj.project_type != 'Loan':
         flash('Bank excess only applies to Loan projects.', 'danger')
         return redirect(url_for('project_detail', pid=pid))
- 
+
     exc = proj.bank_excess or BankExcessReturn(project_id=pid)
-    exc.excess_amount  = _safe_float(request.form.get('excess_amount'))
+    new_amount = _safe_float(request.form.get('excess_amount'))
+    if exc.id and new_amount < float(exc.adjusted_amount or 0) - 0.01:
+        flash(f'₹{float(exc.adjusted_amount):,.0f} is already adjusted to other customers. '
+              'Reverse those adjustments before reducing the excess below that.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+
+    exc.excess_amount  = new_amount
     exc.received_date  = date.fromisoformat(request.form['received_date']) if request.form.get('received_date') else None
     exc.notes          = _clean(request.form.get('notes', ''), 300) or None
     exc.recorded_by    = current_user.id
- 
+
     if not exc.id:
         db.session.add(exc)
- 
+
     log_action(pid, f'Bank excess recorded: ₹{float(exc.excess_amount):,.0f}',
                new_val=str(exc.excess_amount))
- 
+
     for u in User.query.filter_by(role='payments', is_active=True).all():
         if u.id != current_user.id:
             create_notification(u.id, pid,
                 f'{proj.project_code} — {proj.customer.name}: Bank excess of '
                 f'₹{float(exc.excess_amount):,.0f} recorded. To be returned.', 'task')
- 
+
     db.session.commit()
     flash(f'Bank excess of ₹{float(exc.excess_amount):,.0f} recorded.', 'success')
     return redirect(url_for('project_detail', pid=pid))
@@ -4901,6 +4934,10 @@ def return_bank_excess(pid):
     if action not in ('Returned', 'Retained', 'Adjusted'):
         flash('Please choose a valid settlement option.', 'danger')
         return redirect(url_for('project_detail', pid=pid))
+    left = exc.remaining
+    if exc.returned or left <= 0.01:
+        flash('Nothing left to settle on this bank excess.', 'warning')
+        return redirect(url_for('project_detail', pid=pid))
 
     exc.returned            = True
     exc.action               = action
@@ -4910,41 +4947,546 @@ def return_bank_excess(pid):
     exc.returned_reference   = _clean(request.form.get('returned_reference', ''), 100) or None
     exc.returned_notes       = _clean(request.form.get('returned_notes', ''), 300) or None
 
-    log_action(pid, f'Bank excess settled: ₹{float(exc.excess_amount):,.0f} — {exc.action_label}',
-               new_val=action)
+    log_action(pid, f'Bank excess settled: ₹{left:,.0f} — {exc.action_label}', new_val=action)
     db.session.flush()
     auto_advance_stage(exc.project)
     db.session.commit()
-    flash(f'Bank excess of ₹{float(exc.excess_amount):,.0f} marked as {exc.action_label}.', 'success')
+    flash(f'Bank excess of ₹{left:,.0f} marked as {exc.action_label}.', 'success')
     return redirect(url_for('project_detail', pid=pid))
-@app.route('/payment_excess/<int:eid>/settle', methods=['POST'])
+def _build_project_ledger(proj):
+    """Tally-style party ledger. Dr = customer owes, Cr = customer paid/credited.
+    Closing balance > 0 → customer owes; < 0 → we hold their excess."""
+    entries = []
+
+    def add(d, kind, desc, dr=0.0, cr=0.0):
+        entries.append({'date': d, 'kind': kind, 'desc': desc, 'dr': dr, 'cr': cr})
+
+    created = proj.created_at.date()
+    add(created, 'Contract', 'Contract amount', dr=float(proj.total_amount or 0))
+
+    for e in proj.expenses:
+        if e.paid_by == 'Company' and float(e.amount or 0) > 0:
+            add(e.paid_date or e.created_at.date(), 'Expense',
+                f'{e.expense_type} paid by company', dr=float(e.amount))
+            if e.recovered:
+                add(e.recovered_date or e.updated_at.date(), 'Recovery',
+                    f'{e.expense_type} recovered', cr=float(e.amount))
+
+    for p in proj.payments:
+        label = f'{p.payment_source} {p.instalment or ""} payment ({p.payment_type})'.replace('  ', ' ')
+        if p.reference_no:
+            label += f' · ref {p.reference_no}'
+        add(p.payment_date, 'Receipt', label, cr=float(p.amount))
+
+    for w in proj.waivers:
+        add(w.waived_date or w.created_at.date(), 'Write-off', w.reason, cr=float(w.amount))
+
+    sub = proj.subsidy
+    if sub and sub.status == 'Received':
+        sd = sub.updated_at.date() if sub.updated_at else created
+        if float(sub.customer_share or 0) > 0:
+            add(sd, 'Subsidy', 'Subsidy — customer share', cr=float(sub.customer_share))
+        if float(sub.company_share or 0) > 0:
+            add(sd, 'Subsidy', 'Subsidy — company share', cr=float(sub.company_share))
+
+    # Settled excess (non-transferred part leaves the ledger as a debit)
+    settled_bank_rows = False
+    for exc in proj.payment_excesses:
+        if exc.status == 'Settled':
+            if exc.source == 'Bank':
+                settled_bank_rows = True
+            if exc.remaining > 0.01:
+                add(exc.settlement_date or exc.detected_date, 'Excess', exc.action_label, dr=exc.remaining)
+    be = proj.bank_excess
+    if be and be.returned and not settled_bank_rows and be.remaining > 0.01:
+        add(be.returned_date or created, 'Excess', be.action_label, dr=be.remaining)
+
+    for a in proj.adjustments_out:
+        if a.status == 'Active':
+            add(a.adjust_date, 'Adjustment',
+                f'Excess adjusted to {a.to_project.project_code} — {a.to_project.customer.name}',
+                dr=float(a.amount))
+    for a in proj.adjustments_in:
+        if a.status == 'Active':
+            add(a.adjust_date, 'Adjustment',
+                f'Adjusted from {a.from_project.project_code} — {a.from_project.customer.name}',
+                cr=float(a.amount))
+
+    entries = [e for _, e in sorted(enumerate(entries), key=lambda t: (t[1]['date'], t[0]))]
+    bal = 0.0
+    for e in entries:
+        bal += e['dr'] - e['cr']
+        e['balance'] = round(bal, 2)
+    totals = {'dr': sum(e['dr'] for e in entries), 'cr': sum(e['cr'] for e in entries),
+              'closing': round(bal, 2)}
+    return entries, totals
+
+
+def _has_active_outgoing_adjustments(proj):
+    return any(a.status == 'Active' for a in proj.adjustments_out)
+
+
+@app.route('/projects/<int:pid>/ledger')
+@login_required
+@roles_required('admin', 'payments', 'director')
+def project_ledger(pid):
+    proj = Project.query.get_or_404(pid)
+    entries, totals = _build_project_ledger(proj)
+    return render_template('project_ledger.html', proj=proj, entries=entries, totals=totals)
+
+
+@app.route('/api/adjustment_targets')
 @login_required
 @roles_required('admin', 'payments')
-def settle_payment_excess(eid):
-    exc = PaymentExcess.query.get_or_404(eid)
-    action = request.form.get('action')
-    if action not in ('Returned', 'Retained', 'Adjusted'):
-        flash('Please choose a valid settlement option.', 'danger')
-        return redirect(url_for('project_detail', pid=exc.project_id))
+@limiter.limit('60 per minute')
+def api_adjustment_targets():
+    q   = _clean(request.args.get('q', ''), 80)
+    exclude = request.args.get('exclude', type=int)
+    if len(q) < 2:
+        return jsonify([])
+    query = (Project.query.join(Customer)
+             .filter(Project.status.notin_(['Cancelled', 'OnHold']),
+                     Project.work_category != 'Outside',
+                     Customer.name.ilike(f'%{q}%') | Project.project_code.ilike(f'%{q}%')))
+    if exclude:
+        query = query.filter(Project.id != exclude)
+    out = []
+    for p in query.order_by(Project.updated_at.desc()).limit(15).all():
+        pend = p.pending_amount
+        if pend > 0.01:
+            out.append({'code': p.project_code, 'name': p.customer.name, 'pending': round(pend, 2)})
+    return jsonify(out)
 
-    exc.action               = action
-    exc.returned_to          = request.form.get('returned_to') if action == 'Returned' else None
-    exc.settlement_method    = request.form.get('settlement_method') or None
-    exc.settlement_date      = date.fromisoformat(request.form['settlement_date']) if request.form.get('settlement_date') else date.today()
-    exc.settlement_reference = _clean(request.form.get('settlement_reference', ''), 100) or None
-    exc.settlement_notes     = _clean(request.form.get('settlement_notes', ''), 300) or None
-    exc.status                = 'Settled'
-    exc.settled_by           = current_user.id
 
-    log_action(exc.project_id,
-        f'Payment excess of ₹{float(exc.amount):,.0f} settled: {exc.action_label}',
-        new_val=exc.action)
+@app.route('/payment_excess/<int:eid>/adjust', methods=['POST'])
+@login_required
+@roles_required('admin', 'payments')
+@limiter.limit('30 per minute')
+def adjust_excess_to_project(eid):
+    exc  = PaymentExcess.query.with_for_update().filter_by(id=eid).first_or_404()
+    src  = exc.project
+    back = url_for('project_detail', pid=src.id) + '#payments'
+
+    if exc.status != 'Pending' or exc.remaining <= 0.01:
+        flash('This excess has nothing left to adjust.', 'warning')
+        return redirect(back)
+
+    code   = _clean(request.form.get('target_code', ''), 20)
+    target = Project.query.filter_by(project_code=code).first()
+    amount = _safe_float(request.form.get('amount'))
+    notes  = _clean(request.form.get('notes', ''), 300) or None
+    try:
+        adj_date = (date.fromisoformat(request.form['adjust_date'])
+                    if request.form.get('adjust_date') else date.today())
+    except ValueError:
+        flash('Invalid date.', 'danger')
+        return redirect(back)
+
+    err = None
+    if not target:
+        err = f'No project found with MNRE number "{code}".'
+    elif target.id == src.id:
+        err = 'Choose a different project — this excess already belongs to this one.'
+    elif target.status in ('Cancelled', 'OnHold') or target.work_category == 'Outside':
+        err = 'Target project cannot receive adjustments (cancelled, on hold or outside work).'
+    elif amount <= 0:
+        err = 'Enter an amount greater than zero.'
+    elif adj_date > date.today():
+        err = 'Adjustment date cannot be in the future.'
+    elif amount > exc.remaining + 0.01:
+        err = f'Only ₹{exc.remaining:,.0f} of this excess is left to adjust.'
+    elif amount > target.pending_amount + 0.01:
+        err = f'{target.project_code} has only ₹{target.pending_amount:,.0f} pending.'
+    if err:
+        flash(err, 'danger')
+        return redirect(back)
+
+    adj = PaymentAdjustment(excess=exc, from_project=src, to_project=target,
+                            amount=amount, adjust_date=adj_date, notes=notes,
+                            created_by=current_user.id)
+    db.session.add(adj)
+    exc.adjusted_amount = float(exc.adjusted_amount or 0) + amount
+
+    if exc.remaining <= 0.01:
+        exc.status               = 'Settled'
+        exc.action               = 'Adjusted'
+        exc.returned_to          = None
+        exc.settlement_date      = adj_date
+        exc.settlement_notes     = 'Fully adjusted to other customer dues (see ledger).'
+        exc.settled_by           = current_user.id
+
+    src_tag = f'{src.project_code} — {src.customer.name}'
+    tgt_tag = f'{target.project_code} — {target.customer.name}'
+    log_action(src.id,    f'Excess ₹{amount:,.0f} adjusted to {tgt_tag}', new_val=str(amount))
+    log_action(target.id, f'₹{amount:,.0f} adjusted from {src_tag} excess', new_val=str(amount))
+    for u in User.query.filter_by(role='payments', is_active=True).all():
+        if u.id != current_user.id:
+            create_notification(u.id, target.id,
+                f'{tgt_tag}: ₹{amount:,.0f} adjusted from {src_tag} excess.', 'info')
+
     db.session.flush()
-    auto_advance_stage(exc.project)
+    db.session.expire(target, ['adjustments_in'])
+    db.session.expire(src, ['adjustments_out'])
+    auto_advance_stage(target)
+    auto_advance_stage(src)
     db.session.commit()
-    flash(f'Excess of ₹{float(exc.amount):,.0f} marked as {exc.action_label}.', 'success')
-    return redirect(url_for('project_detail', pid=exc.project_id))
+    flash(f'₹{amount:,.0f} adjusted from {src.project_code} to {target.project_code}.', 'success')
+    return redirect(back)
 
+
+@app.route('/payment_adjustments/<int:aid>/reverse', methods=['POST'])
+@login_required
+@roles_required('admin')
+def reverse_payment_adjustment(aid):
+    adj    = PaymentAdjustment.query.get_or_404(aid)
+    reason = _clean(request.form.get('reason', ''), 300)
+    back   = request.referrer or url_for('project_detail', pid=adj.from_project_id)
+
+    if adj.status != 'Active':
+        flash('This adjustment is already reversed.', 'warning')
+        return redirect(back)
+
+    if adj.bank_excess_id:
+        be = adj.bank_excess
+        if be.returned and be.action != 'Adjusted':
+            flash('The remaining bank excess was settled another way — undo that settlement first.', 'danger')
+            return redirect(back)
+        be.adjusted_amount = max(0, float(be.adjusted_amount or 0) - float(adj.amount))
+        if be.returned:
+            be.returned = False
+            be.action = None
+            be.returned_date = be.returned_notes = None
+    else:
+        exc = adj.excess
+        if exc.status == 'Settled' and exc.action != 'Adjusted':
+            flash('The remaining excess was settled another way — undo that settlement first.', 'danger')
+            return redirect(back)
+        exc.adjusted_amount = max(0, float(exc.adjusted_amount or 0) - float(adj.amount))
+        if exc.status == 'Settled':
+            exc.status = 'Pending'
+            exc.action = None
+            exc.settlement_date = exc.settlement_notes = exc.settled_by = None
+
+    adj.status         = 'Reversed'
+    adj.reversed_by    = current_user.id
+    adj.reversed_at    = datetime.utcnow()
+    adj.reverse_reason = reason or None
+
+    src, tgt = adj.from_project, adj.to_project
+    log_action(src.id, f'Excess adjustment of ₹{float(adj.amount):,.0f} to {tgt.project_code} reversed. '
+                       f'Reason: {reason or "Not provided"}', old_val='Active', new_val='Reversed')
+    log_action(tgt.id, f'Adjustment of ₹{float(adj.amount):,.0f} from {src.project_code} reversed',
+               old_val='Active', new_val='Reversed')
+
+    db.session.flush()
+    db.session.expire(tgt, ['adjustments_in'])
+    db.session.expire(src, ['adjustments_out', 'bank_excess'])
+    if tgt.status in ('Closed', 'Completed') and tgt.pending_amount > 0.01:
+        tgt.status, tgt.stage = 'InProgress', 'Payment'
+        tgt.staged_changed_at = datetime.utcnow()
+    auto_advance_stage(tgt)
+    db.session.commit()
+    flash('Adjustment reversed.', 'warning')
+    return redirect(back)
+def _build_project_ledger(proj):
+    """Tally-style party ledger. Dr = customer owes, Cr = customer paid/credited.
+    Closing balance > 0 → customer owes; < 0 → we hold their excess."""
+    entries = []
+
+    def add(d, kind, desc, dr=0.0, cr=0.0):
+        entries.append({'date': d, 'kind': kind, 'desc': desc, 'dr': dr, 'cr': cr})
+
+    created = proj.created_at.date()
+    add(created, 'Contract', 'Contract amount', dr=float(proj.total_amount or 0))
+
+    for e in proj.expenses:
+        if e.paid_by == 'Company' and float(e.amount or 0) > 0:
+            add(e.paid_date or e.created_at.date(), 'Expense',
+                f'{e.expense_type} paid by company', dr=float(e.amount))
+            if e.recovered:
+                add(e.recovered_date or e.updated_at.date(), 'Recovery',
+                    f'{e.expense_type} recovered', cr=float(e.amount))
+
+    for p in proj.payments:
+        label = f'{p.payment_source} {p.instalment or ""} payment ({p.payment_type})'.replace('  ', ' ')
+        if p.reference_no:
+            label += f' · ref {p.reference_no}'
+        add(p.payment_date, 'Receipt', label, cr=float(p.amount))
+
+    for w in proj.waivers:
+        add(w.waived_date or w.created_at.date(), 'Write-off', w.reason, cr=float(w.amount))
+
+    sub = proj.subsidy
+    if sub and sub.status == 'Received':
+        sd = sub.updated_at.date() if sub.updated_at else created
+        if float(sub.customer_share or 0) > 0:
+            add(sd, 'Subsidy', 'Subsidy — customer share', cr=float(sub.customer_share))
+        if float(sub.company_share or 0) > 0:
+            add(sd, 'Subsidy', 'Subsidy — company share', cr=float(sub.company_share))
+
+    # Settled excess (non-transferred part leaves the ledger as a debit)
+    settled_bank_rows = False
+    for exc in proj.payment_excesses:
+        if exc.status == 'Settled':
+            if exc.source == 'Bank':
+                settled_bank_rows = True
+            if exc.remaining > 0.01:
+                add(exc.settlement_date or exc.detected_date, 'Excess', exc.action_label, dr=exc.remaining)
+    be = proj.bank_excess
+    if be and be.returned and not settled_bank_rows:
+        add(be.returned_date or created, 'Excess', be.action_label, dr=float(be.excess_amount))
+
+    for a in proj.adjustments_out:
+        if a.status == 'Active':
+            add(a.adjust_date, 'Adjustment',
+                f'Excess adjusted to {a.to_project.project_code} — {a.to_project.customer.name}',
+                dr=float(a.amount))
+    for a in proj.adjustments_in:
+        if a.status == 'Active':
+            add(a.adjust_date, 'Adjustment',
+                f'Adjusted from {a.from_project.project_code} — {a.from_project.customer.name}',
+                cr=float(a.amount))
+
+    entries = [e for _, e in sorted(enumerate(entries), key=lambda t: (t[1]['date'], t[0]))]
+    bal = 0.0
+    for e in entries:
+        bal += e['dr'] - e['cr']
+        e['balance'] = round(bal, 2)
+    totals = {'dr': sum(e['dr'] for e in entries), 'cr': sum(e['cr'] for e in entries),
+              'closing': round(bal, 2)}
+    return entries, totals
+
+
+def _has_active_outgoing_adjustments(proj):
+    return any(a.status == 'Active' for a in proj.adjustments_out)
+
+
+@app.route('/projects/<int:pid>/ledger')
+@login_required
+@roles_required('admin', 'payments', 'director')
+def project_ledger(pid):
+    proj = Project.query.get_or_404(pid)
+    entries, totals = _build_project_ledger(proj)
+    return render_template('project_ledger.html', proj=proj, entries=entries, totals=totals)
+
+
+@app.route('/api/adjustment_targets')
+@login_required
+@roles_required('admin', 'payments')
+@limiter.limit('60 per minute')
+def api_adjustment_targets():
+    q   = _clean(request.args.get('q', ''), 80)
+    exclude = request.args.get('exclude', type=int)
+    if len(q) < 2:
+        return jsonify([])
+    query = (Project.query.join(Customer)
+             .filter(Project.status.notin_(['Cancelled', 'OnHold']),
+                     Project.work_category != 'Outside',
+                     Customer.name.ilike(f'%{q}%') | Project.project_code.ilike(f'%{q}%')))
+    if exclude:
+        query = query.filter(Project.id != exclude)
+    out = []
+    for p in query.order_by(Project.updated_at.desc()).limit(15).all():
+        pend = p.pending_amount
+        if pend > 0.01:
+            out.append({'code': p.project_code, 'name': p.customer.name, 'pending': round(pend, 2)})
+    return jsonify(out)
+
+
+@app.route('/payment_excess/<int:eid>/adjust', methods=['POST'])
+@login_required
+@roles_required('admin', 'payments')
+@limiter.limit('30 per minute')
+def adjust_excess_to_project(eid):
+    exc  = PaymentExcess.query.with_for_update().filter_by(id=eid).first_or_404()
+    src  = exc.project
+    back = url_for('project_detail', pid=src.id) + '#payments'
+
+    if exc.status != 'Pending' or exc.remaining <= 0.01:
+        flash('This excess has nothing left to adjust.', 'warning')
+        return redirect(back)
+
+    code   = _clean(request.form.get('target_code', ''), 20)
+    target = Project.query.filter_by(project_code=code).first()
+    amount = _safe_float(request.form.get('amount'))
+    notes  = _clean(request.form.get('notes', ''), 300) or None
+    try:
+        adj_date = (date.fromisoformat(request.form['adjust_date'])
+                    if request.form.get('adjust_date') else date.today())
+    except ValueError:
+        flash('Invalid date.', 'danger')
+        return redirect(back)
+
+    err = None
+    if not target:
+        err = f'No project found with MNRE number "{code}".'
+    elif target.id == src.id:
+        err = 'Choose a different project — this excess already belongs to this one.'
+    elif target.status in ('Cancelled', 'OnHold') or target.work_category == 'Outside':
+        err = 'Target project cannot receive adjustments (cancelled, on hold or outside work).'
+    elif amount <= 0:
+        err = 'Enter an amount greater than zero.'
+    elif adj_date > date.today():
+        err = 'Adjustment date cannot be in the future.'
+    elif amount > exc.remaining + 0.01:
+        err = f'Only ₹{exc.remaining:,.0f} of this excess is left to adjust.'
+    elif amount > target.pending_amount + 0.01:
+        err = f'{target.project_code} has only ₹{target.pending_amount:,.0f} pending.'
+    if err:
+        flash(err, 'danger')
+        return redirect(back)
+
+    adj = PaymentAdjustment(excess=exc, from_project=src, to_project=target,
+                            amount=amount, adjust_date=adj_date, notes=notes,
+                            created_by=current_user.id)
+    db.session.add(adj)
+    exc.adjusted_amount = float(exc.adjusted_amount or 0) + amount
+
+    if exc.remaining <= 0.01:
+        exc.status               = 'Settled'
+        exc.action               = 'Adjusted'
+        exc.returned_to          = None
+        exc.settlement_date      = adj_date
+        exc.settlement_notes     = 'Fully adjusted to other customer dues (see ledger).'
+        exc.settled_by           = current_user.id
+
+    src_tag = f'{src.project_code} — {src.customer.name}'
+    tgt_tag = f'{target.project_code} — {target.customer.name}'
+    log_action(src.id,    f'Excess ₹{amount:,.0f} adjusted to {tgt_tag}', new_val=str(amount))
+    log_action(target.id, f'₹{amount:,.0f} adjusted from {src_tag} excess', new_val=str(amount))
+    for u in User.query.filter_by(role='payments', is_active=True).all():
+        if u.id != current_user.id:
+            create_notification(u.id, target.id,
+                f'{tgt_tag}: ₹{amount:,.0f} adjusted from {src_tag} excess.', 'info')
+
+    db.session.flush()
+    db.session.expire(target, ['adjustments_in'])
+    db.session.expire(src, ['adjustments_out'])
+    auto_advance_stage(target)
+    auto_advance_stage(src)
+    db.session.commit()
+    flash(f'₹{amount:,.0f} adjusted from {src.project_code} to {target.project_code}.', 'success')
+    return redirect(back)
+
+
+@app.route('/payment_adjustments/<int:aid>/reverse', methods=['POST'])
+@login_required
+@roles_required('admin')
+def reverse_payment_adjustment(aid):
+    adj    = PaymentAdjustment.query.get_or_404(aid)
+    reason = _clean(request.form.get('reason', ''), 300)
+    back   = request.referrer or url_for('project_detail', pid=adj.from_project_id)
+
+    if adj.status != 'Active':
+        flash('This adjustment is already reversed.', 'warning')
+        return redirect(back)
+    exc = adj.excess
+    if exc.status == 'Settled' and exc.action != 'Adjusted':
+        flash('The remaining excess was settled another way — undo that settlement first.', 'danger')
+        return redirect(back)
+
+    adj.status         = 'Reversed'
+    adj.reversed_by    = current_user.id
+    adj.reversed_at    = datetime.utcnow()
+    adj.reverse_reason = reason or None
+    exc.adjusted_amount = max(0, float(exc.adjusted_amount or 0) - float(adj.amount))
+    if exc.status == 'Settled':
+        exc.status = 'Pending'
+        exc.action = None
+        exc.settlement_date = exc.settlement_notes = exc.settled_by = None
+
+    src, tgt = adj.from_project, adj.to_project
+    log_action(src.id, f'Excess adjustment of ₹{float(adj.amount):,.0f} to {tgt.project_code} reversed. '
+                       f'Reason: {reason or "Not provided"}', old_val='Active', new_val='Reversed')
+    log_action(tgt.id, f'Adjustment of ₹{float(adj.amount):,.0f} from {src.project_code} reversed',
+               old_val='Active', new_val='Reversed')
+
+    db.session.flush()
+    db.session.expire(tgt, ['adjustments_in'])
+    db.session.expire(src, ['adjustments_out'])
+    if tgt.status in ('Closed', 'Completed') and tgt.pending_amount > 0.01:
+        tgt.status, tgt.stage = 'InProgress', 'Payment'
+        tgt.staged_changed_at = datetime.utcnow()
+    auto_advance_stage(tgt)
+    db.session.commit()
+    flash('Adjustment reversed.', 'warning')
+    return redirect(back)
+@app.route('/projects/<int:pid>/bank_excess/adjust', methods=['POST'])
+@login_required
+@roles_required('admin', 'payments')
+@limiter.limit('30 per minute')
+def adjust_bank_excess_to_project(pid):
+    src  = Project.query.get_or_404(pid)
+    exc  = BankExcessReturn.query.with_for_update().filter_by(project_id=pid).first()
+    back = url_for('project_detail', pid=pid) + '#payments'
+
+    if not exc or exc.returned or exc.remaining <= 0.01:
+        flash('This bank excess has nothing left to adjust.', 'warning')
+        return redirect(back)
+    if PaymentExcess.query.filter_by(project_id=pid, source='Bank', status='Pending').first():
+        flash('A pending bank-source excess record also exists for this project (same overshoot). '
+              'Adjust from that record in the Excess Payment card instead.', 'danger')
+        return redirect(back)
+
+    code   = _clean(request.form.get('target_code', ''), 20)
+    target = Project.query.filter_by(project_code=code).first()
+    amount = _safe_float(request.form.get('amount'))
+    notes  = _clean(request.form.get('notes', ''), 300) or None
+    try:
+        adj_date = (date.fromisoformat(request.form['adjust_date'])
+                    if request.form.get('adjust_date') else date.today())
+    except ValueError:
+        flash('Invalid date.', 'danger')
+        return redirect(back)
+
+    err = None
+    if not target:
+        err = f'No project found with MNRE number "{code}".'
+    elif target.id == src.id:
+        err = 'Choose a different project.'
+    elif target.status in ('Cancelled', 'OnHold') or target.work_category == 'Outside':
+        err = 'Target project cannot receive adjustments (cancelled, on hold or outside work).'
+    elif amount <= 0:
+        err = 'Enter an amount greater than zero.'
+    elif adj_date > date.today():
+        err = 'Adjustment date cannot be in the future.'
+    elif amount > exc.remaining + 0.01:
+        err = f'Only ₹{exc.remaining:,.0f} of this bank excess is left to adjust.'
+    elif amount > target.pending_amount + 0.01:
+        err = f'{target.project_code} has only ₹{target.pending_amount:,.0f} pending.'
+    if err:
+        flash(err, 'danger')
+        return redirect(back)
+
+    db.session.add(PaymentAdjustment(
+        bank_excess=exc, from_project=src, to_project=target,
+        amount=amount, adjust_date=adj_date, notes=notes, created_by=current_user.id))
+    exc.adjusted_amount = float(exc.adjusted_amount or 0) + amount
+
+    if exc.remaining <= 0.01:
+        exc.returned        = True
+        exc.action          = 'Adjusted'
+        exc.returned_to     = None
+        exc.returned_date   = adj_date
+        exc.returned_notes  = 'Fully adjusted to other customer dues (see ledger).'
+
+    src_tag = f'{src.project_code} — {src.customer.name}'
+    tgt_tag = f'{target.project_code} — {target.customer.name}'
+    log_action(src.id,    f'Bank excess ₹{amount:,.0f} adjusted to {tgt_tag}', new_val=str(amount))
+    log_action(target.id, f'₹{amount:,.0f} adjusted from {src_tag} bank excess', new_val=str(amount))
+    for u in User.query.filter_by(role='payments', is_active=True).all():
+        if u.id != current_user.id:
+            create_notification(u.id, target.id,
+                f'{tgt_tag}: ₹{amount:,.0f} adjusted from {src_tag} bank excess.', 'info')
+
+    db.session.flush()
+    db.session.expire(target, ['adjustments_in'])
+    db.session.expire(src, ['adjustments_out', 'bank_excess'])
+    auto_advance_stage(target)
+    auto_advance_stage(src)
+    db.session.commit()
+    flash(f'₹{amount:,.0f} adjusted from {src.project_code} to {target.project_code}.', 'success')
+    return redirect(back)
 @app.route('/projects/<int:pid>/expenses/<int:eid>/mark_recovered', methods=['POST'])
 @login_required
 @roles_required('admin', 'payments')
@@ -5227,7 +5769,7 @@ def add_payment(pid):
     if proj.total_amount and float(proj.total_amount) > 0:
         is_bank_loan = (source == 'Bank' and proj.project_type == 'Loan')
         if not is_bank_loan:
-            if float(proj.collected_amount or 0) >= float(proj.total_receivable):
+            if float(proj.collected_amount or 0) >= float(proj.total_receivable) - proj.adjusted_in_total:
                 flash('This project is fully paid. No further payments can be recorded.', 'danger')
                 return redirect(url_for('project_detail', pid=pid))
             # Overpayment is no longer blocked — any excess beyond total_receivable
@@ -5255,7 +5797,7 @@ def add_payment(pid):
     # ── Apply payment, capping collected_amount at total_receivable.
     #    Anything beyond that becomes a settleable PaymentExcess. ─────────
     prior_collected = float(proj.collected_amount or 0)
-    receivable      = float(proj.total_receivable)
+    receivable      = float(proj.total_receivable) - proj.adjusted_in_total
     new_total_raw   = prior_collected + amount
 
     if receivable > 0 and new_total_raw > receivable:
@@ -5308,6 +5850,10 @@ def edit_payment(pid, pay_id):
     pay  = Payment.query.get_or_404(pay_id)
     proj = Project.query.get_or_404(pid)
 
+    if _has_active_outgoing_adjustments(proj):
+        flash('This project has excess adjusted to other customers. Reverse those adjustments before editing payments.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+
     old_amount = float(pay.amount)
     new_amount = _safe_float(request.form.get('amount'))
 
@@ -5321,7 +5867,7 @@ def edit_payment(pid, pay_id):
     pay.reference_no = _clean(request.form.get('reference_no', ''), 80) or None
     pay.notes        = _clean(request.form.get('notes', ''), 500)
 
-    db.session.flush()  # ensure pay.amount is visible to proj.payments before reconciling
+    db.session.flush()
 
     log_action(pid, f'Payment edited: ₹{old_amount:,.0f} → ₹{new_amount:,.0f}',
                old_val=str(old_amount), new_val=str(new_amount))
@@ -5340,9 +5886,13 @@ def delete_payment(pid, pay_id):
     pay  = Payment.query.get_or_404(pay_id)
     proj = Project.query.get_or_404(pid)
 
+    if _has_active_outgoing_adjustments(proj):
+        flash('This project has excess adjusted to other customers. Reverse those adjustments before deleting payments.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+
     amount = float(pay.amount)
     db.session.delete(pay)
-    db.session.flush()  # ensure pay is gone from proj.payments before reconciling
+    db.session.flush()
 
     log_action(pid, f'Payment deleted: ₹{amount:,.0f} ({pay.payment_type})',
                old_val=str(amount), new_val='Deleted')
