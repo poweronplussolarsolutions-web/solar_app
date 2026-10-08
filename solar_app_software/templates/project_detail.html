@@ -873,7 +873,7 @@ function togglePanelAddr(which) {
 <div class="card" style="margin-bottom:16px;padding:12px 20px">
   <div style="display:flex;gap:8px;flex-wrap:wrap">
     {% if current_user.role in ['admin','payments','director'] and proj.work_category != 'Outside' %}
-<a href="{{ url_for('project_ledger', pid=proj.id) }}" class="btn btn-sm">📒 Ledger</a>
+<a href="{{ url_for('project_ledger', pid=proj.id) }}" class="btn btn-sm"> Ledger</a>
 {% endif %}
     <a href="#documents" class="btn btn-sm">Documents</a>
     {% if proj.project_subtype == 'DCR' and proj.work_category != 'Outside' %}
