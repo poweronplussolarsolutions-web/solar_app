@@ -563,6 +563,12 @@
       <a class="nav-link {% if request.endpoint in ['manage_users','new_user'] %}active{% endif %}" href="{{ url_for('manage_users') }}">
         <span class="dot"></span> Manage Users
       </a>
+      <a class="nav-link {% if request.endpoint == 'admin_registrations' %}active{% endif %}" href="{{ url_for('admin_registrations') }}">
+  <span class="dot"></span> Access Requests
+  <!-- {% if pending_registrations_count %}
+  <span class="badge badge-Pending" style="margin-left:auto">{{ pending_registrations_count }}</span>
+  {% endif %} -->
+</a>
       <a class="nav-link {% if request.endpoint in 'manage_document_stages' %}active{% endif %}" href="{{ url_for('manage_document_stages') }}">
         <span class="dot"></span>Document Stages</a>
       <a class="nav-link {% if request.endpoint in 'deleted_projects' %}active{% endif %}" href="{{ url_for('deleted_projects') }}">
