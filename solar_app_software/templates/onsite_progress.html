@@ -363,7 +363,24 @@
         </td>
       </tr>
     </table>
-
+    {% if current_user.role in ['admin','onsite'] %}
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      {% if progress.materials_delivered %}
+      <form method="POST" action="{{ url_for('reset_materials_status', pid=proj.id) }}"
+            onsubmit="return confirm('Clear the delivered status and date?')" style="margin:0">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="what" value="delivered">
+        <button type="submit" class="btn btn-sm" style="color:var(--danger);border-color:#fca5a5">✕ Clear delivery</button>
+      </form>
+      {% endif %}
+      <form method="POST" action="{{ url_for('reset_materials_status', pid=proj.id) }}"
+            onsubmit="return confirm('Clear BOTH order and delivery status and dates?')" style="margin:0">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="what" value="all">
+        <button type="submit" class="btn btn-sm" style="color:var(--danger);border-color:#fca5a5">✕ Clear order &amp; delivery</button>
+      </form>
+    </div>
+    {% endif %}
     {% if progress.materials_ordered and not progress.materials_delivered %}
 <div style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
   <button type="button" class="btn btn-primary btn-sm" id="deliver-stock-btn">📦 Mark delivered & deduct stock</button>
@@ -584,11 +601,18 @@
     </div>
     {% if delivered_stock_txns %}
     <div>
-      {% for t in delivered_stock_txns %}
-      <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px">
+            {% for t in delivered_stock_txns %}
+      <div style="display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px">
         <span>{{ t.stock_item.display_name }}</span>
         <span style="font-size:12px;color:var(--muted);white-space:nowrap">{{ t.quantity }} {{ t.stock_item.unit }}</span>
         <span style="font-size:11px;color:var(--hint);white-space:nowrap">{{ t.created_at.strftime('%d %b %Y') }}</span>
+        {% if current_user.role in ['admin','onsite','stocks'] %}
+        <form method="POST" action="{{ url_for('delete_stock_delivery', pid=proj.id, tid=t.id) }}"
+              onsubmit="return confirm('Remove this item? {{ t.quantity }} {{ t.stock_item.unit }} will be returned to stock.')" style="margin:0">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm" style="color:var(--danger);border-color:#fca5a5;padding:2px 7px">✕</button>
+        </form>
+        {% endif %}
       </div>
       {% endfor %}
     </div>

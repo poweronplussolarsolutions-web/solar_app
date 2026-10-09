@@ -7192,7 +7192,58 @@ def deliver_stock_to_site(pid):
     flash('Materials marked as delivered' +
           (' and deducted from stock.' if deducted else '.'), 'success')
     return redirect(url_for('onsite_progress', pid=pid))
+@app.route('/projects/<int:pid>/stock_delivery/<int:tid>/delete', methods=['POST'])
+@login_required
+@roles_required('admin', 'onsite', 'stocks')
+def delete_stock_delivery(pid, tid):
+    t = StockTransaction.query.filter_by(
+        id=tid, project_id=pid, source='OnsiteDelivery').first_or_404()
+    item = t.stock_item
+    qty  = float(t.quantity or 0)
 
+    # Put the quantity back into stock via a reversal entry (ledger stays intact)
+    new_balance = float(item.current_qty or 0) + qty
+    db.session.add(StockTransaction(
+        stock_item_id=item.id, txn_type='In', quantity=qty,
+        source='DeliveryReversal', project_id=pid, reference_id=t.id,
+        notes=f'Delivery removed — {t.project.project_code if t.project else pid}',
+        balance_after=new_balance, recorded_by=current_user.id,
+    ))
+    item.current_qty = new_balance
+
+    # Mark the original as voided so it drops off the delivered list
+    t.source = 'OnsiteDeliveryVoided'
+
+    log_action(pid, f'Delivered material removed: {item.display_name} ({qty:g} {item.unit}) — stock restored',
+               new_val='Removed')
+    db.session.commit()
+    flash(f'{item.display_name} removed from delivery. {qty:g} {item.unit} returned to stock.', 'warning')
+    return redirect(url_for('onsite_progress', pid=pid))
+
+
+@app.route('/projects/<int:pid>/materials/reset', methods=['POST'])
+@login_required
+@roles_required('admin', 'onsite')
+def reset_materials_status(pid):
+    proj = Project.query.get_or_404(pid)
+    progress = proj.onsite_progress
+    if not progress:
+        flash('Nothing to reset.', 'warning')
+        return redirect(url_for('onsite_progress', pid=pid))
+
+    what = request.form.get('what', 'delivered')   # 'delivered' or 'all'
+    progress.materials_delivered      = False
+    progress.materials_delivered_date = None
+    if what == 'all':
+        progress.materials_ordered      = False
+        progress.materials_ordered_date = None
+    progress.updated_by = current_user.id
+
+    log_action(pid, 'Materials delivery reset' if what == 'delivered'
+                    else 'Materials order & delivery reset', new_val='Reset')
+    db.session.commit()
+    flash('Materials status cleared. You can mark it again with the correct date.', 'warning')
+    return redirect(url_for('onsite_progress', pid=pid))
 
 # ── Stocks: manual purchase from a distributor (not tied to a project) ────────
 @app.route('/stock/purchase', methods=['GET', 'POST'])
