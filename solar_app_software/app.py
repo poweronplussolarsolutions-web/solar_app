@@ -10632,7 +10632,7 @@ from sqlalchemy.orm import selectinload, joinedload
 def _get_all_works_projects(project_type_filter, work_category_filter='All', status_filter='All',
                              month=None, year=None, amount_filter='All', search='',
                              payment_stage_filter='All', coordinator_filter='All',
-                             commission_filter='All'):
+                             commission_filter='All', excess_filter='All'):
     q = (Project.query
          .join(Customer)
          .options(
@@ -10640,10 +10640,12 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
              joinedload(Project.coordinator),
              joinedload(Project.doc_staff),
              joinedload(Project.subsidy),
+             joinedload(Project.bank_excess),
              selectinload(Project.expenses),
              selectinload(Project.waivers),
              selectinload(Project.payments),
              selectinload(Project.commissions),
+             selectinload(Project.payment_excesses),
          )
          .filter(Project.status != 'Cancelled'))
 
@@ -10692,15 +10694,12 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
     elif commission_filter == 'NotGiven':
         projects = [p for p in projects if not p.commissions]
 
+    if excess_filter == 'Pending':
+        projects = [p for p in projects if _project_excess_discount(p)[0] > 0.01]
+    elif excess_filter == 'None':
+        projects = [p for p in projects if _project_excess_discount(p)[0] <= 0.01]
+
     return projects
-STATUS_FILTER_MAP = {
-    'InProgress': ['InProgress'],
-    'Delayed':    ['Delayed'],
-    'Completed':  ['Completed', 'Closed'],
-    'OnHold':     ['OnHold'],
-    'Lead':       ['Lead'],
-    'Active':     ['InProgress', 'Lead', 'Created'],
-}
 
 def _parse_status_filter(status_param):
     """Accepts 'All', a single status key, or a comma-separated list of
@@ -10740,13 +10739,14 @@ def all_works_preview_data():
     payment_stage_filter     = request.args.get('payment_stage', 'All')
     coordinator_filter       = _clean(request.args.get('coordinator', 'All'), 120) or 'All'
     commission_filter        = request.args.get('commission', 'All')
+    excess_filter            = request.args.get('excess', 'All')
     search                    = _clean(request.args.get('q', ''), 100)
     month = request.args.get('month', type=int)
     year  = request.args.get('year', type=int)
     projects = _get_all_works_projects(project_type_filter, work_category_filter,
                                         status_filter, month, year, amount_filter, search,
                                         payment_stage_filter, coordinator_filter,
-                                        commission_filter)
+                                        commission_filter, excess_filter)
 
     total_val = sum(float(p.total_amount or 0) for p in projects)
     collected = sum(float(p.collected_amount or 0) for p in projects)
@@ -10824,13 +10824,14 @@ def all_works_download():
     payment_stage_filter     = request.args.get('payment_stage', 'All')
     coordinator_filter       = _clean(request.args.get('coordinator', 'All'), 120) or 'All'
     commission_filter        = request.args.get('commission', 'All')
+    excess_filter            = request.args.get('excess', 'All')
     search                    = _clean(request.args.get('q', ''), 100)
     month = request.args.get('month', type=int)
     year  = request.args.get('year', type=int)
     projects = _get_all_works_projects(project_type_filter, work_category_filter,
                                         status_filter, month, year, amount_filter, search,
                                         payment_stage_filter, coordinator_filter,
-                                        commission_filter)
+                                        commission_filter, excess_filter)
 
     effective_type_filter = 'Loan' if payment_stage_filter in ('FirstPending', 'SecondPending') else project_type_filter
     path = build_allworks_full_report(projects, effective_type_filter, work_category_filter,
@@ -10856,6 +10857,8 @@ def all_works_download():
         parts.append(re.sub(r'[^A-Za-z0-9]+', '', coordinator_filter))
     if commission_filter != 'All':
         parts.append(commission_filter)
+    if excess_filter != 'All':
+        parts.append('ExcessPending' if excess_filter == 'Pending' else 'NoExcess')
     if month and year:
         parts.append(f'{calendar.month_abbr[month]}{year}')
     if search:

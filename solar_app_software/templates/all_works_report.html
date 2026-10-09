@@ -199,6 +199,14 @@
   </select>
 </div>
     <div class="aw-filter-group">
+      <label>Excess Payment</label>
+      <select id="excessFilter" onchange="loadData()">
+        <option value="All">All</option>
+        <option value="Pending">Has pending excess</option>
+        <option value="None">No pending excess</option>
+      </select>
+    </div>
+    <div class="aw-filter-group">
     <label>Month (by Created Date)</label>
     <select id="monthFilter" onchange="onMonthChange()">
       <option value="">All Time</option>
@@ -352,6 +360,7 @@ function currentFilters() {
     payment_stage:  document.getElementById('paymentStageFilter').value,
     coordinator:    document.getElementById('coordinatorFilter').value,
     commission:     document.getElementById('commissionFilter').value,
+    excess:         document.getElementById('excessFilter').value,
   };
   const month = document.getElementById('monthFilter').value;
   if (month) {
@@ -381,6 +390,7 @@ function resetFilters() {
   document.getElementById('commissionFilter').value = 'All';
   document.getElementById('monthFilter').value = '';
   document.getElementById('yearFilter').disabled = true;
+  document.getElementById('excessFilter').value = 'All';
   document.getElementById('searchFilter').value = '';
   loadData();
 }
@@ -402,6 +412,7 @@ function renderChips(filters) {
     amount_filter: { Zero: '₹0 Work Amount', NonZero: 'Non-zero Work Amount' },
     payment_stage: { FirstPending: 'First Payment Not Received', SecondPending: 'Second Payment Not Received' },
     commission:    { Given: 'Commission Given', NotGiven: 'No Commission' },
+    excess:        { Pending: 'Excess Pending', None: 'No Pending Excess' },
   };
   const monthNames = ['', 'January','February','March','April','May','June',
                        'July','August','September','October','November','December'];
