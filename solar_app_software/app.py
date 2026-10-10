@@ -58,6 +58,12 @@ STAGE_STATUS_MAP = {
     'Onsite Work': 'InProgress', 'Connection': 'InProgress',
     'Subsidy': 'InProgress', 'Payment': 'InProgress',
 }
+STATUS_FILTER_MAP = {
+    'InProgress': ['InProgress'],
+    'Delayed':    ['Delayed'],
+    'Completed':  ['Completed', 'Closed'],
+    'OnHold':     ['OnHold'],
+}
 
 # ── Login-attempt tracking (in-memory; swap for Redis in production) ──────────
 _login_attempts: dict = {}   # ip -> {'count': int, 'locked_until': datetime|None}
