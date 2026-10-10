@@ -45,7 +45,7 @@
   <div class="card pf-hero">
     <div class="pf-av">
       {% if current_user.photo %}
-        <img src="{{ url_for('user_photo', user_id=current_user.id) }}?v={{ current_user.photo }}" alt="">
+        <img src="{{ url_for('user_photo', user_id=current_user.id) }}?v={{ current_user.photo }}" alt="" data-i="{{ (current_user.full_name.split()[:2]|map('first')|join)|upper }}" onerror="this.replaceWith(document.createTextNode(this.dataset.i))">
       {% else %}
         {{ (current_user.full_name.split()[:2]|map('first')|join)|upper }}
       {% endif %}

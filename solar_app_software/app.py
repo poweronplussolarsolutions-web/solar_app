@@ -1860,6 +1860,34 @@ def user_photo(user_id):
         abort(404)
     return send_file(path)
 
+@app.route('/profile')
+@login_required
+def profile():
+    return render_template('profile.html')
+
+
+@app.route('/profile/photo', methods=['POST'])
+@login_required
+def profile_photo():
+    user = db.session.get(User, current_user.id)
+
+    if request.form.get('remove'):
+        _delete_profile_photo(user.photo)
+        user.photo = None
+        db.session.commit()
+        flash('Profile photo removed.', 'success')
+        return redirect(url_for('profile'))
+
+    fname = save_profile_photo(request.files.get('photo'), user.id)
+    if not fname:
+        flash('Could not use that image. Use a JPG, PNG or WEBP under 2 MB.', 'danger')
+        return redirect(url_for('profile'))
+
+    _delete_profile_photo(user.photo)
+    user.photo = fname
+    db.session.commit()
+    flash('Profile photo updated.', 'success')
+    return redirect(url_for('profile'))
 @app.route('/site_photo/<int:photo_id>')
 @login_required
 def serve_extra_site_photo(photo_id):
