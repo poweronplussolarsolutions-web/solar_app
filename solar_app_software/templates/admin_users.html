@@ -117,8 +117,8 @@
 
 {% macro contact(u) %}
   {% set has_email = u.email and not u.email.endswith('@noemail.local') %}
-  {% if has_email %}<div>✉ {{ u.email }}</div>{% endif %}
-  {% if u.phone %}<div>📱 +91 {{ u.phone }}</div>{% endif %}
+  {% if has_email %}<div> {{ u.email }}</div>{% endif %}
+  {% if u.phone %}<div> +91 {{ u.phone }}</div>{% endif %}
   {% if not has_email and not u.phone %}—{% endif %}
 {% endmacro %}
 
