@@ -190,6 +190,7 @@
         <label><input type="checkbox" value="Delayed" onchange="onStatusCheckboxChange()"> Delayed</label>
         <label><input type="checkbox" value="Completed" onchange="onStatusCheckboxChange()"> Completed / Closed</label>
         <label><input type="checkbox" value="OnHold" onchange="onStatusCheckboxChange()"> On Hold</label>
+        <label><input type="checkbox" value="Cancelled" onchange="onStatusCheckboxChange()"> Cancelled</label>
       </div>
     </div>
         <div class="aw-filter-group">
@@ -288,7 +289,7 @@
         </tr>
       </thead>
       <tbody id="worksBody">
-        <tr><td colspan="14" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>
+        <tr><td colspan="20" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>
       </tbody>
     </table>
   </div>
@@ -339,7 +340,7 @@ document.addEventListener('click', (e) => {
 
 const STATUS_LABELS = {
   InProgress: 'In Progress', Delayed: 'Delayed',
-  Completed: 'Completed/Closed', OnHold: 'On Hold',
+  Completed: 'Completed/Closed', OnHold: 'On Hold', Cancelled: 'Cancelled',
 };
 
 function getSelectedStatuses() {
@@ -471,7 +472,7 @@ function loadData() {
   const filters = currentFilters();
   renderChips(filters);
   document.getElementById('worksBody').innerHTML =
-    '<tr><td colspan="18" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>';
+    '<tr><td colspan="20" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>';
 
   fetch(`/admin/all_works/preview_data?${buildQS(filters)}`)
     .then(r => r.json())
@@ -481,14 +482,18 @@ function loadData() {
     })
     .catch(() => {
       document.getElementById('worksBody').innerHTML =
-        '<tr><td colspan="18" style="text-align:center;padding:30px;color:red">Failed to load.</td></tr>';
+        '<tr><td colspan="20" style="text-align:center;padding:30px;color:red">Failed to load.</td></tr>';
     });
 }
 
 function renderKpis(kpis) {
-  const row = document.getElementById('kpiRow');
-  row.innerHTML = Object.entries(kpis).map(([k, v]) => `
-    <div class="aw-kpi">
+  const accent = {
+    'Total Works': 'border-left:3px solid #155724;',
+    'On Hold':     'border-left:3px solid #856404;',
+    'Cancelled':   'border-left:3px solid #721c24;',
+  };
+  document.getElementById('kpiRow').innerHTML = Object.entries(kpis).map(([k, v]) => `
+    <div class="aw-kpi" style="${accent[k] || ''}">
       <div class="aw-kpi-label">${k}</div>
       <div class="aw-kpi-value">${v}</div>
     </div>`).join('');
@@ -503,7 +508,7 @@ function renderTable(projects) {
 
   const body = document.getElementById('worksBody');
   if (!projects.length) {
-    body.innerHTML = '<tr><td colspan="18" style="text-align:center;padding:30px;color:var(--hint)">No projects match these filters.</td></tr>';
+    body.innerHTML = '<tr><td colspan="20" style="text-align:center;padding:30px;color:var(--hint)">No projects match these filters.</td></tr>';
     return;
   }
 

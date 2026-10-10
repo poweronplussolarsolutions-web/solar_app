@@ -63,6 +63,7 @@ STATUS_FILTER_MAP = {
     'Delayed':    ['Delayed'],
     'Completed':  ['Completed', 'Closed'],
     'OnHold':     ['OnHold'],
+    'Cancelled':  ['Cancelled'],
 }
 
 # ── Login-attempt tracking (in-memory; swap for Redis in production) ──────────
@@ -10715,7 +10716,7 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
                              month=None, year=None, amount_filter='All', search='',
                              payment_stage_filter='All', coordinator_filter='All',
                              commission_filter='All', excess_filter='All',
-                             doc_staff_filter='All'):
+                             doc_staff_filter='All', include_cancelled=False):
     q = (Project.query
          .join(Customer)
          .options(
@@ -10729,8 +10730,9 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
              selectinload(Project.payments),
              selectinload(Project.commissions),
              selectinload(Project.payment_excesses),
-         )
-         .filter(Project.status != 'Cancelled'))
+         ))
+    if not include_cancelled:
+        q = q.filter(Project.status != 'Cancelled')
 
     if payment_stage_filter in ('FirstPending', 'SecondPending'):
         q = q.filter(Project.project_type == 'Loan')
@@ -10836,22 +10838,39 @@ def all_works_preview_data():
     search                    = _clean(request.args.get('q', ''), 100)
     month = request.args.get('month', type=int)
     year  = request.args.get('year', type=int)
+    want_cancelled = 'Cancelled' in [s.strip() for s in status_filter.split(',')]
+
+    # Rows shown in the table (respects the status filter)
     projects = _get_all_works_projects(project_type_filter, work_category_filter,
                                         status_filter, month, year, amount_filter, search,
                                         payment_stage_filter, coordinator_filter,
                                         commission_filter, excess_filter,
-                                        doc_staff_filter=doc_staff_filter)
+                                        doc_staff_filter=doc_staff_filter,
+                                        include_cancelled=want_cancelled)
 
-    total_val = sum(float(p.total_amount or 0) for p in projects)
-    collected = sum(float(p.collected_amount or 0) for p in projects)
-    pending   = sum(p.pending_amount for p in projects)
-    active    = [p for p in projects if p.status in ('InProgress', 'Delayed', 'Lead', 'OnHold')]
-    completed = [p for p in projects if p.status in ('Completed', 'Closed')]
-    delayed   = [p for p in projects if p.status == 'Delayed']
-    cash_count = sum(1 for p in projects if p.project_type == 'Cash')
-    loan_count = sum(1 for p in projects if p.project_type == 'Loan')
-    outside_count = sum(1 for p in projects if p.work_category == 'Outside')
-    commission_given_count = sum(1 for p in projects if p.commissions)
+    # Same filters but ignoring the status filter, cancelled included,
+    # so the Total / On Hold / Cancelled counts are always complete
+    count_set = _get_all_works_projects(project_type_filter, work_category_filter,
+                                         'All', month, year, amount_filter, search,
+                                         payment_stage_filter, coordinator_filter,
+                                         commission_filter, excess_filter,
+                                         doc_staff_filter=doc_staff_filter,
+                                         include_cancelled=True)
+    cancelled_count = sum(1 for p in count_set if p.status == 'Cancelled')
+    onhold_count    = sum(1 for p in count_set if p.status == 'OnHold')
+    total_works     = len(count_set) - cancelled_count - onhold_count   # active works only
+
+    live      = [p for p in projects if p.status != 'Cancelled']       # money KPIs exclude cancelled
+    total_val = sum(float(p.total_amount or 0) for p in live)
+    collected = sum(float(p.collected_amount or 0) for p in live)
+    pending   = sum(p.pending_amount for p in live)
+    active    = [p for p in live if p.status in ('InProgress', 'Delayed', 'Lead')]
+    completed = [p for p in live if p.status in ('Completed', 'Closed')]
+    delayed   = [p for p in live if p.status == 'Delayed']
+    cash_count = sum(1 for p in live if p.project_type == 'Cash')
+    loan_count = sum(1 for p in live if p.project_type == 'Loan')
+    outside_count = sum(1 for p in live if p.work_category == 'Outside')
+    commission_given_count = sum(1 for p in live if p.commissions)
 
     def _to_dict(p):
         bg, fg = STATUS_COLORS_HTML.get(p.status, ('#fff', '#000'))
@@ -10881,10 +10900,13 @@ def all_works_preview_data():
             'doc_staff':     p.doc_staff.full_name if p.doc_staff else '—',
             'created':       p.created_at.strftime('%d %b %Y'),
         }
-    total_excess     = sum(_project_excess_discount(p)[0] for p in projects)
-    total_discounted = sum(_project_excess_discount(p)[1] for p in projects)
+    total_excess     = sum(_project_excess_discount(p)[0] for p in live)
+    total_discounted = sum(_project_excess_discount(p)[1] for p in live)
     kpis = {
-        'Total':     len(projects),
+        'Total Works':   total_works,
+        'On Hold':       onhold_count,
+        'Cancelled':     cancelled_count,
+        'All (incl. On Hold & Cancelled)': len(count_set),
         'Cash':      cash_count,
         'Loan':      loan_count,
         'Outside':   outside_count,
@@ -10922,11 +10944,13 @@ def all_works_download():
     search                    = _clean(request.args.get('q', ''), 100)
     month = request.args.get('month', type=int)
     year  = request.args.get('year', type=int)
+    want_cancelled = 'Cancelled' in [s.strip() for s in status_filter.split(',')]
     projects = _get_all_works_projects(project_type_filter, work_category_filter,
                                         status_filter, month, year, amount_filter, search,
                                         payment_stage_filter, coordinator_filter,
                                         commission_filter, excess_filter,
-                                        doc_staff_filter=doc_staff_filter)
+                                        doc_staff_filter=doc_staff_filter,
+                                        include_cancelled=want_cancelled)
 
     effective_type_filter = 'Loan' if payment_stage_filter in ('FirstPending', 'SecondPending') else project_type_filter
     path = build_allworks_full_report(projects, effective_type_filter, work_category_filter,
