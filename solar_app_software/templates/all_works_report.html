@@ -170,6 +170,16 @@
         {% endfor %}
       </select>
     </div>
+        <div class="aw-filter-group">
+      <label>Doc Staff</label>
+      <select id="docStaffFilter" onchange="loadData()">
+        <option value="All">All doc staff</option>
+        <option value="none">Unassigned</option>
+        {% for u in doc_staff_list %}
+        <option value="{{ u.id }}">{{ u.full_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
         <div class="aw-filter-group" style="position:relative;">
       <label>Project Status</label>
       <button type="button" id="statusFilterBtn" class="aw-multiselect-btn" onclick="toggleStatusDropdown(event)">
@@ -359,6 +369,7 @@ function currentFilters() {
     amount_filter:  document.getElementById('amountFilter').value,
     payment_stage:  document.getElementById('paymentStageFilter').value,
     coordinator:    document.getElementById('coordinatorFilter').value,
+    doc_staff:      document.getElementById('docStaffFilter').value,
     commission:     document.getElementById('commissionFilter').value,
     excess:         document.getElementById('excessFilter').value,
   };
@@ -387,6 +398,7 @@ function resetFilters() {
   document.getElementById('amountFilter').value = 'All';
   document.getElementById('paymentStageFilter').value = 'All';
   document.getElementById('coordinatorFilter').value = 'All';
+  document.getElementById('docStaffFilter').value = 'All';
   document.getElementById('commissionFilter').value = 'All';
   document.getElementById('monthFilter').value = '';
   document.getElementById('yearFilter').disabled = true;
@@ -434,6 +446,14 @@ function renderChips(filters) {
     if (key === 'coordinator') {
       if (val && val !== 'All') {
         html += `<span class="aw-chip">Coordinator: ${val}</span>`;
+      }
+      continue;
+    }
+    if (key === 'doc_staff') {
+      if (val && val !== 'All') {
+        const sel = document.getElementById('docStaffFilter');
+        const name = sel.options[sel.selectedIndex].text;
+        html += `<span class="aw-chip">Docs: ${name}</span>`;
       }
       continue;
     }

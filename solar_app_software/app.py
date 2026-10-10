@@ -1860,10 +1860,23 @@ def user_photo(user_id):
         abort(404)
     return send_file(path)
 
+
+
+PLACEHOLDER_EMAILS = {'poweronplussolarsolutions@gmail.com'}
+
+
+def _is_placeholder_email(email, role=None):
+    e = (email or '').strip().lower()
+    if role == 'admin' and e in PLACEHOLDER_EMAILS:
+        return False
+    return (not e) or e.endswith('@noemail.local') or e in PLACEHOLDER_EMAILS
+
+
 @app.route('/profile')
 @login_required
 def profile():
-    return render_template('profile.html')
+    email = '' if _is_placeholder_email(current_user.email, current_user.role) else current_user.email
+    return render_template('profile.html', email_display=email)
 
 
 @app.route('/profile/photo', methods=['POST'])
@@ -1887,6 +1900,41 @@ def profile_photo():
     user.photo = fname
     db.session.commit()
     flash('Profile photo updated.', 'success')
+    return redirect(url_for('profile'))
+
+
+@app.route('/profile/update', methods=['POST'])
+@login_required
+def profile_update():
+    user = db.session.get(User, current_user.id)
+    data, err = _parse_user_common(request.form)
+
+    if not err and not data['full_name']:
+        err = 'Full name is required.'
+    if not err and data['phone'] and User.query.filter(
+            User.phone == data['phone'], User.id != user.id).first():
+        err = 'Phone number is already registered.'
+    if not err and data['raw_email'] and data['raw_email'] not in PLACEHOLDER_EMAILS and User.query.filter(
+            db.func.lower(User.email) == data['raw_email'],
+            User.id != user.id,
+            ~User.email.like('%@noemail.local')).first():
+        err = 'Email address is already registered.'
+
+    if err:
+        flash(err, 'danger')
+        return redirect(url_for('profile'))
+
+    new_email = data['raw_email']
+    if user.role != 'admin' and new_email in PLACEHOLDER_EMAILS:
+        new_email = ''
+
+    # Role, status, username and joining date stay admin-only.
+    user.full_name   = data['full_name']
+    user.email       = new_email or f'{user.username}@noemail.local'
+    user.phone       = data['phone'] or None
+    user.designation = data['designation']
+    db.session.commit()
+    flash('Profile updated.', 'success')
     return redirect(url_for('profile'))
 @app.route('/site_photo/<int:photo_id>')
 @login_required
@@ -10660,7 +10708,8 @@ from sqlalchemy.orm import selectinload, joinedload
 def _get_all_works_projects(project_type_filter, work_category_filter='All', status_filter='All',
                              month=None, year=None, amount_filter='All', search='',
                              payment_stage_filter='All', coordinator_filter='All',
-                             commission_filter='All', excess_filter='All'):
+                             commission_filter='All', excess_filter='All',
+                             doc_staff_filter='All'):
     q = (Project.query
          .join(Customer)
          .options(
@@ -10688,6 +10737,11 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
     status_list = _parse_status_filter(status_filter)
     if status_list:
         q = q.filter(Project.status.in_(status_list))
+
+    if doc_staff_filter == 'none':
+        q = q.filter(Project.doc_staff_id.is_(None))
+    elif doc_staff_filter and doc_staff_filter.isdigit():
+        q = q.filter(Project.doc_staff_id == int(doc_staff_filter))
 
     if amount_filter == 'Zero':
         q = q.filter(db.or_(Project.total_amount == 0, Project.total_amount.is_(None)))
@@ -10728,7 +10782,6 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
         projects = [p for p in projects if _project_excess_discount(p)[0] <= 0.01]
 
     return projects
-
 def _parse_status_filter(status_param):
     """Accepts 'All', a single status key, or a comma-separated list of
     status keys (e.g. 'InProgress,Delayed'). Returns the expanded list of
@@ -10752,9 +10805,14 @@ def all_works_report():
     coordinator_names = sorted(
         {c.full_name for c in coordinators} | set(_get_other_coord_names())
     )
+    doc_staff_list = User.query.filter(
+        User.role.in_(['documents', 'documents_k', 'office']),
+        User.is_active == True
+    ).order_by(User.full_name).all()
     return render_template('all_works_report.html',
         current_year=today.year, current_month=today.month,
-        coordinator_names=coordinator_names)
+        coordinator_names=coordinator_names,
+        doc_staff_list=doc_staff_list)
 
 @app.route('/admin/all_works/preview_data')
 @login_required
@@ -10766,6 +10824,7 @@ def all_works_preview_data():
     amount_filter           = request.args.get('amount_filter', 'All')
     payment_stage_filter     = request.args.get('payment_stage', 'All')
     coordinator_filter       = _clean(request.args.get('coordinator', 'All'), 120) or 'All'
+    doc_staff_filter         = _clean(request.args.get('doc_staff', 'All'), 10) or 'All'
     commission_filter        = request.args.get('commission', 'All')
     excess_filter            = request.args.get('excess', 'All')
     search                    = _clean(request.args.get('q', ''), 100)
@@ -10774,7 +10833,8 @@ def all_works_preview_data():
     projects = _get_all_works_projects(project_type_filter, work_category_filter,
                                         status_filter, month, year, amount_filter, search,
                                         payment_stage_filter, coordinator_filter,
-                                        commission_filter, excess_filter)
+                                        commission_filter, excess_filter,
+                                        doc_staff_filter=doc_staff_filter)
 
     total_val = sum(float(p.total_amount or 0) for p in projects)
     collected = sum(float(p.collected_amount or 0) for p in projects)
@@ -10840,7 +10900,6 @@ def all_works_preview_data():
         'projects': [_to_dict(p) for p in projects],
         'payment_stage': payment_stage_filter,
     })
-
 @app.route('/admin/all_works/download')
 @login_required
 @roles_required('admin', 'director', 'payments', 'office')
@@ -10851,6 +10910,7 @@ def all_works_download():
     amount_filter            = request.args.get('amount_filter', 'All')
     payment_stage_filter     = request.args.get('payment_stage', 'All')
     coordinator_filter       = _clean(request.args.get('coordinator', 'All'), 120) or 'All'
+    doc_staff_filter         = _clean(request.args.get('doc_staff', 'All'), 10) or 'All'
     commission_filter        = request.args.get('commission', 'All')
     excess_filter            = request.args.get('excess', 'All')
     search                    = _clean(request.args.get('q', ''), 100)
@@ -10859,7 +10919,8 @@ def all_works_download():
     projects = _get_all_works_projects(project_type_filter, work_category_filter,
                                         status_filter, month, year, amount_filter, search,
                                         payment_stage_filter, coordinator_filter,
-                                        commission_filter, excess_filter)
+                                        commission_filter, excess_filter,
+                                        doc_staff_filter=doc_staff_filter)
 
     effective_type_filter = 'Loan' if payment_stage_filter in ('FirstPending', 'SecondPending') else project_type_filter
     path = build_allworks_full_report(projects, effective_type_filter, work_category_filter,
@@ -10883,6 +10944,12 @@ def all_works_download():
         parts.append('NonZeroAmount')
     if coordinator_filter != 'All':
         parts.append(re.sub(r'[^A-Za-z0-9]+', '', coordinator_filter))
+    if doc_staff_filter == 'none':
+        parts.append('UnassignedDocs')
+    elif doc_staff_filter.isdigit():
+        ds = db.session.get(User, int(doc_staff_filter))
+        if ds:
+            parts.append('Docs_' + re.sub(r'[^A-Za-z0-9]+', '', ds.full_name))
     if commission_filter != 'All':
         parts.append(commission_filter)
     if excess_filter != 'All':

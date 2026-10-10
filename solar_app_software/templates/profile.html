@@ -30,6 +30,12 @@
   .pf-item .k { font-size: 11px; color: var(--hint); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
   .pf-item .v { font-size: 14px; word-break: break-word; }
   .pf-item .v.mono { font-family: 'DM Mono', monospace; font-size: 13px; }
+  .pf-in {
+    width: 100%; padding: 8px 10px; font: inherit; font-size: 14px; color: inherit;
+    background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius);
+  }
+  .pf-in:focus { outline: none; border-color: var(--amber-600, #c08a2b); }
+  label.k { display: block; }
   .pf-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .pf-hint { font-size: 12px; color: var(--hint); width: 100%; }
 
@@ -79,31 +85,50 @@
 
   <div class="card">
     <div class="card-title">Account details</div>
-    <div class="pf-grid">
-      <div class="pf-item"><div class="k">Full name</div><div class="v">{{ current_user.full_name }}</div></div>
-      <div class="pf-item"><div class="k">Username</div><div class="v mono">{{ current_user.username }}</div></div>
-      <div class="pf-item">
-        <div class="k">Email</div>
-        <div class="v">
-          {% if current_user.email and not current_user.email.endswith('@noemail.local') %}{{ current_user.email }}{% else %}—{% endif %}
+    <form method="POST" action="{{ url_for('profile_update') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="pf-grid">
+        <div class="pf-item">
+          <label class="k" for="pfName">Full name</label>
+          <input class="pf-in" id="pfName" name="full_name" required maxlength="120" value="{{ current_user.full_name }}">
         </div>
-      </div>
-      <div class="pf-item">
-        <div class="k">Phone</div>
-        <div class="v">{% if current_user.phone %}+91 {{ current_user.phone }}{% else %}—{% endif %}</div>
-      </div>
-      <div class="pf-item"><div class="k">Role</div><div class="v" style="text-transform:capitalize">{{ current_user.role|replace('_',' ') }}</div></div>
-      <div class="pf-item"><div class="k">Designation</div><div class="v">{{ current_user.designation or '—' }}</div></div>
-      <div class="pf-item">
-        <div class="k">Joined</div>
-        <div class="v">
-          {% set j = current_user.joined_on or current_user.created_at %}
-          {{ j.strftime('%d %b %Y') if j else '—' }}
+        <div class="pf-item">
+          <div class="k">Username</div>
+          <div class="v mono" style="padding:8px 0">{{ current_user.username }}</div>
         </div>
+        <div class="pf-item">
+          <label class="k" for="pfEmail">Email</label>
+          <input class="pf-in" id="pfEmail" name="email" type="email" maxlength="120"
+                 value="{{ email_display }}"
+                 placeholder="you@example.com">
+        </div>
+        <div class="pf-item">
+          <label class="k" for="pfPhone">Phone (10 digits)</label>
+          <input class="pf-in" id="pfPhone" name="phone" maxlength="20" inputmode="tel"
+                 value="{{ current_user.phone or '' }}" placeholder="9876543210">
+        </div>
+        <div class="pf-item">
+          <label class="k" for="pfDesig">Designation</label>
+          <input class="pf-in" id="pfDesig" name="designation" maxlength="80" value="{{ current_user.designation or '' }}">
+        </div>
+        <div class="pf-item">
+          <div class="k">Role</div>
+          <div class="v" style="text-transform:capitalize;padding:8px 0">{{ current_user.role|replace('_',' ') }}</div>
+        </div>
+        <div class="pf-item">
+          <div class="k">Joined</div>
+          <div class="v">
+            {% set j = current_user.joined_on or current_user.created_at %}
+            {{ j.strftime('%d %b %Y') if j else '—' }}
+          </div>
+        </div>
+        <div class="pf-item"><div class="k">Status</div><div class="v" style="text-transform:capitalize">{{ current_user.status }}</div></div>
       </div>
-      <div class="pf-item"><div class="k">Status</div><div class="v" style="text-transform:capitalize">{{ current_user.status }}</div></div>
-    </div>
-    <div class="pf-hint" style="margin-top:16px">To change your name, role, email or phone, ask an admin.</div>
+      <div class="pf-actions" style="margin-top:18px">
+        <button type="submit" class="btn btn-primary">Save changes</button>
+        <span class="pf-hint" style="width:auto;align-self:center">Role and status can only be changed by admin.</span>
+      </div>
+    </form>
   </div>
 
   <div class="card">

@@ -440,6 +440,15 @@
   from { transform: translateY(12px); opacity: 0; }
   to   { transform: translateY(0);    opacity: 1; }
 }
+    .whatsnew {
+      display: none; align-items: flex-start; gap: 12px; margin-bottom: 16px; padding: 12px 14px;
+      background: var(--amber-50); border: 0.5px solid var(--amber-100); border-radius: var(--radius);
+      color: var(--amber-800); font-size: 13px; line-height: 1.5;
+    }
+    .whatsnew.show { display: flex; }
+    .whatsnew b { font-weight: 600; }
+    .whatsnew a { color: inherit; text-decoration: underline; font-weight: 500; }
+    .whatsnew .wn-x { margin-left: auto; background: none; border: 0; cursor: pointer; font-size: 18px; line-height: 1; color: inherit; padding: 0 2px; }
   </style>
   {% block head %}{% endblock %}
 </head>
@@ -668,6 +677,30 @@
 
     <!-- PAGE CONTENT -->
     <div id="content">
+      {% if current_user.is_authenticated %}
+      {# What's new banner: auto-hides after WN_UNTIL, or when dismissed. Change WN_KEY for a new announcement. #}
+      <div class="whatsnew" id="whatsNew">
+        <div>
+          <b>New: your profile.</b>
+          Add your photo and update your name, email, phone and designation on the
+          <a href="{{ url_for('profile') }}">My Profile</a> page (click your avatar, top right).
+        </div>
+        <button type="button" class="wn-x" aria-label="Dismiss" onclick="dismissWhatsNew()">&times;</button>
+      </div>
+      <script>
+        (function () {
+          var WN_KEY = 'wn_profile_v1', WN_UNTIL = '2026-10-24';
+          var el = document.getElementById('whatsNew');
+          try {
+            if (new Date().toISOString().slice(0, 10) <= WN_UNTIL && !localStorage.getItem(WN_KEY)) el.classList.add('show');
+          } catch (e) { if (new Date().toISOString().slice(0, 10) <= WN_UNTIL) el.classList.add('show'); }
+          window.dismissWhatsNew = function () {
+            el.classList.remove('show');
+            try { localStorage.setItem(WN_KEY, '1'); } catch (e) {}
+          };
+        })();
+      </script>
+      {% endif %}
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% for cat, msg in messages %}
           <div class="alert alert-{{ cat }}">{{ msg }}</div>
