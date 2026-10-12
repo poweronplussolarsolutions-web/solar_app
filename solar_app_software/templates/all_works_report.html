@@ -310,8 +310,8 @@
 </div>
 
 <div style="font-size:12px;color:var(--hint);margin-top:12px">
-  Click any row to open its job card. Cards are calculated from the rows currently shown
-  (Cancelled and On Hold are excluded from money and count cards unless noted "(all)").
+  Click any row to open its job card.
+  <b>Active</b> = works In Progress. <b>Grand Total</b> = all works matching the filters, including On Hold and Cancelled.
 </div>
 
 <script>
@@ -499,9 +499,8 @@ function loadData() {
 
 function renderKpis(kpis) {
   const accent = {
-    'Total Works':    'border-left:3px solid #155724;',
-    'On Hold (all)':  'border-left:3px solid #856404;',
-    'Cancelled (all)':'border-left:3px solid #721c24;',
+    'Active (In Progress)':    'border-left:3px solid #155724;',
+    'Grand Total (all works)': 'border-left:3px solid #1A3C5E;',
   };
   document.getElementById('kpiRow').innerHTML = Object.entries(kpis).map(([k, v]) => `
     <div class="aw-kpi" style="${accent[k] || ''}">
