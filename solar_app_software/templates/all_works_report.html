@@ -311,7 +311,8 @@
 
 <div style="font-size:12px;color:var(--hint);margin-top:12px">
   Click any row to open its job card.
-  <b>Active</b> = works In Progress. <b>Grand Total</b> = all works matching the filters, including On Hold and Cancelled.
+  <b>Active</b> = In Progress. <b>Closed</b>, <b>On Hold</b>, <b>Cancelled</b> and <b>Grand Total</b>
+  count all works matching the other filters, whatever the Project Status filter says.
 </div>
 
 <script>
@@ -500,6 +501,9 @@ function loadData() {
 function renderKpis(kpis) {
   const accent = {
     'Active (In Progress)':    'border-left:3px solid #155724;',
+    'Closed':                  'border-left:3px solid #0c5460;',
+    'On Hold':                 'border-left:3px solid #856404;',
+    'Cancelled':               'border-left:3px solid #721c24;',
     'Grand Total (all works)': 'border-left:3px solid #1A3C5E;',
   };
   document.getElementById('kpiRow').innerHTML = Object.entries(kpis).map(([k, v]) => `

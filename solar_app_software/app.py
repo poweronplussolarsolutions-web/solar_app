@@ -10895,7 +10895,7 @@ def all_works_preview_data():
         include_cancelled=want_cancelled)
 
     # Same filters but ignoring the status filter, cancelled included.
-    # Used only for the Grand Total card.
+    # Used for Grand Total, Closed, On Hold and Cancelled.
     count_set = _get_all_works_projects(
         project_type_filter, work_category_filter, 'All', month, year,
         amount_filter, search, payment_stage_filter, coordinator_filter,
@@ -10908,8 +10908,11 @@ def all_works_preview_data():
     pending   = sum(p.pending_amount for p in live)
 
     # Count cards
-    active_count = sum(1 for p in projects if p.status == 'InProgress')
-    grand_total  = len(count_set)    # all works matching the filters, any status
+    active_count    = sum(1 for p in projects if p.status == 'InProgress')
+    closed_count    = sum(1 for p in count_set if p.status == 'Closed')
+    onhold_count    = sum(1 for p in count_set if p.status == 'OnHold')
+    cancelled_count = sum(1 for p in count_set if p.status == 'Cancelled')
+    grand_total     = len(count_set)
 
     def _to_dict(p):
         bg, fg = STATUS_COLORS_HTML.get(p.status, ('#fff', '#000'))
@@ -10944,6 +10947,9 @@ def all_works_preview_data():
 
     kpis = {
         'Active (In Progress)':    active_count,
+        'Closed':                  closed_count,
+        'On Hold':                 onhold_count,
+        'Cancelled':               cancelled_count,
         'Grand Total (all works)': grand_total,
         'Collected':               _inr_fmt(collected),
         'Pending':                 _inr_fmt(pending),
