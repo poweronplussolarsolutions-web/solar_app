@@ -19,10 +19,10 @@
              value="{{ form_data.customer_name if form_data else '' }}"/>
     </div>
     <div class="form-group">
-      <label>Phone</label>
-      <input name="phone" type="tel" placeholder="10-digit mobile"
-             value="{{ form_data.phone if form_data else '' }}"/>
-    </div>
+  <label>Phone *</label>
+  <input name="phone" type="tel" required placeholder="10-digit mobile"
+         value="{{ form_data.phone if form_data else '' }}"/>
+</div>
     <div class="form-group">
   <label>Alt Phone <span style="color:var(--muted);font-weight:400;font-size:11px">(optional)</span></label>
   <input name="alt_phone" type="tel" pattern="[0-9]{10}" maxlength="10"
@@ -45,21 +45,22 @@
       <input name="house_name" type="text" placeholder="e.g. Sreelakshmi Bhavan"
              value="{{ form_data.house_name if form_data else '' }}"/>
     </div>
-    <div class="form-group">
-      <label>Place</label>
-      <input name="place" type="text" placeholder="e.g. Kodungallur"
-             value="{{ form_data.place if form_data else '' }}"/>
-    </div>
+  <div class="form-group">
+  <label>Place *</label>
+  <input name="place" type="text" required placeholder="e.g. Kodungallur"
+         value="{{ form_data.place if form_data else '' }}"/>
+</div>
     <div class="form-group">
       <label>Post</label>
       <input name="post" type="text" placeholder="e.g. Kodungallur PO"
              value="{{ form_data.post if form_data else '' }}"/>
     </div>
-    <div class="form-group">
-      <label>Pincode</label>
-      <input name="pincode" type="text" maxlength="6" placeholder="680001"
-             value="{{ form_data.pincode if form_data else '' }}"/>
-    </div>
+   <div class="form-group">
+  <label>Pincode *</label>
+  <input name="pincode" type="text" required maxlength="6" pattern="\d{6}"
+         title="6-digit pincode" placeholder="680001"
+         value="{{ form_data.pincode if form_data else '' }}"/>
+</div>
     <div class="form-group">
       <label>Village</label>
       <input name="village" type="text" placeholder="e.g. Kodungallur"
@@ -207,8 +208,8 @@ toggleAadhaarFields();
         </select>
       </div>
       <div class="form-group">
-  <label>Roof type</label>
-  <select name="roof_type" id="roof_type_select" onchange="toggleOtherRoof()">
+ <label>Roof type *</label>
+<select name="roof_type" id="roof_type_select" onchange="toggleOtherRoof()">
     <option value="">— Select —</option>
     {% for rt, label in [('Flat','Flat'),('Sheet','Sheet'),('Slope','Slope'),('Tile','Tile'),('Clay Tile','Clay Tile (Oodu)')] %}
     <option value="{{ rt }}" {% if form_data and form_data.roof_type == rt %}selected{% endif %}>{{ label }}</option>
@@ -231,18 +232,18 @@ toggleAadhaarFields();
   </select>
 </div>
 
-      <div class="form-group">
-        <label>Total contract amount (₹)</label>
-        <input name="total_amount" type="text" inputmode="decimal" pattern="[0-9]*\.?[0-9]*"
-       placeholder="0"
-       value="{{ form_data.total_amount if form_data else '' }}"
-       oninput="this.value=this.value.replace(/[^0-9.]/g,'').replace(/(\..*?)\..*/g,'$1')"/>
-      </div>
+     <div class="form-group">
+  <label>Total contract amount (₹) *</label>
+  <input name="total_amount" type="text" required inputmode="decimal" pattern="[0-9]*\.?[0-9]*"
+         placeholder="0"
+         value="{{ form_data.total_amount if form_data else '' }}"
+         oninput="this.value=this.value.replace(/[^0-9.]/g,'').replace(/(\..*?)\..*/g,'$1')"/>
+</div>
 
       <div class="form-group">
-  <label>Coordinator</label>
-  <select name="coordinator_id" id="coordinator_id_select" onchange="toggleOtherCoord()">
-    <option value="">— Unassigned —</option>
+<label>Coordinator *</label>
+<select name="coordinator_id" id="coordinator_id_select" required onchange="toggleOtherCoord()">
+  <option value="">— Select coordinator —</option>
     {% for u in coordinators %}
     <option value="{{ u.id }}"
       {% if form_data %}
@@ -281,21 +282,32 @@ toggleAadhaarFields();
          value="{{ form_data.sub_co if form_data else '' }}"/>
 </div>
 
-      <div class="form-group">
-        <label>Documents staff</label>
-        <select name="doc_staff_id">
-          <option value="">— Assign staff —</option>
-          {% for u in doc_staff %}
-          <option value="{{ u.id }}" {% if form_data and form_data.doc_staff_id == u.id|string %}selected{% endif %}>{{ u.full_name }}</option>
-          {% endfor %}
-          {% for u in office %}
-          <option value="{{u.id}}" {% if form_data and form_data.doc_staff_id == u.id|string %}selected{% endif %}>{{u.full_name}}</option>
-          {% endfor %}
-          {% for u in documents_k %}
-          <option value="{{u.id}}" {% if form_data and form_data.doc_staff_id == u.id|string %}selected{% endif %}>{{u.full_name}}</option>
-          {% endfor %}
-        </select>
-      </div>
+<div class="form-group">
+  <label>Documents staff</label>
+  <select name="doc_staff_id">
+    <option value="">— Assign staff —</option>
+    {% for u in doc_staff %}
+    <option value="{{ u.id }}"
+      {% if form_data %}{% if form_data.doc_staff_id == u.id|string %}selected{% endif %}
+      {% elif u.id == current_user.id %}selected{% endif %}>{{ u.full_name }}</option>
+    {% endfor %}
+    {% for u in office %}
+    <option value="{{ u.id }}"
+      {% if form_data %}{% if form_data.doc_staff_id == u.id|string %}selected{% endif %}
+      {% elif u.id == current_user.id %}selected{% endif %}>{{ u.full_name }}</option>
+    {% endfor %}
+    {% for u in documents_k %}
+    <option value="{{ u.id }}"
+      {% if form_data %}{% if form_data.doc_staff_id == u.id|string %}selected{% endif %}
+      {% elif u.id == current_user.id %}selected{% endif %}>{{ u.full_name }}</option>
+    {% endfor %}
+  </select>
+  {% if current_user.role in ('documents','documents_k','office') %}
+  <span style="font-size:11px;color:var(--hint);margin-top:3px;display:block">
+    Defaults to you — change if needed
+  </span>
+  {% endif %}
+</div>
 
       <div class="form-group full">
         <label>Notes</label>
@@ -359,21 +371,27 @@ function toggleOtherRoof() {
   const input = document.getElementById('roof_type_other');
   const show  = sel.value === 'Other';
   field.style.display = show ? 'block' : 'none';
+  input.required = show;
   if (!show) input.value = '';
 }
-toggleOtherRoof();
+
 function toggleOutsideWork() {
   const isOutside = document.getElementById('work_category_select').value === 'Outside';
-  
- ['structure_capacity_kw','project_subtype','inverter_type','roof_type']
+  ['structure_capacity_kw','project_subtype','inverter_type','roof_type']
     .forEach(name => {
       const el = document.querySelector(`[name="${name}"]`);
       if (!el) return;
       el.closest('.form-group').style.display = isOutside ? 'none' : '';
-      el.required = false;
+      el.required = (name === 'roof_type') && !isOutside;
     });
-  
+  if (isOutside) {
+    document.getElementById('other-roof-field').style.display = 'none';
+    document.getElementById('roof_type_other').required = false;
+  } else {
+    toggleOtherRoof();
+  }
 }
+toggleOtherRoof();
 toggleOutsideWork();
 </script>
 <script>

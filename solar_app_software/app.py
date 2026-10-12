@@ -614,37 +614,44 @@ def _apply_aadhaar_address(cust, form):
         )
 def _build_form_data():
     """Snapshot the submitted form fields so the New Project template can
-    repopulate them if we need to re-render the form after a validation
-    warning (duplicate phone, invalid format, etc.) instead of losing
-    everything the user typed."""
+    repopulate them if we need to re-render after a validation error."""
+    f = request.form.get
     return {
-        'customer_name':          request.form.get('customer_name', ''),
-        'phone':                  request.form.get('phone', ''),
-        'alt_phone':              request.form.get('alt_phone', ''),
-        'email':                  request.form.get('email', ''),
-        'house_name':             request.form.get('house_name', ''),
-        'place':                  request.form.get('place', ''),
-        'post':                   request.form.get('post', ''),
-        'pincode':                request.form.get('pincode', ''),
-        'village':                request.form.get('village', ''),
-        'taluk':                  request.form.get('taluk', ''),
-        'district':               request.form.get('district', ''),
-        'project_code':           request.form.get('project_code', ''),
-        'inverter_capacity_kw':   request.form.get('inverter_capacity_kw', ''),
-        'panel_capacity_kw':      request.form.get('panel_capacity_kw', ''),
-        'structure_capacity_kw':  request.form.get('structure_capacity_kw', ''),
-        'project_type':           request.form.get('project_type', 'Cash'),
-        'work_category':          request.form.get('work_category', 'Installation'),
-        'project_subtype':        request.form.get('project_subtype', 'DCR'),
-        'roof_type':              request.form.get('roof_type', ''),
-        'roof_type_other':        request.form.get('roof_type_other', ''),
-        'inverter_type':          request.form.get('inverter_type', ''),
-        'total_amount':           request.form.get('total_amount', ''),
-        'coordinator_id':         request.form.get('coordinator_id', ''),
-        'coordinator_name_other': request.form.get('coordinator_name_other', ''),
-        'sub_co':                 request.form.get('sub_co', ''),
-        'doc_staff_id':           request.form.get('doc_staff_id', ''),
-        'notes':                  request.form.get('notes', ''),
+        'customer_name':          f('customer_name', ''),
+        'phone':                  f('phone', ''),
+        'alt_phone':              f('alt_phone', ''),
+        'email':                  f('email', ''),
+        'house_name':             f('house_name', ''),
+        'place':                  f('place', ''),
+        'post':                   f('post', ''),
+        'pincode':                f('pincode', ''),
+        'village':                f('village', ''),
+        'taluk':                  f('taluk', ''),
+        'district':               f('district', ''),
+        'aadhaar_same':           '1' if 'aadhaar_same' in request.form else '0',
+        'aadhaar_house_name':     f('aadhaar_house_name', ''),
+        'aadhaar_place':          f('aadhaar_place', ''),
+        'aadhaar_post':           f('aadhaar_post', ''),
+        'aadhaar_pincode':        f('aadhaar_pincode', ''),
+        'aadhaar_village':        f('aadhaar_village', ''),
+        'aadhaar_taluk':          f('aadhaar_taluk', ''),
+        'aadhaar_district':       f('aadhaar_district', ''),
+        'project_code':           f('project_code', ''),
+        'inverter_capacity_kw':   f('inverter_capacity_kw', ''),
+        'panel_capacity_kw':      f('panel_capacity_kw', ''),
+        'structure_capacity_kw':  f('structure_capacity_kw', ''),
+        'project_type':           f('project_type', 'Cash'),
+        'work_category':          f('work_category', 'Installation'),
+        'project_subtype':        f('project_subtype', 'DCR'),
+        'roof_type':              f('roof_type', ''),
+        'roof_type_other':        f('roof_type_other', ''),
+        'inverter_type':          f('inverter_type', ''),
+        'total_amount':           f('total_amount', ''),
+        'coordinator_id':         f('coordinator_id', ''),
+        'coordinator_name_other': f('coordinator_name_other', ''),
+        'sub_co':                 f('sub_co', ''),
+        'doc_staff_id':           f('doc_staff_id', ''),
+        'notes':                  f('notes', ''),
     }
 # ─────────────────────────────────────────────────────────────────────────────
 # MODELS
@@ -4097,6 +4104,14 @@ def new_project():
     suggested_code    = next_project_code()
     other_coord_names = _get_other_coord_names()
 
+    def _render(form_data=None):
+        return render_template('new_project.html', customers=customers,
+                               doc_staff=doc_staff, suggested_code=suggested_code,
+                               coordinators=coordinators, office=office,
+                               documents_k=documents_k,
+                               other_coord_names=other_coord_names,
+                               form_data=form_data)
+
     if request.method == 'POST':
         raw_structure = request.form.get('structure_capacity_kw', '').strip()
         structure_kw  = _safe_float(raw_structure) if raw_structure else None
@@ -4104,15 +4119,41 @@ def new_project():
         manual_code = (_clean(request.form.get('project_code', ''), 20)
                        if current_user.role == 'admin' else '')
 
+        work_category = (request.form.get('work_category')
+                         if request.form.get('work_category') in ('Installation', 'Outside')
+                         else 'Installation')
+        is_outside = (work_category == 'Outside')
+
+        # ── Required-field validation ────────────────────────────────────
+        cust_id = request.form.get('customer_id')
+        missing = []
+        if not cust_id:
+            if not _clean_phone(_clean(request.form.get('phone', ''), 20)):
+                missing.append('Phone')
+            if not _clean(request.form.get('place', ''), 120):
+                missing.append('Place')
+            if not re.fullmatch(r'\d{6}', _clean(request.form.get('pincode', ''), 10)):
+                missing.append('Pincode (6 digits)')
+        roof_type_val = request.form.get('roof_type') or ''
+        if not is_outside:
+            if not roof_type_val:
+                missing.append('Roof type')
+            elif roof_type_val == 'Other' and not _clean(request.form.get('roof_type_other', ''), 60):
+                missing.append('Roof type (other)')
+        if _safe_float(request.form.get('total_amount')) <= 0:
+            missing.append('Contract amount')
+        raw_coord_check = request.form.get('coordinator_id') or ''
+        if not raw_coord_check or (raw_coord_check == '__other__'
+                                   and not _clean(request.form.get('coordinator_name_other', ''), 120)):
+            missing.append('Coordinator')
+        if missing:
+            flash('Required: ' + ', '.join(missing) + '.', 'danger')
+            return _render(_build_form_data())
+
         if manual_code and Project.query.filter_by(project_code=manual_code).first():
             flash(f'MNRE number {manual_code} is already registered.', 'danger')
-            return render_template('new_project.html', customers=customers,
-                                   doc_staff=doc_staff, suggested_code=suggested_code,
-                                   coordinators=coordinators, office=office,
-                                   documents_k=documents_k,
-                                   other_coord_names=other_coord_names)
+            return _render(_build_form_data())
 
-        cust_id = request.form.get('customer_id')
         if not cust_id:
             raw_phone     = _clean(request.form.get('phone', ''), 20)
             raw_alt_phone = _clean(request.form.get('alt_phone', ''), 20)
@@ -4123,25 +4164,13 @@ def new_project():
 
             if raw_phone and not _validate_phone(phone_clean):
                 flash('Phone number must be a valid 10-digit number.', 'danger')
-                return render_template('new_project.html', customers=customers,
-                                       doc_staff=doc_staff, suggested_code=suggested_code,
-                                       coordinators=coordinators, office=office,
-                                       documents_k=documents_k,
-                                       other_coord_names=other_coord_names)
+                return _render(_build_form_data())
             if raw_alt_phone and not _validate_phone(alt_phone_clean):
                 flash('Alternate phone number must be a valid 10-digit number.', 'danger')
-                return render_template('new_project.html', customers=customers,
-                                       doc_staff=doc_staff, suggested_code=suggested_code,
-                                       coordinators=coordinators, office=office,
-                                       documents_k=documents_k,
-                                       other_coord_names=other_coord_names)
+                return _render(_build_form_data())
             if raw_email and not _validate_email_format(raw_email):
                 flash('Please enter a valid email address.', 'danger')
-                return render_template('new_project.html', customers=customers,
-                                       doc_staff=doc_staff, suggested_code=suggested_code,
-                                       coordinators=coordinators, office=office,
-                                       documents_k=documents_k,
-                                       other_coord_names=other_coord_names)
+                return _render(_build_form_data())
 
             # ── Block duplicate customer phone numbers ──────────────
             if phone_clean:
@@ -4153,11 +4182,7 @@ def new_project():
                         f'instead of creating a duplicate entry.',
                         'danger'
                     )
-                    return render_template('new_project.html', customers=customers,
-                                           doc_staff=doc_staff, suggested_code=suggested_code,
-                                           coordinators=coordinators, office=office,
-                                           documents_k=documents_k,
-                                           other_coord_names=other_coord_names)
+                    return _render(_build_form_data())
 
             cust = Customer(
                 name       = _clean(request.form.get('customer_name', ''), 120),
@@ -4175,10 +4200,6 @@ def new_project():
             )
             _apply_aadhaar_address(cust, request.form)
 
-            # Guard against a race where two requests slip past the
-            # pre-check above at the same instant — the DB unique constraint
-            # is the real backstop, this just turns it into a clean flash
-            # instead of a 500 error.
             try:
                 with db.session.begin_nested():
                     db.session.add(cust)
@@ -4187,11 +4208,7 @@ def new_project():
                 db.session.rollback()
                 flash('That phone number was just registered by another request. '
                       'Please search for the existing customer instead.', 'danger')
-                return render_template('new_project.html', customers=customers,
-                                       doc_staff=doc_staff, suggested_code=suggested_code,
-                                       coordinators=coordinators, office=office,
-                                       documents_k=documents_k,
-                                       other_coord_names=other_coord_names)
+                return _render(_build_form_data())
             cust_id = cust.id
 
         # Resolve coordinator
@@ -4226,9 +4243,7 @@ def new_project():
                 roof_type_other       = _clean(request.form.get('roof_type_other', ''), 60) or None,
                 inverter_type         = request.form.get('inverter_type') or None,
                 coordinator_name      = resolved_coord_name,
-                work_category         = request.form.get('work_category')
-                                        if request.form.get('work_category') in ('Installation', 'Outside')
-                                        else 'Installation',
+                work_category         = work_category,
             )
 
         proj = None
@@ -4242,11 +4257,7 @@ def new_project():
                 proj = None
                 flash(f'MNRE number {manual_code} was just taken by another project. '
                       'Please pick a different number.', 'danger')
-                return render_template('new_project.html', customers=customers,
-                                       doc_staff=doc_staff, suggested_code=suggested_code,
-                                       coordinators=coordinators, office=office,
-                                       documents_k=documents_k,
-                                       other_coord_names=other_coord_names)
+                return _render(_build_form_data())
         else:
             candidate = next_project_code() or '1781'
             for _attempt in range(20):
@@ -4262,11 +4273,7 @@ def new_project():
             if proj is None:
                 db.session.rollback()
                 flash('Could not assign an MNRE number — please try again.', 'danger')
-                return render_template('new_project.html', customers=customers,
-                                       doc_staff=doc_staff, suggested_code=suggested_code,
-                                       coordinators=coordinators, office=office,
-                                       documents_k=documents_k,
-                                       other_coord_names=other_coord_names)
+                return _render(_build_form_data())
 
         log_action(proj.id, 'Project created', new_val='Created')
 
@@ -4332,10 +4339,7 @@ def new_project():
         flash(f'Project {proj.project_code} created successfully!', 'success')
         return redirect(url_for('project_detail', pid=proj.id))
 
-    return render_template('new_project.html', coordinators=coordinators, customers=customers,
-                           doc_staff=doc_staff, suggested_code=suggested_code, office=office,
-                           documents_k=documents_k,
-                           other_coord_names=other_coord_names)
+    return _render()
 @app.route('/projects/<int:pid>/edit', methods=['GET', 'POST'])
 @login_required
 @roles_required('admin', 'coordinator', 'documents','office','documents_k','director')
