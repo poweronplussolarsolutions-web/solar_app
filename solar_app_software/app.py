@@ -10895,7 +10895,7 @@ def all_works_preview_data():
         include_cancelled=want_cancelled)
 
     # Same filters but ignoring the status filter, cancelled included.
-    # Used for Grand Total, Closed, On Hold and Cancelled.
+    # Used for Delayed, Closed, On Hold, Cancelled and Grand Total.
     count_set = _get_all_works_projects(
         project_type_filter, work_category_filter, 'All', month, year,
         amount_filter, search, payment_stage_filter, coordinator_filter,
@@ -10909,6 +10909,7 @@ def all_works_preview_data():
 
     # Count cards
     active_count    = sum(1 for p in projects if p.status == 'InProgress')
+    delayed_count   = sum(1 for p in count_set if p.status == 'Delayed')
     closed_count    = sum(1 for p in count_set if p.status == 'Closed')
     onhold_count    = sum(1 for p in count_set if p.status == 'OnHold')
     cancelled_count = sum(1 for p in count_set if p.status == 'Cancelled')
@@ -10947,6 +10948,7 @@ def all_works_preview_data():
 
     kpis = {
         'Active (In Progress)':    active_count,
+        'Delayed':                 delayed_count,
         'Closed':                  closed_count,
         'On Hold':                 onhold_count,
         'Cancelled':               cancelled_count,
