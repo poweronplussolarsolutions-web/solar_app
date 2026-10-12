@@ -9360,6 +9360,7 @@ def _apply_pre_service_logs(project):
 def _wa_payment_message(proj, kind='confirmation'):
     customer = proj.customer
     lines = ['*Payment Details – Power On Plus Solar Solutions*']
+    lines.append(f'MNRE No: {proj.project_code}')
     lines.append(customer.name)
     if customer.place:
         lines.append(customer.place)
