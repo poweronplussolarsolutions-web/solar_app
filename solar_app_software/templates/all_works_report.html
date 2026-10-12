@@ -28,7 +28,8 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
-.aw-filter-group select {
+.aw-filter-group select,
+.aw-filter-group input[type=text] {
   padding: 7px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -80,10 +81,7 @@
 .aw-table td {
   padding: 6px 8px; font-size: 12px; border-bottom: 1px solid var(--border);
 }
-.aw-row {
-  cursor: pointer;
-  transition: background 0.1s;
-}
+.aw-row { cursor: pointer; transition: background 0.1s; }
 .aw-row:hover { background: var(--accent-bg, #eef2ff) !important; }
 .aw-status-pill {
   padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600;
@@ -130,94 +128,108 @@
   border-radius: 5px;
   cursor: pointer;
   white-space: nowrap;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+  font-weight: 400;
 }
 .aw-multiselect-menu label:hover { background: var(--accent-bg, #eef2ff); }
 </style>
 
-<div class="aw-filter-group" style="min-width:260px">
-  <label>Search (MNRE No. / Customer Name)</label>
-  <div style="display:flex;gap:6px">
-    <input type="text" id="searchFilter" placeholder="Type to search…"
-           onkeydown="if(event.key==='Enter'){event.preventDefault();loadData();}"
-           style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg);color:var(--text)">
-    <button type="button" class="btn btn-primary" onclick="loadData()" title="Search">🔍</button>
-    <button type="button" class="btn btn-secondary" onclick="clearSearch()" title="Clear search">✕</button>
+<div class="aw-filter-bar">
+
+  <div class="aw-filter-group" style="min-width:260px">
+    <label>Search (MNRE No. / Customer Name)</label>
+    <div style="display:flex;gap:6px">
+      <input type="text" id="searchFilter" placeholder="Type to search…"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();loadData();}"
+             style="flex:1">
+      <button type="button" class="btn btn-primary" onclick="loadData()" title="Search">🔍</button>
+      <button type="button" class="btn btn-secondary" onclick="clearSearch()" title="Clear search">✕</button>
+    </div>
   </div>
-</div>
-  <div class="aw-filter-bar">
-    <div class="aw-filter-group">
-      <label>Project Type</label>
-      <select id="typeFilter" onchange="loadData()">
-        <option value="All">All (Cash + Loan)</option>
-        <option value="Cash">Cash only</option>
-        <option value="Loan">Loan only</option>
-      </select>
+
+  <div class="aw-filter-group">
+    <label>Project Type</label>
+    <select id="typeFilter" onchange="loadData()">
+      <option value="All">All (Cash + Loan)</option>
+      <option value="Cash">Cash only</option>
+      <option value="Loan">Loan only</option>
+    </select>
+  </div>
+
+  <div class="aw-filter-group">
+    <label>Work Category</label>
+    <select id="categoryFilter" onchange="loadData()">
+      <option value="All">All</option>
+      <option value="Installation">Installation only</option>
+      <option value="Outside">Outside only</option>
+    </select>
+  </div>
+
+  <div class="aw-filter-group">
+    <label>Coordinator</label>
+    <select id="coordinatorFilter" onchange="loadData()">
+      <option value="All">All coordinators</option>
+      {% for name in coordinator_names %}
+      <option value="{{ name }}">{{ name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="aw-filter-group">
+    <label>Doc Staff</label>
+    <select id="docStaffFilter" onchange="loadData()">
+      <option value="All">All doc staff</option>
+      <option value="none">Unassigned</option>
+      {% for u in doc_staff_list %}
+      <option value="{{ u.id }}">{{ u.full_name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="aw-filter-group" style="position:relative;">
+    <label>Project Status</label>
+    <button type="button" id="statusFilterBtn" class="aw-multiselect-btn" onclick="toggleStatusDropdown(event)">
+      All statuses <span style="font-size:10px">▾</span>
+    </button>
+    <div id="statusFilterMenu" class="aw-multiselect-menu">
+      <label><input type="checkbox" value="InProgress" onchange="onStatusCheckboxChange()"> In Progress</label>
+      <label><input type="checkbox" value="Delayed" onchange="onStatusCheckboxChange()"> Delayed</label>
+      <label><input type="checkbox" value="Completed" onchange="onStatusCheckboxChange()"> Completed / Closed</label>
+      <label><input type="checkbox" value="OnHold" onchange="onStatusCheckboxChange()"> On Hold</label>
+      <label><input type="checkbox" value="Cancelled" onchange="onStatusCheckboxChange()"> Cancelled</label>
     </div>
-    <div class="aw-filter-group">
-      <label>Work Category</label>
-      <select id="categoryFilter" onchange="loadData()">
-        <option value="All">All</option>
-        <option value="Installation">Installation only</option>
-        <option value="Outside">Outside only</option>
-      </select>
-    </div>
-        <div class="aw-filter-group">
-      <label>Coordinator</label>
-      <select id="coordinatorFilter" onchange="loadData()">
-        <option value="All">All coordinators</option>
-        {% for name in coordinator_names %}
-        <option value="{{ name }}">{{ name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-        <div class="aw-filter-group">
-      <label>Doc Staff</label>
-      <select id="docStaffFilter" onchange="loadData()">
-        <option value="All">All doc staff</option>
-        <option value="none">Unassigned</option>
-        {% for u in doc_staff_list %}
-        <option value="{{ u.id }}">{{ u.full_name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-        <div class="aw-filter-group" style="position:relative;">
-      <label>Project Status</label>
-      <button type="button" id="statusFilterBtn" class="aw-multiselect-btn" onclick="toggleStatusDropdown(event)">
-        All statuses <span style="font-size:10px">▾</span>
-      </button>
-      <div id="statusFilterMenu" class="aw-multiselect-menu">
-        <label><input type="checkbox" value="InProgress" onchange="onStatusCheckboxChange()"> In Progress</label>
-        <label><input type="checkbox" value="Delayed" onchange="onStatusCheckboxChange()"> Delayed</label>
-        <label><input type="checkbox" value="Completed" onchange="onStatusCheckboxChange()"> Completed / Closed</label>
-        <label><input type="checkbox" value="OnHold" onchange="onStatusCheckboxChange()"> On Hold</label>
-        <label><input type="checkbox" value="Cancelled" onchange="onStatusCheckboxChange()"> Cancelled</label>
-      </div>
-    </div>
-        <div class="aw-filter-group">
-      <label>Payment Stage (Loan only)</label>
-      <select id="paymentStageFilter" onchange="onPaymentStageChange()">
-        <option value="All">All</option>
-        <option value="FirstPending">First payment not received</option>
-        <option value="SecondPending">Second payment not received</option>
-      </select>
-    </div>
-    <div class="aw-filter-group">
-  <label>Commission</label>
-  <select id="commissionFilter" onchange="loadData()">
-    <option value="All">All</option>
-    <option value="Given">Commission Given</option>
-    <option value="NotGiven">No Commission</option>
-  </select>
-</div>
-    <div class="aw-filter-group">
-      <label>Excess Payment</label>
-      <select id="excessFilter" onchange="loadData()">
-        <option value="All">All</option>
-        <option value="Pending">Has pending excess</option>
-        <option value="None">No pending excess</option>
-      </select>
-    </div>
-    <div class="aw-filter-group">
+  </div>
+
+  <div class="aw-filter-group">
+    <label>Payment Stage (Loan only)</label>
+    <select id="paymentStageFilter" onchange="onPaymentStageChange()">
+      <option value="All">All</option>
+      <option value="FirstPending">First payment not received</option>
+      <option value="SecondPending">Second payment not received</option>
+    </select>
+  </div>
+
+  <div class="aw-filter-group">
+    <label>Commission</label>
+    <select id="commissionFilter" onchange="loadData()">
+      <option value="All">All</option>
+      <option value="Given">Commission Given</option>
+      <option value="NotGiven">No Commission</option>
+    </select>
+  </div>
+
+  <div class="aw-filter-group">
+    <label>Excess Payment</label>
+    <select id="excessFilter" onchange="loadData()">
+      <option value="All">All</option>
+      <option value="Pending">Has pending excess</option>
+      <option value="None">No pending excess</option>
+    </select>
+  </div>
+
+  <div class="aw-filter-group">
     <label>Month (by Created Date)</label>
     <select id="monthFilter" onchange="onMonthChange()">
       <option value="">All Time</option>
@@ -235,6 +247,7 @@
       <option value="12">December</option>
     </select>
   </div>
+
   <div class="aw-filter-group">
     <label>Year</label>
     <select id="yearFilter" onchange="loadData()" disabled>
@@ -243,69 +256,74 @@
       {% endfor %}
     </select>
   </div>
+
   <div class="aw-filter-group">
-  <label>Work Amount</label>
-  <select id="amountFilter" onchange="loadData()">
-    <option value="All">All amounts</option>
-    <option value="Zero">₹0 only</option>
-    <option value="NonZero">Non-zero only</option>
-  </select>
+    <label>Work Amount</label>
+    <select id="amountFilter" onchange="loadData()">
+      <option value="All">All amounts</option>
+      <option value="Zero">₹0 only</option>
+      <option value="NonZero">Non-zero only</option>
+    </select>
+  </div>
+
+  <div class="aw-filter-actions">
+    <button type="button" class="btn btn-secondary" onclick="resetFilters()">Reset</button>
+    <button type="button" class="btn btn-secondary" onclick="printTable()">🖨 Print</button>
+    <button type="button" class="btn btn-primary" onclick="downloadExcel()">↓ Download Excel</button>
+  </div>
 </div>
-    <div class="aw-filter-actions">
-  <button type="button" class="btn btn-secondary" onclick="resetFilters()">Reset</button>
-  <button type="button" class="btn btn-secondary" onclick="printTable()">🖨 Print</button>
-  <button type="button" class="btn btn-primary" onclick="downloadExcel()">↓ Download Excel</button>
+
+<div id="activeChips" class="aw-active-chips"></div>
+
+<div id="kpiRow" class="aw-kpi-row"></div>
+
+<div class="aw-table-wrap">
+  <table class="aw-table" id="worksTable">
+    <thead>
+      <tr>
+        <th>MNRE No.</th>
+        <th>Customer</th>
+        <th>Phone</th>
+        <th>Place</th>
+        <th>Sub Co</th>
+        <th>Type</th>
+        <th>Subtype</th>
+        <th>Category</th>
+        <th>Status</th>
+        <th style="text-align:right">Contract</th>
+        <th style="text-align:right">Collected</th>
+        <th style="text-align:right">Pending</th>
+        <th style="text-align:right">Excess</th>
+        <th style="text-align:right">Discounted</th>
+        <th style="text-align:center">Commission</th>
+        <th style="text-align:center">1st Payment</th>
+        <th style="text-align:center">2nd Payment</th>
+        <th>Coordinator</th>
+        <th>Doc Staff</th>
+        <th>Created</th>
+      </tr>
+    </thead>
+    <tbody id="worksBody">
+      <tr><td colspan="20" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>
+    </tbody>
+  </table>
 </div>
-  </div>
 
-  <div id="activeChips" class="aw-active-chips"></div>
-
-  <div id="kpiRow" class="aw-kpi-row"></div>
-
-  <div class="aw-table-wrap">
-    <table class="aw-table" id="worksTable">
-      <thead>
-        <tr>
-          <th>MNRE No.</th>
-          <th>Customer</th>
-          <th>Phone</th>
-          <th>Place</th>
-          <th>Sub Co</th>
-          <th>Type</th>
-          <th>Subtype</th>
-          <th>Category</th>
-          <th>Status</th>
-          <th style="text-align:right">Contract</th>
-          <th style="text-align:right">Collected</th>
-          <th style="text-align:right">Pending</th>
-          <th style="text-align:right">Excess</th>
-          <th style="text-align:right">Discounted</th>
-          <th style="text-align:center">Commission</th>
-          <th style="text-align:center">1st Payment</th>
-          <th style="text-align:center">2nd Payment</th>
-          <th>Coordinator</th>
-          <th>Doc Staff</th>
-          <th>Created</th>
-        </tr>
-      </thead>
-      <tbody id="worksBody">
-        <tr><td colspan="20" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div style="font-size:12px;color:var(--hint);margin-top:12px">
-    Click any row to open its job card.
-  </div>
-
+<div style="font-size:12px;color:var(--hint);margin-top:12px">
+  Click any row to open its job card. Cards are calculated from the rows currently shown
+  (Cancelled and On Hold are excluded from money and count cards unless noted "(all)").
 </div>
 
 <script>
-let searchDebounceTimer = null;
+const STATUS_LABELS = {
+  InProgress: 'In Progress', Delayed: 'Delayed',
+  Completed: 'Completed/Closed', OnHold: 'On Hold', Cancelled: 'Cancelled',
+};
 
-function debouncedLoad() {
-  clearTimeout(searchDebounceTimer);
-  searchDebounceTimer = setTimeout(loadData, 350);
+// Escape anything coming from the server before putting it in innerHTML
+function esc(s) {
+  return String(s ?? '—').replace(/[&<>"']/g, c => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 function onMonthChange() {
@@ -333,15 +351,10 @@ function toggleStatusDropdown(e) {
 document.addEventListener('click', (e) => {
   const menu = document.getElementById('statusFilterMenu');
   const btn  = document.getElementById('statusFilterBtn');
-  if (menu && !menu.contains(e.target) && e.target !== btn) {
+  if (menu && !menu.contains(e.target) && !btn.contains(e.target)) {
     menu.classList.remove('open');
   }
 });
-
-const STATUS_LABELS = {
-  InProgress: 'In Progress', Delayed: 'Delayed',
-  Completed: 'Completed/Closed', OnHold: 'On Hold', Cancelled: 'Cancelled',
-};
 
 function getSelectedStatuses() {
   return Array.from(document.querySelectorAll('#statusFilterMenu input[type=checkbox]:checked'))
@@ -380,9 +393,7 @@ function currentFilters() {
     filters.year  = document.getElementById('yearFilter').value;
   }
   const search = document.getElementById('searchFilter').value.trim();
-  if (search) {
-    filters.q = search;
-  }
+  if (search) filters.q = search;
   return filters;
 }
 
@@ -428,59 +439,59 @@ function renderChips(filters) {
     excess:        { Pending: 'Excess Pending', None: 'No Pending Excess' },
   };
   const monthNames = ['', 'January','February','March','April','May','June',
-                       'July','August','September','October','November','December'];
+                      'July','August','September','October','November','December'];
   let html = '';
   for (const [key, val] of Object.entries(filters)) {
     if (key === 'month' && val) {
-      html += `<span class="aw-chip">${monthNames[val]} ${filters.year}</span>`;
+      html += `<span class="aw-chip">${esc(monthNames[val])} ${esc(filters.year)}</span>`;
       continue;
     }
     if (key === 'year' || key === 'q') continue;
     if (key === 'status') {
       if (val && val !== 'All') {
         val.split(',').forEach(s => {
-          html += `<span class="aw-chip">${STATUS_LABELS[s] || s}</span>`;
+          html += `<span class="aw-chip">${esc(STATUS_LABELS[s] || s)}</span>`;
         });
       }
       continue;
     }
     if (key === 'coordinator') {
-      if (val && val !== 'All') {
-        html += `<span class="aw-chip">Coordinator: ${val}</span>`;
-      }
+      if (val && val !== 'All') html += `<span class="aw-chip">Coordinator: ${esc(val)}</span>`;
       continue;
     }
     if (key === 'doc_staff') {
       if (val && val !== 'All') {
         const sel = document.getElementById('docStaffFilter');
-        const name = sel.options[sel.selectedIndex].text;
-        html += `<span class="aw-chip">Docs: ${name}</span>`;
+        html += `<span class="aw-chip">Docs: ${esc(sel.options[sel.selectedIndex].text)}</span>`;
       }
       continue;
     }
     if (val !== 'All' && labels[key] && labels[key][val]) {
-      html += `<span class="aw-chip">${labels[key][val]}</span>`;
+      html += `<span class="aw-chip">${esc(labels[key][val])}</span>`;
     }
   }
-  if (filters.q) {
-    html += `<span class="aw-chip">Search: "${filters.q}"</span>`;
-  }
+  if (filters.q) html += `<span class="aw-chip">Search: "${esc(filters.q)}"</span>`;
   chips.innerHTML = html;
 }
+
+let loadSeq = 0;   // ignore out-of-order responses when filters change quickly
 
 function loadData() {
   const filters = currentFilters();
   renderChips(filters);
+  const seq = ++loadSeq;
   document.getElementById('worksBody').innerHTML =
     '<tr><td colspan="20" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>';
 
   fetch(`/admin/all_works/preview_data?${buildQS(filters)}`)
-    .then(r => r.json())
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(data => {
+      if (seq !== loadSeq) return;
       renderKpis(data.kpis);
       renderTable(data.projects);
     })
     .catch(() => {
+      if (seq !== loadSeq) return;
       document.getElementById('worksBody').innerHTML =
         '<tr><td colspan="20" style="text-align:center;padding:30px;color:red">Failed to load.</td></tr>';
     });
@@ -488,23 +499,29 @@ function loadData() {
 
 function renderKpis(kpis) {
   const accent = {
-    'Total Works': 'border-left:3px solid #155724;',
-    'On Hold':     'border-left:3px solid #856404;',
-    'Cancelled':   'border-left:3px solid #721c24;',
+    'Total Works':    'border-left:3px solid #155724;',
+    'On Hold (all)':  'border-left:3px solid #856404;',
+    'Cancelled (all)':'border-left:3px solid #721c24;',
   };
   document.getElementById('kpiRow').innerHTML = Object.entries(kpis).map(([k, v]) => `
     <div class="aw-kpi" style="${accent[k] || ''}">
-      <div class="aw-kpi-label">${k}</div>
-      <div class="aw-kpi-value">${v}</div>
+      <div class="aw-kpi-label">${esc(k)}</div>
+      <div class="aw-kpi-value">${esc(v)}</div>
     </div>`).join('');
 }
+
+// done === null  → not applicable (e.g. Cash project has no bank instalments)
 function tdTick(done) {
+  if (done === null || done === undefined) {
+    return '<td style="text-align:center;color:var(--hint)">—</td>';
+  }
   return `<td style="text-align:center;font-weight:700;color:${done ? '#155724' : '#721c24'}">${done ? '✓' : '✗'}</td>`;
 }
+
 function renderTable(projects) {
-  const td  = s => `<td>${s ?? '—'}</td>`;
-  const tdc = s => `<td style="text-align:center">${s ?? '—'}</td>`;
-  const tdr = s => `<td style="text-align:right">${s ?? '—'}</td>`;
+  const td  = s => `<td>${esc(s)}</td>`;
+  const tdc = s => `<td style="text-align:center">${esc(s)}</td>`;
+  const tdr = s => `<td style="text-align:right">${esc(s)}</td>`;
 
   const body = document.getElementById('worksBody');
   if (!projects.length) {
@@ -514,15 +531,21 @@ function renderTable(projects) {
 
   body.innerHTML = projects.map((p, i) => {
     const bg = i % 2 === 0 ? 'var(--surface,#f9f9f9)' : '#fff';
-    return `<tr class="aw-row" style="background:${bg}" onclick="openJobCard('${p.code}')" title="Open job card for ${p.code}">
+    return `<tr class="aw-row" style="background:${bg}" data-code="${esc(p.code)}" title="Open job card for ${esc(p.code)}">
       ${tdc(p.code)}${td(p.customer)}${tdc(p.phone)}${td(p.place)}${td(p.sub_co)}${tdc(p.type)}${tdc(p.subtype)}${tdc(p.work_category)}
       <td style="text-align:center">
-        <span class="aw-status-pill" style="background:${p.status_bg};color:${p.status_fg}">${p.status}</span>
+        <span class="aw-status-pill" style="background:${esc(p.status_bg)};color:${esc(p.status_fg)}">${esc(p.status)}</span>
       </td>
       ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${tdr(p.excess)}${tdr(p.discounted)}${tdTick(p.commission)}${tdTick(p.first_payment)}${tdTick(p.second_payment)}${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
     </tr>`;
   }).join('');
 }
+
+// Delegated click handler (no inline onclick with data from the server)
+document.getElementById('worksBody').addEventListener('click', (e) => {
+  const row = e.target.closest('tr.aw-row');
+  if (row) openJobCard(row.dataset.code);
+});
 
 function openJobCard(code) {
   window.location = `/job_card?q=${encodeURIComponent(code)}&from=all_works`;
@@ -544,6 +567,7 @@ function printTable() {
       .aw-kpi{border:1px solid #ccc;border-radius:6px;padding:8px 12px;min-width:80px;}
       .aw-kpi-label{font-size:10px;color:#666;}
       .aw-kpi-value{font-size:14px;font-weight:700;}
+      .aw-chip{font-size:10px;border:1px solid #ccc;border-radius:10px;padding:2px 8px;margin-right:4px;}
       .aw-status-pill{padding:2px 6px;border-radius:8px;font-size:9px;font-weight:600;}
       h2{margin-bottom:4px;}
     </style></head>

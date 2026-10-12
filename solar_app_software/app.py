@@ -3625,6 +3625,9 @@ def dashboard():
         data['onhold']    = Project.query.filter_by(is_deleted=False, status='OnHold').count()
         data['cancelled'] = Project.query.filter_by(is_deleted=False, status='Cancelled').count()
         data['delayed']   = Project.query.filter_by(is_deleted=False, status='Delayed').count()
+        data['other'] = Project.query.filter(
+            Project.is_deleted == False,
+            Project.status.in_(['Lead', 'Created', 'Pending'])).count()
         data['projects']  = Project.query.filter_by(is_deleted=False).order_by(Project.updated_at.desc()).paginate(
             page=request.args.get('page', 1, type=int), per_page=15, error_out=False)
 
@@ -3641,24 +3644,33 @@ def dashboard():
         data['collected'] = sum(p.effective_collected for p in active_projects)
         data['total_amt'] = sum(p.total_receivable   for p in active_projects)
     elif role == 'coordinator':
-        my_projects    = Project.query.filter_by(coordinator_id=current_user.id).order_by(Project.updated_at.desc()).all()
+        my_projects    = Project.query.filter_by(coordinator_id=current_user.id)\
+                                      .order_by(Project.updated_at.desc()).all()
         my_project_ids = [p.id for p in my_projects]
-        total_value    = sum(float(p.total_amount or 0) for p in my_projects if p.status not in ['Cancelled','OnHold'])
-        total_collected = sum(float(p.collected_amount or 0) for p in my_projects if p.status not in ['Cancelled','OnHold'])
-        subsidy_list   = Subsidy.query.filter(Subsidy.project_id.in_(my_project_ids)).all() if my_project_ids else []
-        data['projects']         = my_projects
-        data['pending']          = Project.query.filter(Project.status.in_(['Lead','Created'])).count()
+        money_projects = [p for p in my_projects if p.status not in ('Cancelled', 'OnHold')]
+        total_value     = sum(p.total_receivable   for p in money_projects)
+        total_collected = sum(p.effective_collected for p in money_projects)
+        total_pending   = sum(p.pending_amount      for p in money_projects)
+        subsidy_list = Subsidy.query.filter(Subsidy.project_id.in_(my_project_ids)).all() \
+                       if my_project_ids else []
+        data['projects']        = my_projects
+        data['pending']         = Project.query.filter(
+            Project.coordinator_id == current_user.id,
+            Project.status.in_(['Lead', 'Created'])).count()
+        data['delayed']         = Project.query.filter(
+            Project.coordinator_id == current_user.id,
+            Project.status == 'Delayed').count()
         data['site_visits'] = SiteVisit.query.filter(
-    SiteVisit.project_id.in_(my_project_ids),
-    SiteVisit.status == 'Scheduled'
-).all() if my_project_ids else []
-        data['delayed']          = Project.query.filter_by(status='Delayed').count()
+            SiteVisit.project_id.in_(my_project_ids),
+            SiteVisit.status == 'Scheduled').all() if my_project_ids else []
         data['total_value']      = total_value
         data['total_collected']  = total_collected
-        data['total_pending']    = total_value - total_collected
-        data['subsidy_pending']  = sum(float(s.expected_amount or 0) - float(s.received_amount or 0) for s in subsidy_list)
+        data['total_pending']    = total_pending
+        data['subsidy_pending']  = sum(float(s.expected_amount or 0) - float(s.received_amount or 0)
+                                       for s in subsidy_list)
         data['subsidy_received'] = sum(float(s.received_amount or 0) for s in subsidy_list)
         data['subsidy_list']     = subsidy_list
+ 
 
     elif role == 'documents':
         all_my_projects = Project.query.options(
@@ -3868,13 +3880,17 @@ def dashboard():
         user_id=current_user.id, is_read=False
         ).order_by(Notification.created_at.desc()).limit(20).all()
     elif role == 'payments':
-        active_ids = db.session.query(Project.id).filter(
-            Project.status.notin_(['Cancelled', 'OnHold'])).subquery()
-        data['total_collected'] = float(db.session.query(db.func.sum(Payment.amount)).filter(
-            Payment.project_id.in_(active_ids)).scalar() or 0)
-        total_amt               = float(db.session.query(db.func.sum(Project.total_amount)).filter(
-            Project.status.notin_(['Cancelled', 'OnHold'])).scalar() or 0)
-        data['total_pending']   = total_amt - data['total_collected']
+        money_projects = (Project.query
+            .filter(Project.status.notin_(['Cancelled', 'OnHold']))
+            .options(joinedload(Project.subsidy),
+                     selectinload(Project.expenses),
+                     selectinload(Project.waivers),
+                     selectinload(Project.payments),
+                     selectinload(Project.payment_excesses),
+                     selectinload(Project.adjustments_in))
+            .all())
+        data['total_collected'] = sum(p.effective_collected for p in money_projects)
+        data['total_pending']   = sum(p.pending_amount for p in money_projects)
         data['projects']        = Project.query.filter(
             Project.status.notin_(['Closed', 'Cancelled', 'OnHold'])).paginate(
             page=request.args.get('page', 1, type=int), per_page=20, error_out=False)
@@ -6099,7 +6115,16 @@ def payments_dashboard():
             pay_date_str = ''
             flash('Invalid date selected.', 'warning')
 
-    all_projects    = Project.query.filter(Project.status != 'Cancelled').all()
+    all_projects = (Project.query
+        .filter(Project.status.notin_(['Cancelled', 'OnHold']))
+        .options(joinedload(Project.subsidy),
+                 selectinload(Project.expenses),
+                 selectinload(Project.waivers),
+                 selectinload(Project.payments),
+                 selectinload(Project.payment_excesses),
+                 selectinload(Project.adjustments_in))
+        .all())
+ 
     total_value     = sum(p.total_receivable for p in all_projects)
     total_collected = sum(p.effective_collected for p in all_projects)
     total_pending   = sum(p.pending_amount for p in all_projects)
@@ -9205,13 +9230,23 @@ def api_projects():
 @app.route('/api/dashboard_stats')
 @login_required
 def api_dashboard_stats():
+    money_projects = (Project.query
+        .filter(Project.status.notin_(['Cancelled', 'OnHold']))
+        .options(joinedload(Project.subsidy),
+                 selectinload(Project.expenses),
+                 selectinload(Project.waivers),
+                 selectinload(Project.payments),
+                 selectinload(Project.payment_excesses),
+                 selectinload(Project.adjustments_in))
+        .all())
     return jsonify({
         'total':     Project.query.count(),
         'inprog':    Project.query.filter_by(status='InProgress').count(),
-        'completed': Project.query.filter(Project.status.in_(['Completed','Closed'])).count(),
+        'completed': Project.query.filter(Project.status.in_(['Completed', 'Closed'])).count(),
         'delayed':   Project.query.filter_by(status='Delayed').count(),
-        'collected': float(db.session.query(db.func.sum(Payment.amount)).scalar() or 0),
+        'collected': sum(p.effective_collected for p in money_projects),
     })
+ 
 
 
 @app.route('/api/notifications')
@@ -10271,9 +10306,21 @@ STATUS_COLORS_HTML = {
 }
 
 def _project_excess_discount(p):
-    pending_excess = sum(float(e.amount) for e in p.payment_excesses if e.status == 'Pending')
-    if p.project_type == 'Loan' and p.bank_excess and not p.bank_excess.returned:
-        pending_excess += float(p.bank_excess.excess_amount)
+    cust = bank_pay = 0.0
+    for e in p.payment_excesses:
+        if e.status != 'Pending':
+            continue
+        if e.source == 'Customer':
+            cust += e.remaining
+        else:
+            bank_pay += e.remaining
+ 
+    bank_ret = 0.0
+    be = p.bank_excess
+    if p.project_type == 'Loan' and be and not be.returned:
+        bank_ret = be.remaining
+ 
+    pending_excess = cust + max(bank_pay, bank_ret)
     discounted = float(p.total_waived)
     return pending_excess, discounted
 def _inr_fmt(v):
@@ -10826,55 +10873,66 @@ def all_works_report():
 @login_required
 @roles_required('admin', 'director', 'payments', 'office')
 def all_works_preview_data():
-    project_type_filter   = request.args.get('project_type', 'All')
-    work_category_filter  = request.args.get('work_category', 'All')
-    status_filter          = request.args.get('status', 'All')
-    amount_filter           = request.args.get('amount_filter', 'All')
-    payment_stage_filter     = request.args.get('payment_stage', 'All')
-    coordinator_filter       = _clean(request.args.get('coordinator', 'All'), 120) or 'All'
-    doc_staff_filter         = _clean(request.args.get('doc_staff', 'All'), 10) or 'All'
-    commission_filter        = request.args.get('commission', 'All')
-    excess_filter            = request.args.get('excess', 'All')
-    search                    = _clean(request.args.get('q', ''), 100)
+    project_type_filter  = request.args.get('project_type', 'All')
+    work_category_filter = request.args.get('work_category', 'All')
+    status_filter        = request.args.get('status', 'All')
+    amount_filter        = request.args.get('amount_filter', 'All')
+    payment_stage_filter = request.args.get('payment_stage', 'All')
+    coordinator_filter   = _clean(request.args.get('coordinator', 'All'), 120) or 'All'
+    doc_staff_filter     = _clean(request.args.get('doc_staff', 'All'), 10) or 'All'
+    commission_filter    = request.args.get('commission', 'All')
+    excess_filter        = request.args.get('excess', 'All')
+    search               = _clean(request.args.get('q', ''), 100)
     month = request.args.get('month', type=int)
     year  = request.args.get('year', type=int)
     want_cancelled = 'Cancelled' in [s.strip() for s in status_filter.split(',')]
-
+ 
     # Rows shown in the table (respects the status filter)
-    projects = _get_all_works_projects(project_type_filter, work_category_filter,
-                                        status_filter, month, year, amount_filter, search,
-                                        payment_stage_filter, coordinator_filter,
-                                        commission_filter, excess_filter,
-                                        doc_staff_filter=doc_staff_filter,
-                                        include_cancelled=want_cancelled)
-
-    # Same filters but ignoring the status filter, cancelled included,
-    # so the Total / On Hold / Cancelled counts are always complete
-    count_set = _get_all_works_projects(project_type_filter, work_category_filter,
-                                         'All', month, year, amount_filter, search,
-                                         payment_stage_filter, coordinator_filter,
-                                         commission_filter, excess_filter,
-                                         doc_staff_filter=doc_staff_filter,
-                                         include_cancelled=True)
-    cancelled_count = sum(1 for p in count_set if p.status == 'Cancelled')
-    onhold_count    = sum(1 for p in count_set if p.status == 'OnHold')
-    total_works     = len(count_set) - cancelled_count - onhold_count   # active works only
-
-    live      = [p for p in projects if p.status != 'Cancelled']       # money KPIs exclude cancelled
-    total_val = sum(float(p.total_amount or 0) for p in live)
-    collected = sum(float(p.collected_amount or 0) for p in live)
-    pending   = sum(p.pending_amount for p in live)
-    active    = [p for p in live if p.status in ('InProgress', 'Delayed', 'Lead')]
-    completed = [p for p in live if p.status in ('Completed', 'Closed')]
+    projects = _get_all_works_projects(
+        project_type_filter, work_category_filter, status_filter, month, year,
+        amount_filter, search, payment_stage_filter, coordinator_filter,
+        commission_filter, excess_filter, doc_staff_filter=doc_staff_filter,
+        include_cancelled=want_cancelled)
+ 
+    # Same filters but ignoring the status filter (cancelled included) —
+    # only used for the "(all)" count cards.
+    count_set = _get_all_works_projects(
+        project_type_filter, work_category_filter, 'All', month, year,
+        amount_filter, search, payment_stage_filter, coordinator_filter,
+        commission_filter, excess_filter, doc_staff_filter=doc_staff_filter,
+        include_cancelled=True)
+    cancelled_all = sum(1 for p in count_set if p.status == 'Cancelled')
+    onhold_all    = sum(1 for p in count_set if p.status == 'OnHold')
+ 
+    # "live" = what the money/count cards are built from.
+    # Cancelled AND On Hold are excluded everywhere (matches admin_analytics).
+    live = [p for p in projects if p.status not in ('Cancelled', 'OnHold')]
+ 
+    # Money — all three cards use the same basis so they reconcile:
+    #   Pending ≈ Receivable − Collected − Discounted (− subsidy customer share)
+    total_receivable = sum(p.total_receivable for p in live)
+    collected        = sum(p.effective_collected for p in live)
+    pending          = sum(p.pending_amount for p in live)
+ 
+    # Status buckets are mutually exclusive and cover every live status:
+    #   Active + Delayed + Completed == Total Works
+    active    = [p for p in live if p.status in ('InProgress', 'Lead', 'Created', 'Pending')]
     delayed   = [p for p in live if p.status == 'Delayed']
-    cash_count = sum(1 for p in live if p.project_type == 'Cash')
-    loan_count = sum(1 for p in live if p.project_type == 'Loan')
+    completed = [p for p in live if p.status in ('Completed', 'Closed')]
+ 
+    cash_count    = sum(1 for p in live if p.project_type == 'Cash')
+    loan_count    = sum(1 for p in live if p.project_type == 'Loan')
     outside_count = sum(1 for p in live if p.work_category == 'Outside')
     commission_given_count = sum(1 for p in live if p.commissions)
-
+ 
+    excess_discount = [_project_excess_discount(p) for p in live]
+    total_excess     = sum(e for e, _ in excess_discount)
+    total_discounted = sum(d for _, d in excess_discount)
+ 
     def _to_dict(p):
         bg, fg = STATUS_COLORS_HTML.get(p.status, ('#fff', '#000'))
-        instalments = p.bank_instalments if p.project_type == 'Loan' else {}
+        is_loan = (p.project_type == 'Loan')
+        instalments = p.bank_instalments if is_loan else {}
         excess, discounted = _project_excess_discount(p)
         return {
             'code':          p.project_code,
@@ -10889,10 +10947,11 @@ def all_works_preview_data():
             'status_bg':     bg,
             'status_fg':     fg,
             'contract':      _inr_fmt(p.total_amount),
-            'collected':     _inr_fmt(p.collected_amount),
+            'collected':     _inr_fmt(p.effective_collected),   # was collected_amount
             'pending':       _inr_fmt(p.pending_amount),
-            'first_payment':  'First' in instalments,
-            'second_payment': 'Second' in instalments,
+            # None → template shows "—" for Cash projects instead of a red ✗
+            'first_payment':  ('First'  in instalments) if is_loan else None,
+            'second_payment': ('Second' in instalments) if is_loan else None,
             'excess':        _inr_fmt(excess) if excess > 0.01 else '—',
             'discounted':    _inr_fmt(discounted) if discounted > 0.01 else '—',
             'commission':    bool(p.commissions),
@@ -10900,29 +10959,28 @@ def all_works_preview_data():
             'doc_staff':     p.doc_staff.full_name if p.doc_staff else '—',
             'created':       p.created_at.strftime('%d %b %Y'),
         }
-    total_excess     = sum(_project_excess_discount(p)[0] for p in live)
-    total_discounted = sum(_project_excess_discount(p)[1] for p in live)
+ 
     kpis = {
-        'Total Works':   total_works,
-        'On Hold':       onhold_count,
-        'Cancelled':     cancelled_count,
-        'All (incl. On Hold & Cancelled)': len(count_set),
-        'Cash':      cash_count,
-        'Loan':      loan_count,
-        'Outside':   outside_count,
-        'Active':    len(active),
-        'Delayed':   len(delayed),
-        'Completed': len(completed),
-        'Value':     _inr_fmt(total_val),
-        'Collected': _inr_fmt(collected),
-        'Pending':   _inr_fmt(pending),
-        'Excess Pending': _inr_fmt(total_excess),
-        'Discounted':     _inr_fmt(total_discounted),
+        'Total Works':     len(live),            # same set as the table (minus cancelled/on hold)
+        'Active':          len(active),
+        'Delayed':         len(delayed),
+        'Completed':       len(completed),
+        'Cash':            cash_count,
+        'Loan':            loan_count,
+        'Outside':         outside_count,
+        'Receivable':      _inr_fmt(total_receivable),
+        'Collected':       _inr_fmt(collected),
+        'Discounted':      _inr_fmt(total_discounted),
+        'Pending':         _inr_fmt(pending),
+        'Excess Pending':  _inr_fmt(total_excess),
         'Commission Given': commission_given_count,
+        'On Hold (all)':   onhold_all,           # ignore the status filter
+        'Cancelled (all)': cancelled_all,        # ignore the status filter
+        'Grand Total (all statuses)': len(count_set),
     }
     if payment_stage_filter in ('FirstPending', 'SecondPending'):
-        kpis['Payment Pending'] = len(projects)
-
+        kpis['Payment Pending'] = len(live)
+ 
     return jsonify({
         'kpis': kpis,
         'projects': [_to_dict(p) for p in projects],
