@@ -10910,7 +10910,7 @@ def all_works_preview_data():
     # Count cards
     active_count    = sum(1 for p in projects if p.status == 'InProgress')
     delayed_count   = sum(1 for p in count_set if p.status == 'Delayed')
-    closed_count    = sum(1 for p in count_set if p.status == 'Closed')
+    closed_count    = sum(1 for p in count_set if p.status in ('Closed','Completed'))
     onhold_count    = sum(1 for p in count_set if p.status == 'OnHold')
     cancelled_count = sum(1 for p in count_set if p.status == 'Cancelled')
     grand_total     = len(count_set)
