@@ -4140,7 +4140,7 @@ def new_project():
                 missing.append('Roof type')
             elif roof_type_val == 'Other' and not _clean(request.form.get('roof_type_other', ''), 60):
                 missing.append('Roof type (other)')
-        if _safe_float(request.form.get('total_amount')) <= 0:
+        if not is_outside and _safe_float(request.form.get('total_amount')) <= 0:
             missing.append('Contract amount')
         raw_coord_check = request.form.get('coordinator_id') or ''
         if not raw_coord_check or (raw_coord_check == '__other__'

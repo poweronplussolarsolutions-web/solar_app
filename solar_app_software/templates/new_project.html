@@ -232,9 +232,9 @@ toggleAadhaarFields();
   </select>
 </div>
 
-     <div class="form-group">
-  <label>Total contract amount (₹) *</label>
-  <input name="total_amount" type="text" required inputmode="decimal" pattern="[0-9]*\.?[0-9]*"
+    <div class="form-group">
+  <label>Total contract amount (₹) <span id="amount-req">*</span></label>
+  <input name="total_amount" id="total_amount_input" type="text" required inputmode="decimal" pattern="[0-9]*\.?[0-9]*"
          placeholder="0"
          value="{{ form_data.total_amount if form_data else '' }}"
          oninput="this.value=this.value.replace(/[^0-9.]/g,'').replace(/(\..*?)\..*/g,'$1')"/>
@@ -384,6 +384,11 @@ function toggleOutsideWork() {
       el.closest('.form-group').style.display = isOutside ? 'none' : '';
       el.required = (name === 'roof_type') && !isOutside;
     });
+
+  // Contract amount: required only for Installation work
+  document.getElementById('total_amount_input').required = !isOutside;
+  document.getElementById('amount-req').style.display = isOutside ? 'none' : '';
+
   if (isOutside) {
     document.getElementById('other-roof-field').style.display = 'none';
     document.getElementById('roof_type_other').required = false;
@@ -391,7 +396,6 @@ function toggleOutsideWork() {
     toggleOtherRoof();
   }
 }
-toggleOtherRoof();
 toggleOutsideWork();
 </script>
 <script>
