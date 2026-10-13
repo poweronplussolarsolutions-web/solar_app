@@ -4851,7 +4851,7 @@ def project_detail(pid):
                            worker_rate=worker_rate, today=date.today(),
                            notify_pay_id=notify_pay_id, is_final_pay=is_final_pay,
                            wa_confirm_msg=wa_confirm_msg, wa_reminder_msg=wa_reminder_msg,
-                           wa_complete_msg=wa_complete_msg, wa_just_msg=wa_just_msg)
+                           wa_complete_msg=wa_complete_msg, wa_just_msg=wa_just_msg, pay_locked=_payments_locked(proj))
 @app.route('/projects/<int:pid>/transformer_capacity', methods=['POST'])
 @login_required
 @roles_required('admin', 'onsite', 'coordinator', 'documents', 'office', 'documents_k', 'director')
@@ -5648,6 +5648,9 @@ def update_status(pid):
     if proj.status in ('Cancelled', 'OnHold'):
         flash('Cannot update status of a Cancelled or On Hold project.', 'danger')
         return redirect(url_for('project_detail', pid=pid))
+    if proj.status in ('Closed', 'Completed') and current_user.role != 'admin':
+        flash('This project is closed. Only admin can change its status.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
     if new_stage:
         proj.stage = new_stage
         if not new_status:
@@ -5662,14 +5665,12 @@ def update_status(pid):
 
     log_action(pid, 'Status updated', old_val=old_status, new_val=proj.status)
 
-    
     if proj.status in ('Completed', 'Closed') and proj.status != old_status and proj.work_category != 'Outside':
         create_service_schedule(proj)
 
     db.session.commit()
     flash('Project status updated.', 'success')
     return redirect(url_for('project_detail', pid=pid))
-
 
 @app.route('/projects/<int:pid>/cancel', methods=['POST'])
 @login_required
@@ -5977,12 +5978,47 @@ def add_payment(pid):
                              notify_pay=pay.id,
                              final_pay=1 if is_final else 0,
                              _anchor='whatsapp-messages'))
+def _payments_locked(proj):
+    """Closed/Completed projects: only admin may edit or delete payments."""
+    return proj.status in ('Closed', 'Completed') and current_user.role != 'admin'
+def _reopen_if_unpaid(proj):
+    """Reopen a Closed/Completed project if it is no longer fully paid
+    (pending balance, or unsettled excess) after a payment change."""
+    if proj.status not in ('Closed', 'Completed'):
+        return False
+
+    db.session.flush()
+    db.session.expire(proj, ['payments', 'payment_excesses', 'bank_excess'])
+
+    if proj.pending_amount <= 0.01 and not _has_pending_excess(proj):
+        return False
+
+    old_status, old_stage = proj.status, proj.stage
+    proj.status = 'InProgress'
+    proj.stage  = 'Payment'
+    proj.staged_changed_at = datetime.utcnow()
+    log_action(proj.id,
+               f'Auto-reopened: payment changed, balance pending again ({old_stage} → Payment)',
+               old_val=old_status, new_val='InProgress')
+
+    code = f'{proj.project_code} — {proj.customer.name}'
+    for u in User.query.filter_by(role='payments', is_active=True).all():
+        create_notification(u.id, proj.id,
+            f'{code}: Reopened — balance of ₹{proj.pending_amount:,.0f} is pending again.', 'task')
+    if proj.coordinator_id:
+        create_notification(proj.coordinator_id, proj.id,
+            f'{code}: Reopened after a payment change. Balance pending.', 'info')
+    return True
 @app.route('/projects/<int:pid>/payments/<int:pay_id>/edit', methods=['POST'])
 @login_required
 @roles_required('admin', 'payments')
 def edit_payment(pid, pay_id):
     pay  = Payment.query.get_or_404(pay_id)
     proj = Project.query.get_or_404(pid)
+
+    if _payments_locked(proj):
+        flash('This project is closed. Only admin can edit its payments.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
 
     if _has_active_outgoing_adjustments(proj):
         flash('This project has excess adjusted to other customers. Reverse those adjustments before editing payments.', 'danger')
@@ -6007,6 +6043,7 @@ def edit_payment(pid, pay_id):
                old_val=str(old_amount), new_val=str(new_amount))
 
     _reconcile_excess_after_payment_change(proj)
+    _reopen_if_unpaid(proj)
     auto_advance_stage(proj)
     db.session.commit()
     flash(f'Payment updated to ₹{new_amount:,.0f}.', 'success')
@@ -6020,18 +6057,24 @@ def delete_payment(pid, pay_id):
     pay  = Payment.query.get_or_404(pay_id)
     proj = Project.query.get_or_404(pid)
 
+    if _payments_locked(proj):
+        flash('This project is closed. Only admin can delete its payments.', 'danger')
+        return redirect(url_for('project_detail', pid=pid))
+
     if _has_active_outgoing_adjustments(proj):
         flash('This project has excess adjusted to other customers. Reverse those adjustments before deleting payments.', 'danger')
         return redirect(url_for('project_detail', pid=pid))
 
-    amount = float(pay.amount)
+    amount       = float(pay.amount)
+    payment_type = pay.payment_type
     db.session.delete(pay)
     db.session.flush()
 
-    log_action(pid, f'Payment deleted: ₹{amount:,.0f} ({pay.payment_type})',
+    log_action(pid, f'Payment deleted: ₹{amount:,.0f} ({payment_type})',
                old_val=str(amount), new_val='Deleted')
 
     _reconcile_excess_after_payment_change(proj)
+    _reopen_if_unpaid(proj)
     auto_advance_stage(proj)
     db.session.commit()
     flash(f'Payment of ₹{amount:,.0f} deleted.', 'warning')

@@ -1208,7 +1208,7 @@ document.querySelectorAll('.adj-target-input').forEach(function (inp) {
     <thead>
       <tr>
         <th>Date</th><th>Amount</th><th>Type</th><th>Ref No.</th><th>Notes</th>
-        {% if current_user.role in ['admin','payments'] %}<th></th>{% endif %}
+        {% if current_user.role in ['admin','payments'] and not pay_locked %}<th></th>{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -1219,7 +1219,7 @@ document.querySelectorAll('.adj-target-input').forEach(function (inp) {
         <td><span class="tag">{{ pay.payment_type }}</span></td>
         <td style="font-size:12px;color:var(--muted)">{{ pay.reference_no or '—' }}</td>
         <td style="font-size:12px;color:var(--muted)">{{ pay.notes or '—' }}</td>
-        {% if current_user.role in ['admin','payments'] %}
+        {% if current_user.role in ['admin','payments'] and not pay_locked %}
         <td style="white-space:nowrap">
           <button class="btn btn-sm pay-edit-btn" data-pay="{{ pay.id }}">Edit</button>
           <form method="POST" action="{{ url_for('delete_payment', pid=proj.id, pay_id=pay.id) }}"
@@ -1230,7 +1230,7 @@ document.querySelectorAll('.adj-target-input').forEach(function (inp) {
         </td>
         {% endif %}
       </tr>
-      {% if current_user.role in ['admin','payments'] %}
+      {% if current_user.role in ['admin','payments'] and not pay_locked %}
       <tr id="pay-edit-{{ pay.id }}" style="display:none;background:var(--bg)">
         <td colspan="6" style="padding:12px 14px">
           <form method="POST" action="{{ url_for('edit_payment', pid=proj.id, pay_id=pay.id) }}">
@@ -1322,7 +1322,12 @@ document.querySelectorAll('.adj-target-input').forEach(function (inp) {
       proj.total_receivable and proj.total_receivable > 0
       and proj.pending_amount <= 0
   ) %}
-
+{% if pay_locked %}
+<div style="font-size:12px;color:var(--muted);background:var(--bg);border:1px solid var(--border);
+            border-radius:var(--radius);padding:8px 12px;margin-bottom:12px">
+  🔒 This project is closed. Only admin can edit or delete payments.
+</div>
+{% endif %}
   {% if payment_complete %}
   <div style="display:flex;align-items:center;gap:10px;background:var(--green-50,#f0fdf4);
               border:1px solid var(--green-200,#bbf7d0);border-radius:var(--radius);
@@ -1335,7 +1340,7 @@ document.querySelectorAll('.adj-target-input').forEach(function (inp) {
     <div>
       <div style="font-size:13px;font-weight:600;color:var(--green-700,#15803d)">Payment completed</div>
       <div style="font-size:12px;color:var(--green-600,#16a34a)">
-        Full amount of {{ proj.total_amount | inr }} has been received. No further payments can be added.
+        No further payments can be added.
       </div>
     </div>
   </div>
@@ -1534,7 +1539,7 @@ document.querySelectorAll('.adj-target-input').forEach(function (inp) {
         {% if p1.reference_no %}<div style="font-size:11px;color:var(--hint)">Ref: {{ p1.reference_no }}</div>{% endif %}
         {% if p1.notes %}<div style="font-size:11px;color:var(--hint)">Notes: {{ p1.notes }}</div>{% endif %}
         <span class="badge badge-Completed" style="margin-top:6px;display:inline-block">Received</span>
-        {% if current_user.role in ['admin','payments'] %}
+        {% if current_user.role in ['admin','payments'] and not pay_locked %}
         <div style="margin-top:10px;display:flex;gap:6px">
           <button class="btn btn-sm pay-edit-btn" data-pay="{{ p1.id }}">Edit</button>
           <form method="POST" action="{{ url_for('delete_payment', pid=proj.id, pay_id=p1.id) }}"
@@ -1598,7 +1603,7 @@ document.querySelectorAll('.adj-target-input').forEach(function (inp) {
         {% if p2.reference_no %}<div style="font-size:11px;color:var(--hint)">Ref: {{ p2.reference_no }}</div>{% endif %}
         {% if p2.notes %}<div style="font-size:11px;color:var(--hint)">Notes: {{ p2.notes }}</div>{% endif %}
         <span class="badge badge-Completed" style="margin-top:6px;display:inline-block">Received</span>
-        {% if current_user.role in ['admin','payments'] %}
+        {% if current_user.role in ['admin','payments'] and not pay_locked %}
         <div style="margin-top:10px;display:flex;gap:6px">
           <button class="btn btn-sm pay-edit-btn" data-pay="{{ p2.id }}">Edit</button>
           <form method="POST" action="{{ url_for('delete_payment', pid=proj.id, pay_id=p2.id) }}"
@@ -2005,7 +2010,7 @@ document.querySelectorAll('.adj-target-input').forEach(function (inp) {
       <thead>
         <tr>
           <th>Date</th><th>Amount</th><th>Type</th><th>Ref No.</th><th>Notes</th>
-          {% if current_user.role in ['admin','payments'] %}<th></th>{% endif %}
+          {% if current_user.role in ['admin','payments'] and not pay_locked %}<th></th>{% endif %}
         </tr>
       </thead>
       <tbody>
@@ -2016,7 +2021,7 @@ document.querySelectorAll('.adj-target-input').forEach(function (inp) {
           <td><span class="tag">{{ pay.payment_type }}</span></td>
           <td style="font-size:12px;color:var(--muted)">{{ pay.reference_no or '—' }}</td>
           <td style="font-size:12px;color:var(--muted)">{{ pay.notes or '—' }}</td>
-          {% if current_user.role in ['admin','payments'] %}
+          {% if current_user.role in ['admin','payments'] and not pay_locked %}
           <td style="white-space:nowrap">
             <button class="btn btn-sm pay-edit-btn" data-pay="{{ pay.id }}">Edit</button>
             <form method="POST" action="{{ url_for('delete_payment', pid=proj.id, pay_id=pay.id) }}"
@@ -2027,7 +2032,7 @@ document.querySelectorAll('.adj-target-input').forEach(function (inp) {
           </td>
           {% endif %}
         </tr>
-        {% if current_user.role in ['admin','payments'] %}
+        {% if current_user.role in ['admin','payments'] and not pay_locked %}
         <tr id="pay-edit-{{ pay.id }}" style="display:none;background:var(--bg)">
           <td colspan="6" style="padding:12px 14px">
             <form method="POST" action="{{ url_for('edit_payment', pid=proj.id, pay_id=pay.id) }}">
@@ -2129,7 +2134,7 @@ document.querySelectorAll('.adj-target-input').forEach(function (inp) {
     <thead>
       <tr>
         <th>Date</th><th>Amount</th><th>Type</th><th>Ref No.</th><th>Notes</th>
-        {% if current_user.role in ['admin','payments'] %}<th></th>{% endif %}
+        {% if current_user.role in ['admin','payments'] and not pay_locked %}<th></th>{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -2140,7 +2145,7 @@ document.querySelectorAll('.adj-target-input').forEach(function (inp) {
         <td><span class="tag">{{ pay.payment_type }}</span></td>
         <td style="font-size:12px;color:var(--muted)">{{ pay.reference_no or '—' }}</td>
         <td style="font-size:12px;color:var(--muted)">{{ pay.notes or '—' }}</td>
-        {% if current_user.role in ['admin','payments'] %}
+        {% if current_user.role in ['admin','payments'] and not pay_locked %}
         <td style="white-space:nowrap">
           <button class="btn btn-sm pay-edit-btn" data-pay="{{ pay.id }}">Edit</button>
           <form method="POST" action="{{ url_for('delete_payment', pid=proj.id, pay_id=pay.id) }}"
@@ -2151,7 +2156,7 @@ document.querySelectorAll('.adj-target-input').forEach(function (inp) {
         </td>
         {% endif %}
       </tr>
-      {% if current_user.role in ['admin','payments'] %}
+      {% if current_user.role in ['admin','payments'] and not pay_locked %}
       <tr id="pay-edit-{{ pay.id }}" style="display:none;background:var(--bg)">
         <td colspan="6" style="padding:12px 14px">
           <form method="POST" action="{{ url_for('edit_payment', pid=proj.id, pay_id=pay.id) }}">
