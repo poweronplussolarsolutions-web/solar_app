@@ -280,6 +280,9 @@
         <th>Sub Co</th>
         <th>Type</th>
         <th>Subtype</th>
+        <th style="text-align:center">Inverter kW</th>
+        <th style="text-align:center">Panel kW</th>
+        <th>Roof</th>
         <th>Category</th>
         <th>Status</th>
         <th style="text-align:right">Contract</th>
@@ -295,7 +298,7 @@
       </tr>
     </thead>
     <tbody id="worksBody">
-      <tr><td colspan="19" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>
+      <tr><td colspan="22" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>
     </tbody>
   </table>
 </div>
@@ -470,7 +473,7 @@ function loadData() {
   renderChips(filters);
   const seq = ++loadSeq;
   document.getElementById('worksBody').innerHTML =
-    '<tr><td colspan="19" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>';
+    '<tr><td colspan="22" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>';
 
   fetch(`/admin/all_works/preview_data?${buildQS(filters)}`)
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
@@ -482,7 +485,7 @@ function loadData() {
     .catch(() => {
       if (seq !== loadSeq) return;
       document.getElementById('worksBody').innerHTML =
-        '<tr><td colspan="19" style="text-align:center;padding:30px;color:red">Failed to load.</td></tr>';
+        '<tr><td colspan="22" style="text-align:center;padding:30px;color:red">Failed to load.</td></tr>';
     });
 }
 
@@ -517,14 +520,14 @@ function renderTable(projects) {
 
   const body = document.getElementById('worksBody');
   if (!projects.length) {
-    body.innerHTML = '<tr><td colspan="19" style="text-align:center;padding:30px;color:var(--hint)">No projects match these filters.</td></tr>';
+    body.innerHTML = '<tr><td colspan="22" style="text-align:center;padding:30px;color:var(--hint)">No projects match these filters.</td></tr>';
     return;
   }
 
   body.innerHTML = projects.map((p, i) => {
     const bg = i % 2 === 0 ? 'var(--surface,#f9f9f9)' : '#fff';
     return `<tr class="aw-row" style="background:${bg}" data-code="${esc(p.code)}" title="Open job card for ${esc(p.code)}">
-      ${tdc(p.code)}${td(p.customer)}${tdc(p.phone)}${td(p.place)}${td(p.sub_co)}${tdc(p.type)}${tdc(p.subtype)}${tdc(p.work_category)}
+      ${tdc(p.code)}${td(p.customer)}${tdc(p.phone)}${td(p.place)}${td(p.sub_co)}${tdc(p.type)}${tdc(p.subtype)}${tdc(p.inverter_kw)}${tdc(p.panel_kw)}${td(p.roof)}${tdc(p.work_category)}
       <td style="text-align:center">
         <span class="aw-status-pill" style="background:${esc(p.status_bg)};color:${esc(p.status_fg)}">${esc(p.status)}</span>
       </td>

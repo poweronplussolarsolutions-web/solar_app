@@ -11006,12 +11006,16 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
 
     show_payments = payment_stage_filter in ('FirstPending', 'SecondPending')
 
-    headers = ['MNRE No.', 'Customer', 'Phone', 'Place', 'Sub Co', 'Type', 'Subtype', 'Status',
+    headers = ['MNRE No.', 'Customer', 'Phone', 'Place', 'Sub Co', 'Type', 'Subtype',
+                'Inverter (kW)', 'Panel (kW)', 'Roof', 'Status',
                 'Contract (₹)', 'Collected (₹)', 'Pending (₹)', 'Excess (₹)', 'Discounted (₹)',
                 ]
     if show_payments:
         headers += ['1st Payment', '2nd Payment']
     headers += ['Coordinator', 'Doc Staff', 'Created']
+
+    STATUS_COL = 11
+    CONTRACT_COL, COLLECTED_COL, PENDING_COL = 12, 13, 14
 
     last_col_letter = get_column_letter(len(headers))
 
@@ -11052,13 +11056,17 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         coord_name = p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—')
 
         excess, discounted = _project_excess_discount(p)
-        has_commission = bool(p.commissions)
         vals = [p.project_code, p.customer.name, p.customer.phone or '—', p.customer.place or '—', p.customer.sub_co or '—',
-                p.project_type, p.project_subtype or '—', p.status,
+                p.project_type, p.project_subtype or '—',
+                p.inverter_capacity_kw, p.panel_capacity_kw, p.roof_type_display,
+                p.status,
                 float(p.total_amount or 0), float(p.collected_amount or 0), pend, excess, discounted]
-        fmts   = [None, None, None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0', '₹#,##0', '₹#,##0']
-        aligns = ['center', 'left', 'center', 'left', 'center', 'center', 'center', 'center',
-                  'right', 'right', 'right', 'right', 'right']
+        fmts   = [None, None, None, None, None, None, None,
+                  '0.##', '0.##', None,
+                  None, '₹#,##0', '₹#,##0', '₹#,##0', '₹#,##0', '₹#,##0']
+        aligns = ['center', 'left', 'center', 'left', 'center', 'center', 'center',
+                  'center', 'center', 'center',
+                  'center', 'right', 'right', 'right', 'right', 'right']
         tick_col_indices = []
 
         if show_payments:
@@ -11076,7 +11084,7 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         aligns += ['left', 'left', 'center']
 
         for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
-            if col == 8:
+            if col == STATUS_COL:
                 c_bg, c_fg = s_bg, s_fg
             elif col in tick_col_indices:
                 c_bg = C_GREEN_BG if val == '✓' else C_RED_BG
@@ -11096,17 +11104,17 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
             _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
         elif col == 2:
             _style_data_cell(cell, f'{len(sorted_projects)} projects', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
-        elif col == 9:
+        elif col == CONTRACT_COL:
             _style_data_cell(cell, total_val, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
-        elif col == 10:
+        elif col == COLLECTED_COL:
             _style_data_cell(cell, total_coll, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
-        elif col == 11:
+        elif col == PENDING_COL:
             _style_data_cell(cell, total_pend, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
         else:
             cell.fill = _fill(C_TOTAL_BG)
             cell.border = _border()
 
-    col_widths = [12, 24, 14, 16, 12, 8, 10, 12, 14, 14, 14, 12, 12]
+    col_widths = [12, 24, 14, 16, 12, 8, 10, 12, 11, 16, 12, 14, 14, 14, 12, 12]
     if show_payments:
         col_widths += [12, 12]
     col_widths += [20, 20, 13]
@@ -11268,33 +11276,31 @@ def all_works_preview_data():
     year  = request.args.get('year', type=int)
     want_cancelled = 'Cancelled' in [s.strip() for s in status_filter.split(',')]
 
-    # Rows shown in the table (respects the status filter)
     projects = _get_all_works_projects(
         project_type_filter, work_category_filter, status_filter, month, year,
         amount_filter, search, payment_stage_filter, coordinator_filter,
         excess_filter, doc_staff_filter=doc_staff_filter,
         include_cancelled=want_cancelled)
 
-    # Same filters but ignoring the status filter, cancelled included.
-    # Used for Delayed, Closed, On Hold, Cancelled and Grand Total.
     count_set = _get_all_works_projects(
         project_type_filter, work_category_filter, 'All', month, year,
         amount_filter, search, payment_stage_filter, coordinator_filter,
         excess_filter, doc_staff_filter=doc_staff_filter,
         include_cancelled=True)
 
-    # Money cards skip Cancelled and On Hold works
     live      = [p for p in projects if p.status not in ('Cancelled', 'OnHold')]
     collected = sum(p.effective_collected for p in live)
     pending   = sum(p.pending_amount for p in live)
 
-    # Count cards
     active_count    = sum(1 for p in projects if p.status == 'InProgress')
     delayed_count   = sum(1 for p in count_set if p.status == 'Delayed')
     closed_count    = sum(1 for p in count_set if p.status in ('Closed','Completed'))
     onhold_count    = sum(1 for p in count_set if p.status == 'OnHold')
     cancelled_count = sum(1 for p in count_set if p.status == 'Cancelled')
     grand_total     = len(count_set)
+
+    def _kw(v):
+        return f'{v:g}' if v is not None else '—'
 
     def _to_dict(p):
         bg, fg = STATUS_COLORS_HTML.get(p.status, ('#fff', '#000'))
@@ -11309,6 +11315,9 @@ def all_works_preview_data():
             'sub_co':        p.customer.sub_co or '—',
             'type':          p.project_type,
             'subtype':       p.project_subtype or '—',
+            'inverter_kw':   _kw(p.inverter_capacity_kw),
+            'panel_kw':      _kw(p.panel_capacity_kw),
+            'roof':          p.roof_type_display,
             'work_category': p.work_category,
             'status':        p.status,
             'status_bg':     bg,
@@ -11316,7 +11325,6 @@ def all_works_preview_data():
             'contract':      _inr_fmt(p.total_amount),
             'collected':     _inr_fmt(p.effective_collected),
             'pending':       _inr_fmt(p.pending_amount),
-            # None -> template shows "—" for Cash projects instead of a red ✗
             'first_payment':  ('First'  in instalments) if is_loan else None,
             'second_payment': ('Second' in instalments) if is_loan else None,
             'excess':        _inr_fmt(excess) if excess > 0.01 else '—',
