@@ -540,6 +540,9 @@
       <a class="nav-link {% if request.endpoint == 'daybook' %}active{% endif %}" href="{{ url_for('daybook') }}">
         <span class="dot"></span> Day Book
       </a>
+      <a class="nav-link {% if request.endpoint == 'commission_ledger' %}active{% endif %}" href="{{ url_for('commission_ledger') }}">
+        <span class="dot"></span> Commission Ledger
+      </a>
       {% endif %}
       {% if current_user.role in ['admin','onsite'] %}
       <div class="nav-section">Operations</div>
