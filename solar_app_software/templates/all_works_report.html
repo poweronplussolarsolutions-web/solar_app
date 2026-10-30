@@ -211,14 +211,6 @@
     </select>
   </div>
 
-  <div class="aw-filter-group">
-    <label>Commission</label>
-    <select id="commissionFilter" onchange="loadData()">
-      <option value="All">All</option>
-      <option value="Given">Commission Given</option>
-      <option value="NotGiven">No Commission</option>
-    </select>
-  </div>
 
   <div class="aw-filter-group">
     <label>Excess Payment</label>
@@ -295,7 +287,6 @@
         <th style="text-align:right">Pending</th>
         <th style="text-align:right">Excess</th>
         <th style="text-align:right">Discounted</th>
-        <th style="text-align:center">Commission</th>
         <th style="text-align:center">1st Payment</th>
         <th style="text-align:center">2nd Payment</th>
         <th>Coordinator</th>
@@ -304,7 +295,7 @@
       </tr>
     </thead>
     <tbody id="worksBody">
-      <tr><td colspan="20" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>
+      <tr><td colspan="19" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>
     </tbody>
   </table>
 </div>
@@ -385,7 +376,6 @@ function currentFilters() {
     payment_stage:  document.getElementById('paymentStageFilter').value,
     coordinator:    document.getElementById('coordinatorFilter').value,
     doc_staff:      document.getElementById('docStaffFilter').value,
-    commission:     document.getElementById('commissionFilter').value,
     excess:         document.getElementById('excessFilter').value,
   };
   const month = document.getElementById('monthFilter').value;
@@ -412,7 +402,6 @@ function resetFilters() {
   document.getElementById('paymentStageFilter').value = 'All';
   document.getElementById('coordinatorFilter').value = 'All';
   document.getElementById('docStaffFilter').value = 'All';
-  document.getElementById('commissionFilter').value = 'All';
   document.getElementById('monthFilter').value = '';
   document.getElementById('yearFilter').disabled = true;
   document.getElementById('excessFilter').value = 'All';
@@ -436,7 +425,6 @@ function renderChips(filters) {
     work_category: { Installation: 'Installation', Outside: 'Outside' },
     amount_filter: { Zero: '₹0 Work Amount', NonZero: 'Non-zero Work Amount' },
     payment_stage: { FirstPending: 'First Payment Not Received', SecondPending: 'Second Payment Not Received' },
-    commission:    { Given: 'Commission Given', NotGiven: 'No Commission' },
     excess:        { Pending: 'Excess Pending', None: 'No Pending Excess' },
   };
   const monthNames = ['', 'January','February','March','April','May','June',
@@ -482,7 +470,7 @@ function loadData() {
   renderChips(filters);
   const seq = ++loadSeq;
   document.getElementById('worksBody').innerHTML =
-    '<tr><td colspan="20" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>';
+    '<tr><td colspan="19" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>';
 
   fetch(`/admin/all_works/preview_data?${buildQS(filters)}`)
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
@@ -494,7 +482,7 @@ function loadData() {
     .catch(() => {
       if (seq !== loadSeq) return;
       document.getElementById('worksBody').innerHTML =
-        '<tr><td colspan="20" style="text-align:center;padding:30px;color:red">Failed to load.</td></tr>';
+        '<tr><td colspan="19" style="text-align:center;padding:30px;color:red">Failed to load.</td></tr>';
     });
 }
 
@@ -529,7 +517,7 @@ function renderTable(projects) {
 
   const body = document.getElementById('worksBody');
   if (!projects.length) {
-    body.innerHTML = '<tr><td colspan="20" style="text-align:center;padding:30px;color:var(--hint)">No projects match these filters.</td></tr>';
+    body.innerHTML = '<tr><td colspan="19" style="text-align:center;padding:30px;color:var(--hint)">No projects match these filters.</td></tr>';
     return;
   }
 
@@ -540,7 +528,7 @@ function renderTable(projects) {
       <td style="text-align:center">
         <span class="aw-status-pill" style="background:${esc(p.status_bg)};color:${esc(p.status_fg)}">${esc(p.status)}</span>
       </td>
-      ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${tdr(p.excess)}${tdr(p.discounted)}${tdTick(p.commission)}${tdTick(p.first_payment)}${tdTick(p.second_payment)}${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
+      ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${tdr(p.excess)}${tdr(p.discounted)}${tdTick(p.first_payment)}${tdTick(p.second_payment)}${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
     </tr>`;
   }).join('');
 }

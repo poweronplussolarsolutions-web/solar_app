@@ -1679,7 +1679,34 @@ class CoordinatorCommission(db.Model):
     coordinator = db.relationship('User', foreign_keys=[coordinator_id], backref='commissions')
     creator     = db.relationship('User', foreign_keys=[created_by])
     projects    = db.relationship('Project', secondary=commission_project, backref='commissions')
-
+class CoordinatorOpeningBalance(db.Model):
+    __tablename__ = 'coordinator_opening_balances'
+    id             = db.Column(db.Integer, primary_key=True)
+    coordinator_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, unique=True)
+    as_of_date     = db.Column(db.Date, nullable=False)
+    amount         = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    side           = db.Column(db.Enum('Dr', 'Cr'), nullable=False, default='Dr')
+    updated_by     = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    updated_at     = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    coordinator    = db.relationship('User', foreign_keys=[coordinator_id])
+    updater        = db.relationship('User', foreign_keys=[updated_by])
+ 
+ 
+class CoordinatorPayment(db.Model):
+    __tablename__ = 'coordinator_payments'
+    id             = db.Column(db.Integer, primary_key=True)
+    coordinator_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    payment_date   = db.Column(db.Date, nullable=False, default=date.today)
+    amount         = db.Column(db.Numeric(12, 2), nullable=False)          # actually paid out
+    tds_amount     = db.Column(db.Numeric(12, 2), nullable=False, default=0)  # TDS 194H, also a debit
+    method         = db.Column(db.String(50), nullable=True)
+    reference_no   = db.Column(db.String(100), nullable=True)
+    notes          = db.Column(db.String(300), nullable=True)
+    created_by     = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+    coordinator    = db.relationship('User', foreign_keys=[coordinator_id])
+    creator        = db.relationship('User', foreign_keys=[created_by])
+ 
 from sqlalchemy.orm import with_loader_criteria
 from sqlalchemy import event
 from sqlalchemy.orm import Session as _SASession
@@ -4869,6 +4896,7 @@ def update_transformer_capacity(pid):
     else:
         flash('No change.', 'info')
     return redirect(url_for('project_detail', pid=pid))
+
 @app.route('/admin/commissions/new', methods=['POST'])
 @login_required
 @roles_required('admin', 'director')
@@ -4953,6 +4981,324 @@ def delete_commission(cid):
     db.session.commit()
     flash('Commission entry deleted.', 'warning')
     return redirect(url_for('commissions'))
+_LEDGER_RANK = {'Opening': 0, 'BroughtForward': 0, 'Payment': 1, 'TDS': 2, 'Commission': 3}
+ 
+ 
+def _coordinator_choices():
+    return (User.query
+            .filter(User.role.in_(['coordinator', 'director']), User.is_deleted == False)
+            .order_by(User.full_name).all())
+ 
+ 
+def _parse_iso_date(raw, default=None):
+    try:
+        return date.fromisoformat(raw) if raw else default
+    except ValueError:
+        return default
+ 
+ 
+def _coord_ledger(coord, start=None, end=None, work_code=None):
+    """Ledger rows for ONE coordinator.
+    - start/end   : month filter. Everything before `start` is rolled into a
+                    'Balance b/f' row so the closing balance stays correct.
+    - work_code   : only commissions linked to that MNRE number (payments,
+                    TDS and opening balance are not per-work, so they're left out)."""
+    cid, entries = coord.id, []
+ 
+    cq = (CoordinatorCommission.query
+          .options(selectinload(CoordinatorCommission.projects))
+          .filter(CoordinatorCommission.coordinator_id == cid))
+    if work_code:
+        cq = cq.filter(CoordinatorCommission.projects.any(Project.project_code == work_code))
+    for c in cq.all():
+        codes = sorted(p.project_code for p in c.projects)
+        entries.append({
+            'date': c.commission_date, 'kind': 'Commission', 'obj_id': c.id,
+            'particulars': 'Commission' + (f' — MNRE {", ".join(codes)}' if codes else ''),
+            'vch_type': 'Journal', 'vch_no': str(c.id),
+            'dr': 0.0, 'cr': float(c.amount or 0), 'notes': c.notes,
+        })
+ 
+    if not work_code:
+        ob = CoordinatorOpeningBalance.query.filter_by(coordinator_id=cid).first()
+        for p in CoordinatorPayment.query.filter_by(coordinator_id=cid).all():
+            entries.append({
+                'date': p.payment_date, 'kind': 'Payment', 'obj_id': p.id,
+                'particulars': f'Paid via {p.method}' if p.method else 'Payment to coordinator',
+                'vch_type': 'Payment', 'vch_no': p.reference_no,
+                'dr': float(p.amount or 0), 'cr': 0.0, 'notes': p.notes,
+            })
+            if float(p.tds_amount or 0) > 0:
+                entries.append({
+                    'date': p.payment_date, 'kind': 'TDS', 'obj_id': p.id,
+                    'particulars': 'TDS Payable on Commission 194 H',
+                    'vch_type': 'Journal', 'vch_no': None,
+                    'dr': float(p.tds_amount), 'cr': 0.0, 'notes': None,
+                })
+        if ob:
+            # anything dated before the opening balance is already inside it
+            entries = [e for e in entries if e['date'] >= ob.as_of_date]
+            amt = float(ob.amount or 0)
+            if amt > 0:
+                entries.append({
+                    'date': ob.as_of_date, 'kind': 'Opening', 'obj_id': None,
+                    'particulars': 'Opening Balance', 'vch_type': None, 'vch_no': None,
+                    'dr': amt if ob.side == 'Dr' else 0.0,
+                    'cr': amt if ob.side == 'Cr' else 0.0, 'notes': None,
+                })
+ 
+    for e in entries:
+        e['rank'] = _LEDGER_RANK[e['kind']]
+    entries.sort(key=lambda e: (e['date'], e['rank'], e['obj_id'] or 0))
+ 
+    rows = []
+    if start:
+        bf = round(sum(e['cr'] - e['dr'] for e in entries if e['date'] < start), 2)
+        entries = [e for e in entries if e['date'] >= start]
+        if abs(bf) > 0.005 and not work_code:
+            rows.append({
+                'date': start, 'kind': 'BroughtForward', 'obj_id': None, 'rank': 0,
+                'particulars': 'Balance b/f', 'vch_type': None, 'vch_no': None,
+                'dr': abs(bf) if bf < 0 else 0.0, 'cr': bf if bf > 0 else 0.0, 'notes': None,
+            })
+    if end:
+        entries = [e for e in entries if e['date'] <= end]
+    rows += entries
+ 
+    for r in rows:
+        r['coord'] = coord.full_name
+        r['side'] = 'To' if r['dr'] > 0 else 'By'
+    return rows
+ 
+ 
+def _ledger_totals(rows, work_mode=False):
+    tot_dr = round(sum(r['dr'] for r in rows), 2)
+    tot_cr = round(sum(r['cr'] for r in rows), 2)
+    diff = round(tot_cr - tot_dr, 2)        # > 0: company owes coordinator (Cr balance)
+    if work_mode:                            # per-work view has no meaningful balance
+        return {'tot_dr': tot_dr, 'tot_cr': tot_cr, 'closing_dr': 0.0, 'closing_cr': 0.0,
+                'grand': max(tot_dr, tot_cr), 'balance': None}
+    return {
+        'tot_dr': tot_dr, 'tot_cr': tot_cr,
+        'closing_dr': diff if diff > 0 else 0.0,     # shown in the Debit column, like Tally
+        'closing_cr': -diff if diff < 0 else 0.0,
+        'grand': max(tot_dr, tot_cr), 'balance': diff,
+    }
+ 
+ 
+COMMISSION_VIEW_ROLES  = ('admin', 'finance', 'director')   # can open the ledger and see everyone
+COMMISSION_WRITE_ROLES = ('admin', 'director')              # can add commission / record payments
+ 
+ 
+@app.route('/admin/commission_ledger')
+@login_required
+@roles_required(*COMMISSION_VIEW_ROLES)
+def commission_ledger():
+    coordinators = _coordinator_choices()
+    coord_id = request.args.get('coordinator_id', type=int)
+    work     = _clean(request.args.get('work', ''), 20)
+    month    = request.args.get('month', type=int)
+    year     = request.args.get('year', type=int) or date.today().year
+ 
+    if month and not (1 <= month <= 12):
+        month = None
+    start = end = None
+    if month:
+        start = date(year, month, 1)
+        end   = date(year, month, calendar.monthrange(year, month)[1])
+ 
+    if work and not Project.query.filter_by(project_code=work).first():
+        flash(f'No work found with MNRE number "{work}".', 'warning')
+        work = ''
+    work_mode = bool(work)
+ 
+    selected = next((c for c in coordinators if c.id == coord_id), None)
+    targets  = [selected] if selected else coordinators
+ 
+    rows, summary = [], []
+    for c in targets:
+        crow = _coord_ledger(c, start, end, work or None)
+        if not crow:
+            continue
+        rows.extend(crow)
+        t = _ledger_totals(crow, work_mode)
+        summary.append({
+            'id': c.id, 'name': c.full_name,
+            'commission': sum(r['cr'] for r in crow if r['kind'] == 'Commission'),
+            'paid':       sum(r['dr'] for r in crow if r['kind'] == 'Payment'),
+            'tds':        sum(r['dr'] for r in crow if r['kind'] == 'TDS'),
+            'balance':    t['balance'],
+        })
+    rows.sort(key=lambda r: (r['date'], r['rank'], r['coord']))
+ 
+    totals = _ledger_totals(rows, work_mode)
+    ob = (CoordinatorOpeningBalance.query.filter_by(coordinator_id=selected.id).first()
+          if selected else None)
+ 
+    return render_template('commission_ledger.html',
+        rows=rows, totals=totals, summary=summary, work_mode=work_mode,
+        coordinators=coordinators, selected=selected, work=work,
+        month=month, year=year, current_year=date.today().year,
+        month_names=list(calendar.month_name)[1:],
+        period_label=(f'{calendar.month_name[month]} {year}' if month else 'All time'),
+        ob=ob, today=date.today(),
+        can_write=current_user.role in COMMISSION_WRITE_ROLES)
+ 
+ 
+@app.route('/admin/commissions')
+@login_required
+@roles_required(*COMMISSION_VIEW_ROLES)
+def commissions():
+    # old list page is replaced by the ledger; keeps existing nav links working
+    return redirect(url_for('commission_ledger'))
+ 
+ 
+@app.route('/admin/commissions/new', methods=['POST'])
+@login_required
+@roles_required('admin', 'director')
+def new_commission():
+    back     = request.referrer or url_for('commission_ledger')
+    coord_id = request.form.get('coordinator_id', type=int)
+    amount   = _safe_float(request.form.get('amount'))
+    coord = (User.query.filter(User.id == coord_id,
+                               User.role.in_(['coordinator', 'director'])).first()
+             if coord_id else None)
+    if not coord or amount <= 0:
+        flash('Please provide a valid coordinator and amount.', 'danger')
+        return redirect(back)
+ 
+    # Works can come from project_ids (project page) or MNRE numbers typed on the ledger page
+    projects = []
+    ids = [int(p) for p in request.form.getlist('project_ids') if p.isdigit()]
+    if ids:
+        projects = Project.query.filter(Project.id.in_(ids)).all()
+    codes = [c for c in re.split(r'[,\s]+', request.form.get('project_codes', '')) if c]
+    if codes:
+        found = Project.query.filter(Project.project_code.in_(codes)).all()
+        missing = set(codes) - {p.project_code for p in found}
+        if missing:
+            flash(f'No work found for MNRE number(s): {", ".join(sorted(missing))}.', 'danger')
+            return redirect(back)
+        projects += [p for p in found if p not in projects]
+ 
+    c_date = _parse_iso_date(request.form.get('commission_date'), date.today())
+    if c_date > date.today():
+        flash('Commission date cannot be in the future.', 'danger')
+        return redirect(back)
+ 
+    comm = CoordinatorCommission(
+        coordinator_id=coord.id, amount=amount, commission_date=c_date,
+        basis='PerProject' if len(projects) == 1 else ('Bulk' if len(projects) > 1 else 'Manual'),
+        notes=_clean(request.form.get('notes', ''), 500) or None,
+        created_by=current_user.id,
+    )
+    comm.projects = projects
+    db.session.add(comm)
+    for p in projects:
+        log_action(p.id, f'Commission of ₹{amount:,.0f} recorded for {coord.full_name}', new_val=str(amount))
+    db.session.commit()
+    flash(f'Commission of ₹{amount:,.0f} added for {coord.full_name}.', 'success')
+    return redirect(back)
+ 
+ 
+@app.route('/admin/commissions/<int:cid>/delete', methods=['POST'])
+@login_required
+@roles_required('admin')
+def delete_commission(cid):
+    comm = CoordinatorCommission.query.get_or_404(cid)
+    db.session.delete(comm)
+    db.session.commit()
+    flash('Commission entry deleted.', 'warning')
+    return redirect(request.referrer or url_for('commission_ledger'))
+ 
+ 
+def _compute_tds(amount, form):
+    """TDS (194H) for a payment. MANUAL for now: the user types the rupee amount.
+    When it goes automatic, change only this function (e.g. return
+    round(amount * TDS_RATE / 100, 2)) — the route and ledger don't need to change."""
+    return _safe_float(form.get('tds_amount'))
+ 
+ 
+@app.route('/admin/commissions/payment/new', methods=['POST'])
+@login_required
+@roles_required('admin', 'director')
+@limiter.limit('30 per minute')
+def add_coordinator_payment():
+    back     = request.referrer or url_for('commission_ledger')
+    coord_id = request.form.get('coordinator_id', type=int)
+    amount   = _safe_float(request.form.get('amount'))
+    tds = _compute_tds(amount, request.form)                       # manual for now, see helper
+    coord = (User.query.filter(User.id == coord_id,
+                               User.role.in_(['coordinator', 'director'])).first()
+             if coord_id else None)
+    if not coord or amount <= 0:
+        flash('Please provide a valid coordinator and amount.', 'danger')
+        return redirect(back)
+    if tds > amount:
+        flash('TDS cannot be more than the amount paid.', 'danger')
+        return redirect(back)
+ 
+    p_date = _parse_iso_date(request.form.get('payment_date'), date.today())
+    if p_date > date.today():
+        flash('Payment date cannot be in the future.', 'danger')
+        return redirect(back)
+ 
+    db.session.add(CoordinatorPayment(
+        coordinator_id=coord.id, payment_date=p_date, amount=amount, tds_amount=tds,
+        method=_clean(request.form.get('method', ''), 50) or None,
+        reference_no=_clean(request.form.get('reference_no', ''), 100) or None,
+        notes=_clean(request.form.get('notes', ''), 300) or None,
+        created_by=current_user.id,
+    ))
+    db.session.commit()
+    flash(f'Payment of ₹{amount:,.0f}' + (f' (+ TDS ₹{tds:,.0f})' if tds else '')
+          + f' recorded for {coord.full_name}.', 'success')
+    return redirect(back)
+ 
+ 
+@app.route('/admin/commissions/payment/<int:payid>/delete', methods=['POST'])
+@login_required
+@roles_required('admin')
+def delete_coordinator_payment(payid):
+    pay = CoordinatorPayment.query.get_or_404(payid)
+    db.session.delete(pay)
+    db.session.commit()
+    flash('Payment entry deleted.', 'warning')
+    return redirect(request.referrer or url_for('commission_ledger'))
+ 
+ 
+@app.route('/admin/commissions/opening', methods=['POST'])
+@login_required
+@roles_required('admin')
+def set_coordinator_opening():
+    back     = request.referrer or url_for('commission_ledger')
+    coord_id = request.form.get('coordinator_id', type=int)
+    coord = (User.query.filter(User.id == coord_id,
+                               User.role.in_(['coordinator', 'director'])).first()
+             if coord_id else None)
+    side   = request.form.get('side')
+    as_of  = _parse_iso_date(request.form.get('as_of_date'))
+    amount = _safe_float(request.form.get('amount'))
+    if not coord or side not in ('Dr', 'Cr') or not as_of:
+        flash('Choose a coordinator, side and date for the opening balance.', 'danger')
+        return redirect(back)
+ 
+    ob = CoordinatorOpeningBalance.query.filter_by(coordinator_id=coord.id).first()
+    if amount <= 0:                                   # 0 clears it
+        if ob:
+            db.session.delete(ob)
+            db.session.commit()
+        flash(f'Opening balance cleared for {coord.full_name}.', 'warning')
+        return redirect(back)
+ 
+    if not ob:
+        ob = CoordinatorOpeningBalance(coordinator_id=coord.id)
+        db.session.add(ob)
+    ob.as_of_date, ob.amount, ob.side, ob.updated_by = as_of, amount, side, current_user.id
+    db.session.commit()
+    flash(f'Opening balance for {coord.full_name} set to ₹{amount:,.0f} {side} '
+          f'as of {as_of.strftime("%d %b %Y")}.', 'success')
+    return redirect(back)
 @app.route('/projects/<int:pid>/expenses', methods=['POST'])
 @login_required
 @roles_required('admin', 'documents','office','documents_k')
@@ -10635,7 +10981,7 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
     return path
 def build_allworks_full_report(projects, project_type_filter='All', work_category_filter='All',
                                 output_dir='/tmp', month=None, year=None, payment_stage_filter='All',
-                                commission_filter='All'):
+                                ):
     """System-wide all-works sheet — every project, optionally filtered by Cash/Loan,
     Installation/Outside, pending bank instalment (First/Second), and commission status."""
     wb = Workbook()
@@ -10653,9 +10999,6 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         filter_bits.append(project_type_filter)
     if work_category_filter != 'All':
         filter_bits.append(work_category_filter)
-    if commission_filter == 'Given':
-        filter_bits.append('Commission Given')
-    elif commission_filter == 'NotGiven':
         filter_bits.append('No Commission')
     if month and year:
         filter_bits.append(f'{calendar.month_name[month]} {year}')
@@ -10665,7 +11008,7 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
 
     headers = ['MNRE No.', 'Customer', 'Phone', 'Place', 'Sub Co', 'Type', 'Subtype', 'Status',
                 'Contract (₹)', 'Collected (₹)', 'Pending (₹)', 'Excess (₹)', 'Discounted (₹)',
-                'Commission']
+                ]
     if show_payments:
         headers += ['1st Payment', '2nd Payment']
     headers += ['Coordinator', 'Doc Staff', 'Created']
@@ -10712,12 +11055,11 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         has_commission = bool(p.commissions)
         vals = [p.project_code, p.customer.name, p.customer.phone or '—', p.customer.place or '—', p.customer.sub_co or '—',
                 p.project_type, p.project_subtype or '—', p.status,
-                float(p.total_amount or 0), float(p.collected_amount or 0), pend, excess, discounted,
-                '✓' if has_commission else '✗']
-        fmts   = [None, None, None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0', '₹#,##0', '₹#,##0', None]
+                float(p.total_amount or 0), float(p.collected_amount or 0), pend, excess, discounted]
+        fmts   = [None, None, None, None, None, None, None, None, '₹#,##0', '₹#,##0', '₹#,##0', '₹#,##0', '₹#,##0']
         aligns = ['center', 'left', 'center', 'left', 'center', 'center', 'center', 'center',
-                  'right', 'right', 'right', 'right', 'right', 'center']
-        tick_col_indices = [len(vals)]
+                  'right', 'right', 'right', 'right', 'right']
+        tick_col_indices = []
 
         if show_payments:
             instalments = p.bank_instalments if p.project_type == 'Loan' else {}
@@ -10764,7 +11106,7 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
             cell.fill = _fill(C_TOTAL_BG)
             cell.border = _border()
 
-    col_widths = [12, 24, 14, 16, 12, 8, 10, 12, 14, 14, 14, 12, 12, 12]
+    col_widths = [12, 24, 14, 16, 12, 8, 10, 12, 14, 14, 14, 12, 12]
     if show_payments:
         col_widths += [12, 12]
     col_widths += [20, 20, 13]
@@ -10778,8 +11120,6 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         fname_bits.append('SecondPending')
     elif project_type_filter != 'All':
         fname_bits.append(project_type_filter)
-    if commission_filter != 'All':
-        fname_bits.append(commission_filter)
     fname = '_'.join(fname_bits) + '.xlsx'
     path = os.path.join(output_dir, fname)
     wb.save(path)
@@ -10810,7 +11150,7 @@ from sqlalchemy.orm import selectinload, joinedload
 def _get_all_works_projects(project_type_filter, work_category_filter='All', status_filter='All',
                              month=None, year=None, amount_filter='All', search='',
                              payment_stage_filter='All', coordinator_filter='All',
-                             commission_filter='All', excess_filter='All',
+                             excess_filter='All',
                              doc_staff_filter='All', include_cancelled=False):
     q = (Project.query
          .join(Customer)
@@ -10823,7 +11163,6 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
              selectinload(Project.expenses),
              selectinload(Project.waivers),
              selectinload(Project.payments),
-             selectinload(Project.commissions),
              selectinload(Project.payment_excesses),
          ))
     if not include_cancelled:
@@ -10874,11 +11213,6 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
             if (p.coordinator.full_name if p.coordinator else p.coordinator_name) == coordinator_filter
         ]
 
-    if commission_filter == 'Given':
-        projects = [p for p in projects if p.commissions]
-    elif commission_filter == 'NotGiven':
-        projects = [p for p in projects if not p.commissions]
-
     if excess_filter == 'Pending':
         projects = [p for p in projects if _project_excess_discount(p)[0] > 0.01]
     elif excess_filter == 'None':
@@ -10928,7 +11262,6 @@ def all_works_preview_data():
     payment_stage_filter = request.args.get('payment_stage', 'All')
     coordinator_filter   = _clean(request.args.get('coordinator', 'All'), 120) or 'All'
     doc_staff_filter     = _clean(request.args.get('doc_staff', 'All'), 10) or 'All'
-    commission_filter    = request.args.get('commission', 'All')
     excess_filter        = request.args.get('excess', 'All')
     search               = _clean(request.args.get('q', ''), 100)
     month = request.args.get('month', type=int)
@@ -10939,7 +11272,7 @@ def all_works_preview_data():
     projects = _get_all_works_projects(
         project_type_filter, work_category_filter, status_filter, month, year,
         amount_filter, search, payment_stage_filter, coordinator_filter,
-        commission_filter, excess_filter, doc_staff_filter=doc_staff_filter,
+        excess_filter, doc_staff_filter=doc_staff_filter,
         include_cancelled=want_cancelled)
 
     # Same filters but ignoring the status filter, cancelled included.
@@ -10947,7 +11280,7 @@ def all_works_preview_data():
     count_set = _get_all_works_projects(
         project_type_filter, work_category_filter, 'All', month, year,
         amount_filter, search, payment_stage_filter, coordinator_filter,
-        commission_filter, excess_filter, doc_staff_filter=doc_staff_filter,
+        excess_filter, doc_staff_filter=doc_staff_filter,
         include_cancelled=True)
 
     # Money cards skip Cancelled and On Hold works
@@ -10988,7 +11321,6 @@ def all_works_preview_data():
             'second_payment': ('Second' in instalments) if is_loan else None,
             'excess':        _inr_fmt(excess) if excess > 0.01 else '—',
             'discounted':    _inr_fmt(discounted) if discounted > 0.01 else '—',
-            'commission':    bool(p.commissions),
             'coordinator':   p.coordinator.full_name if p.coordinator else (p.coordinator_name or '—'),
             'doc_staff':     p.doc_staff.full_name if p.doc_staff else '—',
             'created':       p.created_at.strftime('%d %b %Y'),
@@ -11021,7 +11353,6 @@ def all_works_download():
     payment_stage_filter     = request.args.get('payment_stage', 'All')
     coordinator_filter       = _clean(request.args.get('coordinator', 'All'), 120) or 'All'
     doc_staff_filter         = _clean(request.args.get('doc_staff', 'All'), 10) or 'All'
-    commission_filter        = request.args.get('commission', 'All')
     excess_filter            = request.args.get('excess', 'All')
     search                    = _clean(request.args.get('q', ''), 100)
     month = request.args.get('month', type=int)
@@ -11030,14 +11361,14 @@ def all_works_download():
     projects = _get_all_works_projects(project_type_filter, work_category_filter,
                                         status_filter, month, year, amount_filter, search,
                                         payment_stage_filter, coordinator_filter,
-                                        commission_filter, excess_filter,
+                                        excess_filter,
                                         doc_staff_filter=doc_staff_filter,
                                         include_cancelled=want_cancelled)
 
     effective_type_filter = 'Loan' if payment_stage_filter in ('FirstPending', 'SecondPending') else project_type_filter
     path = build_allworks_full_report(projects, effective_type_filter, work_category_filter,
                                        tempfile.gettempdir(), month, year, payment_stage_filter,
-                                       commission_filter)
+                                       )
 
     parts = ['AllWorks']
     if payment_stage_filter == 'FirstPending':
@@ -11062,8 +11393,6 @@ def all_works_download():
         ds = db.session.get(User, int(doc_staff_filter))
         if ds:
             parts.append('Docs_' + re.sub(r'[^A-Za-z0-9]+', '', ds.full_name))
-    if commission_filter != 'All':
-        parts.append(commission_filter)
     if excess_filter != 'All':
         parts.append('ExcessPending' if excess_filter == 'Pending' else 'NoExcess')
     if month and year:

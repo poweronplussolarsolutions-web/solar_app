@@ -816,19 +816,20 @@ function togglePanelAddr(which) {
       </span>
     </div>
     <button class="btn btn-sm btn-primary" onclick="togglePanel('commissionForm')">+ Add commission</button>
+    <a href="{{ url_for('commission_ledger', coordinator_id=proj.coordinator_id, work=proj.project_code) }}" class="btn btn-sm">Ledger</a>
   </div>
 
   {% if proj.commissions %}
   <div class="table-wrap">
     <table style="font-size:13px">
-      <thead><tr><th>Date</th><th>Amount</th><th>Basis</th><th>Status</th><th>Notes</th></tr></thead>
+      <thead><tr><th>Date</th><th>Amount</th><th>Basis</th><th>Notes</th></tr></thead>
       <tbody>
         {% for c in proj.commissions | sort(attribute='commission_date', reverse=True) %}
         <tr>
           <td>{{ c.commission_date | date_fmt }}</td>
           <td style="font-weight:500">{{ c.amount | inr }}</td>
           <td><span class="tag">{{ c.basis }}{% if c.projects|length > 1 %} ({{ c.projects|length }} projects){% endif %}</span></td>
-          <td><span class="badge badge-{{ 'Completed' if c.status == 'Paid' else 'Created' }}">{{ c.status }}</span></td>
+          <!-- <td><span class="badge badge-{{ 'Completed' if c.status == 'Paid' else 'Created' }}">{{ c.status }}</span></td> -->
           <td style="font-size:12px;color:var(--muted)">{{ c.notes or '—' }}</td>
         </tr>
         {% endfor %}
