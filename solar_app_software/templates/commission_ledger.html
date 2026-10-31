@@ -4,7 +4,7 @@
 
 {% block content %}
 {% macro money(v) %}{% if v %}{{ '{:,.2f}'.format(v) }}{% endif %}{% endmacro %}
-{% set can_delete = current_user.role == 'admin' %}
+{% set can_delete = current_user.role in['admin','finance'] %}
 {% set ncols = 6 + (0 if selected else 1) + (1 if can_delete else 0) %}
 
 <style>
@@ -72,16 +72,18 @@
 
 {# ── Quick actions ─────────────────────────────────────── #}
 {% if can_write %}
+{% if current_user.role in ['admin','finance'] %}
 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
   <button type="button" class="btn btn-sm btn-primary" onclick="togglePanel('clCommissionForm')">+ Add commission</button>
   <button type="button" class="btn btn-sm btn-warning" onclick="togglePanel('clPaymentForm')">+ Record payment</button>
-  {% if current_user.role in ['admin','finance'] %}
+  
   <button type="button" class="btn btn-sm" onclick="togglePanel('clOpeningForm')">⚙ Opening balance</button>
   {% endif %}
 </div>
 {% endif %}
 
 {% if can_write %}
+{% if current_user.role in ['admin','finance'] %}
 <div id="clCommissionForm" class="card cl-panel">
   <div class="card-title">Add commission (credit)</div>
   <form method="POST" action="{{ url_for('new_commission') }}">
@@ -169,7 +171,7 @@
     </div>
   </form>
 </div>
-
+{% endif %}
 {% endif %}{# can_write #}
 
 {% if current_user.role in ['admin','finance'] %}
