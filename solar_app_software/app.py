@@ -5155,7 +5155,7 @@ def commissions():
  
 @app.route('/admin/commissions/new', methods=['POST'])
 @login_required
-@roles_required('admin', 'director')
+@roles_required('admin', 'director','finance')
 def new_commission():
     back     = request.referrer or url_for('commission_ledger')
     coord_id = request.form.get('coordinator_id', type=int)
@@ -5203,7 +5203,7 @@ def new_commission():
  
 @app.route('/admin/commissions/<int:cid>/delete', methods=['POST'])
 @login_required
-@roles_required('admin')
+@roles_required('admin','director','finance')
 def delete_commission(cid):
     comm = CoordinatorCommission.query.get_or_404(cid)
     db.session.delete(comm)
@@ -5221,7 +5221,7 @@ def _compute_tds(amount, form):
  
 @app.route('/admin/commissions/payment/new', methods=['POST'])
 @login_required
-@roles_required('admin', 'director')
+@roles_required('admin', 'director','finance')
 @limiter.limit('30 per minute')
 def add_coordinator_payment():
     back     = request.referrer or url_for('commission_ledger')
@@ -5258,7 +5258,7 @@ def add_coordinator_payment():
  
 @app.route('/admin/commissions/payment/<int:payid>/delete', methods=['POST'])
 @login_required
-@roles_required('admin')
+@roles_required('admin','director','finance')
 def delete_coordinator_payment(payid):
     pay = CoordinatorPayment.query.get_or_404(payid)
     db.session.delete(pay)
@@ -5269,7 +5269,7 @@ def delete_coordinator_payment(payid):
  
 @app.route('/admin/commissions/opening', methods=['POST'])
 @login_required
-@roles_required('admin')
+@roles_required('admin','director','finance')
 def set_coordinator_opening():
     back     = request.referrer or url_for('commission_ledger')
     coord_id = request.form.get('coordinator_id', type=int)
