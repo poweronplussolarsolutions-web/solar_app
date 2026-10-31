@@ -75,7 +75,7 @@
 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
   <button type="button" class="btn btn-sm btn-primary" onclick="togglePanel('clCommissionForm')">+ Add commission</button>
   <button type="button" class="btn btn-sm btn-warning" onclick="togglePanel('clPaymentForm')">+ Record payment</button>
-  {% if current_user.role == 'admin' %}
+  {% if current_user.role in ['admin','finance'] %}
   <button type="button" class="btn btn-sm" onclick="togglePanel('clOpeningForm')">⚙ Opening balance</button>
   {% endif %}
 </div>
@@ -172,7 +172,7 @@
 
 {% endif %}{# can_write #}
 
-{% if current_user.role == 'admin' %}
+{% if current_user.role in ['admin','finance'] %}
 <div id="clOpeningForm" class="card cl-panel">
   <div class="card-title">Opening balance</div>
   <p style="font-size:12px;color:var(--muted);margin-bottom:10px">
