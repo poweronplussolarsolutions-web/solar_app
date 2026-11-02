@@ -8602,13 +8602,13 @@ def project_service(pid):
     refresh_service_statuses()
     proj = Project.query.get_or_404(pid)
 
-    # NEW — this view previously had no status guard at all.
     if proj.status in ('Cancelled', 'OnHold'):
         flash('Service schedule is not active for a Cancelled or On Hold project.', 'warning')
         return redirect(url_for('project_detail', pid=pid))
-    if proj.work_category == 'Outside':                       
+    if proj.work_category == 'Outside':
         flash('Outside-work projects do not have a service schedule.', 'warning')
         return redirect(url_for('project_detail', pid=pid))
+
     records   = (ServiceRecord.query
                .filter_by(project_id=pid)
                .order_by(ServiceRecord.visit_number).all())
@@ -8644,12 +8644,16 @@ def project_service(pid):
         'overdue':   over,
         'due':       due,
         'completed': done,
-        'upcoming':  1 if next_v and next_v.status == 'Upcoming' else 0,
+        'upcoming':  1 if next_v and next_v.status == 'Upcoming' and not next_locked else 0,
         'skipped':   skipped,
     }
 
     return render_template('service_management.html',
-                           proj_data=proj_data, stats=stats, today=date.today())
+                           proj_data=proj_data, stats=stats,
+                           today=date.today(),
+                           page=1, total_pages=1, search='',
+                           cbd_records=[], cbd_searched=False,
+                           cbd_date_str='', cbd_start_str='', cbd_end_str='')
 @app.route('/service/<int:sid>/complete', methods=['POST'])
 @login_required
 @roles_required('admin', 'service')
