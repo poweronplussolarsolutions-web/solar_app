@@ -375,10 +375,8 @@
             {{ n.created_at | date_fmt }}
           </div>
         </div>
-        <a href="{{ url_for('project_detail', pid=n.project_id) }}" class="btn btn-sm notif-open"
-           data-nid="{{n.id}}">
-          Open →
-        </a>
+                {% set n_url = n.action_url or (url_for('project_detail', pid=n.project_id) if n.project_id else url_for('dashboard')) %}
+        <a href="{{ n_url }}" class="btn btn-sm notif-open" data-nid="{{ n.id }}">Open →</a>
         <button type="button" class="notif-dismiss" data-nid="{{n.id}}"
                 style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:0 4px">
           ×
@@ -468,7 +466,8 @@
       </div>
       <div style="font-size:11px;color:var(--muted);margin-top:2px">{{ n.created_at | date_fmt }}</div>
     </div>
-    <a href="{{ url_for('project_detail', pid=n.project_id) }}" class="btn btn-sm notif-open" data-nid="{{ n.id }}">Open →</a>
+            {% set n_url = n.action_url or (url_for('project_detail', pid=n.project_id) if n.project_id else url_for('dashboard')) %}
+        <a href="{{ n_url }}" class="btn btn-sm notif-open" data-nid="{{ n.id }}">Open →</a>
     <button type="button" class="notif-dismiss" data-nid="{{ n.id }}"
             style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:0 4px">×</button>
   </div>

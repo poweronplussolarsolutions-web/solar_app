@@ -237,6 +237,7 @@
                 onclick="printLedger()">
             🖨 Print
         </button>
+        <button type="button" class="btn btn-primary" onclick="downloadExcel()">↓ Excel</button>
 
     </div>
 
@@ -1066,7 +1067,9 @@ function clTds() {
 
 }
 
-
+function downloadExcel() {
+  window.location = `/admin/all_works/download?${buildQS(currentFilters())}`;
+}
 function printLedger() {
 
     var win = window.open('', '_blank');
