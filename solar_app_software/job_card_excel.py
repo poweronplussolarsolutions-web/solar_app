@@ -51,13 +51,15 @@ def build_job_card(project=None, output_path="/tmp/job_card.xlsx"):
     # ── Page setup ──────────────────────────────────────────────────────────
     ws.page_setup.paperSize = ws.PAPERSIZE_A4
     ws.page_setup.orientation = "portrait"
-    ws.page_setup.fitToPage = True
+    ws.sheet_properties.pageSetUpPr.fitToPage = True   # required, or fitTo* is ignored
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 1
+    ws.print_options.horizontalCentered = True
     ws.page_margins.left   = 0.4
     ws.page_margins.right  = 0.4
     ws.page_margins.top    = 0.4
     ws.page_margins.bottom = 0.4
+    ws.print_area = "A1:N46"
     ws.sheet_view.showGridLines = False
 
     # ── Column widths (A–N) ────────────────────────────────────────────────
