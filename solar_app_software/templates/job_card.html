@@ -492,23 +492,48 @@
       <div class="jc-section-title">Payment Details</div>
 
       {# Contract / expense summary row #}
-      {% set cd_exp = proj.expenses | selectattr('expense_type','eq','CD Payment') | first | default(none) %}
-      {% set nm_exp = proj.expenses | selectattr('expense_type','eq','Meter')      | first | default(none) %}
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;border-bottom:0.5px solid var(--border)">
-  {% for lbl, val, hl in [
-    ('Work Amount',  proj.total_amount | inr,                          false),
-    ('CD Payment',       (cd_exp.amount | inr if cd_exp else ' '),         false),
-    ('Net Meter (NM)',   (nm_exp.amount | inr if nm_exp else ' '),         false),
-    ('Written Off',      (proj.total_waived | inr if proj.total_waived > 0 else ' '), false),
-    ('Total Receivable', proj.total_receivable | inr,                      true),
-  ] %}
-  <div style="padding:8px 14px;{% if hl %}background:var(--teal-50,#f0fdfa);{% endif %}
-              border-right:0.5px solid var(--border)">
+{% set exp_map = {} %}
+{% for e in proj.expenses %}{% if exp_map.update({e.expense_type: e}) %}{% endif %}{% endfor %}
+{% set exp_labels = [
+  ('CD Payment', 'CD Payment'),
+  ('Meter',      'Net Meter (NM)'),
+  ('Load',       'Load Charge'),
+  ('Additional', 'Additional Charge'),
+] %}
+<div style="display:flex;flex-wrap:wrap;border-bottom:0.5px solid var(--border)">
+
+  <div style="flex:1 1 140px;padding:8px 14px;border-right:0.5px solid var(--border)">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Work Amount</div>
+    <div style="font-size:14px;font-weight:500">{{ proj.total_amount | inr }}</div>
+  </div>
+
+  {% for key, lbl in exp_labels %}
+  {% set ex = exp_map.get(key) %}
+  <div style="flex:1 1 140px;padding:8px 14px;border-right:0.5px solid var(--border)">
     <div style="font-size:11px;color:var(--muted);margin-bottom:2px">{{ lbl }}</div>
-    <div style="font-size:14px;font-weight:{% if hl %}700{% else %}500{% endif %};
-                color:{% if hl %}var(--teal-800,#134e4a){% elif lbl == 'Written Off' and proj.total_waived > 0 %}#dc2626{% else %}var(--text){% endif %}">{{ val }}</div>
+    {% if ex and ex.amount and ex.amount > 0 %}
+      <div style="font-size:14px;font-weight:500">{{ ex.amount | inr }}</div>
+      <div style="font-size:11px;margin-top:2px;
+                  color:{% if ex.paid_by == 'Company' %}#b45309{% else %}#0c5460{% endif %}">
+        Paid by {{ ex.paid_by }}{% if ex.paid_by == 'Company' and ex.recovered %} · Recovered{% endif %}
+      </div>
+    {% else %}
+      <div style="font-size:14px;font-weight:500"> </div>
+    {% endif %}
   </div>
   {% endfor %}
+
+  <div style="flex:1 1 140px;padding:8px 14px;border-right:0.5px solid var(--border)">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Written Off</div>
+    <div style="font-size:14px;font-weight:500;color:{% if proj.total_waived > 0 %}#dc2626{% else %}var(--text){% endif %}">
+      {{ proj.total_waived | inr if proj.total_waived > 0 else ' ' }}
+    </div>
+  </div>
+
+  <div style="flex:1 1 140px;padding:8px 14px;background:var(--teal-50,#f0fdfa)">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Total Receivable</div>
+    <div style="font-size:14px;font-weight:700;color:var(--teal-800,#134e4a)">{{ proj.total_receivable | inr }}</div>
+  </div>
 </div>
       {# Individual payments table #}
       {% if proj.payments %}

@@ -444,56 +444,54 @@ def build_job_card(project=None, output_path="/tmp/job_card.xlsx"):
     # Amount header
     rh(36, 14)
     merge("A36", "H36", "Amount:", size=8, bold=True)
-    merge("I36", "N36", "", size=8)
+    merge("I36", "K36", "", size=8)
+    merge("L36", "N36", "Paid By", size=8, bold=True, align="center")
 
-    # Payment rows: Lead, CD, NM, Total
-    total_amount = 0
-    if p:
-        total_amount = float(p.total_amount or 0)
-
-    cd_exp = None
-    nm_exp = None
+    exp_by_type = {}
     if p:
         for exp in p.expenses:
-            if exp.expense_type == "CD Payment":
-                cd_exp = exp
-            elif exp.expense_type == "Meter":
-                nm_exp = exp
+            exp_by_type[exp.expense_type] = exp
+
+    def exp_cells(exp_type):
+        exp = exp_by_type.get(exp_type)
+        if not exp or not float(exp.amount or 0):
+            return "", ""
+        paid = exp.paid_by
+        if paid == "Company" and exp.recovered:
+            paid += " (Recovered)"
+        return safe(exp.amount, fmt="inr"), paid
 
     pay_rows = [
-        ("Work Amount", safe(p.total_amount if p else "", fmt="inr")),
-        ("CD",   safe(cd_exp.amount if cd_exp else "", fmt="inr")),
-        ("NM",   safe(nm_exp.amount if nm_exp else "", fmt="inr")),
-        ("Total", safe(p.total_receivable if p else "", fmt="inr")),
+        ("Work Amount",       safe(p.total_amount if p else "", fmt="inr"), "", False),
+        ("CD",                *exp_cells("CD Payment"),                          False),
+        ("NM (Net Meter)",    *exp_cells("Meter"),                               False),
+        ("Load",              *exp_cells("Load"),                                False),
+        ("Additional Charge", *exp_cells("Additional"),                          False),
+        ("Total",             safe(p.total_receivable if p else "", fmt="inr"), "", True),
     ]
-    for i, (lbl, amt) in enumerate(pay_rows, 37):
+    for i, (lbl, amt, paid_by, bold_row) in enumerate(pay_rows, 37):
         rh(i, 14)
-        bold_row = lbl == "Total"
         merge(f"A{i}", f"H{i}", lbl, size=8, bold=bold_row)
-        merge(f"I{i}", f"N{i}", amt, size=8, bold=bold_row)
+        merge(f"I{i}", f"K{i}", amt, size=8, bold=bold_row)
+        merge(f"L{i}", f"N{i}", paid_by, size=8, align="center")
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # ROW 41 — Customer Signature
-    # ──────────────────────────────────────────────────────────────────────────
-    rh(41, 16)
-    merge("A41", "N41", "Notes / Changes (Payments & Amendments)",
+    # ── Notes / Changes (shifted down 2 rows) ────────────────────────────────
+    rh(43, 16)
+    merge("A43", "N43", "Notes / Changes (Payments & Amendments)",
           bold=True, size=8, bg=BG_LIGHT, align="left")
 
-    # ROW 42 — Project notes (prefilled)
-    rh(42, 28)
-    merge("A42", "N42",
+    rh(44, 28)
+    merge("A44", "N44",
           ("Project Notes: " + safe(p.notes)) if (p and p.notes) else "Project Notes:",
           size=8, wrap=True)
 
-    for _r in range(43, 46):
+    for _r in range(45, 48):
         rh(_r, 18)
         merge(f"A{_r}", f"N{_r}", "", size=8)
 
-    # ── ROW 46 — Signature
-    rh(46, 20)
-    merge("A46", "H46", "", size=8)
-    merge("I46", "N46", "Signature",
-          size=8, bold=True, align="center")
+    rh(48, 20)
+    merge("A48", "H48", "", size=8)
+    merge("I48", "N48", "Signature", size=8, bold=True, align="center")
 
     wb.save(output_path)
     return output_path
