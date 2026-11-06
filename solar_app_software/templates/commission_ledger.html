@@ -1068,7 +1068,10 @@ function clTds() {
 }
 
 function downloadExcel() {
-  window.location = `/admin/all_works/download?${buildQS(currentFilters())}`;
+    var qs = new URLSearchParams(
+        new FormData(document.querySelector('.cl-filter-bar'))
+    ).toString();
+    window.location = "{{ url_for('commission_ledger_download') }}?" + qs;
 }
 function printLedger() {
 

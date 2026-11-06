@@ -5090,31 +5090,28 @@ COMMISSION_VIEW_ROLES  = ('admin', 'finance', 'director')   # can open the ledge
 COMMISSION_WRITE_ROLES = ('admin', 'director')              # can add commission / record payments
  
  
-@app.route('/admin/commission_ledger')
-@login_required
-@roles_required(*COMMISSION_VIEW_ROLES)
-def commission_ledger():
+def _commission_ledger_context():
     coordinators = _coordinator_choices()
     coord_id = request.args.get('coordinator_id', type=int)
     work     = _clean(request.args.get('work', ''), 20)
     month    = request.args.get('month', type=int)
     year     = request.args.get('year', type=int) or date.today().year
- 
+
     if month and not (1 <= month <= 12):
         month = None
     start = end = None
     if month:
         start = date(year, month, 1)
         end   = date(year, month, calendar.monthrange(year, month)[1])
- 
+
     if work and not Project.query.filter_by(project_code=work).first():
         flash(f'No work found with MNRE number "{work}".', 'warning')
         work = ''
     work_mode = bool(work)
- 
+
     selected = next((c for c in coordinators if c.id == coord_id), None)
     targets  = [selected] if selected else coordinators
- 
+
     rows, summary = [], []
     for c in targets:
         crow = _coord_ledger(c, start, end, work or None)
@@ -5130,20 +5127,27 @@ def commission_ledger():
             'balance':    t['balance'],
         })
     rows.sort(key=lambda r: (r['date'], r['rank'], r['coord']))
- 
+
     totals = _ledger_totals(rows, work_mode)
     ob = (CoordinatorOpeningBalance.query.filter_by(coordinator_id=selected.id).first()
           if selected else None)
- 
-    return render_template('commission_ledger.html',
+
+    return dict(
         rows=rows, totals=totals, summary=summary, work_mode=work_mode,
         coordinators=coordinators, selected=selected, work=work,
         month=month, year=year, current_year=date.today().year,
         month_names=list(calendar.month_name)[1:],
         period_label=(f'{calendar.month_name[month]} {year}' if month else 'All time'),
         ob=ob, today=date.today(),
-        can_write=current_user.role in COMMISSION_WRITE_ROLES)
- 
+        can_write=current_user.role in COMMISSION_WRITE_ROLES,
+    )
+
+
+@app.route('/admin/commission_ledger')
+@login_required
+@roles_required(*COMMISSION_VIEW_ROLES)
+def commission_ledger():
+    return render_template('commission_ledger.html', **_commission_ledger_context())
  
 @app.route('/admin/commissions')
 @login_required
@@ -5218,7 +5222,105 @@ def _compute_tds(amount, form):
     round(amount * TDS_RATE / 100, 2)) — the route and ledger don't need to change."""
     return _safe_float(form.get('tds_amount'))
  
- 
+def build_commission_ledger_excel(ctx, output_dir='/tmp'):
+    rows, totals   = ctx['rows'], ctx['totals']
+    selected       = ctx['selected']
+    work_mode      = ctx['work_mode']
+    show_coord     = not selected
+
+    headers = (['Date'] + (['Coordinator'] if show_coord else []) +
+               ['Particulars', 'Vch Type', 'Vch No.', 'Debit (₹)', 'Credit (₹)', 'Notes'])
+    n        = len(headers)
+    part_col = headers.index('Particulars') + 1
+    dr_col, cr_col = n - 2, n - 1
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Commission Ledger'
+    _page_setup(ws)
+    ws.freeze_panes = 'A6'
+
+    sub = f"{selected.full_name if selected else 'All coordinators'} · {ctx['period_label']}"
+    if ctx['work']:
+        sub += f" · Work {ctx['work']}"
+    titles = [
+        ('Power On Plus Solar Solutions', C_HEADER_BG, C_HEADER_FG, 14, False),
+        ('Commission Ledger',             C_SUBHDR_BG, C_HEADER_FG, 11, False),
+        (sub,                             C_ALT_BG,    '444444',    10, True),
+    ]
+    for r, (txt, bg_c, fg_c, sz, italic) in enumerate(titles, 1):
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=n)
+        c = ws.cell(r, 1)
+        c.value, c.fill = txt, _fill(bg_c)
+        c.font = _font(bold=not italic, color=fg_c, size=sz, italic=italic)
+        c.alignment = _center()
+    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[2].height = 22
+    ws.row_dimensions[4].height = 8
+
+    for col, h in enumerate(headers, 1):
+        _style_header_cell(ws.cell(5, col), h)
+
+    row = 6
+    for i, r in enumerate(rows):
+        bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        vals = [r['date'].strftime('%d-%b-%y')]
+        if show_coord:
+            vals.append(r['coord'])
+        vals += [f"{r['side']} {r['particulars']}", r['vch_type'] or '', r['vch_no'] or '',
+                 r['dr'] or None, r['cr'] or None, r['notes'] or '']
+        fmts   = [None] * n
+        aligns = ['left'] * n
+        aligns[0] = 'center'
+        fmts[dr_col - 1] = fmts[cr_col - 1] = '#,##0.00'
+        aligns[dr_col - 1] = aligns[cr_col - 1] = 'right'
+        for col, (v, f, a) in enumerate(zip(vals, fmts, aligns), 1):
+            _style_data_cell(ws.cell(row, col), v, bg=bg, align=a, number_fmt=f)
+        row += 1
+
+    def _summary_row(label, dr, cr, bg, fg):
+        nonlocal row
+        for col in range(1, n + 1):
+            cell = ws.cell(row, col)
+            if col == part_col:
+                _style_data_cell(cell, label, bg=bg, fg=fg, bold=True, align='right')
+            elif col == dr_col:
+                _style_data_cell(cell, dr or None, bg=bg, fg=fg, bold=True, align='right', number_fmt='#,##0.00')
+            elif col == cr_col:
+                _style_data_cell(cell, cr or None, bg=bg, fg=fg, bold=True, align='right', number_fmt='#,##0.00')
+            else:
+                cell.fill, cell.border = _fill(bg), _border()
+        ws.row_dimensions[row].height = 20
+        row += 1
+
+    if rows:
+        _summary_row('Total', totals['tot_dr'], totals['tot_cr'], C_TOTAL_BG, C_TOTAL_FG)
+        if not work_mode and (totals['closing_dr'] or totals['closing_cr']):
+            label = ('To Closing Balance — payable to coordinator' if totals['closing_dr']
+                     else 'By Closing Balance — advance with coordinator')
+            _summary_row(label, totals['closing_dr'], totals['closing_cr'], 'FFFFFF', '000000')
+        _summary_row('', totals['grand'], totals['grand'], C_TOTAL_BG, C_TOTAL_FG)
+
+    widths = [13] + ([22] if show_coord else []) + [44, 14, 12, 16, 16, 30]
+    for i, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    safe = re.sub(r'[^A-Za-z0-9]+', '', selected.full_name) if selected else 'All'
+    period = re.sub(r'\s+', '', ctx['period_label']).replace('Alltime', 'AllTime')
+    fname = f'CommissionLedger_{safe}_{period}' + (f"_Work{ctx['work']}" if ctx['work'] else '') + '.xlsx'
+    path = os.path.join(output_dir, fname)
+    wb.save(path)
+    return path
+
+
+@app.route('/admin/commission_ledger/download')
+@login_required
+@roles_required(*COMMISSION_VIEW_ROLES)
+def commission_ledger_download():
+    ctx  = _commission_ledger_context()
+    path = build_commission_ledger_excel(ctx, tempfile.gettempdir())
+    return send_file(path, as_attachment=True, download_name=os.path.basename(path),
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 @app.route('/admin/commissions/payment/new', methods=['POST'])
 @login_required
 @roles_required('admin', 'director','finance')
@@ -10566,7 +10668,7 @@ def download_payments_pdf():
 # ── coordinator_reports route ─────────────────────────────────────────────────
 @app.route('/admin/coordinator_reports')
 @login_required
-@roles_required('admin', 'director','payments','office')
+@roles_required('admin', 'director','payments','office','finance')
 def coordinator_reports():
     coordinators = User.query.filter(
         User.role.in_(['coordinator', 'director']),
@@ -10581,7 +10683,7 @@ def coordinator_reports():
                            current_month=today.month)
 @app.route('/admin/coordinator_reports/download')
 @login_required
-@roles_required('admin','director','payments','office')
+@roles_required('admin','director','payments','office','finance')
 def download_coordinator_report():
     coord_id   = request.args.get('coordinator_id', type=int)
     coord_name = request.args.get('coordinator_name', '').strip()
@@ -11143,7 +11245,7 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
 # ── Coordinator: all-works Excel ─────────────────────────────────────────────
 @app.route('/admin/coordinator_reports/download_all')
 @login_required
-@roles_required('admin','director','payments','office')
+@roles_required('admin','director','payments','office','finance')
 def download_coordinator_report_all():
     coord_id   = request.args.get('coordinator_id', type=int)
     coord_name = request.args.get('coordinator_name', '').strip()
@@ -11244,7 +11346,7 @@ def _parse_status_filter(status_param):
     return sorted(statuses)
 @app.route('/admin/all_works')
 @login_required
-@roles_required('admin', 'director', 'payments', 'office')
+@roles_required('admin', 'director', 'payments', 'office','finance')
 def all_works_report():
     today = date.today()
     coordinators = User.query.filter(
@@ -11265,7 +11367,7 @@ def all_works_report():
 
 @app.route('/admin/all_works/preview_data')
 @login_required
-@roles_required('admin', 'director', 'payments', 'office')
+@roles_required('admin', 'director', 'payments', 'office','finance')
 def all_works_preview_data():
     project_type_filter  = request.args.get('project_type', 'All')
     work_category_filter = request.args.get('work_category', 'All')
@@ -11356,7 +11458,7 @@ def all_works_preview_data():
     })
 @app.route('/admin/all_works/download')
 @login_required
-@roles_required('admin', 'director', 'payments', 'office')
+@roles_required('admin', 'director', 'payments', 'office','finance')
 def all_works_download():
     project_type_filter   = request.args.get('project_type', 'All')
     work_category_filter  = request.args.get('work_category', 'All')
@@ -11438,7 +11540,7 @@ def download_docstaff_report_all():
 # ── Coordinator: JSON preview (shared by monthly + all-works) ─────────────────
 @app.route('/admin/coordinator_reports/preview_data')
 @login_required
-@roles_required('admin','director','payments','office')
+@roles_required('admin','director','payments','office','finance')
 def coordinator_report_preview_data():
     coord_id   = request.args.get('coordinator_id', type=int)
     coord_name = request.args.get('coordinator_name', '').strip()
@@ -11526,7 +11628,7 @@ def docstaff_report_preview_data():
 # ── Coordinator: printable HTML ───────────────────────────────────────────────
 @app.route('/admin/coordinator_reports/print')
 @login_required
-@roles_required('admin','director','payments','office')
+@roles_required('admin','director','payments','office','finance')
 def print_coordinator_report():
     coord_id   = request.args.get('coordinator_id', type=int)
     coord_name = request.args.get('coordinator_name', '').strip()
