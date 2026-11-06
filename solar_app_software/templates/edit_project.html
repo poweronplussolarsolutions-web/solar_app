@@ -301,7 +301,16 @@
     {% endfor %}
   </select>
 </div>
-
+<div class="form-group">
+  <label>Panel brand</label>
+  <input name="panel_brand" type="text" maxlength="100"
+         value="{{ proj.panel_details.panel_brand if proj.panel_details and proj.panel_details.panel_brand else '' }}"/>
+</div>
+<div class="form-group">
+  <label>Inverter brand</label>
+  <input name="inverter_brand" type="text" maxlength="100"
+         value="{{ proj.panel_details.inverter_brand if proj.panel_details and proj.panel_details.inverter_brand else '' }}"/>
+</div>
       <!-- 10. Total contract amount -->
       <div class="form-group">
         <label>Total contract amount (₹)
@@ -586,7 +595,7 @@ function toggleOutsideWork() {
   if (!sel) return;
   const isOutside = sel.value === 'Outside';
   
-  ['structure_capacity_kw','project_subtype','inverter_type','roof_type']
+  ['structure_capacity_kw','project_subtype','inverter_type','roof_type','panel_brand','inverter_brand']
     .forEach(name => {
       const el = document.querySelector(`[name="${name}"]`);
       if (!el) return;

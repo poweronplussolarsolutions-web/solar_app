@@ -222,6 +222,10 @@ document.addEventListener('DOMContentLoaded', function () {
         </td>
       </tr>
       <tr><td style="color:var(--muted);padding:5px 0">Inverter type</td><td>{{ proj.inverter_type or '—' }}</td></tr>
+      {% if proj.work_category != 'Outside' %}
+<tr><td style="color:var(--muted);padding:5px 0">Panel brand</td><td>{{ proj.panel_details.panel_brand if proj.panel_details and proj.panel_details.panel_brand else '—' }}</td></tr>
+<tr><td style="color:var(--muted);padding:5px 0">Inverter brand</td><td>{{ proj.panel_details.inverter_brand if proj.panel_details and proj.panel_details.inverter_brand else '—' }}</td></tr>
+{% endif %}
       <tr><td style="color:var(--muted);padding:5px 0">Type</td><td><span class="badge badge-{{ proj.project_type }}">{{ proj.project_type }}</span></td></tr>
       {% if proj.work_category != 'Outside' %}
       <tr><td style="color:var(--muted);padding:5px 0">Sub Type</td><td style="font-size:12px">{{ proj.project_subtype }}</td></tr>
