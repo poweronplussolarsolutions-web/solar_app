@@ -810,17 +810,19 @@ function togglePanelAddr(which) {
       {% endif %}
       {% endif %}{# end work_category == 'Outside' / else #}
     </div>{# end payment summary card #}
-    {% if current_user.role in ['admin', 'director','finance'] and proj.coordinator_id %}
+    {% if current_user.role in ['admin', 'director','finance'] and (proj.coordinator_id or proj.coordinator_name) %}
+{% set coord_key = ('u:' ~ proj.coordinator_id) if proj.coordinator_id else ('n:' ~ proj.coordinator_name) %}
+{% set coord_label = proj.coordinator.full_name if proj.coordinator else proj.coordinator_name %}
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div class="card-title" style="margin:0">
       Coordinator commission
       <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:6px">
-        — {{ proj.coordinator.full_name }}
+        — {{ coord_label }}
       </span>
     </div>
     <button class="btn btn-sm btn-primary" onclick="togglePanel('commissionForm')">+ Add commission</button>
-    <a href="{{ url_for('commission_ledger', coordinator_id=proj.coordinator_id, work=proj.project_code) }}" class="btn btn-sm">Ledger</a>
+    <a href="{{ url_for('commission_ledger', coordinator_id=coord_key, work=proj.project_code) }}" class="btn btn-sm">Ledger</a>
   </div>
 
   {% if proj.commissions %}
@@ -841,13 +843,13 @@ function togglePanelAddr(which) {
     </table>
   </div>
   {% else %}
-  <div style="color:var(--hint);font-size:13px;padding:4px 0">No commission recorded for {{ proj.coordinator.full_name }} on this project yet.</div>
+  <div style="color:var(--hint);font-size:13px;padding:4px 0">No commission recorded for {{ coord_label }} on this project yet.</div>
   {% endif %}
 
   <div id="commissionForm" style="display:none;margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
     <form method="POST" action="{{ url_for('new_commission') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="coordinator_id" value="{{ proj.coordinator_id }}">
+      <input type="hidden" name="coordinator_id" value="{{ coord_key }}">
       <input type="hidden" name="project_ids" value="{{ proj.id }}">
       <div class="form-grid">
         <div class="form-group">

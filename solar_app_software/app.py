@@ -1687,7 +1687,8 @@ commission_project = db.Table(
 class CoordinatorCommission(db.Model):
     __tablename__ = 'coordinator_commissions'
     id              = db.Column(db.Integer, primary_key=True)
-    coordinator_id  = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    coordinator_id  = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    coordinator_name = db.Column(db.String(120), nullable=True)
     amount          = db.Column(db.Numeric(10, 2), nullable=False)
     commission_date = db.Column(db.Date, nullable=False, default=date.today)
     basis           = db.Column(db.Enum('PerProject', 'Bulk', 'Manual'), default='Manual')
@@ -1705,7 +1706,8 @@ class CoordinatorCommission(db.Model):
 class CoordinatorOpeningBalance(db.Model):
     __tablename__ = 'coordinator_opening_balances'
     id             = db.Column(db.Integer, primary_key=True)
-    coordinator_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, unique=True)
+    coordinator_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, unique=True)
+    coordinator_name = db.Column(db.String(120), nullable=True)
     as_of_date     = db.Column(db.Date, nullable=False)
     amount         = db.Column(db.Numeric(12, 2), nullable=False, default=0)
     side           = db.Column(db.Enum('Dr', 'Cr'), nullable=False, default='Dr')
@@ -1718,7 +1720,8 @@ class CoordinatorOpeningBalance(db.Model):
 class CoordinatorPayment(db.Model):
     __tablename__ = 'coordinator_payments'
     id             = db.Column(db.Integer, primary_key=True)
-    coordinator_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    coordinator_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    coordinator_name = db.Column(db.String(120), nullable=True)
     payment_date   = db.Column(db.Date, nullable=False, default=date.today)
     amount         = db.Column(db.Numeric(12, 2), nullable=False)          # actually paid out
     tds_amount     = db.Column(db.Numeric(12, 2), nullable=False, default=0)  # TDS 194H, also a debit
@@ -5009,10 +5012,24 @@ def update_transformer_capacity(pid):
 _LEDGER_RANK = {'Opening': 0, 'BroughtForward': 0, 'Payment': 1, 'TDS': 2, 'Commission': 3}
  
  
+class _Party:
+    """A ledger holder: a coordinator User (uid set) or a free-text name (uid None)."""
+    def __init__(self, uid, full_name):
+        self.uid, self.full_name = uid, full_name
+
+    @property
+    def key(self):
+        return f'u:{self.uid}' if self.uid else f'n:{self.full_name}'
+
+
 def _coordinator_choices():
-    return (User.query
-            .filter(User.role.in_(['coordinator', 'director']), User.is_deleted == False)
-            .order_by(User.full_name).all())
+    users = (User.query
+             .filter(User.role.in_(['coordinator', 'director']), User.is_deleted == False)
+             .order_by(User.full_name).all())
+    parties = [_Party(u.id, u.full_name) for u in users]
+    taken = {p.full_name.lower() for p in parties}
+    parties += [_Party(None, n) for n in _get_other_coord_names() if n.lower() not in taken]
+    return parties
  
  
 def _parse_iso_date(raw, default=None):
@@ -5022,17 +5039,39 @@ def _parse_iso_date(raw, default=None):
         return default
  
  
+def _resolve_party(key):
+    key = (key or '').strip()
+    if key.startswith('u:') and key[2:].isdigit():
+        u = User.query.filter(User.id == int(key[2:]),
+                              User.role.in_(['coordinator', 'director'])).first()
+        return _Party(u.id, u.full_name) if u else None
+    if key.startswith('n:'):
+        name = key[2:].strip().lower()
+        for n in _get_other_coord_names():
+            if n.lower() == name:
+                return _Party(None, n)
+    return None
+
+
+def _party_clause(model, party):
+    if party.uid:
+        return model.coordinator_id == party.uid
+    return db.and_(model.coordinator_id.is_(None),
+                   db.func.lower(model.coordinator_name) == party.full_name.lower())
+
+
+def _party_cols(party):
+    return dict(coordinator_id=party.uid,
+                coordinator_name=None if party.uid else party.full_name)
+
+
 def _coord_ledger(coord, start=None, end=None, work_code=None):
-    """Ledger rows for ONE coordinator.
-    - start/end   : month filter. Everything before `start` is rolled into a
-                    'Balance b/f' row so the closing balance stays correct.
-    - work_code   : only commissions linked to that MNRE number (payments,
-                    TDS and opening balance are not per-work, so they're left out)."""
-    cid, entries = coord.id, []
- 
+    """Ledger rows for ONE coordinator (user or free-text name)."""
+    entries = []
+
     cq = (CoordinatorCommission.query
           .options(selectinload(CoordinatorCommission.projects))
-          .filter(CoordinatorCommission.coordinator_id == cid))
+          .filter(_party_clause(CoordinatorCommission, coord)))
     if work_code:
         cq = cq.filter(CoordinatorCommission.projects.any(Project.project_code == work_code))
     for c in cq.all():
@@ -5043,10 +5082,11 @@ def _coord_ledger(coord, start=None, end=None, work_code=None):
             'vch_type': 'Journal', 'vch_no': str(c.id),
             'dr': 0.0, 'cr': float(c.amount or 0), 'notes': c.notes,
         })
- 
+
     if not work_code:
-        ob = CoordinatorOpeningBalance.query.filter_by(coordinator_id=cid).first()
-        for p in CoordinatorPayment.query.filter_by(coordinator_id=cid).all():
+        ob = CoordinatorOpeningBalance.query.filter(
+            _party_clause(CoordinatorOpeningBalance, coord)).first()
+        for p in CoordinatorPayment.query.filter(_party_clause(CoordinatorPayment, coord)).all():
             entries.append({
                 'date': p.payment_date, 'kind': 'Payment', 'obj_id': p.id,
                 'particulars': f'Paid via {p.method}' if p.method else 'Payment to coordinator',
@@ -5061,7 +5101,6 @@ def _coord_ledger(coord, start=None, end=None, work_code=None):
                     'dr': float(p.tds_amount), 'cr': 0.0, 'notes': None,
                 })
         if ob:
-            # anything dated before the opening balance is already inside it
             entries = [e for e in entries if e['date'] >= ob.as_of_date]
             amt = float(ob.amount or 0)
             if amt > 0:
@@ -5071,11 +5110,11 @@ def _coord_ledger(coord, start=None, end=None, work_code=None):
                     'dr': amt if ob.side == 'Dr' else 0.0,
                     'cr': amt if ob.side == 'Cr' else 0.0, 'notes': None,
                 })
- 
+
     for e in entries:
         e['rank'] = _LEDGER_RANK[e['kind']]
     entries.sort(key=lambda e: (e['date'], e['rank'], e['obj_id'] or 0))
- 
+
     rows = []
     if start:
         bf = round(sum(e['cr'] - e['dr'] for e in entries if e['date'] < start), 2)
@@ -5089,7 +5128,7 @@ def _coord_ledger(coord, start=None, end=None, work_code=None):
     if end:
         entries = [e for e in entries if e['date'] <= end]
     rows += entries
- 
+
     for r in rows:
         r['coord'] = coord.full_name
         r['side'] = 'To' if r['dr'] > 0 else 'By'
@@ -5117,7 +5156,7 @@ COMMISSION_WRITE_ROLES = ('admin', 'director')              # can add commission
  
 def _commission_ledger_context():
     coordinators = _coordinator_choices()
-    coord_id = request.args.get('coordinator_id', type=int)
+    sel_key  = _clean(request.args.get('coordinator_id', ''), 140)
     work     = _clean(request.args.get('work', ''), 20)
     month    = request.args.get('month', type=int)
     year     = request.args.get('year', type=int) or date.today().year
@@ -5134,7 +5173,7 @@ def _commission_ledger_context():
         work = ''
     work_mode = bool(work)
 
-    selected = next((c for c in coordinators if c.id == coord_id), None)
+    selected = next((c for c in coordinators if c.key == sel_key), None)
     targets  = [selected] if selected else coordinators
 
     rows, summary = [], []
@@ -5145,7 +5184,7 @@ def _commission_ledger_context():
         rows.extend(crow)
         t = _ledger_totals(crow, work_mode)
         summary.append({
-            'id': c.id, 'name': c.full_name,
+            'id': c.key, 'key': c.key, 'name': c.full_name,
             'commission': sum(r['cr'] for r in crow if r['kind'] == 'Commission'),
             'paid':       sum(r['dr'] for r in crow if r['kind'] == 'Payment'),
             'tds':        sum(r['dr'] for r in crow if r['kind'] == 'TDS'),
@@ -5154,7 +5193,8 @@ def _commission_ledger_context():
     rows.sort(key=lambda r: (r['date'], r['rank'], r['coord']))
 
     totals = _ledger_totals(rows, work_mode)
-    ob = (CoordinatorOpeningBalance.query.filter_by(coordinator_id=selected.id).first()
+    ob = (CoordinatorOpeningBalance.query.filter(
+              _party_clause(CoordinatorOpeningBalance, selected)).first()
           if selected else None)
 
     return dict(
@@ -5166,7 +5206,6 @@ def _commission_ledger_context():
         ob=ob, today=date.today(),
         can_write=current_user.role in COMMISSION_WRITE_ROLES,
     )
-
 
 @app.route('/admin/commission_ledger')
 @login_required
@@ -5184,19 +5223,15 @@ def commissions():
  
 @app.route('/admin/commissions/new', methods=['POST'])
 @login_required
-@roles_required('admin', 'director','finance')
+@roles_required('admin', 'director', 'finance')
 def new_commission():
-    back     = request.referrer or url_for('commission_ledger')
-    coord_id = request.form.get('coordinator_id', type=int)
-    amount   = _safe_float(request.form.get('amount'))
-    coord = (User.query.filter(User.id == coord_id,
-                               User.role.in_(['coordinator', 'director'])).first()
-             if coord_id else None)
+    back   = request.referrer or url_for('commission_ledger')
+    coord  = _resolve_party(request.form.get('coordinator_id'))
+    amount = _safe_float(request.form.get('amount'))
     if not coord or amount <= 0:
         flash('Please provide a valid coordinator and amount.', 'danger')
         return redirect(back)
- 
-    # Works can come from project_ids (project page) or MNRE numbers typed on the ledger page
+
     projects = []
     ids = [int(p) for p in request.form.getlist('project_ids') if p.isdigit()]
     if ids:
@@ -5209,14 +5244,14 @@ def new_commission():
             flash(f'No work found for MNRE number(s): {", ".join(sorted(missing))}.', 'danger')
             return redirect(back)
         projects += [p for p in found if p not in projects]
- 
+
     c_date = _parse_iso_date(request.form.get('commission_date'), date.today())
     if c_date > date.today():
         flash('Commission date cannot be in the future.', 'danger')
         return redirect(back)
- 
+
     comm = CoordinatorCommission(
-        coordinator_id=coord.id, amount=amount, commission_date=c_date,
+        **_party_cols(coord), amount=amount, commission_date=c_date,
         basis='PerProject' if len(projects) == 1 else ('Bulk' if len(projects) > 1 else 'Manual'),
         notes=_clean(request.form.get('notes', ''), 500) or None,
         created_by=current_user.id,
@@ -5348,30 +5383,27 @@ def commission_ledger_download():
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 @app.route('/admin/commissions/payment/new', methods=['POST'])
 @login_required
-@roles_required('admin', 'director','finance')
+@roles_required('admin', 'director', 'finance')
 @limiter.limit('30 per minute')
 def add_coordinator_payment():
-    back     = request.referrer or url_for('commission_ledger')
-    coord_id = request.form.get('coordinator_id', type=int)
-    amount   = _safe_float(request.form.get('amount'))
-    tds = _compute_tds(amount, request.form)                       # manual for now, see helper
-    coord = (User.query.filter(User.id == coord_id,
-                               User.role.in_(['coordinator', 'director'])).first()
-             if coord_id else None)
+    back   = request.referrer or url_for('commission_ledger')
+    coord  = _resolve_party(request.form.get('coordinator_id'))
+    amount = _safe_float(request.form.get('amount'))
+    tds    = _compute_tds(amount, request.form)
     if not coord or amount <= 0:
         flash('Please provide a valid coordinator and amount.', 'danger')
         return redirect(back)
     if tds > amount:
         flash('TDS cannot be more than the amount paid.', 'danger')
         return redirect(back)
- 
+
     p_date = _parse_iso_date(request.form.get('payment_date'), date.today())
     if p_date > date.today():
         flash('Payment date cannot be in the future.', 'danger')
         return redirect(back)
- 
+
     db.session.add(CoordinatorPayment(
-        coordinator_id=coord.id, payment_date=p_date, amount=amount, tds_amount=tds,
+        **_party_cols(coord), payment_date=p_date, amount=amount, tds_amount=tds,
         method=_clean(request.form.get('method', ''), 50) or None,
         reference_no=_clean(request.form.get('reference_no', ''), 100) or None,
         notes=_clean(request.form.get('notes', ''), 300) or None,
@@ -5396,30 +5428,28 @@ def delete_coordinator_payment(payid):
  
 @app.route('/admin/commissions/opening', methods=['POST'])
 @login_required
-@roles_required('admin','director','finance')
+@roles_required('admin', 'director', 'finance')
 def set_coordinator_opening():
-    back     = request.referrer or url_for('commission_ledger')
-    coord_id = request.form.get('coordinator_id', type=int)
-    coord = (User.query.filter(User.id == coord_id,
-                               User.role.in_(['coordinator', 'director'])).first()
-             if coord_id else None)
+    back   = request.referrer or url_for('commission_ledger')
+    coord  = _resolve_party(request.form.get('coordinator_id'))
     side   = request.form.get('side')
     as_of  = _parse_iso_date(request.form.get('as_of_date'))
     amount = _safe_float(request.form.get('amount'))
     if not coord or side not in ('Dr', 'Cr') or not as_of:
         flash('Choose a coordinator, side and date for the opening balance.', 'danger')
         return redirect(back)
- 
-    ob = CoordinatorOpeningBalance.query.filter_by(coordinator_id=coord.id).first()
-    if amount <= 0:                                   # 0 clears it
+
+    ob = CoordinatorOpeningBalance.query.filter(
+        _party_clause(CoordinatorOpeningBalance, coord)).first()
+    if amount <= 0:
         if ob:
             db.session.delete(ob)
             db.session.commit()
         flash(f'Opening balance cleared for {coord.full_name}.', 'warning')
         return redirect(back)
- 
+
     if not ob:
-        ob = CoordinatorOpeningBalance(coordinator_id=coord.id)
+        ob = CoordinatorOpeningBalance(**_party_cols(coord))
         db.session.add(ob)
     ob.as_of_date, ob.amount, ob.side, ob.updated_by = as_of, amount, side, current_user.id
     db.session.commit()

@@ -166,8 +166,8 @@
             <option value="">All coordinators</option>
 
             {% for c in coordinators %}
-            <option value="{{ c.id }}"
-                {% if selected and selected.id == c.id %}selected{% endif %}>
+            <option value="{{ c.key }}"
+                {% if selected and selected.key == c.key %}selected{% endif %}>
                 {{ c.full_name }}
             </option>
             {% endfor %}
@@ -295,8 +295,8 @@
                     <option value="">Select…</option>
 
                     {% for c in coordinators %}
-                    <option value="{{ c.id }}"
-                        {% if selected and selected.id == c.id %}selected{% endif %}>
+                    <option value="{{ c.key }}"
+                        {% if selected and selected.key == c.key %}selected{% endif %}>
                         {{ c.full_name }}
                     </option>
                     {% endfor %}
@@ -394,8 +394,8 @@
                     <option value="">Select…</option>
 
                     {% for c in coordinators %}
-                    <option value="{{ c.id }}"
-                        {% if selected and selected.id == c.id %}selected{% endif %}>
+                    <option value="{{ c.key }}"
+                        {% if selected and selected.key == c.key %}selected{% endif %}>
                         {{ c.full_name }}
                     </option>
                     {% endfor %}
@@ -536,8 +536,8 @@
                     <option value="">Select…</option>
 
                     {% for c in coordinators %}
-                    <option value="{{ c.id }}"
-                        {% if selected and selected.id == c.id %}selected{% endif %}>
+                    <option value="{{ c.key }}"
+                        {% if selected and selected.key == c.key %}selected{% endif %}>
                         {{ c.full_name }}
                     </option>
                     {% endfor %}
@@ -770,7 +770,7 @@
                             <a class="btn btn-sm cl-noprint"
                                href="{{ url_for(
                                    'commission_ledger',
-                                   coordinator_id=s.id,
+                                   coordinator_id=s.key,
                                    work=work or None,
                                    month=month,
                                    year=year if month else None
