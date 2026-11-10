@@ -640,6 +640,12 @@ function togglePanelAddr(which) {
       </div>
       <div style="font-size:12px;color:var(--hint)">
   {{ proj.payment_pct }}% collected · {{ proj.pending_amount | inr }} pending
+        {% if proj.excess_returned_total > 0 %}
+      <div style="margin-top:6px;font-size:12px;color:var(--muted)">
+        Total received {{ proj.gross_received | inr }}
+        − {{ proj.excess_returned_total | inr }} excess returned to customer
+      </div>
+      {% endif %}
   {% if proj.total_waived > 0 %}
     · <span style="color:var(--red-600,#dc2626)">{{ proj.total_waived | inr }} discounted</span>
   {% endif %}

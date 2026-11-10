@@ -934,6 +934,28 @@ class Project(db.Model):
         if self.roof_type == 'Clay Tile':
             return 'Clay Tile (Oodu)'
         return self.roof_type or '—'
+    @property
+    def payment_cap(self):
+        """Max that payments (collected_amount) may cover. Recovered company
+        expenses are added separately in effective_collected, so exclude them here."""
+        return max(0.0, self.total_receivable
+                        - self.recovered_expense_total
+                        - self.adjusted_in_total)
+
+    @property
+    def gross_received(self):
+        return sum(float(p.amount) for p in self.payments)
+
+    @property
+    def excess_returned_total(self):
+        total = 0.0
+        for e in self.payment_excesses:
+            if e.status == 'Settled' and e.action == 'Returned':
+                total += float(e.amount or 0) - float(e.adjusted_amount or 0)
+        be = self.bank_excess
+        if be and be.returned and be.action == 'Returned':
+            total += float(be.excess_amount or 0) - float(be.adjusted_amount or 0)
+        return round(total, 2)
 class ConnectionDetails(db.Model):
     __tablename__ = 'connection_details'
     id                       = db.Column(db.Integer, primary_key=True)
@@ -3106,42 +3128,29 @@ def push_unsubscribe():
     return jsonify({'ok': True})
 def _reconcile_excess_after_payment_change(proj):
     """Recomputes PaymentExcess (customer-side) and BankExcessReturn (bank-side)
-    after a payment edit/delete. Only touches Pending/unsettled excess records —
-    already-settled excess is left alone (it's historical, money already moved)."""
-
-    receivable = float(proj.total_receivable) - proj.adjusted_in_total
-
-    # ── Customer-side excess (PaymentExcess) ──────────────────────────────
+    after a payment edit/delete. Settled excess is left alone (money already moved)."""
+    cap            = proj.payment_cap
+    contract_amt   = float(proj.total_amount or 0)
     customer_total = sum(float(p.amount) for p in proj.payments if p.payment_source == 'Customer')
     bank_total     = sum(float(p.amount) for p in proj.payments if p.payment_source == 'Bank')
 
     if proj.project_type == 'Loan':
-        # collected_amount = capped bank + all customer payments
-        effective_collected = min(bank_total, receivable) + customer_total
+        effective = min(bank_total, contract_amt) + customer_total
     else:
-        effective_collected = customer_total + bank_total
+        effective = customer_total + bank_total
 
-    proj.collected_amount = min(effective_collected, receivable) if receivable > 0 else effective_collected
+    proj.collected_amount = min(effective, cap) if cap > 0 else effective
+    correct_pay_excess    = max(0, round(effective - cap, 2)) if cap > 0 else 0
 
     pending_pay_excess = [e for e in proj.payment_excesses if e.status == 'Pending']
-    correct_pay_excess = max(0, round(effective_collected - receivable, 2)) if receivable > 0 else 0
-
-    if proj.project_type == 'Loan':
-        # For loan projects, overshoot from Bank is tracked separately via BankExcessReturn,
-        # so PaymentExcess should only reflect Customer-side overshoot beyond what bank already covers.
-        bank_capped   = min(bank_total, receivable)
-        correct_pay_excess = max(0, round((bank_capped + customer_total) - receivable, 2))
-
     if pending_pay_excess:
         total_pending = sum(float(e.amount) for e in pending_pay_excess)
         if correct_pay_excess <= 0.01:
-            # No excess remains — remove stale pending records entirely
             for e in pending_pay_excess:
                 log_action(proj.id, f'Payment excess of ₹{float(e.amount):,.0f} removed '
                            '(reconciled after payment edit/delete)', old_val='Pending', new_val='Removed')
                 db.session.delete(e)
         elif abs(correct_pay_excess - total_pending) > 0.01:
-            # Adjust the most recent pending record to match; drop any extras
             pending_pay_excess.sort(key=lambda e: e.created_at, reverse=True)
             keep = pending_pay_excess[0]
             old_amt = float(keep.amount)
@@ -3152,14 +3161,13 @@ def _reconcile_excess_after_payment_change(proj):
             log_action(proj.id, f'Payment excess reconciled: ₹{old_amt:,.0f} → ₹{correct_pay_excess:,.0f}',
                        old_val=str(old_amt), new_val=str(correct_pay_excess))
 
-    # ── Bank-side excess (BankExcessReturn) — Loan projects only ──────────
+    # ── Bank-side excess (BankExcessReturn) — Loan projects only ──
     if proj.project_type == 'Loan':
-        contract_amt = float(proj.total_amount or 0)
         correct_bank_excess = max(0, round(bank_total - contract_amt, 2))
         exc = proj.bank_excess
 
         if exc and exc.returned:
-            pass  # already settled — leave historical record untouched
+            pass
         elif exc and not exc.returned:
             if correct_bank_excess <= 0.01:
                 log_action(proj.id, f'Bank excess of ₹{float(exc.excess_amount):,.0f} removed '
@@ -3172,7 +3180,6 @@ def _reconcile_excess_after_payment_change(proj):
                 log_action(proj.id, f'Bank excess reconciled: ₹{old_amt:,.0f} → ₹{correct_bank_excess:,.0f}',
                            old_val=str(old_amt), new_val=str(correct_bank_excess))
         elif not exc and correct_bank_excess > 0.01:
-            # A new excess emerged (e.g. an edit increased the bank payment)
             db.session.add(BankExcessReturn(
                 project_id=proj.id, excess_amount=correct_bank_excess,
                 notes='Auto-detected on payment edit/delete.',
@@ -6450,15 +6457,12 @@ def add_payment(pid):
         flash('Please enter a valid payment amount greater than zero.', 'danger')
         return redirect(url_for('project_detail', pid=pid))
     source = request.form.get('payment_source', 'Customer')
+    is_bank_loan = (source == 'Bank' and proj.project_type == 'Loan')
 
-    if proj.total_amount and float(proj.total_amount) > 0:
-        is_bank_loan = (source == 'Bank' and proj.project_type == 'Loan')
-        if not is_bank_loan:
-            if float(proj.collected_amount or 0) >= float(proj.total_receivable) - proj.adjusted_in_total:
-                flash('This project is fully paid. No further payments can be recorded.', 'danger')
-                return redirect(url_for('project_detail', pid=pid))
-            # Overpayment is no longer blocked — any excess beyond total_receivable
-            # is captured below as a PaymentExcess record for settlement.
+    if proj.total_amount and float(proj.total_amount) > 0 and not is_bank_loan:
+        if float(proj.collected_amount or 0) >= proj.payment_cap - 0.01:
+            flash('This project is fully paid. No further payments can be recorded.', 'danger')
+            return redirect(url_for('project_detail', pid=pid))
 
     instalment = None
     if source == 'Bank':
@@ -6467,6 +6471,9 @@ def add_payment(pid):
         if instalment in existing:
             flash(f'{instalment} bank payment already recorded for this project.', 'danger')
             return redirect(url_for('project_detail', pid=pid))
+
+    # Bank total BEFORE this payment (read before the new row is added)
+    bank_before = sum(float(p.amount) for p in proj.payments if p.payment_source == 'Bank')
 
     pay = Payment(
         project_id=pid, amount=amount,
@@ -6479,15 +6486,23 @@ def add_payment(pid):
     )
     db.session.add(pay)
 
-    # ── Apply payment, capping collected_amount at total_receivable.
-    #    Anything beyond that becomes a settleable PaymentExcess. ─────────
-    prior_collected = float(proj.collected_amount or 0)
-    receivable      = float(proj.total_receivable) - proj.adjusted_in_total
-    new_total_raw   = prior_collected + amount
+    # ── Loan + bank payment: anything above the CONTRACT amount is bank excess
+    #    (tracked in BankExcessReturn only — no duplicate PaymentExcess). ──────
+    applied = amount
+    bank_excess_total = 0.0
+    if is_bank_loan:
+        contract = float(proj.total_amount or 0)
+        excess_before     = max(0.0, round(bank_before - contract, 2))
+        bank_excess_total = max(0.0, round(bank_before + amount - contract, 2))
+        applied = round(amount - (bank_excess_total - excess_before), 2)
 
-    if receivable > 0 and new_total_raw > receivable:
-        proj.collected_amount = receivable
-        excess_amount = round(new_total_raw - receivable, 2)
+    cap           = proj.payment_cap
+    prior         = float(proj.collected_amount or 0)
+    new_total_raw = prior + applied
+
+    if cap > 0 and new_total_raw > cap + 0.01:
+        proj.collected_amount = cap
+        excess_amount = round(new_total_raw - cap, 2)
         db.session.add(PaymentExcess(
             project_id=pid, amount=excess_amount, source=source,
             detected_date=pay.payment_date,
@@ -6503,6 +6518,24 @@ def add_payment(pid):
     else:
         proj.collected_amount = new_total_raw
 
+    # ── Bank excess record (loan) ────────────────────────────────────────────
+    if is_bank_loan and bank_excess_total > 0.01:
+        be = proj.bank_excess
+        if be is None:
+            db.session.add(BankExcessReturn(
+                project_id=pid, excess_amount=bank_excess_total,
+                received_date=pay.payment_date,
+                notes='Auto-detected on bank payment.',
+                recorded_by=current_user.id,
+            ))
+            for u in User.query.filter_by(role='payments', is_active=True).all():
+                create_notification(u.id, pid,
+                    f'{proj.project_code} — {proj.customer.name}: Bank excess of '
+                    f'₹{bank_excess_total:,.0f} detected. Needs settlement.', 'task')
+            log_action(pid, f'Bank excess detected: ₹{bank_excess_total:,.0f}', new_val='Pending')
+        elif not be.returned:
+            be.excess_amount = bank_excess_total
+
     log_action(pid, f"{'Bank' if instalment else 'Customer'} payment recorded: ₹{amount:,.0f}", new_val=str(amount))
 
     if source == 'Bank' and instalment == 'First':
@@ -6510,8 +6543,8 @@ def add_payment(pid):
             f'Loan work {proj.project_code} — {proj.customer.name} '
             f'({proj.inverter_capacity_kw} kW): First bank payment of ₹{amount:,.0f} received. ', 'task')
 
-    db.session.flush()          
-    auto_advance_stage(proj)    
+    db.session.flush()
+    auto_advance_stage(proj)
     active_reminder = PaymentReminder.query.filter_by(project_id=pid, status='Pending').first()
     if active_reminder:
         active_reminder.status      = 'Done'
