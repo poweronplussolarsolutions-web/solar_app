@@ -5081,6 +5081,7 @@ def _coord_ledger(coord, start=None, end=None, work_code=None):
             'particulars': 'Commission' + (f' — MNRE {", ".join(codes)}' if codes else ''),
             'vch_type': 'Journal', 'vch_no': str(c.id),
             'dr': 0.0, 'cr': float(c.amount or 0), 'notes': c.notes,
+            'codes': ', '.join(codes),
         })
 
     if not work_code:
@@ -5263,7 +5264,53 @@ def new_commission():
     db.session.commit()
     flash(f'Commission of ₹{amount:,.0f} added for {coord.full_name}.', 'success')
     return redirect(back)
- 
+@app.route('/admin/commissions/<int:cid>/edit', methods=['POST'])
+@login_required
+@roles_required('admin', 'director', 'finance')
+def edit_commission(cid):
+    back = request.referrer or url_for('commission_ledger')
+    comm = CoordinatorCommission.query.get_or_404(cid)
+
+    amount = _safe_float(request.form.get('amount'))
+    if amount <= 0:
+        flash('Please enter a valid amount.', 'danger')
+        return redirect(back)
+
+    c_date = _parse_iso_date(request.form.get('commission_date'), comm.commission_date)
+    if c_date > date.today():
+        flash('Commission date cannot be in the future.', 'danger')
+        return redirect(back)
+
+    codes = [c for c in re.split(r'[,\s]+', request.form.get('project_codes', '')) if c]
+    projects = []
+    if codes:
+        found = Project.query.filter(Project.project_code.in_(codes)).all()
+        missing = set(codes) - {p.project_code for p in found}
+        if missing:
+            flash(f'No work found for MNRE number(s): {", ".join(sorted(missing))}.', 'danger')
+            return redirect(back)
+        projects = found
+
+    old_amount = float(comm.amount or 0)
+    old_date   = comm.commission_date
+    old_ids    = {p.id for p in comm.projects}
+    who        = comm.coordinator.full_name if comm.coordinator else (comm.coordinator_name or '—')
+
+    comm.amount          = amount
+    comm.commission_date = c_date
+    comm.notes           = _clean(request.form.get('notes', ''), 500) or None
+    comm.projects        = projects
+    comm.basis           = ('PerProject' if len(projects) == 1
+                            else 'Bulk' if len(projects) > 1 else 'Manual')
+
+    for pid in old_ids | {p.id for p in projects}:
+        log_action(pid, f'Commission for {who} edited: ₹{old_amount:,.0f} ({old_date}) → '
+                        f'₹{amount:,.0f} ({c_date})',
+                   old_val=str(old_amount), new_val=str(amount))
+
+    db.session.commit()
+    flash('Commission entry updated.', 'success')
+    return redirect(back)
  
 @app.route('/admin/commissions/<int:cid>/delete', methods=['POST'])
 @login_required
