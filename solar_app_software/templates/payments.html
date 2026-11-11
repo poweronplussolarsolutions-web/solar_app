@@ -60,9 +60,13 @@
       Excess payment settlement pending
       <span class="badge badge-Delayed" style="margin-left:6px">{{ excess_items | length }}</span>
     </div>
-    <div style="font-size:13px;color:var(--muted)">
-      Total to settle:
-      <strong style="color:var(--red-600)">{{ excess_total | inr }}</strong>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="font-size:13px;color:var(--muted)">
+        Total to settle:
+        <strong style="color:var(--red-600)">{{ excess_total | inr }}</strong>
+      </div>
+      <a href="{{ url_for('download_excess_excel') }}"
+         class="btn btn-secondary btn-sm">↓ Excel</a>
     </div>
   </div>
 

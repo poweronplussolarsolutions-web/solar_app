@@ -10796,6 +10796,98 @@ def download_payments_pdf():
     path = build_payments_report_pdf(payments, pay_date, tempfile.gettempdir())
     fname = f'Payments_{pay_date_str}.pdf' if pay_date_str else 'Payments_All.pdf'
     return send_file(path, as_attachment=True, download_name=fname, mimetype='application/pdf')
+def build_excess_report_excel(items, output_dir='/tmp'):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Excess Pending'
+    _page_setup(ws)
+    ws.freeze_panes = 'A6'
+
+    headers = ['MNRE No.', 'Customer', 'Phone', 'Place', 'Excess From',
+               'Amount (₹)', 'Pending Since', 'Days Pending']
+    last_col = get_column_letter(len(headers))
+
+    titles = [
+        ('Power On Plus Solar Solutions', C_HEADER_BG, C_HEADER_FG, 14, False, True),
+        ('Excess Payment Settlement Pending', C_SUBHDR_BG, C_HEADER_FG, 11, False, True),
+        (f'Generated: {date.today().strftime("%d %b %Y")}', C_ALT_BG, '444444', 10, True, True),
+        ('', 'FFFFFF', '000000', 8, False, False),
+    ]
+    for r, (txt, bg_c, fg_c, sz, italic, center) in enumerate(titles, 1):
+        ws.merge_cells(f'A{r}:{last_col}{r}')
+        c = ws[f'A{r}']
+        c.value = txt or None
+        c.font = _font(bold=(not italic and bool(txt)), color=fg_c, size=sz, italic=italic)
+        c.fill = _fill(bg_c)
+        if center:
+            c.alignment = _center()
+    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[2].height = 22
+    ws.row_dimensions[3].height = 18
+    ws.row_dimensions[4].height = 8
+
+    ws.row_dimensions[5].height = 20
+    for col, h in enumerate(headers, 1):
+        _style_header_cell(ws.cell(5, col), h)
+
+    row = 6
+    for i, x in enumerate(items):
+        p  = x['project']
+        bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        days = x['days']
+        if days > 14:
+            d_bg, d_fg = C_RED_BG, C_RED_FG
+        elif days > 7:
+            d_bg, d_fg = C_AMBER_BG, C_AMBER_FG
+        else:
+            d_bg, d_fg = bg, '000000'
+
+        vals = [p.project_code, p.customer.name, p.customer.phone or '—',
+                p.customer.place or '—', ' + '.join(x['kinds']),
+                float(x['amount']), x['date'].strftime('%d %b %Y'), days]
+        fmts   = [None, None, None, None, None, '₹#,##0', None, '0']
+        aligns = ['center', 'left', 'center', 'left', 'center', 'right', 'center', 'center']
+        for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
+            _style_data_cell(ws.cell(row, col), val,
+                             bg=d_bg if col == 8 else bg,
+                             fg=d_fg if col == 8 else '000000',
+                             align=aln, number_fmt=fmt)
+        ws.row_dimensions[row].height = 17
+        row += 1
+
+    total = sum(float(x['amount']) for x in items)
+    ws.row_dimensions[row].height = 20
+    for col in range(1, len(headers) + 1):
+        cell = ws.cell(row, col)
+        if col == 1:
+            _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 2:
+            _style_data_cell(cell, f'{len(items)} projects', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
+        elif col == 6:
+            _style_data_cell(cell, total, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True,
+                             align='right', number_fmt='₹#,##0')
+        else:
+            cell.fill = _fill(C_TOTAL_BG)
+            cell.border = _border()
+
+    for i, w in enumerate([12, 26, 14, 18, 16, 15, 15, 13], 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    path = os.path.join(output_dir, f'ExcessPending_{date.today().isoformat()}.xlsx')
+    wb.save(path)
+    return path
+
+
+@app.route('/payments/excess/download_excel')
+@login_required
+@roles_required('admin', 'payments', 'director')
+def download_excess_excel():
+    items, _ = _pending_excess_settlements()
+    path = build_excess_report_excel(items, tempfile.gettempdir())
+    return send_file(
+        path, as_attachment=True,
+        download_name=f'ExcessPending_{date.today().isoformat()}.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 # ─────────────────────────────────────────────────────────────────────────────
 # REPORT DOWNLOAD ROUTES
 # ─────────────────────────────────────────────────────────────────────────────
