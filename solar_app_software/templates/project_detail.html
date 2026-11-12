@@ -820,7 +820,7 @@ function togglePanelAddr(which) {
     {% if current_user.role in ['admin', 'director','finance'] and (proj.coordinator_id or proj.coordinator_name) %}
 {% set coord_key = ('u:' ~ proj.coordinator_id) if proj.coordinator_id else ('n:' ~ proj.coordinator_name) %}
 {% set coord_label = proj.coordinator.full_name if proj.coordinator else proj.coordinator_name %}
-<div class="card">
+<div class="card" id="commission">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div class="card-title" style="margin:0">
       Coordinator commission
@@ -831,6 +831,104 @@ function togglePanelAddr(which) {
     <button class="btn btn-sm btn-primary" onclick="togglePanel('commissionForm')">+ Add commission</button>
     <a href="{{ url_for('commission_ledger', coordinator_id=coord_key, work=proj.project_code) }}" class="btn btn-sm">Ledger</a>
   </div>
+  {% if default_commission and not proj.commissions %}
+<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;
+            background:var(--amber-50,#fffbeb);border:1px dashed var(--amber-300,#fcd34d);
+            border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">
+  <div>
+    <div style="font-size:11px;color:var(--muted)">Suggested commission ({{ proj.inverter_capacity_kw | round(1) }} kW)</div>
+    <div style="font-size:18px;font-weight:600;color:var(--amber-700)">{{ default_commission | inr }}</div>
+  </div>
+ <button type="button" class="btn btn-sm btn-primary"
+        data-amount="{{ default_commission }}"
+        onclick="confirmSuggestedCommission(this)">
+  Review &amp; confirm
+</button>
+</div>
+{% endif %}
+  {% if comm_summary %}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px">
+  <div style="background:var(--bg);border-radius:var(--radius);padding:10px 14px">
+    <div style="font-size:11px;color:var(--muted)">Total commission</div>
+    <div style="font-size:16px;font-weight:600">{{ comm_summary.total | inr }}</div>
+  </div>
+  <div style="background:var(--green-50,#f0fdf4);border-radius:var(--radius);padding:10px 14px">
+    <div style="font-size:11px;color:var(--muted)">Paid</div>
+    <div style="font-size:16px;font-weight:600;color:var(--green-700)">{{ comm_summary.paid | inr }}</div>
+  </div>
+  <div style="background:var(--amber-50,#fffbeb);border-radius:var(--radius);padding:10px 14px">
+    <div style="font-size:11px;color:var(--muted)">Pending</div>
+    <div style="font-size:16px;font-weight:600;color:var(--amber-700)">{{ comm_summary.pending | inr }}</div>
+  </div>
+  <div style="background:var(--bg);border-radius:var(--radius);padding:10px 14px">
+    <div style="font-size:11px;color:var(--muted)">Paid before closure</div>
+    <div style="font-size:16px;font-weight:500">{{ comm_summary.before | inr }}</div>
+  </div>
+  <div style="background:var(--bg);border-radius:var(--radius);padding:10px 14px">
+    <div style="font-size:11px;color:var(--muted)">
+      Paid after closure
+      {% if comm_summary.closed_on %}<span style="font-size:10px">(closed {{ comm_summary.closed_on | date_fmt }})</span>{% endif %}
+    </div>
+    <div style="font-size:16px;font-weight:500">{{ comm_summary.after | inr }}</div>
+  </div>
+</div>
+
+{% if comm_summary.payments %}
+<div class="table-wrap" style="margin-bottom:12px">
+  <table style="font-size:13px">
+    <thead><tr><th>Date</th><th>Paid</th><th>TDS</th><th>When</th><th>Ref</th></tr></thead>
+    <tbody>
+      {% for p in comm_summary.payments %}
+      <tr>
+        <td>{{ p.payment_date | date_fmt }}</td>
+        <td style="font-weight:500">{{ p.amount | inr }}</td>
+        <td>{{ p.tds_amount | inr if p.tds_amount else '—' }}</td>
+        <td>
+          {% if comm_summary.closed_on and p.payment_date > comm_summary.closed_on %}
+            <span class="tag">After closure</span>
+          {% else %}<span class="tag">Before closure</span>{% endif %}
+        </td>
+        <td style="font-size:12px;color:var(--muted)">{{ p.reference_no or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if comm_summary.pending > 0 %}
+<button type="button" class="btn btn-sm btn-warning" onclick="togglePanel('commPayForm')">+ Pay commission</button>
+<div id="commPayForm" style="display:none;margin-top:10px;border-top:0.5px solid var(--border);padding-top:12px">
+  <form method="POST" action="{{ url_for('add_project_commission_payment', pid=proj.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Amount (₹) <span style="color:var(--muted);font-weight:400">max {{ comm_summary.pending | inr }}</span></label>
+        <input type="number" name="amount" step="0.01" min="1" max="{{ comm_summary.pending }}"
+               value="{{ comm_summary.pending }}" required>
+      </div>
+      <div class="form-group">
+        <label>TDS 194H (₹)</label>
+        <input type="number" name="tds_amount" step="0.01" min="0" value="0">
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" name="payment_date" value="{{ today.isoformat() }}" max="{{ today.isoformat() }}">
+      </div>
+      <div class="form-group">
+        <label>Method</label>
+        <select name="method"><option value="">—</option><option>Bank Transfer</option><option>Cash</option><option>Cheque</option><option>Online</option></select>
+      </div>
+      <div class="form-group">
+        <label>Reference</label>
+        <input type="text" name="reference_no">
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Save payment</button>
+  </form>
+</div>
+{% endif %}
+{% endif %}
   {% if proj.commissions %}
   <div class="table-wrap">
     <table style="font-size:13px">
@@ -854,8 +952,7 @@ function togglePanelAddr(which) {
               <div class="form-grid">
                 <div class="form-group">
                   <label>Amount (₹)</label>
-                  <input type="number" name="amount" step="0.01" min="1"
-                         value="{{ c.amount | float | round(2) }}" required/>
+                 <input type="number" name="amount" step="0.01" min="1" required value="{{ c.amount | float | round(2) }}"/>
                 </div>
                 <div class="form-group">
                   <label>Date</label>
@@ -1203,6 +1300,18 @@ document.querySelectorAll('.adj-target-input').forEach(function (inp) {
     }, 250);
   });
 });
+</script>
+<script>
+function confirmSuggestedCommission(btn) {
+  var form = document.getElementById('commissionForm');
+  if (!form) return;
+  form.style.display = 'block';
+  var amt = form.querySelector('[name="amount"]');
+  if (amt) {
+    amt.value = btn.dataset.amount;
+    amt.focus();
+  }
+}
 </script>
 {% endif %}
 {% set all_adj = (proj.adjustments_out + proj.adjustments_in) | sort(attribute='created_at', reverse=True) %}

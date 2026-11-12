@@ -813,6 +813,7 @@ class Project(db.Model):
     extra_materials  = db.relationship('ExtraMaterial', backref='project', lazy=True, cascade='all,delete-orphan')
     coordinator_name = db.Column(db.String(120), nullable=True)
     work_category = db.Column(db.Enum('Installation','Outside'), nullable=False, default='Installation')
+    closed_at = db.Column(db.DateTime, nullable=True)
 
     # ── Admin-only soft delete — distinct from status='Cancelled' ──────────
     is_deleted      = db.Column(db.Boolean, default=False, nullable=False)
@@ -1754,6 +1755,8 @@ class CoordinatorPayment(db.Model):
     created_at     = db.Column(db.DateTime, default=datetime.utcnow)
     coordinator    = db.relationship('User', foreign_keys=[coordinator_id])
     creator        = db.relationship('User', foreign_keys=[created_by])
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True, index=True)
+    project    = db.relationship('Project', foreign_keys=[project_id])
  
 from sqlalchemy.orm import with_loader_criteria
 from sqlalchemy import event
@@ -1779,6 +1782,13 @@ def _hide_deleted_projects(execute_state):
             include_aliases=True,
         )
     )
+@event.listens_for(Project.status, 'set')
+def _track_closed_at(target, value, oldvalue, initiator):
+    done = ('Closed', 'Completed')
+    if value in done and oldvalue not in done:
+        target.closed_at = datetime.utcnow()
+    elif value not in done and oldvalue in done:
+        target.closed_at = None      # reopened
 from urllib.parse import urlparse
 
 ALLOWED_MAPS_HOSTS = ('google.com', 'goo.gl', 'maps.app.goo.gl')
@@ -4148,7 +4158,46 @@ def projects():
                        view_all=view_all)
 from sqlalchemy.exc import IntegrityError
 
+COMMISSION_RATES = {3.0: 10000, 5.0: 15000}          # inverter kW -> default commission
+COMMISSION_PROJECT_ROLES = ('admin', 'director', 'finance')
 
+
+def default_commission(kw):
+    try:
+        return COMMISSION_RATES.get(round(float(kw), 1), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _project_commission_summary(proj):
+    """Commission for ONE project: total, paid (before/after closure), pending.
+    A commission shared by several projects is split equally between them.
+    TDS counts as settled, same as in the ledger."""
+    total = sum(float(c.amount or 0) / (len(c.projects) or 1) for c in proj.commissions)
+
+    pays = (CoordinatorPayment.query
+            .filter_by(project_id=proj.id)
+            .order_by(CoordinatorPayment.payment_date).all())
+    closed_on = proj.closed_at.date() if proj.closed_at else None
+
+    before = after = 0.0
+    for p in pays:
+        amt = float(p.amount or 0) + float(p.tds_amount or 0)
+        if closed_on and p.payment_date > closed_on:
+            after += amt
+        else:
+            before += amt
+
+    paid = round(before + after, 2)
+    return {
+        'total': round(total, 2),
+        'paid': paid,
+        'before': round(before, 2),
+        'after': round(after, 2),
+        'pending': round(max(0.0, total - paid), 2),
+        'closed_on': closed_on,
+        'payments': pays,
+    }
 @app.route('/projects/new', methods=['GET', 'POST'])
 @login_required
 @roles_required('coordinator', 'admin', 'documents', 'office', 'documents_k', 'director')
@@ -4889,6 +4938,11 @@ def project_detail(pid):
     proj        = Project.query.get_or_404(pid)
     stages      = get_document_stages()
     logs        = ProjectLog.query.filter_by(project_id=pid).order_by(ProjectLog.created_at.desc()).all()
+
+    # Commission entries are visible only to admin / finance / director
+    if current_user.role not in COMMISSION_PROJECT_ROLES:
+        logs = [l for l in logs if 'commission' not in (l.action or '').lower()]
+
     workers     = Worker.query.filter_by(is_active=True).all()
     all_workers = Worker.query.filter_by(is_active=True).all()
     worker_rate = {str(w.id): float(w.rate_per_day or 0) for w in all_workers}
@@ -4908,12 +4962,19 @@ def project_detail(pid):
         if notify_pay_id:
             wa_just_msg = wa_complete_msg if is_final_pay else wa_confirm_msg
 
+    can_see_commission = current_user.role in COMMISSION_PROJECT_ROLES
+    comm_summary = _project_commission_summary(proj) if can_see_commission else None
+
     return render_template('project_detail.html', proj=proj, logs=logs,
                            workers=workers, all_workers=all_workers,
                            worker_rate=worker_rate, today=date.today(),
                            notify_pay_id=notify_pay_id, is_final_pay=is_final_pay,
                            wa_confirm_msg=wa_confirm_msg, wa_reminder_msg=wa_reminder_msg,
-                           wa_complete_msg=wa_complete_msg, wa_just_msg=wa_just_msg, pay_locked=_payments_locked(proj))
+                           wa_complete_msg=wa_complete_msg, wa_just_msg=wa_just_msg,
+                           pay_locked=_payments_locked(proj),
+                           comm_summary=comm_summary,
+                           default_commission=(default_commission(proj.inverter_capacity_kw)
+                                               if can_see_commission else 0))
 @app.route('/projects/<int:pid>/transformer_capacity', methods=['POST'])
 @login_required
 @roles_required('admin', 'onsite', 'coordinator', 'documents', 'office', 'documents_k', 'director')
@@ -5070,7 +5131,46 @@ def _party_clause(model, party):
 def _party_cols(party):
     return dict(coordinator_id=party.uid,
                 coordinator_name=None if party.uid else party.full_name)
+@app.route('/projects/<int:pid>/commission_payment', methods=['POST'])
+@login_required
+@roles_required(*COMMISSION_PROJECT_ROLES)
+@limiter.limit('30 per minute')
+def add_project_commission_payment(pid):
+    proj = Project.query.get_or_404(pid)
+    back = url_for('project_detail', pid=pid) + '#commission'
 
+    key = f'u:{proj.coordinator_id}' if proj.coordinator_id else f'n:{proj.coordinator_name or ""}'
+    coord = _resolve_party(key)
+    if not coord:
+        flash('This project has no coordinator to pay.', 'danger')
+        return redirect(back)
+
+    amount = _safe_float(request.form.get('amount'))
+    tds    = _compute_tds(amount, request.form)
+    p_date = _parse_iso_date(request.form.get('payment_date'), date.today())
+    summary = _project_commission_summary(proj)
+
+    if amount <= 0:
+        flash('Enter a valid amount.', 'danger')
+    elif tds > amount:
+        flash('TDS cannot be more than the amount paid.', 'danger')
+    elif p_date > date.today():
+        flash('Payment date cannot be in the future.', 'danger')
+    elif amount + tds > summary['pending'] + 0.01:
+        flash(f'Only ₹{summary["pending"]:,.0f} commission is pending on this project.', 'danger')
+    else:
+        db.session.add(CoordinatorPayment(
+            **_party_cols(coord), project_id=pid, payment_date=p_date,
+            amount=amount, tds_amount=tds,
+            method=_clean(request.form.get('method', ''), 50) or None,
+            reference_no=_clean(request.form.get('reference_no', ''), 100) or None,
+            notes=_clean(request.form.get('notes', ''), 300) or f'MNRE {proj.project_code}',
+            created_by=current_user.id))
+        phase = 'after closure' if proj.closed_at and p_date > proj.closed_at.date() else 'before closure'
+        log_action(pid, f'Commission paid ₹{amount:,.0f} to {coord.full_name} ({phase})', new_val=str(amount))
+        db.session.commit()
+        flash(f'₹{amount:,.0f} commission payment recorded ({phase}).', 'success')
+    return redirect(back)
 
 def _coord_ledger(coord, start=None, end=None, work_code=None):
     """Ledger rows for ONE coordinator (user or free-text name)."""
@@ -5158,8 +5258,8 @@ def _ledger_totals(rows, work_mode=False):
     }
  
  
-COMMISSION_VIEW_ROLES  = ('admin', 'finance', 'director')   # can open the ledger and see everyone
-COMMISSION_WRITE_ROLES = ('admin', 'director')              # can add commission / record payments
+COMMISSION_VIEW_ROLES  = ('admin', 'finance', 'director')
+COMMISSION_WRITE_ROLES = COMMISSION_VIEW_ROLES             # can add commission / record payments
  
  
 def _commission_ledger_context():
@@ -5266,8 +5366,8 @@ def new_commission():
     )
     comm.projects = projects
     db.session.add(comm)
-    for p in projects:
-        log_action(p.id, f'Commission of ₹{amount:,.0f} recorded for {coord.full_name}', new_val=str(amount))
+    # for p in projects:
+    #     log_action(p.id, f'Commission of ₹{amount:,.0f} recorded for {coord.full_name}', new_val=str(amount))
     db.session.commit()
     flash(f'Commission of ₹{amount:,.0f} added for {coord.full_name}.', 'success')
     return redirect(back)
@@ -5310,10 +5410,10 @@ def edit_commission(cid):
     comm.basis           = ('PerProject' if len(projects) == 1
                             else 'Bulk' if len(projects) > 1 else 'Manual')
 
-    for pid in old_ids | {p.id for p in projects}:
-        log_action(pid, f'Commission for {who} edited: ₹{old_amount:,.0f} ({old_date}) → '
-                        f'₹{amount:,.0f} ({c_date})',
-                   old_val=str(old_amount), new_val=str(amount))
+    # for pid in old_ids | {p.id for p in projects}:
+        # log_action(pid, f'Commission for {who} edited: ₹{old_amount:,.0f} ({old_date}) → '
+        #                 f'₹{amount:,.0f} ({c_date})',
+        #            old_val=str(old_amount), new_val=str(amount))
 
     db.session.commit()
     flash('Commission entry updated.', 'success')
@@ -11345,9 +11445,9 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         filter_bits.append('Second Payment Pending')
     if project_type_filter != 'All':
         filter_bits.append(project_type_filter)
-    if work_category_filter != 'All':
-        filter_bits.append(work_category_filter)
-        filter_bits.append('No Commission')
+    # if work_category_filter != 'All':
+    #     filter_bits.append(work_category_filter)
+    #     filter_bits.append('No Commission')
     if month and year:
         filter_bits.append(f'{calendar.month_name[month]} {year}')
     subtitle = f'All Works — {" · ".join(filter_bits)}' if filter_bits else 'All Works — System Wide'
