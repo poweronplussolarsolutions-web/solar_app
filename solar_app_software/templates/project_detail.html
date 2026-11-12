@@ -1012,6 +1012,18 @@ function togglePanelAddr(which) {
         <button type="button" class="btn btn-sm" onclick="togglePanel('commissionForm')">Cancel</button>
       </div>
     </form>
+    <script>
+function confirmSuggestedCommission(btn) {
+  var form = document.getElementById('commissionForm');
+  if (!form) return;
+  form.style.display = 'block';
+  var amt = form.querySelector('[name="amount"]');
+  if (amt) {
+    amt.value = btn.dataset.amount;
+    amt.focus();
+  }
+}
+</script>
   </div>
 </div>
 {% endif %}
@@ -1301,18 +1313,7 @@ document.querySelectorAll('.adj-target-input').forEach(function (inp) {
   });
 });
 </script>
-<script>
-function confirmSuggestedCommission(btn) {
-  var form = document.getElementById('commissionForm');
-  if (!form) return;
-  form.style.display = 'block';
-  var amt = form.querySelector('[name="amount"]');
-  if (amt) {
-    amt.value = btn.dataset.amount;
-    amt.focus();
-  }
-}
-</script>
+
 {% endif %}
 {% set all_adj = (proj.adjustments_out + proj.adjustments_in) | sort(attribute='created_at', reverse=True) %}
 {% if all_adj %}
