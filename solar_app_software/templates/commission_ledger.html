@@ -654,6 +654,20 @@
                 {{ '{:,.2f}'.format(tds_total) }}
             </div>
         </div>
+                <div class="cl-kpi">
+            <div class="cl-kpi-label">Paid before closure</div>
+            <div class="cl-kpi-value">{{ '{:,.2f}'.format(split.before) }}</div>
+        </div>
+        <div class="cl-kpi">
+            <div class="cl-kpi-label">Paid after closure</div>
+            <div class="cl-kpi-value">{{ '{:,.2f}'.format(split.after) }}</div>
+        </div>
+        {% if split.unlinked %}
+        <div class="cl-kpi">
+            <div class="cl-kpi-label">Paid (not linked to a work)</div>
+            <div class="cl-kpi-value">{{ '{:,.2f}'.format(split.unlinked) }}</div>
+        </div>
+        {% endif %}
 
         <div class="cl-kpi"
              style="border-left:3px solid
@@ -720,6 +734,8 @@
                         {% if not work_mode %}
                         <th class="num">Paid</th>
                         <th class="num">TDS</th>
+                        <th class="num">Paid before closure</th>
+                        <th class="num">Paid after closure</th>
                         <th class="num">Closing balance</th>
                         {% endif %}
 
@@ -749,7 +765,8 @@
                         <td class="num">
                             {{ money(s.tds) }}
                         </td>
-
+                        <td class="num">{{ money(s.before) }}</td>
+                        <td class="num">{{ money(s.after) }}</td>
                         <td class="num">
 
                             {% if s.balance > 0.005 %}

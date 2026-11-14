@@ -5261,7 +5261,34 @@ def _ledger_totals(rows, work_mode=False):
 COMMISSION_VIEW_ROLES  = ('admin', 'finance', 'director')
 COMMISSION_WRITE_ROLES = COMMISSION_VIEW_ROLES             # can add commission / record payments
  
- 
+def _paid_split(coord, start=None, end=None, work_code=None):
+    """Paid (amount + TDS) split into before / after project closure / unlinked."""
+    q = CoordinatorPayment.query.filter(_party_clause(CoordinatorPayment, coord))
+    if work_code:
+        q = (q.join(Project, CoordinatorPayment.project_id == Project.id)
+              .filter(Project.project_code == work_code))
+    else:
+        ob = CoordinatorOpeningBalance.query.filter(
+            _party_clause(CoordinatorOpeningBalance, coord)).first()
+        if ob:                                   # same rule as the ledger rows
+            q = q.filter(CoordinatorPayment.payment_date >= ob.as_of_date)
+    if start:
+        q = q.filter(CoordinatorPayment.payment_date >= start)
+    if end:
+        q = q.filter(CoordinatorPayment.payment_date <= end)
+
+    before = after = unlinked = 0.0
+    for p in q.all():
+        amt = float(p.amount or 0) + float(p.tds_amount or 0)
+        proj = p.project
+        if not proj:
+            unlinked += amt
+        elif proj.closed_at and p.payment_date > proj.closed_at.date():
+            after += amt
+        else:
+            before += amt
+    return {'before': round(before, 2), 'after': round(after, 2),
+            'unlinked': round(unlinked, 2)}
 def _commission_ledger_context():
     coordinators = _coordinator_choices()
     sel_key  = _clean(request.args.get('coordinator_id', ''), 140)
@@ -5285,18 +5312,23 @@ def _commission_ledger_context():
     targets  = [selected] if selected else coordinators
 
     rows, summary = [], []
+    split_total = {'before': 0.0, 'after': 0.0, 'unlinked': 0.0}
     for c in targets:
         crow = _coord_ledger(c, start, end, work or None)
         if not crow:
             continue
         rows.extend(crow)
         t = _ledger_totals(crow, work_mode)
+        sp = _paid_split(c, start, end, work or None)
+        for k in split_total:
+            split_total[k] += sp[k]
         summary.append({
             'id': c.key, 'key': c.key, 'name': c.full_name,
             'commission': sum(r['cr'] for r in crow if r['kind'] == 'Commission'),
             'paid':       sum(r['dr'] for r in crow if r['kind'] == 'Payment'),
             'tds':        sum(r['dr'] for r in crow if r['kind'] == 'TDS'),
             'balance':    t['balance'],
+            'before': sp['before'], 'after': sp['after'], 'unlinked': sp['unlinked'],
         })
     rows.sort(key=lambda r: (r['date'], r['rank'], r['coord']))
 
@@ -5308,7 +5340,7 @@ def _commission_ledger_context():
     return dict(
         rows=rows, totals=totals, summary=summary, work_mode=work_mode,
         coordinators=coordinators, selected=selected, work=work,
-        month=month, year=year, current_year=date.today().year,
+        month=month, year=year,split=split_total, current_year=date.today().year,
         month_names=list(calendar.month_name)[1:],
         period_label=(f'{calendar.month_name[month]} {year}' if month else 'All time'),
         ob=ob, today=date.today(),
