@@ -5167,7 +5167,7 @@ def add_project_commission_payment(pid):
             notes=_clean(request.form.get('notes', ''), 300) or f'MNRE {proj.project_code}',
             created_by=current_user.id))
         phase = 'after closure' if proj.closed_at and p_date > proj.closed_at.date() else 'before closure'
-        log_action(pid, f'Commission paid ₹{amount:,.0f} to {coord.full_name} ({phase})', new_val=str(amount))
+        # log_action(pid, f'Commission paid ₹{amount:,.0f} to {coord.full_name} ({phase})', new_val=str(amount))
         db.session.commit()
         flash(f'₹{amount:,.0f} commission payment recorded ({phase}).', 'success')
     return redirect(back)
