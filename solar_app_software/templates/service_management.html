@@ -11,7 +11,7 @@
   </button>
   {% endif %}
   <button type="button" class="btn btn-sm" onclick="smTogglePdfPanel()">
-    <i class="ti ti-file-download"></i> Download PDF
+    <i class="ti ti-file-download"></i> Download report
   </button>
 {% endblock %}
 
@@ -916,6 +916,18 @@
           <option value="date">Selected date</option>
         </select>
       </div>
+      <div class="form-group">
+        <label>Coordinator</label>
+        <select name="coordinator">
+          <option value="All">All coordinators</option>
+          {% for n in coordinator_names|default([]) %}
+          <option value="{{ n }}" {% if n == coordinator_filter|default('All') %}selected{% endif %}>{{ n }}</option>
+          {% endfor %}
+          {% if has_unassigned|default(false) %}
+          <option value="__none__" {% if coordinator_filter|default('All') == '__none__' %}selected{% endif %}>Unassigned</option>
+          {% endif %}
+        </select>
+      </div>
       <div class="form-group" id="pdf-days-group" style="display:none">
         <label>Number of days</label>
         <input type="number" name="days" id="pdf-days" min="1" max="365" value="14">
@@ -925,9 +937,12 @@
         <input type="date" name="service_date" id="pdf-date" value="{{ today.isoformat() }}">
       </div>
       <button type="submit" class="btn btn-sm btn-primary">
-        <i class="ti ti-download" style="font-size:12px"></i> Generate PDF
+        <i class="ti ti-file-type-pdf" style="font-size:12px"></i> PDF
       </button>
-      
+      <button type="submit" class="btn btn-sm"
+              formaction="{{ url_for('download_service_report_excel') }}">
+        <i class="ti ti-file-spreadsheet" style="font-size:12px"></i> Excel
+      </button>
     </div>
   </form>
 </div>
@@ -963,6 +978,15 @@
       <option value="next">Next visit date</option>
       <option value="code">Project code</option>
       <option value="pct">Progress ↑</option>
+    </select>
+        <select id="sm-coord" onchange="smCoordChange(this.value)">
+      <option value="All">All coordinators</option>
+      {% for n in coordinator_names|default([]) %}
+      <option value="{{ n }}" {% if n == coordinator_filter|default('All') %}selected{% endif %}>{{ n }}</option>
+      {% endfor %}
+      {% if has_unassigned|default(false) %}
+      <option value="__none__" {% if coordinator_filter|default('All') == '__none__' %}selected{% endif %}>Unassigned</option>
+      {% endif %}
     </select>
   </div>
 
@@ -1443,11 +1467,11 @@
 </div>
 
 
-  {% if total_pages > 1 %}
+    {% if total_pages > 1 %}
   <nav class="sm-pagination" aria-label="Service management pagination">
     {% if page > 1 %}
       <a class="sm-page-btn"
-         href="{{ url_for('service_management', page=page-1) }}"
+         href="{{ url_for('service_management', page=page-1, coordinator=coordinator_filter|default('All'), search=search) }}"
          aria-label="Previous page">← Previous</a>
     {% else %}
       <span class="sm-page-btn disabled" aria-disabled="true">← Previous</span>
@@ -1457,7 +1481,7 @@
 
     {% if page < total_pages %}
       <a class="sm-page-btn"
-         href="{{ url_for('service_management', page=page+1) }}"
+         href="{{ url_for('service_management', page=page+1, coordinator=coordinator_filter|default('All'), search=search) }}"
          aria-label="Next page">Next →</a>
     {% else %}
       <span class="sm-page-btn disabled" aria-disabled="true">Next →</span>
@@ -1528,6 +1552,13 @@ function smSearchServer(value) {
 
         window.location.href = url.toString();
     }, 400);
+}
+function smCoordChange(value) {
+  var url = new URL(window.location.href);
+  if (value && value !== 'All') url.searchParams.set('coordinator', value);
+  else url.searchParams.delete('coordinator');
+  url.searchParams.set('page', '1');
+  window.location.href = url.toString();
 }
 function smRender() {
   var q   = document.getElementById('sm-search').value.toLowerCase().trim();

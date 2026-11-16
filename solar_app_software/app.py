@@ -2443,12 +2443,22 @@ def refresh_service_statuses():
  
     if changed:
         db.session.commit()
-def _get_service_report_records(mode, single_date=None, days=None):
-    """Returns ServiceRecords for the PDF report, filtered by mode.
-    Excludes Cancelled/OnHold projects and Outside-work projects, same as
-    the service management screen. Only the NEXT actionable visit per
-    project is considered — a project never appears twice just because
-    more than one of its visits has fallen behind."""
+def _svc_coord_name(p):
+    return p.coordinator.full_name if p.coordinator else (p.coordinator_name or '')
+
+
+def _matches_coordinator(p, coordinator):
+    if not coordinator or coordinator == 'All':
+        return True
+    if coordinator == '__none__':
+        return not _svc_coord_name(p)
+    return _svc_coord_name(p) == coordinator
+
+
+def _get_service_report_records(mode, single_date=None, days=None, coordinator='All'):
+    """Returns ServiceRecords for the PDF/Excel report, filtered by mode and
+    (optionally) coordinator. Excludes Cancelled/OnHold and Outside-work projects.
+    Only the NEXT actionable visit per project is considered."""
     refresh_service_statuses()
     today = date.today()
 
@@ -2461,8 +2471,6 @@ def _get_service_report_records(mode, single_date=None, days=None):
 
     all_records = base_q.order_by(ServiceRecord.project_id, ServiceRecord.visit_number).all()
 
-    # Keep only each project's earliest not-yet-completed/skipped visit —
-    # this is the same "next visit" a project shows in service_management.
     next_by_project = {}
     for rec in all_records:
         if rec.project_id in next_by_project:
@@ -2470,7 +2478,8 @@ def _get_service_report_records(mode, single_date=None, days=None):
         if rec.status not in ('Completed', 'Skipped'):
             next_by_project[rec.project_id] = rec
 
-    next_records = list(next_by_project.values())
+    next_records = [r for r in next_by_project.values()
+                    if _matches_coordinator(r.project, coordinator)]
 
     if mode == 'overdue':
         records = [r for r in next_records if r.status == 'Overdue']
@@ -2481,8 +2490,7 @@ def _get_service_report_records(mode, single_date=None, days=None):
         end = today + timedelta(days=30)
         records = [r for r in next_records if r.scheduled_date <= end]
     elif mode == 'next_days':
-        n = days or 30
-        end = today + timedelta(days=n)
+        end = today + timedelta(days=days or 30)
         records = [r for r in next_records if r.scheduled_date <= end]
     elif mode == 'date':
         target = single_date or today
@@ -2746,39 +2754,168 @@ def build_service_report_pdf(records, mode, output_dir='/tmp', extra_label=''):
     elements.append(Paragraph(f'Total: {len(records)} visit(s)', styles['Normal']))
     doc.build(elements)
     return path
-@app.route('/service_management/download_pdf')
-@login_required
-@roles_required('admin', 'onsite', 'coordinator', 'director', 'service')
-def download_service_report_pdf():
-    mode       = request.args.get('mode', 'overdue')
-    days       = request.args.get('days', type=int)
-    date_str   = _clean(request.args.get('service_date', ''), 10)
+def _service_report_params():
+    mode     = request.args.get('mode', 'overdue')
+    days     = request.args.get('days', type=int)
+    date_str = _clean(request.args.get('service_date', ''), 10)
+    coordinator = _clean(request.args.get('coordinator', 'All'), 120) or 'All'
 
     single_date_val = None
     if date_str:
-        try:
-            single_date_val = date.fromisoformat(date_str)
-        except ValueError:
-            flash('Invalid date provided.', 'danger')
-            return redirect(url_for('service_management'))
-
+        single_date_val = date.fromisoformat(date_str)   # caller handles ValueError
     if mode not in ('overdue', 'week', 'month', 'next_days', 'date'):
         mode = 'overdue'
-
-    records = _get_service_report_records(mode, single_date_val, days)
 
     extra_label = ''
     if mode == 'next_days' and days:
         extra_label = f'Next {days} days'
     elif mode == 'date':
-        d = single_date_val or date.today()
-        extra_label = d.strftime('%d %b %Y')
+        extra_label = (single_date_val or date.today()).strftime('%d %b %Y')
+    if coordinator == '__none__':
+        extra_label = (extra_label + ' · ' if extra_label else '') + 'Unassigned coordinator'
+    elif coordinator != 'All':
+        extra_label = (extra_label + ' · ' if extra_label else '') + coordinator
+    return mode, days, single_date_val, coordinator, extra_label
 
+
+@app.route('/service_management/download_pdf')
+@login_required
+@roles_required('admin', 'onsite', 'coordinator', 'director', 'service')
+def download_service_report_pdf():
+    try:
+        mode, days, single_date_val, coordinator, extra_label = _service_report_params()
+    except ValueError:
+        flash('Invalid date provided.', 'danger')
+        return redirect(url_for('service_management'))
+
+    records = _get_service_report_records(mode, single_date_val, days, coordinator)
     path  = build_service_report_pdf(records, mode, tempfile.gettempdir(), extra_label)
     fname = f'ServiceReport_{mode}_{date.today().isoformat()}.pdf'
     return send_file(path, as_attachment=True, download_name=fname, mimetype='application/pdf')
 
 
+def build_service_report_excel(records, mode, output_dir='/tmp', extra_label=''):
+    mode_labels = {
+        'overdue':   'Overdue Service Visits',
+        'week':      'Service Visits Due This Week',
+        'month':     'Service Visits Due This Month',
+        'next_days': 'Upcoming Service Visits',
+        'date':      'Service Visits Scheduled On',
+    }
+    title_label = mode_labels.get(mode, 'Service Visits Report')
+    if extra_label:
+        title_label += f' — {extra_label}'
+
+    # one query: completed visit dates per project
+    project_ids = list({r.project_id for r in records})
+    prev_map = {}
+    if project_ids:
+        for r in (ServiceRecord.query
+                  .filter(ServiceRecord.project_id.in_(project_ids),
+                          ServiceRecord.status == 'Completed',
+                          ServiceRecord.completed_date.isnot(None))
+                  .order_by(ServiceRecord.project_id, ServiceRecord.visit_number).all()):
+            prev_map.setdefault(r.project_id, []).append((r.visit_number, r.completed_date))
+
+    headers = ['MNRE No.', 'Customer', 'Place', 'Phone', 'Inverter (kW)', 'Panel (kW)',
+               'Coordinator', 'Visit #', 'Scheduled', 'Status',
+               'Previous Service Completed Dates', 'Project Created']
+    last_col = get_column_letter(len(headers))
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Service Visits'
+    _page_setup(ws)
+    ws.freeze_panes = 'A6'
+
+    titles = [
+        ('Power On Plus Solar Solutions', C_HEADER_BG, C_HEADER_FG, 14, False, True),
+        (title_label,                     C_SUBHDR_BG, C_HEADER_FG, 11, False, True),
+        (f'Generated: {date.today().strftime("%d %b %Y")}', C_ALT_BG, '444444', 10, True, True),
+        ('', 'FFFFFF', '000000', 8, False, False),
+    ]
+    for r, (txt, bg_c, fg_c, sz, italic, center) in enumerate(titles, 1):
+        ws.merge_cells(f'A{r}:{last_col}{r}')
+        c = ws[f'A{r}']
+        c.value = txt or None
+        c.font  = _font(bold=(not italic and bool(txt)), color=fg_c, size=sz, italic=italic)
+        c.fill  = _fill(bg_c)
+        if center:
+            c.alignment = _center()
+    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[2].height = 22
+    ws.row_dimensions[3].height = 18
+    ws.row_dimensions[4].height = 8
+    ws.row_dimensions[5].height = 20
+    for col, h in enumerate(headers, 1):
+        _style_header_cell(ws.cell(5, col), h)
+
+    today = date.today()
+    row = 6
+    for i, rec in enumerate(records):
+        p  = rec.project
+        bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        status = rec.status
+        if status not in ('Completed', 'Skipped') and rec.scheduled_date < today:
+            status = 'Overdue'
+        s_bg, s_fg = {
+            'Overdue': (C_RED_BG, C_RED_FG),
+            'Due':     (C_AMBER_BG, C_AMBER_FG),
+        }.get(status, (bg, '000000'))
+
+        prev = sorted(d for vn, d in prev_map.get(rec.project_id, []) if vn < rec.visit_number)
+        prev_disp = ', '.join(d.strftime('%d %b %Y') for d in prev) if prev else '—'
+
+        vals = [p.project_code, p.customer.name, p.customer.place or '—', p.customer.phone or '—',
+                p.inverter_capacity_kw, p.panel_capacity_kw,
+                _svc_coord_name(p) or '—', rec.visit_number,
+                rec.scheduled_date.strftime('%d %b %Y'), status, prev_disp,
+                p.created_at.strftime('%d %b %Y')]
+        fmts   = [None, None, None, None, '0.##', '0.##', None, None, None, None, None, None]
+        aligns = ['center', 'left', 'left', 'center', 'center', 'center',
+                  'left', 'center', 'center', 'center', 'left', 'center']
+        for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
+            _style_data_cell(ws.cell(row, col), val,
+                             bg=s_bg if col == 10 else bg,
+                             fg=s_fg if col == 10 else '000000',
+                             align=aln, number_fmt=fmt)
+        ws.row_dimensions[row].height = 17
+        row += 1
+
+    ws.row_dimensions[row].height = 20
+    for col in range(1, len(headers) + 1):
+        cell = ws.cell(row, col)
+        if col == 1:
+            _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+        elif col == 2:
+            _style_data_cell(cell, f'{len(records)} visit(s)', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
+        else:
+            cell.fill = _fill(C_TOTAL_BG)
+            cell.border = _border()
+
+    for i, w in enumerate([12, 24, 18, 14, 13, 11, 22, 9, 14, 12, 40, 14], 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    path = os.path.join(output_dir, f'ServiceReport_{mode}_{date.today().isoformat()}.xlsx')
+    wb.save(path)
+    return path
+
+
+@app.route('/service_management/download_excel')
+@login_required
+@roles_required('admin', 'onsite', 'coordinator', 'director', 'service')
+def download_service_report_excel():
+    try:
+        mode, days, single_date_val, coordinator, extra_label = _service_report_params()
+    except ValueError:
+        flash('Invalid date provided.', 'danger')
+        return redirect(url_for('service_management'))
+
+    records = _get_service_report_records(mode, single_date_val, days, coordinator)
+    path  = build_service_report_excel(records, mode, tempfile.gettempdir(), extra_label)
+    fname = f'ServiceReport_{mode}_{date.today().isoformat()}.xlsx'
+    return send_file(path, as_attachment=True, download_name=fname,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 def _rts_preview_path(pid):
     return os.path.join(tempfile.gettempdir(), f'rts_feasibility_{pid}_{current_user.id}.pdf')
@@ -8810,7 +8947,7 @@ def service_management():
     per_page = 30
 
     search = request.args.get('search', '', type=str).strip().lower()
-
+    coordinator_filter = _clean(request.args.get('coordinator', 'All'), 120) or 'All'
     # ── Completed-by-date lookup (admin only) ──────────────────────────
     cbd_date_str  = _clean(request.args.get('cbd_date', ''), 10)
     cbd_start_str = _clean(request.args.get('cbd_start', ''), 10)
@@ -8869,7 +9006,13 @@ def service_management():
                          if p.status not in ('Cancelled', 'OnHold')
                          and p.work_category != 'Outside'
                          and (p.pending_amount <= 0 or p.status == 'Closed')]
+    # dropdown options come from ALL eligible projects, before filtering
+    coordinator_names = sorted({_svc_coord_name(p) for p in eligible_projects if _svc_coord_name(p)},
+                               key=str.lower)
+    has_unassigned = any(not _svc_coord_name(p) for p in eligible_projects)
 
+    if coordinator_filter != 'All':
+        eligible_projects = [p for p in eligible_projects if _matches_coordinator(p, coordinator_filter)]
     filtered = eligible_projects
 
     if search:
@@ -8964,7 +9107,9 @@ def service_management():
                            proj_data=proj_data, stats=stats,
                            today=date.today(), page=page, total_pages=total_pages, search=search,
                            cbd_records=cbd_records, cbd_searched=cbd_searched,
-                           cbd_date_str=cbd_date_str, cbd_start_str=cbd_start_str, cbd_end_str=cbd_end_str)
+                           cbd_date_str=cbd_date_str, cbd_start_str=cbd_start_str, cbd_end_str=cbd_end_str,                           coordinator_filter=coordinator_filter,
+                           coordinator_names=coordinator_names,
+                           has_unassigned=has_unassigned,)
 @app.route('/projects/<int:pid>/service')
 @login_required
 def project_service(pid):
