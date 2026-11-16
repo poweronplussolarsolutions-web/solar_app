@@ -4298,6 +4298,18 @@ from sqlalchemy.exc import IntegrityError
 COMMISSION_RATES = {3.0: 10000, 5.0: 15000}          # inverter kW -> default commission
 COMMISSION_PROJECT_ROLES = ('admin', 'director', 'finance')
 
+COMMISSION_ALLWORKS_ROLES = ('admin', 'finance')
+
+
+def _can_see_commission():
+    return current_user.is_authenticated and current_user.role in COMMISSION_ALLWORKS_ROLES
+
+
+def _project_commission_total(p):
+    """Total commission on one project. A commission shared by several
+    projects is split equally, same as _project_commission_summary."""
+    return round(sum(float(c.amount or 0) / (len(c.projects) or 1)
+                     for c in p.commissions), 2)
 
 def default_commission(kw):
     try:
@@ -11606,9 +11618,9 @@ def build_allworks_docstaff_report(staff, projects, output_dir='/tmp'):
     return path
 def build_allworks_full_report(projects, project_type_filter='All', work_category_filter='All',
                                 output_dir='/tmp', month=None, year=None, payment_stage_filter='All',
-                                ):
-    """System-wide all-works sheet — every project, optionally filtered by Cash/Loan,
-    Installation/Outside, pending bank instalment (First/Second), and commission status."""
+                                show_commission=False):
+    """System-wide all-works sheet. Commission column only when show_commission=True
+    (admin / finance)."""
     wb = Workbook()
     ws = wb.active
     ws.title = 'All Works'
@@ -11622,9 +11634,6 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         filter_bits.append('Second Payment Pending')
     if project_type_filter != 'All':
         filter_bits.append(project_type_filter)
-    # if work_category_filter != 'All':
-    #     filter_bits.append(work_category_filter)
-    #     filter_bits.append('No Commission')
     if month and year:
         filter_bits.append(f'{calendar.month_name[month]} {year}')
     subtitle = f'All Works — {" · ".join(filter_bits)}' if filter_bits else 'All Works — System Wide'
@@ -11634,12 +11643,15 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
     headers = ['MNRE No.', 'Customer', 'Phone', 'Place', 'Sub Co', 'Type', 'Subtype',
            'Inverter (kW)', 'Panel (kW)', 'Roof', 'Panel Brand', 'Inverter Brand', 'Status',
            'Contract (₹)', 'Collected (₹)', 'Pending (₹)', 'Excess (₹)', 'Discounted (₹)']
+    if show_commission:
+        headers.append('Commission (₹)')
     if show_payments:
         headers += ['1st Payment', '2nd Payment']
     headers += ['Coordinator', 'Doc Staff', 'Created']
 
     STATUS_COL = 13
     CONTRACT_COL, COLLECTED_COL, PENDING_COL = 14, 15, 16
+    COMMISSION_COL = 19 if show_commission else None
 
     last_col_letter = get_column_letter(len(headers))
 
@@ -11692,8 +11704,13 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
         aligns = ['center', 'left', 'center', 'left', 'center', 'center', 'center',
           'center', 'center', 'center', 'center', 'center',
           'center', 'right', 'right', 'right', 'right', 'right']
-        tick_col_indices = []
 
+        if show_commission:
+            vals.append(_project_commission_total(p))
+            fmts.append('₹#,##0')
+            aligns.append('right')
+
+        tick_col_indices = []
         if show_payments:
             instalments = p.bank_instalments if p.project_type == 'Loan' else {}
             first_done  = 'First'  in instalments
@@ -11722,6 +11739,7 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
     total_val  = sum(float(p.total_amount or 0) for p in sorted_projects)
     total_coll = sum(float(p.collected_amount or 0) for p in sorted_projects)
     total_pend = sum(p.pending_amount for p in sorted_projects)
+    total_comm = sum(_project_commission_total(p) for p in sorted_projects) if show_commission else 0
     ws.row_dimensions[row].height = 20
     for col in range(1, len(headers) + 1):
         cell = ws.cell(row, col)
@@ -11735,11 +11753,15 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
             _style_data_cell(cell, total_coll, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
         elif col == PENDING_COL:
             _style_data_cell(cell, total_pend, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
+        elif COMMISSION_COL and col == COMMISSION_COL:
+            _style_data_cell(cell, total_comm, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
         else:
             cell.fill = _fill(C_TOTAL_BG)
             cell.border = _border()
 
     col_widths = [12, 24, 14, 16, 12, 8, 10, 12, 11, 16, 16, 16, 12, 14, 14, 14, 12, 12]
+    if show_commission:
+        col_widths.append(14)
     if show_payments:
         col_widths += [12, 12]
     col_widths += [20, 20, 13]
@@ -11785,20 +11807,22 @@ def _get_all_works_projects(project_type_filter, work_category_filter='All', sta
                              payment_stage_filter='All', coordinator_filter='All',
                              excess_filter='All',
                              doc_staff_filter='All', include_cancelled=False):
-    q = (Project.query
-         .join(Customer)
-         .options(
-             joinedload(Project.customer),
-             joinedload(Project.coordinator),
-             joinedload(Project.doc_staff),
-             joinedload(Project.subsidy),
-             joinedload(Project.bank_excess),
-             joinedload(Project.panel_details),
-             selectinload(Project.expenses),
-             selectinload(Project.waivers),
-             selectinload(Project.payments),
-             selectinload(Project.payment_excesses),
-         ))
+    opts = [
+        joinedload(Project.customer),
+        joinedload(Project.coordinator),
+        joinedload(Project.doc_staff),
+        joinedload(Project.subsidy),
+        joinedload(Project.bank_excess),
+        joinedload(Project.panel_details),
+        selectinload(Project.expenses),
+        selectinload(Project.waivers),
+        selectinload(Project.payments),
+        selectinload(Project.payment_excesses),
+    ]
+    if _can_see_commission():
+        opts.append(selectinload(Project.commissions).selectinload(CoordinatorCommission.projects))
+
+    q = Project.query.join(Customer).options(*opts)
     if not include_cancelled:
         q = q.filter(Project.status != 'Cancelled')
 
@@ -11883,8 +11907,8 @@ def all_works_report():
     return render_template('all_works_report.html',
         current_year=today.year, current_month=today.month,
         coordinator_names=coordinator_names,
-        doc_staff_list=doc_staff_list)
-
+        doc_staff_list=doc_staff_list,
+        can_see_commission=_can_see_commission())
 @app.route('/admin/all_works/preview_data')
 @login_required
 @roles_required('admin', 'director', 'payments', 'office','finance')
@@ -11928,12 +11952,14 @@ def all_works_preview_data():
     def _kw(v):
         return f'{v:g}' if v is not None else '—'
 
+    show_comm = _can_see_commission()
+
     def _to_dict(p):
         bg, fg = STATUS_COLORS_HTML.get(p.status, ('#fff', '#000'))
         is_loan = (p.project_type == 'Loan')
         instalments = p.bank_instalments if is_loan else {}
         excess, discounted = _project_excess_discount(p)
-        return {
+        d = {
             'code':          p.project_code,
             'customer':      p.customer.name,
             'phone':         p.customer.phone or '—',
@@ -11961,6 +11987,10 @@ def all_works_preview_data():
             'panel_brand':    _brands(p)[0],
             'inverter_brand': _brands(p)[1],
         }
+        if show_comm:
+            c = _project_commission_total(p)
+            d['commission'] = _inr_fmt(c) if c > 0.01 else '—'
+        return d
 
     kpis = {
         'Active (In Progress)':    active_count,
@@ -12004,7 +12034,7 @@ def all_works_download():
     effective_type_filter = 'Loan' if payment_stage_filter in ('FirstPending', 'SecondPending') else project_type_filter
     path = build_allworks_full_report(projects, effective_type_filter, work_category_filter,
                                        tempfile.gettempdir(), month, year, payment_stage_filter,
-                                       )
+                                       show_commission=_can_see_commission())
 
     parts = ['AllWorks']
     if payment_stage_filter == 'FirstPending':

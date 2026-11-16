@@ -270,7 +270,7 @@
 <div id="kpiRow" class="aw-kpi-row"></div>
 
 <div class="aw-table-wrap">
-  <table class="aw-table" id="worksTable">
+  <table class="aw-table" id="worksTable" data-show-commission="{{ '1' if can_see_commission else '0' }}">
     <thead>
       <tr>
         <th>MNRE No.</th>
@@ -292,6 +292,7 @@
         <th style="text-align:right">Pending</th>
         <th style="text-align:right">Excess</th>
         <th style="text-align:right">Discounted</th>
+        {% if can_see_commission %}<th style="text-align:right">Commission</th>{% endif %}
         <th style="text-align:center">1st Payment</th>
         <th style="text-align:center">2nd Payment</th>
         <th>Coordinator</th>
@@ -300,7 +301,7 @@
       </tr>
     </thead>
     <tbody id="worksBody">
-      <tr><td colspan="24" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>
+      <tr><td colspan="{{ 25 if can_see_commission else 24 }}" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>
     </tbody>
   </table>
 </div>
@@ -312,6 +313,8 @@
 </div>
 
 <script>
+const SHOW_COMMISSION = document.getElementById('worksTable').dataset.showCommission === '1';
+const COLS = SHOW_COMMISSION ? 25 : 24;
 const STATUS_LABELS = {
   InProgress: 'In Progress', Delayed: 'Delayed',
   Completed: 'Completed/Closed', OnHold: 'On Hold', Cancelled: 'Cancelled',
@@ -475,7 +478,7 @@ function loadData() {
   renderChips(filters);
   const seq = ++loadSeq;
   document.getElementById('worksBody').innerHTML =
-    '<tr><td colspan="24" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>';
+    '<tr><td colspan="${COLS}" style="text-align:center;padding:30px;color:var(--hint)">Loading…</td></tr>';
 
   fetch(`/admin/all_works/preview_data?${buildQS(filters)}`)
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
@@ -487,7 +490,7 @@ function loadData() {
     .catch(() => {
       if (seq !== loadSeq) return;
       document.getElementById('worksBody').innerHTML =
-        '<tr><td colspan="24" style="text-align:center;padding:30px;color:red">Failed to load.</td></tr>';
+        '<tr><td colspan="${COLS}" style="text-align:center;padding:30px;color:red">Failed to load.</td></tr>';
     });
 }
 
@@ -522,7 +525,7 @@ function renderTable(projects) {
 
   const body = document.getElementById('worksBody');
   if (!projects.length) {
-    body.innerHTML = '<tr><td colspan="24" style="text-align:center;padding:30px;color:var(--hint)">No projects match these filters.</td></tr>';
+    body.innerHTML = '<tr><td colspan="${COLS}" style="text-align:center;padding:30px;color:var(--hint)">No projects match these filters.</td></tr>';
     return;
   }
 
@@ -533,7 +536,7 @@ function renderTable(projects) {
       <td style="text-align:center">
         <span class="aw-status-pill" style="background:${esc(p.status_bg)};color:${esc(p.status_fg)}">${esc(p.status)}</span>
       </td>
-      ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${tdr(p.excess)}${tdr(p.discounted)}${tdTick(p.first_payment)}${tdTick(p.second_payment)}${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
+      ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${tdr(p.excess)}${tdr(p.discounted)}${SHOW_COMMISSION ? tdr(p.commission) : ''}${tdTick(p.first_payment)}${tdTick(p.second_payment)}${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
     </tr>`;
   }).join('');
 }
