@@ -4316,7 +4316,11 @@ def default_commission(kw):
         return COMMISSION_RATES.get(round(float(kw), 1), 0)
     except (TypeError, ValueError):
         return 0
-
+def _suggested_commission(p):
+    """Commission to be paid by default (kW-based). Zero until a payment is recorded."""
+    if not p.payments:
+        return 0
+    return default_commission(p.inverter_capacity_kw)
 
 def _project_commission_summary(proj):
     """Commission for ONE project: total, paid (before/after closure), pending.
@@ -5122,7 +5126,7 @@ def project_detail(pid):
                            wa_complete_msg=wa_complete_msg, wa_just_msg=wa_just_msg,
                            pay_locked=_payments_locked(proj),
                            comm_summary=comm_summary,
-                           default_commission=(default_commission(proj.inverter_capacity_kw)
+                           default_commission=(_suggested_commission(proj)
                                                if can_see_commission else 0))
 @app.route('/projects/<int:pid>/transformer_capacity', methods=['POST'])
 @login_required
@@ -11680,6 +11684,7 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
            'Contract (₹)', 'Collected (₹)', 'Pending (₹)', 'Excess (₹)', 'Discounted (₹)']
     if show_commission:
         headers.append('Commission (₹)')
+        headers.append('Commission To Pay (₹)')
     if show_payments:
         headers += ['1st Payment', '2nd Payment']
     headers += ['Coordinator', 'Doc Staff', 'Created']
@@ -11687,6 +11692,7 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
     STATUS_COL = 13
     CONTRACT_COL, COLLECTED_COL, PENDING_COL = 14, 15, 16
     COMMISSION_COL = 19 if show_commission else None
+    COMMISSION_DUE_COL = 20 if show_commission else None
 
     last_col_letter = get_column_letter(len(headers))
 
@@ -11742,8 +11748,9 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
 
         if show_commission:
             vals.append(_project_commission_total(p))
-            fmts.append('₹#,##0')
-            aligns.append('right')
+            vals.append(_suggested_commission(p))
+            fmts += ['₹#,##0', '₹#,##0']
+            aligns += ['right', 'right']
 
         tick_col_indices = []
         if show_payments:
@@ -11775,6 +11782,7 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
     total_coll = sum(float(p.collected_amount or 0) for p in sorted_projects)
     total_pend = sum(p.pending_amount for p in sorted_projects)
     total_comm = sum(_project_commission_total(p) for p in sorted_projects) if show_commission else 0
+    total_due  = sum(_suggested_commission(p) for p in sorted_projects) if show_commission else 0
     ws.row_dimensions[row].height = 20
     for col in range(1, len(headers) + 1):
         cell = ws.cell(row, col)
@@ -11790,13 +11798,15 @@ def build_allworks_full_report(projects, project_type_filter='All', work_categor
             _style_data_cell(cell, total_pend, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
         elif COMMISSION_COL and col == COMMISSION_COL:
             _style_data_cell(cell, total_comm, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
+        elif COMMISSION_DUE_COL and col == COMMISSION_DUE_COL:
+            _style_data_cell(cell, total_due, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
         else:
             cell.fill = _fill(C_TOTAL_BG)
             cell.border = _border()
 
     col_widths = [12, 24, 14, 16, 12, 8, 10, 12, 11, 16, 16, 16, 12, 14, 14, 14, 12, 12]
     if show_commission:
-        col_widths.append(14)
+        col_widths += [14, 16]
     if show_payments:
         col_widths += [12, 12]
     col_widths += [20, 20, 13]
@@ -12025,6 +12035,7 @@ def all_works_preview_data():
         if show_comm:
             c = _project_commission_total(p)
             d['commission'] = _inr_fmt(c) if c > 0.01 else '—'
+            d['commission_due'] = _inr_fmt(_suggested_commission(p))
         return d
 
     kpis = {

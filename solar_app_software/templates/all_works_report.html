@@ -292,7 +292,10 @@
         <th style="text-align:right">Pending</th>
         <th style="text-align:right">Excess</th>
         <th style="text-align:right">Discounted</th>
-        {% if can_see_commission %}<th style="text-align:right">Commission</th>{% endif %}
+        {% if can_see_commission %}
+<th style="text-align:right">Commission</th>
+<th style="text-align:right">Commission To Pay</th>
+{% endif %}
         <th style="text-align:center">1st Payment</th>
         <th style="text-align:center">2nd Payment</th>
         <th>Coordinator</th>
@@ -314,7 +317,7 @@
 
 <script>
 const SHOW_COMMISSION = document.getElementById('worksTable').dataset.showCommission === '1';
-const COLS = SHOW_COMMISSION ? 25 : 24;
+const COLS = SHOW_COMMISSION ? 26 : 24;
 const STATUS_LABELS = {
   InProgress: 'In Progress', Delayed: 'Delayed',
   Completed: 'Completed/Closed', OnHold: 'On Hold', Cancelled: 'Cancelled',
@@ -536,7 +539,10 @@ function renderTable(projects) {
       <td style="text-align:center">
         <span class="aw-status-pill" style="background:${esc(p.status_bg)};color:${esc(p.status_fg)}">${esc(p.status)}</span>
       </td>
-      ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${tdr(p.excess)}${tdr(p.discounted)}${SHOW_COMMISSION ? tdr(p.commission) : ''}${tdTick(p.first_payment)}${tdTick(p.second_payment)}${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
+      ${tdr(p.contract)}${tdr(p.collected)}${tdr(p.pending)}${tdr(p.excess)}${tdr(p.discounted)}
+${SHOW_COMMISSION ? tdr(p.commission) + tdr(p.commission_due) : ''}
+${tdTick(p.first_payment)}${tdTick(p.second_payment)}
+${td(p.coordinator)}${td(p.doc_staff)}${tdc(p.created)}
     </tr>`;
   }).join('');
 }

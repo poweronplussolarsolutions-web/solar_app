@@ -831,19 +831,39 @@ function togglePanelAddr(which) {
     <button class="btn btn-sm btn-primary" onclick="togglePanel('commissionForm')">+ Add commission</button>
     <a href="{{ url_for('commission_ledger', coordinator_id=coord_key, work=proj.project_code) }}" class="btn btn-sm">Ledger</a>
   </div>
-  {% if default_commission and not proj.commissions %}
-<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;
-            background:var(--amber-50,#fffbeb);border:1px dashed var(--amber-300,#fcd34d);
-            border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">
-  <div>
-    <div style="font-size:11px;color:var(--muted)">Suggested commission ({{ proj.inverter_capacity_kw | round(1) }} kW)</div>
-    <div style="font-size:18px;font-weight:600;color:var(--amber-700)">{{ default_commission | inr }}</div>
-  </div>
- <button type="button" class="btn btn-sm btn-primary"
-        data-amount="{{ default_commission }}"
-        onclick="confirmSuggestedCommission(this)">
-  Review &amp; confirm
-</button>
+  {% if not proj.commissions %}
+<div style="
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    background:var(--amber-50,#fffbeb);
+    border:1px dashed var(--amber-300,#fcd34d);
+    border-radius:var(--radius);
+    padding:12px 14px;
+    margin-bottom:14px;
+">
+    <div>
+        <div style="font-size:11px;color:var(--muted)">
+            Commission To Pay ({{ proj.inverter_capacity_kw | round(1) }} kW)
+            {% if not proj.payments %}
+                · No payment recorded yet
+            {% endif %}
+        </div>
+
+        <div style="font-size:18px;font-weight:600;color:var(--amber-700)">
+            {{ default_commission | inr }}
+        </div>
+    </div>
+
+    {% if default_commission %}
+    <button type="button"
+            class="btn btn-sm btn-primary"
+            data-amount="{{ default_commission }}"
+            onclick="confirmSuggestedCommission(this)">
+        Review &amp; Confirm
+    </button>
+    {% endif %}
 </div>
 {% endif %}
   {% if comm_summary %}
