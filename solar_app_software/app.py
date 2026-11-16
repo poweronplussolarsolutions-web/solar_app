@@ -5411,7 +5411,8 @@ COMMISSION_VIEW_ROLES  = ('admin', 'finance', 'director')
 COMMISSION_WRITE_ROLES = COMMISSION_VIEW_ROLES             # can add commission / record payments
  
 def _paid_split(coord, start=None, end=None, work_code=None):
-    """Paid (amount + TDS) split into before / after project closure / unlinked."""
+    """Paid (amount + TDS) split into before / after project closure / unlinked,
+    plus the individual payment lines for the KPI popups."""
     q = CoordinatorPayment.query.filter(_party_clause(CoordinatorPayment, coord))
     if work_code:
         q = (q.join(Project, CoordinatorPayment.project_id == Project.id)
@@ -5419,7 +5420,7 @@ def _paid_split(coord, start=None, end=None, work_code=None):
     else:
         ob = CoordinatorOpeningBalance.query.filter(
             _party_clause(CoordinatorOpeningBalance, coord)).first()
-        if ob:                                   # same rule as the ledger rows
+        if ob:
             q = q.filter(CoordinatorPayment.payment_date >= ob.as_of_date)
     if start:
         q = q.filter(CoordinatorPayment.payment_date >= start)
@@ -5427,17 +5428,31 @@ def _paid_split(coord, start=None, end=None, work_code=None):
         q = q.filter(CoordinatorPayment.payment_date <= end)
 
     before = after = unlinked = 0.0
-    for p in q.all():
-        amt = float(p.amount or 0) + float(p.tds_amount or 0)
+    items = []
+    for p in q.order_by(CoordinatorPayment.payment_date, CoordinatorPayment.id).all():
+        tds = float(p.tds_amount or 0)
+        amt = float(p.amount or 0) + tds
         proj = p.project
         if not proj:
+            phase = 'unlinked'
             unlinked += amt
         elif proj.closed_at and p.payment_date > proj.closed_at.date():
+            phase = 'after'
             after += amt
         else:
+            phase = 'before'
             before += amt
+        items.append({
+            'phase': phase,
+            'date': p.payment_date.strftime('%d/%m/%Y'),
+            'coord': coord.full_name,
+            'text': f'MNRE {proj.project_code}' if proj else 'Not linked to a work',
+            'amount': round(amt, 2),
+            'note': (f'incl. TDS ₹{tds:,.2f}' if tds else '') +
+                    (f' · closed {proj.closed_at.strftime("%d/%m/%Y")}' if proj and proj.closed_at else ''),
+        })
     return {'before': round(before, 2), 'after': round(after, 2),
-            'unlinked': round(unlinked, 2)}
+            'unlinked': round(unlinked, 2), 'items': items}
 def _commission_ledger_context():
     coordinators = _coordinator_choices()
     sel_key  = _clean(request.args.get('coordinator_id', ''), 140)
@@ -5460,7 +5475,7 @@ def _commission_ledger_context():
     selected = next((c for c in coordinators if c.key == sel_key), None)
     targets  = [selected] if selected else coordinators
 
-    rows, summary = [], []
+    rows, summary, split_items = [], [], []
     split_total = {'before': 0.0, 'after': 0.0, 'unlinked': 0.0}
     for c in targets:
         crow = _coord_ledger(c, start, end, work or None)
@@ -5471,6 +5486,7 @@ def _commission_ledger_context():
         sp = _paid_split(c, start, end, work or None)
         for k in split_total:
             split_total[k] += sp[k]
+        split_items.extend(sp['items'])
         summary.append({
             'id': c.key, 'key': c.key, 'name': c.full_name,
             'commission': sum(r['cr'] for r in crow if r['kind'] == 'Commission'),
@@ -5486,14 +5502,33 @@ def _commission_ledger_context():
               _party_clause(CoordinatorOpeningBalance, selected)).first()
           if selected else None)
 
+    # ── KPI popup data (JSON-safe) ───────────────────────────────────────
+    def _line(r, amount):
+        return {'date': r['date'].strftime('%d/%m/%Y'), 'coord': r['coord'],
+                'text': r['particulars'], 'amount': round(amount, 2),
+                'note': ' · '.join(x for x in (r.get('vch_no'), r.get('notes')) if x)}
+
+    kpi_detail = {
+        'commission': [_line(r, r['cr']) for r in rows if r['kind'] == 'Commission'],
+        'paid':       [_line(r, r['dr']) for r in rows if r['kind'] == 'Payment'],
+        'tds':        [_line(r, r['dr']) for r in rows if r['kind'] == 'TDS'],
+        'before':     [i for i in split_items if i['phase'] == 'before'],
+        'after':      [i for i in split_items if i['phase'] == 'after'],
+        'unlinked':   [i for i in split_items if i['phase'] == 'unlinked'],
+        'balance':    [{'coord': s['name'], 'commission': round(s['commission'], 2),
+                        'paid': round(s['paid'], 2), 'tds': round(s['tds'], 2),
+                        'balance': round(s['balance'] or 0, 2)} for s in summary],
+    }
+
     return dict(
         rows=rows, totals=totals, summary=summary, work_mode=work_mode,
         coordinators=coordinators, selected=selected, work=work,
-        month=month, year=year,split=split_total, current_year=date.today().year,
+        month=month, year=year, split=split_total, current_year=date.today().year,
         month_names=list(calendar.month_name)[1:],
         period_label=(f'{calendar.month_name[month]} {year}' if month else 'All time'),
         ob=ob, today=date.today(),
         can_write=current_user.role in COMMISSION_WRITE_ROLES,
+        kpi_detail=kpi_detail,
     )
 
 @app.route('/admin/commission_ledger')

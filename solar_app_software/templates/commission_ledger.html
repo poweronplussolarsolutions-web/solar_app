@@ -148,6 +148,24 @@
     color:var(--hint);
     margin-top:12px;
 }
+.cl-kpi-click { cursor:pointer; transition:box-shadow .15s, transform .15s; }
+.cl-kpi-click:hover { box-shadow:0 2px 8px rgba(0,0,0,.15); transform:translateY(-1px); }
+
+.cl-modal-bg {
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,.5);
+    z-index:1000; align-items:center; justify-content:center; padding:16px;
+}
+.cl-modal {
+    background:var(--bg,#fff); color:var(--text); border-radius:10px;
+    width:100%; max-width:820px; max-height:85vh; display:flex; flex-direction:column;
+    box-shadow:0 10px 40px rgba(0,0,0,.3);
+}
+.cl-modal-head {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:14px 18px; border-bottom:1px solid var(--border);
+}
+.cl-modal-head h3 { margin:0; font-size:15px; }
+.cl-modal-body { overflow:auto; padding:0 18px 14px; }
 </style>
 
 
@@ -630,85 +648,70 @@
     </div>
 
 
-    <div class="cl-kpis">
+   <div class="cl-kpis">
 
-        <div class="cl-kpi">
-            <div class="cl-kpi-label">Commission earned</div>
-            <div class="cl-kpi-value">
-                {{ '{:,.2f}'.format(comm_total) }}
-            </div>
-        </div>
-
-        {% if not work_mode %}
-
-        <div class="cl-kpi">
-            <div class="cl-kpi-label">Paid</div>
-            <div class="cl-kpi-value">
-                {{ '{:,.2f}'.format(paid_total) }}
-            </div>
-        </div>
-
-        <div class="cl-kpi">
-            <div class="cl-kpi-label">TDS</div>
-            <div class="cl-kpi-value">
-                {{ '{:,.2f}'.format(tds_total) }}
-            </div>
-        </div>
-                <div class="cl-kpi">
-            <div class="cl-kpi-label">Paid before closure</div>
-            <div class="cl-kpi-value">{{ '{:,.2f}'.format(split.before) }}</div>
-        </div>
-        <div class="cl-kpi">
-            <div class="cl-kpi-label">Paid after closure</div>
-            <div class="cl-kpi-value">{{ '{:,.2f}'.format(split.after) }}</div>
-        </div>
-        {% if split.unlinked %}
-        <div class="cl-kpi">
-            <div class="cl-kpi-label">Paid (not linked to a work)</div>
-            <div class="cl-kpi-value">{{ '{:,.2f}'.format(split.unlinked) }}</div>
-        </div>
-        {% endif %}
-
-        <div class="cl-kpi"
-             style="border-left:3px solid
-             {% if totals.balance and totals.balance > 0.005 %}#c0392b
-             {% elif totals.balance and totals.balance < -0.005 %}#856404
-             {% else %}#155724{% endif %}">
-
-            <div class="cl-kpi-label">
-                Closing balance
-            </div>
-
-            <div class="cl-kpi-value">
-
-                {% if totals.balance is not none and totals.balance > 0.005 %}
-                    {{ '{:,.2f}'.format(totals.balance) }} Cr
-
-                {% elif totals.balance is not none and totals.balance < -0.005 %}
-                    {{ '{:,.2f}'.format(-totals.balance) }} Dr
-
-                {% else %}
-                    Nil
-                {% endif %}
-
-            </div>
-
-            <div class="cl-kpi-label">
-
-                {% if totals.balance is not none and totals.balance > 0.005 %}
-                    payable to coordinator
-
-                {% elif totals.balance is not none and totals.balance < -0.005 %}
-                    advance with coordinator
-                {% endif %}
-
-            </div>
-
-        </div>
-
-        {% endif %}
-
+    <div class="cl-kpi cl-kpi-click" onclick="showKpi('commission','Commission earned')">
+        <div class="cl-kpi-label">Commission earned</div>
+        <div class="cl-kpi-value">{{ '{:,.2f}'.format(comm_total) }}</div>
     </div>
+
+    {% if not work_mode %}
+
+    <div class="cl-kpi cl-kpi-click" onclick="showKpi('paid','Payments made')">
+        <div class="cl-kpi-label">Paid</div>
+        <div class="cl-kpi-value">{{ '{:,.2f}'.format(paid_total) }}</div>
+    </div>
+
+    <div class="cl-kpi cl-kpi-click" onclick="showKpi('tds','TDS deducted')">
+        <div class="cl-kpi-label">TDS</div>
+        <div class="cl-kpi-value">{{ '{:,.2f}'.format(tds_total) }}</div>
+    </div>
+
+    <div class="cl-kpi cl-kpi-click" onclick="showKpi('before','Paid before closure')">
+        <div class="cl-kpi-label">Paid before closure</div>
+        <div class="cl-kpi-value">{{ '{:,.2f}'.format(split.before) }}</div>
+    </div>
+
+    <div class="cl-kpi cl-kpi-click" onclick="showKpi('after','Paid after closure')">
+        <div class="cl-kpi-label">Paid after closure</div>
+        <div class="cl-kpi-value">{{ '{:,.2f}'.format(split.after) }}</div>
+    </div>
+
+    {% if split.unlinked %}
+    <div class="cl-kpi cl-kpi-click" onclick="showKpi('unlinked','Paid (not linked to a work)')">
+        <div class="cl-kpi-label">Paid (not linked to a work)</div>
+        <div class="cl-kpi-value">{{ '{:,.2f}'.format(split.unlinked) }}</div>
+    </div>
+    {% endif %}
+
+    <div class="cl-kpi cl-kpi-click"
+         onclick="showKpi('balance','Closing balance — coordinator-wise')"
+         style="border-left:3px solid
+         {% if totals.balance and totals.balance > 0.005 %}#c0392b
+         {% elif totals.balance and totals.balance < -0.005 %}#856404
+         {% else %}#155724{% endif %}">
+        <div class="cl-kpi-label">Closing balance</div>
+        <div class="cl-kpi-value">
+            {% if totals.balance is not none and totals.balance > 0.005 %}
+                {{ '{:,.2f}'.format(totals.balance) }} Cr
+            {% elif totals.balance is not none and totals.balance < -0.005 %}
+                {{ '{:,.2f}'.format(-totals.balance) }} Dr
+            {% else %}
+                Nil
+            {% endif %}
+        </div>
+        <div class="cl-kpi-label">
+            {% if totals.balance is not none and totals.balance > 0.005 %}
+                payable to coordinator
+            {% elif totals.balance is not none and totals.balance < -0.005 %}
+                advance with coordinator
+            {% endif %}
+        </div>
+    </div>
+
+    {% endif %}
+
+</div>
 
 
     {# COORDINATOR SUMMARY #}
@@ -1080,12 +1083,79 @@
     {% endif %}
 
 </div>
-
+<div id="clKpiModal" class="cl-modal-bg" onclick="if(event.target===this)closeKpi()">
+    <div class="cl-modal">
+        <div class="cl-modal-head">
+            <h3 id="clKpiTitle"></h3>
+            <button type="button" class="btn btn-sm" onclick="closeKpi()">✕</button>
+        </div>
+        <div class="cl-modal-body">
+            <table class="cl-table" id="clKpiTable"></table>
+        </div>
+    </div>
+</div>
 
 {# JAVASCRIPT #}
-
+<div id="clKpiData" data-kpi='{{ kpi_detail | tojson | forceescape }}' hidden></div>
 <script>
+var KPI = JSON.parse(document.getElementById('clKpiData').dataset.kpi);
 
+function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = (s == null ? '' : s);
+    return d.innerHTML;
+}
+function fmt(n) {
+    return Number(n || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function showKpi(key, title) {
+    var data = KPI[key] || [];
+    var html = '';
+
+    if (key === 'balance') {
+        html = '<thead><tr><th>Coordinator</th><th class="num">Commission</th>' +
+               '<th class="num">Paid</th><th class="num">TDS</th><th class="num">Balance</th></tr></thead><tbody>';
+        data.forEach(function(r) {
+            var bal = r.balance > 0.005 ? fmt(r.balance) + ' Cr'
+                    : r.balance < -0.005 ? fmt(-r.balance) + ' Dr' : 'Nil';
+            html += '<tr><td>' + esc(r.coord) + '</td><td class="num">' + fmt(r.commission) +
+                    '</td><td class="num">' + fmt(r.paid) + '</td><td class="num">' + fmt(r.tds) +
+                    '</td><td class="num"><strong>' + bal + '</strong></td></tr>';
+        });
+        html += '</tbody>';
+    } else {
+        var total = 0;
+        html = '<thead><tr><th>Date</th><th>Coordinator</th><th>Particulars</th>' +
+               '<th class="num">Amount</th></tr></thead><tbody>';
+        data.forEach(function(r) {
+            total += r.amount;
+            html += '<tr><td style="white-space:nowrap">' + esc(r.date) + '</td><td>' + esc(r.coord) +
+                    '</td><td>' + esc(r.text) +
+                    (r.note ? '<div class="cl-note">' + esc(r.note) + '</div>' : '') +
+                    '</td><td class="num">' + fmt(r.amount) + '</td></tr>';
+        });
+        if (data.length) {
+            html += '<tr class="cl-total"><td colspan="3" style="text-align:right">Total</td>' +
+                    '<td class="num">' + fmt(total) + '</td></tr>';
+        }
+        html += '</tbody>';
+    }
+
+    if (!data.length) {
+        html = '<tbody><tr><td style="text-align:center;padding:24px;color:var(--hint)">' +
+               'No entries.</td></tr></tbody>';
+    }
+
+    document.getElementById('clKpiTitle').textContent = title;
+    document.getElementById('clKpiTable').innerHTML = html;
+    document.getElementById('clKpiModal').style.display = 'flex';
+}
+
+function closeKpi() {
+    document.getElementById('clKpiModal').style.display = 'none';
+}
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeKpi(); });
 function togglePanel(id) {
 
     var el = document.getElementById(id);
