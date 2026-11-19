@@ -256,6 +256,7 @@
             🖨 Print
         </button>
         <button type="button" class="btn btn-primary" onclick="downloadExcel()">↓ Excel</button>
+        <button type="button" class="btn btn-secondary" onclick="downloadKpi('all')">↓ All KPIs</button>
 
     </div>
 
@@ -1085,10 +1086,13 @@
 </div>
 <div id="clKpiModal" class="cl-modal-bg" onclick="if(event.target===this)closeKpi()">
     <div class="cl-modal">
-        <div class="cl-modal-head">
-            <h3 id="clKpiTitle"></h3>
-            <button type="button" class="btn btn-sm" onclick="closeKpi()">✕</button>
-        </div>
+       <div class="cl-modal-head">
+    <h3 id="clKpiTitle"></h3>
+    <div style="display:flex;gap:6px">
+        <button type="button" class="btn btn-sm btn-primary" onclick="downloadKpi()">↓ Excel</button>
+        <button type="button" class="btn btn-sm" onclick="closeKpi()">✕</button>
+    </div>
+</div>
         <div class="cl-modal-body">
             <table class="cl-table" id="clKpiTable"></table>
         </div>
@@ -1110,6 +1114,7 @@ function fmt(n) {
 }
 
 function showKpi(key, title) {
+    currentKpi = key;
     var data = KPI[key] || [];
     var html = '';
 
@@ -1182,7 +1187,17 @@ function clTds() {
         a ? ('Total debit ₹' + (a + t).toLocaleString('en-IN')) : '';
 
 }
+var currentKpi = null;
 
+function downloadKpi(key) {
+    key = key || currentKpi;
+    if (!key) return;
+    var qs = new URLSearchParams(
+        new FormData(document.querySelector('.cl-filter-bar'))
+    );
+    qs.set('kpi', key);
+    window.location = "{{ url_for('commission_kpi_download') }}?" + qs.toString();
+}
 function downloadExcel() {
     var qs = new URLSearchParams(
         new FormData(document.querySelector('.cl-filter-bar'))

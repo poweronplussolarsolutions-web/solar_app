@@ -5755,6 +5755,119 @@ def commission_ledger_download():
     path = build_commission_ledger_excel(ctx, tempfile.gettempdir())
     return send_file(path, as_attachment=True, download_name=os.path.basename(path),
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+KPI_SHEET_TITLES = {
+    'commission': 'Commission earned',
+    'paid':       'Payments made',
+    'tds':        'TDS deducted',
+    'before':     'Paid before closure',
+    'after':      'Paid after closure',
+    'unlinked':   'Paid (not linked)',
+    'balance':    'Closing balance',
+}
+
+
+def build_commission_kpi_excel(ctx, keys, output_dir='/tmp'):
+    wb = Workbook()
+    wb.remove(wb.active)
+    selected = ctx['selected']
+
+    sub = f"{selected.full_name if selected else 'All coordinators'} · {ctx['period_label']}"
+    if ctx['work']:
+        sub += f" · Work {ctx['work']}"
+
+    for key in keys:
+        title = KPI_SHEET_TITLES[key]
+        data  = ctx['kpi_detail'].get(key, [])
+        ws = wb.create_sheet(title[:31])
+        _page_setup(ws)
+        ws.freeze_panes = 'A6'
+
+        if key == 'balance':
+            headers = ['Coordinator', 'Commission (₹)', 'Paid (₹)', 'TDS (₹)', 'Balance (₹)', 'Side']
+            fmts    = [None, '#,##0.00', '#,##0.00', '#,##0.00', '#,##0.00', None]
+            aligns  = ['left', 'right', 'right', 'right', 'right', 'center']
+        else:
+            headers = ['Date', 'Coordinator', 'Particulars', 'Notes', 'Amount (₹)']
+            fmts    = [None, None, None, None, '#,##0.00']
+            aligns  = ['center', 'left', 'left', 'left', 'right']
+        n = len(headers)
+
+        titles = [
+            ('Power On Plus Solar Solutions', C_HEADER_BG, C_HEADER_FG, 14, False),
+            (f'Commission Ledger — {title}',  C_SUBHDR_BG, C_HEADER_FG, 11, False),
+            (sub,                             C_ALT_BG,    '444444',    10, True),
+        ]
+        for r, (txt, bg_c, fg_c, sz, italic) in enumerate(titles, 1):
+            ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=n)
+            c = ws.cell(r, 1)
+            c.value, c.fill = txt, _fill(bg_c)
+            c.font = _font(bold=not italic, color=fg_c, size=sz, italic=italic)
+            c.alignment = _center()
+        ws.row_dimensions[1].height = 28
+        ws.row_dimensions[2].height = 22
+        ws.row_dimensions[4].height = 8
+        for col, h in enumerate(headers, 1):
+            _style_header_cell(ws.cell(5, col), h)
+
+        row = 6
+        total = 0.0
+        for i, r in enumerate(data):
+            bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+            if key == 'balance':
+                bal = r['balance']
+                side = 'Cr (payable)' if bal > 0.005 else 'Dr (advance)' if bal < -0.005 else 'Nil'
+                vals = [r['coord'], r['commission'], r['paid'], r['tds'], abs(bal), side]
+            else:
+                total += r['amount']
+                vals = [r['date'], r['coord'], r['text'], r.get('note') or '', r['amount']]
+            for col, (v, f, a) in enumerate(zip(vals, fmts, aligns), 1):
+                _style_data_cell(ws.cell(row, col), v, bg=bg, align=a, number_fmt=f)
+            ws.row_dimensions[row].height = 17
+            row += 1
+
+        if data and key != 'balance':
+            for col in range(1, n + 1):
+                cell = ws.cell(row, col)
+                if col == 1:
+                    _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+                elif col == 2:
+                    _style_data_cell(cell, f'{len(data)} entries', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
+                elif col == n:
+                    _style_data_cell(cell, total, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True,
+                                     align='right', number_fmt='#,##0.00')
+                else:
+                    cell.fill, cell.border = _fill(C_TOTAL_BG), _border()
+
+        widths = [24, 16, 14, 14, 16, 14] if key == 'balance' else [13, 24, 44, 34, 16]
+        for i, w in enumerate(widths, 1):
+            ws.column_dimensions[get_column_letter(i)].width = w
+
+    safe   = re.sub(r'[^A-Za-z0-9]+', '', selected.full_name) if selected else 'All'
+    period = re.sub(r'\s+', '', ctx['period_label'])
+    tag    = keys[0].capitalize() if len(keys) == 1 else 'AllKPIs'
+    fname  = f'CommissionKPI_{tag}_{safe}_{period}.xlsx'
+    path   = os.path.join(output_dir, fname)
+    wb.save(path)
+    return path
+
+
+@app.route('/admin/commission_ledger/kpi_download')
+@login_required
+@roles_required(*COMMISSION_VIEW_ROLES)
+def commission_kpi_download():
+    key = request.args.get('kpi', '')
+    if key == 'all':
+        keys = [k for k in KPI_SHEET_TITLES if k != 'unlinked' or _commission_ledger_context()['split']['unlinked']]
+    elif key in KPI_SHEET_TITLES:
+        keys = [key]
+    else:
+        flash('Unknown KPI.', 'danger')
+        return redirect(url_for('commission_ledger'))
+
+    ctx  = _commission_ledger_context()
+    path = build_commission_kpi_excel(ctx, keys, tempfile.gettempdir())
+    return send_file(path, as_attachment=True, download_name=os.path.basename(path),
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 @app.route('/admin/commissions/payment/new', methods=['POST'])
 @login_required
 @roles_required('admin', 'director', 'finance')
