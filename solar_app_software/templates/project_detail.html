@@ -675,7 +675,7 @@ function togglePanelAddr(which) {
       {% if w.waiver %} by {{ w.waiver.full_name }}{% endif %}
       <div style="color:var(--hint);margin-top:2px">{{ w.reason }}</div>
     </div>
-    {% if current_user.role in ['admin','payments' %}
+    {% if current_user.role in ['admin','payments'] %}
     <form method="POST" action="{{ url_for('delete_waiver', pid=proj.id, wid=w.id) }}"
           onsubmit="return confirm('Reverse this write-off?')">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
