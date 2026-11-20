@@ -7390,7 +7390,7 @@ def waive_balance(pid):
 
 @app.route('/projects/<int:pid>/waive_balance/<int:wid>/delete', methods=['POST'])
 @login_required
-@roles_required('admin')
+@roles_required('admin','payments')
 def delete_waiver(pid, wid):
     w = PaymentWaiver.query.get_or_404(wid)
     amount = float(w.amount)
