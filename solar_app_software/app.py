@@ -2470,7 +2470,25 @@ def _get_service_report_records(mode, single_date=None, days=None, coordinator='
                  Project.work_category != 'Outside'))
 
     all_records = base_q.order_by(ServiceRecord.project_id, ServiceRecord.visit_number).all()
+    if mode == 'all':
+        by_project = {}
+        for rec in all_records:
+            by_project.setdefault(rec.project_id, []).append(rec)
 
+        out = []
+        for recs in by_project.values():
+            p = recs[0].project
+            # same eligibility rule as the Service Management page
+            if not (p.pending_amount <= 0 or p.status == 'Closed'):
+                continue
+            if not _matches_coordinator(p, coordinator):
+                continue
+            # next pending visit, or the last visit if everything is done
+            pick = next((r for r in recs if r.status not in ('Completed', 'Skipped')), recs[-1])
+            out.append(pick)
+
+        return sorted(out, key=lambda r: int(r.project.project_code)
+                      if str(r.project.project_code).isdigit() else 0)
     next_by_project = {}
     for rec in all_records:
         if rec.project_id in next_by_project:
@@ -2657,6 +2675,7 @@ def build_service_report_pdf(records, mode, output_dir='/tmp', extra_label=''):
         'month':     'Service Visits Due This Month',
         'next_days': 'Upcoming Service Visits',
         'date':      'Service Visits Scheduled On',
+        'all': 'All Works in Service',
     }
     title_label = mode_labels.get(mode, 'Service Visits Report')
     if extra_label:
@@ -2763,7 +2782,7 @@ def _service_report_params():
     single_date_val = None
     if date_str:
         single_date_val = date.fromisoformat(date_str)   # caller handles ValueError
-    if mode not in ('overdue', 'week', 'month', 'next_days', 'date'):
+    if mode not in ('overdue', 'week', 'month', 'next_days', 'date','all'):
         mode = 'overdue'
 
     extra_label = ''
@@ -2801,6 +2820,7 @@ def build_service_report_excel(records, mode, output_dir='/tmp', extra_label='')
         'month':     'Service Visits Due This Month',
         'next_days': 'Upcoming Service Visits',
         'date':      'Service Visits Scheduled On',
+        'all': 'All Works in Service',
     }
     title_label = mode_labels.get(mode, 'Service Visits Report')
     if extra_label:

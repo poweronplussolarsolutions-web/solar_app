@@ -662,6 +662,7 @@ function togglePanelAddr(which) {
                   border-radius:var(--radius);padding:6px 10px">
         Max next payment: {{ proj.pending_amount | inr }}
       </div>
+      {% endif %}
       {% if proj.waivers %}
 <div style="margin-top:10px;margin-bottom:6px">
   {% for w in proj.waivers | sort(attribute='created_at', reverse=True) %}
@@ -720,7 +721,7 @@ function togglePanelAddr(which) {
   </form>
 </div>
 {% endif %}
-      {% endif %}
+      
       <div class="payment-grid">
         <div style="background:var(--bg);border-radius:var(--radius);padding:10px 14px">
           <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Contract amount</div>
