@@ -1063,10 +1063,12 @@
       {{ label }}{% if count is not none %} <span class="count">{{ count }}</span>{% endif %}
     </button>
     {% endfor %}
+    {% if current_user.role in ['admin','director'] %}
         <a class="fpill {% if view == 'blocked' %}active{% endif %}"
        href="{{ url_for('service_management', view='blocked' if view != 'blocked' else None, coordinator=coordinator_filter|default('All')) }}">
       <i class="ti ti-lock" style="font-size:12px"></i> Blocked <span class="count">{{ blocked_total|default(0) }}</span>
     </a>
+    {% endif %}
   </div>
 </div>
 
@@ -1136,7 +1138,7 @@
 
   <div class="sm-card-head" data-pid="{{ p.id }}">
 
-    {% if current_user.role in ['admin', 'service'] and pd.next and not pd.next_locked and not pd.blocked %}
+    {% if current_user.role in ['admin', 'service'] and pd.next and not pd.next_locked %}
 <input type="checkbox" class="sm-select-box" data-sid="{{ pd.next.id }}" data-pid="{{ p.id }}"
        onclick="event.stopPropagation(); smToggleSelect(this)">
 {% elif current_user.role in ['admin', 'service'] %}
@@ -1152,8 +1154,13 @@
 
   <!-- Customer Name -->
   <div class="sm-proj-name">
-    {{ p.customer.name }}
-  </div>
+  {{ p.customer.name }}
+  {% if pd.blocked and current_user.role in ['admin','director'] %}
+  <span class="sm-next-badge" style="background:#fef2f2;color:#b91c1c;margin-left:6px">
+    <i class="ti ti-lock" style="font-size:10px"></i> Blocked
+  </span>
+  {% endif %}
+</div>
 
   <!-- Project Details -->
   <div class="sm-project-details">
@@ -1272,12 +1279,14 @@
 
   <div class="sm-card-body" id="body-{{ p.id }}">
         {% if pd.blocked %}
-    <div class="status-banner warn" style="background:#fef2f2;border-color:#fca5a5;color:#b91c1c">
-      <i class="ti ti-lock"></i>
-      <div><strong>Service blocked</strong> for {{ pd.blocked.label }} — {{ pd.blocked.reason }}
-      {% if pd.blocked.blocked_until %}(until {{ pd.blocked.blocked_until | date_fmt }}){% endif %}.
-      Visits can't be completed or rescheduled until released.</div>
-    </div>
+    {% if pd.blocked and current_user.role in ['admin','director'] %}
+<div class="status-banner warn" style="background:#fef2f2;border-color:#fca5a5;color:#b91c1c">
+  <i class="ti ti-lock"></i>
+  <div><strong>Coordinator flagged as blocked</strong> — {{ pd.blocked.label }}: {{ pd.blocked.reason }}
+  {% if pd.blocked.blocked_until %}(until {{ pd.blocked.blocked_until | date_fmt }}){% endif %}.
+  Customer-requested service can still be given and recorded.</div>
+</div>
+{% endif %}
     {% endif %}
     {% if p.status not in ['Completed', 'Closed'] %}
     <div class="status-banner warn">
@@ -1355,7 +1364,7 @@
           </div>
           {% endif %}
 
-          {% if rec.status == 'Completed' and current_user.role in ['admin', 'service'] and not pd.blocked %}
+          {% if rec.status == 'Completed' and current_user.role in ['admin', 'service'] %}
           <div class="vrow-actions">
             <button class="btn btn-sm" onclick="toggleInline('editcomplete-{{ rec.id }}')">
               <i class="ti ti-edit" style="font-size:12px"></i> Edit
@@ -1424,7 +1433,7 @@
           </div>
           {% endif %}
 
-          {% if (not locked or current_user.role == 'admin') and rec.status not in ['Completed', 'Skipped'] and not pd.blocked %}
+          {% if (not locked or current_user.role == 'admin') and rec.status not in ['Completed', 'Skipped'] %}
             {% if current_user.role in ['admin', 'service'] %}
             <div class="vrow-actions">
               {% if locked and current_user.role == 'admin' %}

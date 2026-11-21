@@ -1388,11 +1388,10 @@ def _block_for(p, blocks=None):
 
 
 def _service_blocked(proj):
-    """Flash + True if this project's service is blocked. Use as a route guard."""
+    """Advisory only: admins/directors get a heads-up, nobody is stopped."""
     b = _block_for(proj)
-    if b:
-        flash(f'Service is blocked for coordinator {b.label} ({b.reason}). Release the block first.', 'danger')
-        return True
+    if b and current_user.role in ('admin', 'director'):
+        flash(f'Note: service is flagged as blocked for coordinator {b.label} ({b.reason}).', 'warning')
     return False
 class SiteVisit(db.Model):
     __tablename__ = 'site_visits'
@@ -2364,8 +2363,8 @@ def service_map():
                 Project.work_category != 'Outside')            
         .all())
     tags = [t for t in tags if t.project.pending_amount <= 0 or t.project.status == 'Closed']
-    blocks = _active_blocks()
-    tags = [t for t in tags if not _block_for(t.project, blocks)]
+    # blocks = _active_blocks()
+    # tags = [t for t in tags if not _block_for(t.project, blocks)]
     def _next_visit_status(proj):
         recs = sorted(proj.service_records, key=lambda r: r.visit_number)
         nxt  = next((r for r in recs if r.status not in ('Completed', 'Skipped')), None)
@@ -2593,8 +2592,8 @@ def _get_service_report_records(mode, single_date=None, days=None, coordinator='
                  Project.work_category != 'Outside'))
 
     all_records = base_q.order_by(ServiceRecord.project_id, ServiceRecord.visit_number).all()
-    blocks = _active_blocks()
-    all_records = [r for r in all_records if not _block_for(r.project, blocks)]
+    # blocks = _active_blocks()
+    # all_records = [r for r in all_records if not _block_for(r.project, blocks)]
     if mode == 'all':
         by_project = {}
         for rec in all_records:
@@ -4275,7 +4274,7 @@ def dashboard():
             Notification.created_at.desc()).all()
 
     elif role == 'service':
-        blocks = _active_blocks()
+        # blocks = _active_blocks()
         # Keep the Service Dashboard stats aligned with Service Management.
         # Upcoming is counted only once per project, using that project's
         # next actionable service visit (first visit not Completed/Skipped).
@@ -4314,7 +4313,7 @@ def dashboard():
             p for p in service_projects
             if p.status not in ('Cancelled', 'OnHold')
             and p.work_category != 'Outside'
-            and not _block_for(p, blocks)
+            # and not _block_for(p, blocks)
             and (p.pending_amount <= 0 or p.status == 'Closed')
         ]
 
@@ -9332,11 +9331,12 @@ def service_management():
     if coordinator_filter != 'All':
         eligible_projects = [p for p in eligible_projects if _matches_coordinator(p, coordinator_filter)]
 
-    blocked_projects  = [p for p in eligible_projects if _block_for(p, blocks)]
-    blocked_ids       = {p.id for p in blocked_projects}
-    eligible_projects = [p for p in eligible_projects if p.id not in blocked_ids]   # stats use only live works
+    # Blocked works stay in the normal list, stats and actions.
+    # The block is only an admin/director flag + an optional filter view.
+    blocked_projects = [p for p in eligible_projects if _block_for(p, blocks)]
 
-    view = 'blocked' if request.args.get('view') == 'blocked' else ''
+    view = 'blocked' if (request.args.get('view') == 'blocked'
+                         and current_user.role in ('admin', 'director')) else ''
     filtered = blocked_projects if view == 'blocked' else eligible_projects
 
     if search:
@@ -9375,10 +9375,14 @@ def service_management():
             (a['locked'] for a in annotated if a['rec'] is next_v), False
         ) if next_v else False
 
+        # Only admin/director ever see the block flag; others get None
+        blk = _block_for(p, blocks) if current_user.role in ('admin', 'director') else None
+
         proj_data.append({
             'project': p, 'records': records, 'annotated': annotated,
             'done': done, 'over': over, 'due': due, 'skipped': skipped,
-            'total': total_r, 'pct': pct, 'next': next_v, 'next_locked': next_locked,'blocked': _block_for(p, blocks),
+            'total': total_r, 'pct': pct, 'next': next_v, 'next_locked': next_locked,
+            'blocked': blk,
         })
 
     eligible_ids = [p.id for p in eligible_projects]
@@ -9423,19 +9427,26 @@ def service_management():
         'skipped':   status_counts.get('Skipped', 0),
     }
 
+    is_block_admin = current_user.role in ('admin', 'director')
+
     return render_template('service_management.html',
                            proj_data=proj_data, stats=stats,
                            today=date.today(), page=page, total_pages=total_pages, search=search,
                            cbd_records=cbd_records, cbd_searched=cbd_searched,
-                           cbd_date_str=cbd_date_str, cbd_start_str=cbd_start_str, cbd_end_str=cbd_end_str,                           coordinator_filter=coordinator_filter,
+                           cbd_date_str=cbd_date_str, cbd_start_str=cbd_start_str,
+                           cbd_end_str=cbd_end_str,
+                           coordinator_filter=coordinator_filter,
                            coordinator_names=coordinator_names,
-                           has_unassigned=has_unassigned,active_blocks=blocks, block_work_count=block_work_count, view=view,
-        blocked_total=len(blocked_projects),
-        block_choices=[c for c in _coordinator_choices()
-                       if not any((b.coordinator_id and b.coordinator_id == c.uid) or
-                                  (not b.coordinator_id and c.uid is None and
-                                   (b.coordinator_name or '').lower() == c.full_name.lower())
-                                  for b in blocks)],)
+                           has_unassigned=has_unassigned,
+                           active_blocks=blocks if is_block_admin else [],
+                           block_work_count=block_work_count if is_block_admin else {},
+                           view=view,
+                           blocked_total=len(blocked_projects) if is_block_admin else 0,
+                           block_choices=[c for c in _coordinator_choices()
+                                          if not any((b.coordinator_id and b.coordinator_id == c.uid) or
+                                                     (not b.coordinator_id and c.uid is None and
+                                                      (b.coordinator_name or '').lower() == c.full_name.lower())
+                                                     for b in blocks)] if is_block_admin else [])
     
 @app.route('/projects/<int:pid>/service')
 @login_required
@@ -9568,40 +9579,40 @@ def bulk_complete_service():
         flash('Completion date cannot be in the future.', 'danger')
         return redirect(url_for('service_management'))
 
-    done, skipped_locked = 0, 0
-    blocks = _active_blocks()          # ← add this
-    skipped_blocked = 0 
+    
+    # blocks = _active_blocks()          # ← add this
+    # skipped_blocked = 0 
     for sid in ids:
         rec = ServiceRecord.query.get(int(sid))
-        if not rec or rec.status == 'Completed':
-            continue
-        if _block_for(rec.project, blocks):          # blocks = _active_blocks() before the loop
-            skipped_blocked += 1
-            continue
-        if rec.visit_number > 1 and current_user.role != 'admin':
-            prev = ServiceRecord.query.filter_by(
-                project_id=rec.project_id, visit_number=rec.visit_number - 1).first()
-            if not prev or prev.status != 'Completed':
-                skipped_locked += 1
-                continue
+    #     if not rec or rec.status == 'Completed':
+    #         continue
+    #     if _block_for(rec.project, blocks):          # blocks = _active_blocks() before the loop
+    #         skipped_blocked += 1
+    #         continue
+    #     if rec.visit_number > 1 and current_user.role != 'admin':
+    #         prev = ServiceRecord.query.filter_by(
+    #             project_id=rec.project_id, visit_number=rec.visit_number - 1).first()
+    #         if not prev or prev.status != 'Completed':
+    #             skipped_locked += 1
+    #             continue
 
-        rec.status         = 'Completed'
-        rec.completed_date = completed_date
-        rec.conducted_by   = current_user.id
-        rec.panel_cleaning = panel_cleaning
-        if notes:
-            rec.notes = notes
+    rec.status         = 'Completed'
+    rec.completed_date = completed_date
+    rec.conducted_by   = current_user.id
+    rec.panel_cleaning = panel_cleaning
+    if notes:
+        rec.notes = notes
 
-        log_action(rec.project_id,
-            f'Service visit #{rec.visit_number} completed via bulk action — '
-            f'panel cleaning: {"Yes" if panel_cleaning else "No"}', new_val='Completed')
-        _reschedule_future_visits(rec, completed_date)
-        done += 1
+    log_action(rec.project_id,
+        f'Service visit #{rec.visit_number} completed via bulk action — '
+        f'panel cleaning: {"Yes" if panel_cleaning else "No"}', new_val='Completed')
+    _reschedule_future_visits(rec, completed_date)
+    done += 1
 
     db.session.commit()
     msg = f'{done} visit(s) marked complete.'
-    if skipped_blocked:
-        msg += f' {skipped_blocked} skipped — service blocked for their coordinator.'
+    # if skipped_blocked:
+    #     msg += f' {skipped_blocked} skipped — service blocked for their coordinator.'
     flash(msg, 'success' if done else 'warning')
     return redirect(url_for('service_management'))
 
