@@ -1544,7 +1544,7 @@
   <nav class="sm-pagination" aria-label="Service management pagination">
     {% if page > 1 %}
       <a class="sm-page-btn"
-         href="{{ url_for('service_management', page=page-1, coordinator=coordinator_filter|default('All'), search=search), view=view|default('') }}"
+         href="{{ url_for('service_management', page=page-1, coordinator=coordinator_filter|default('All'), search=search, view=view|default('')) }}"
          aria-label="Previous page">← Previous</a>
     {% else %}
       <span class="sm-page-btn disabled" aria-disabled="true">← Previous</span>
@@ -1554,7 +1554,7 @@
 
     {% if page < total_pages %}
       <a class="sm-page-btn"
-         href="{{ url_for('service_management', page=page+1, coordinator=coordinator_filter|default('All'), search=search),view=view|default('') }}"
+         href="{{ url_for('service_management', page=page+1, coordinator=coordinator_filter|default('All'), search=search,view=view|default('')) }}"
          aria-label="Next page">Next →</a>
     {% else %}
       <span class="sm-page-btn disabled" aria-disabled="true">Next →</span>
