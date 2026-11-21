@@ -13,6 +13,12 @@
   <button type="button" class="btn btn-sm" onclick="smTogglePdfPanel()">
     <i class="ti ti-file-download"></i> Download report
   </button>
+    {% if current_user.role in ['admin','director'] %}
+  <button type="button" class="btn btn-sm" onclick="sbTogglePanel()">
+    <i class="ti ti-lock"></i> Block coordinator
+    {% if active_blocks|default([]) %}<span class="count">({{ active_blocks|length }})</span>{% endif %}
+  </button>
+  {% endif %}
 {% endblock %}
 
 {% block head %}
@@ -901,7 +907,61 @@
   {% endif %}
 </div>
 {% endif %}
+{% if current_user.role in ['admin','director'] %}
+<div class="sm-pdf-panel" id="sb-panel" style="display:{{ 'block' if view == 'blocked' else 'none' }}">
+  <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">
+    <i class="ti ti-lock"></i> Block service for a coordinator's works
+  </div>
+  <form method="POST" action="{{ url_for('block_service_coordinator') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="sm-pdf-row">
+      <div class="form-group">
+        <label>Coordinator</label>
+        <select name="coordinator_key" required>
+          <option value="">Select…</option>
+          {% for c in block_choices %}<option value="{{ c.key }}">{{ c.full_name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="flex:1;min-width:200px">
+        <label>Reason</label>
+        <input type="text" name="reason" maxlength="300" required placeholder="e.g. Payment dispute, commission pending…">
+      </div>
+      <div class="form-group">
+        <label>Block until <span style="font-weight:400">(optional)</span></label>
+        <input type="date" name="blocked_until" min="{{ (today.fromordinal(today.toordinal()+1)).isoformat() }}">
+      </div>
+      <button type="submit" class="btn btn-sm btn-danger"><i class="ti ti-lock" style="font-size:12px"></i> Block</button>
+    </div>
+  </form>
 
+  {% if active_blocks %}
+  <div style="margin-top:14px;border-top:0.5px solid var(--border);padding-top:12px">
+    {% for b in active_blocks %}
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border)">
+      <div style="flex:1;min-width:200px">
+        <strong>{{ b.label }}</strong>
+        <span style="font-size:11.5px;color:var(--muted)">
+          · {{ block_work_count.get(b.id, 0) }} work(s) · since {{ b.blocked_at | date_fmt }}
+          {% if b.blocked_until %}· until {{ b.blocked_until | date_fmt }}{% endif %}
+        </span>
+        <div style="font-size:12px;color:var(--hint)">{{ b.reason }}</div>
+      </div>
+      <form method="POST" action="{{ url_for('release_service_block', bid=b.id) }}"
+            style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="text" name="release_note" placeholder="Release note (optional)" style="font-size:12px;padding:6px 9px;border:0.5px solid var(--border);border-radius:8px">
+        <label style="font-size:12px;display:flex;align-items:center;gap:5px">
+          <input type="checkbox" name="reschedule_overdue" checked> Reschedule overdue visits to
+          <input type="number" name="grace_days" value="14" min="1" max="90" style="width:54px;font-size:12px"> days from today
+        </label>
+        <button type="submit" class="btn btn-sm btn-primary"><i class="ti ti-lock-open" style="font-size:12px"></i> Release</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
 <div class="sm-pdf-panel" id="sm-pdf-panel" style="display:none">
   <form method="GET" action="{{ url_for('download_service_report_pdf') }}"
         target="_blank" onsubmit="return smValidatePdfForm()">
@@ -1003,6 +1063,10 @@
       {{ label }}{% if count is not none %} <span class="count">{{ count }}</span>{% endif %}
     </button>
     {% endfor %}
+        <a class="fpill {% if view == 'blocked' %}active{% endif %}"
+       href="{{ url_for('service_management', view='blocked' if view != 'blocked' else None, coordinator=coordinator_filter|default('All')) }}">
+      <i class="ti ti-lock" style="font-size:12px"></i> Blocked <span class="count">{{ blocked_total|default(0) }}</span>
+    </a>
   </div>
 </div>
 
@@ -1072,7 +1136,7 @@
 
   <div class="sm-card-head" data-pid="{{ p.id }}">
 
-    {% if current_user.role in ['admin', 'service'] and pd.next and not pd.next_locked %}
+    {% if current_user.role in ['admin', 'service'] and pd.next and not pd.next_locked and not pd.blocked %}
 <input type="checkbox" class="sm-select-box" data-sid="{{ pd.next.id }}" data-pid="{{ p.id }}"
        onclick="event.stopPropagation(); smToggleSelect(this)">
 {% elif current_user.role in ['admin', 'service'] %}
@@ -1207,6 +1271,14 @@
   </div>
 
   <div class="sm-card-body" id="body-{{ p.id }}">
+        {% if pd.blocked %}
+    <div class="status-banner warn" style="background:#fef2f2;border-color:#fca5a5;color:#b91c1c">
+      <i class="ti ti-lock"></i>
+      <div><strong>Service blocked</strong> for {{ pd.blocked.label }} — {{ pd.blocked.reason }}
+      {% if pd.blocked.blocked_until %}(until {{ pd.blocked.blocked_until | date_fmt }}){% endif %}.
+      Visits can't be completed or rescheduled until released.</div>
+    </div>
+    {% endif %}
     {% if p.status not in ['Completed', 'Closed'] %}
     <div class="status-banner warn">
       <i class="ti ti-hourglass"></i>
@@ -1283,7 +1355,7 @@
           </div>
           {% endif %}
 
-          {% if rec.status == 'Completed' and current_user.role in ['admin', 'service'] %}
+          {% if rec.status == 'Completed' and current_user.role in ['admin', 'service'] and not pd.blocked %}
           <div class="vrow-actions">
             <button class="btn btn-sm" onclick="toggleInline('editcomplete-{{ rec.id }}')">
               <i class="ti ti-edit" style="font-size:12px"></i> Edit
@@ -1352,7 +1424,7 @@
           </div>
           {% endif %}
 
-          {% if (not locked or current_user.role == 'admin') and rec.status not in ['Completed', 'Skipped'] %}
+          {% if (not locked or current_user.role == 'admin') and rec.status not in ['Completed', 'Skipped'] and not pd.blocked %}
             {% if current_user.role in ['admin', 'service'] %}
             <div class="vrow-actions">
               {% if locked and current_user.role == 'admin' %}
@@ -1472,7 +1544,7 @@
   <nav class="sm-pagination" aria-label="Service management pagination">
     {% if page > 1 %}
       <a class="sm-page-btn"
-         href="{{ url_for('service_management', page=page-1, coordinator=coordinator_filter|default('All'), search=search) }}"
+         href="{{ url_for('service_management', page=page-1, coordinator=coordinator_filter|default('All'), search=search), view=view|default('') }}"
          aria-label="Previous page">← Previous</a>
     {% else %}
       <span class="sm-page-btn disabled" aria-disabled="true">← Previous</span>
@@ -1482,7 +1554,7 @@
 
     {% if page < total_pages %}
       <a class="sm-page-btn"
-         href="{{ url_for('service_management', page=page+1, coordinator=coordinator_filter|default('All'), search=search) }}"
+         href="{{ url_for('service_management', page=page+1, coordinator=coordinator_filter|default('All'), search=search),view=view|default('') }}"
          aria-label="Next page">Next →</a>
     {% else %}
       <span class="sm-page-btn disabled" aria-disabled="true">Next →</span>
@@ -1689,6 +1761,10 @@ function cbdTogglePanel() {
   var el = document.getElementById('cbd-panel');
   if (!el) return;
   el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+function sbTogglePanel() {
+  var el = document.getElementById('sb-panel');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 </script>
 {% endblock %}
