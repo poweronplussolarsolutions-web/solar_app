@@ -19,6 +19,12 @@
     {% if active_blocks|default([]) %}<span class="count">({{ active_blocks|length }})</span>{% endif %}
   </button>
   {% endif %}
+  {% if current_user.role in ['admin','director'] %}
+ <a href="{{ url_for('dispatch_board') }}" class="btn btn-sm">
+   <i class="ti ti-truck"></i> Dispatch
+ </a>
+{% endif %}
+
 {% endblock %}
 
 {% block head %}

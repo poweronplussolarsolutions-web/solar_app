@@ -18,6 +18,7 @@ import os
 import re
 import uuid
 import shutil
+from collections import Counter
 from solar_app_software.rts_feasibility import build_rts_feasibility_pdf
 from pywebpush import webpush, WebPushException
 from urllib.parse import quote_plus 
@@ -1319,6 +1320,11 @@ class ServiceRecord(db.Model):
  
     project     = db.relationship('Project', backref='service_records')
     technician  = db.relationship('User', foreign_keys=[conducted_by])
+    assigned_team_id = db.Column(db.Integer, db.ForeignKey('service_teams.id'), nullable=True, index=True)
+    assigned_at      = db.Column(db.DateTime, nullable=True)
+    assigned_by      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    sheet_sent_at    = db.Column(db.DateTime, nullable=True)
+    team             = db.relationship('ServiceTeam', foreign_keys=[assigned_team_id])
  
     @property
     def checklist_pct(self):
@@ -1330,6 +1336,12 @@ class ServiceRecord(db.Model):
             self.status not in ('Completed', 'Skipped')
             and self.scheduled_date < date.today()
         )
+class ServiceTeam(db.Model):
+    __tablename__ = 'service_teams'
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(80), nullable=False)
+    is_active  = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 class PreServiceLog(db.Model):
     """A service visit done before the project's schedule exists.
     Applied automatically when create_service_schedule() runs."""
@@ -9447,7 +9459,485 @@ def service_management():
                                                      (not b.coordinator_id and c.uid is None and
                                                       (b.coordinator_name or '').lower() == c.full_name.lower())
                                                      for b in blocks)] if is_block_admin else [])
-    
+DISPATCH_ROLES = ('admin', 'director')
+def _dispatch_teams():
+    return ServiceTeam.query.filter_by(is_active=True).order_by(ServiceTeam.id).all()
+
+
+def _code_sort(r):
+    c = str(r['project'].project_code)
+    return (0, int(c), '') if c.isdigit() else (1, 0, c)
+
+
+def _dispatch_rows():
+    """The NEXT open visit of every eligible project (same eligibility rule as
+    service_management). Returns (rows, labels).
+    rows   -> [{'rec', 'project', 'place_key'}]
+    labels -> {place_key: display label}  (most common spelling wins)"""
+    refresh_service_statuses()
+
+    projects = (Project.query
+        .options(joinedload(Project.customer),
+                 joinedload(Project.subsidy),
+                 joinedload(Project.bank_excess),
+                 selectinload(Project.payments),
+                 selectinload(Project.expenses),
+                 selectinload(Project.waivers),
+                 selectinload(Project.payment_excesses),
+                 selectinload(Project.adjustments_in))
+        .filter(Project.status.notin_(['Cancelled', 'OnHold']),
+                Project.work_category != 'Outside',
+                Project.id.in_(db.session.query(ServiceRecord.project_id).distinct()))
+        .all())
+    eligible = {p.id: p for p in projects if p.pending_amount <= 0 or p.status == 'Closed'}
+    if not eligible:
+        return [], {}
+
+    recs = (ServiceRecord.query
+            .filter(ServiceRecord.project_id.in_(list(eligible)),
+                    ServiceRecord.status.notin_(['Completed', 'Skipped']))
+            .order_by(ServiceRecord.project_id, ServiceRecord.visit_number)
+            .all())
+    next_rec = {}
+    for r in recs:
+        next_rec.setdefault(r.project_id, r)          # first open visit = next one
+
+    rows, spellings = [], {}
+    for pid, rec in next_rec.items():
+        p = eligible[pid]
+        raw = (p.customer.place or '').strip()
+        key = re.sub(r'[\s.,\-]+', ' ', raw.lower()).strip()
+        spellings.setdefault(key, Counter())[raw] += 1
+        rows.append({'rec': rec, 'project': p, 'place_key': key})
+
+    labels = {}
+    for key, c in spellings.items():
+        best = c.most_common(1)[0][0]
+        labels[key] = best.title() if best else 'No place recorded'
+    return rows, labels
+
+
+def _group_by_place(rows, labels, by_count=False):
+    groups = {}
+    for r in rows:
+        groups.setdefault(r['place_key'], []).append(r)
+    out = []
+    for key, rs in groups.items():
+        rs.sort(key=_code_sort)
+        out.append({'key': key, 'label': labels.get(key, key), 'rows': rs,
+                    'overdue': sum(1 for r in rs if r['rec'].status == 'Overdue')})
+    if by_count:
+        out.sort(key=lambda g: (-len(g['rows']), g['label'].lower()))
+    else:
+        out.sort(key=lambda g: g['label'].lower())
+    return out
+
+
+def _dispatch_ids():
+    return [int(i) for i in request.form.getlist('record_ids') if i.isdigit()][:2000]
+
+
+def _dispatch_back():
+    show = 'all' if request.form.get('show') == 'all' else 'due'
+    tab = request.form.get('tab', 'pool')
+    if not re.fullmatch(r'pool|team\d+', tab):
+        tab = 'pool'
+    return redirect(url_for('dispatch_board', show=show) + '#' + tab)
+
+
+@app.route('/service/dispatch')
+@login_required
+@roles_required(*DISPATCH_ROLES)
+def dispatch_board():
+    show  = 'all' if request.args.get('show') == 'all' else 'due'
+    teams = _dispatch_teams()
+    rows, labels = _dispatch_rows()
+
+    pool_rows = [r for r in rows
+                 if not r['rec'].assigned_team_id
+                 and (show == 'all' or r['rec'].status in ('Overdue', 'Due'))]
+    team_rows = {t.id: [r for r in rows if r['rec'].assigned_team_id == t.id] for t in teams}
+
+    # which teams hold open work in each place (drives the overlap warnings)
+    place_teams = {}
+    for t in teams:
+        for key, n in Counter(r['place_key'] for r in team_rows[t.id]).items():
+            place_teams.setdefault(key, []).append({'id': t.id, 'name': t.name, 'count': n})
+    overlaps = [{'label': labels.get(k, k), 'teams': v}
+                for k, v in sorted(place_teams.items(), key=lambda kv: labels.get(kv[0], kv[0]).lower())
+                if len(v) > 1]
+
+    return render_template('service_dispatch.html',
+        teams=teams, all_teams=ServiceTeam.query.order_by(ServiceTeam.id).all(),
+        show=show, today=date.today(),
+        pool_groups=_group_by_place(pool_rows, labels, by_count=True),
+        pool_total=len(pool_rows),
+        team_groups={t.id: _group_by_place(team_rows[t.id], labels) for t in teams},
+        team_counts={t.id: len(team_rows[t.id]) for t in teams},
+        team_overdue={t.id: sum(1 for r in team_rows[t.id] if r['rec'].status == 'Overdue') for t in teams},
+        place_teams=place_teams, overlaps=overlaps)
+
+
+@app.route('/service/dispatch/assign', methods=['POST'])
+@login_required
+@roles_required(*DISPATCH_ROLES)
+def dispatch_assign():
+    team = db.session.get(ServiceTeam, request.form.get('team_id', type=int) or 0)
+    ids = _dispatch_ids()
+    if not team or not team.is_active:
+        flash('Choose a team.', 'danger'); return _dispatch_back()
+    if not ids:
+        flash('Select at least one work.', 'warning'); return _dispatch_back()
+
+    # Row lock + "still unassigned" check: two admins clicking at once can't both win.
+    recs = (ServiceRecord.query
+            .filter(ServiceRecord.id.in_(ids),
+                    ServiceRecord.assigned_team_id.is_(None),
+                    ServiceRecord.status.notin_(['Completed', 'Skipped']))
+            .with_for_update().all())
+    now = datetime.utcnow()
+    for r in recs:
+        r.assigned_team_id, r.assigned_at = team.id, now
+        r.assigned_by, r.sheet_sent_at = current_user.id, None
+        log_action(r.project_id, f'Service visit #{r.visit_number} assigned to {team.name}',
+                   new_val=team.name)
+    db.session.commit()
+
+    skipped = len(ids) - len(recs)
+    flash(f'{len(recs)} work(s) assigned to {team.name}.'
+          + (f' {skipped} skipped — already assigned or no longer open.' if skipped else ''),
+          'success' if recs else 'warning')
+    return _dispatch_back()
+
+
+@app.route('/service/dispatch/reassign', methods=['POST'])
+@login_required
+@roles_required(*DISPATCH_ROLES)
+def dispatch_reassign():
+    team = db.session.get(ServiceTeam, request.form.get('team_id', type=int) or 0)
+    ids = _dispatch_ids()
+    if not team or not team.is_active:
+        flash('Choose a team.', 'danger'); return _dispatch_back()
+    if not ids:
+        flash('Select at least one work.', 'warning'); return _dispatch_back()
+
+    recs = (ServiceRecord.query
+            .filter(ServiceRecord.id.in_(ids),
+                    ServiceRecord.assigned_team_id.isnot(None),
+                    ServiceRecord.assigned_team_id != team.id,
+                    ServiceRecord.status.notin_(['Completed', 'Skipped']))
+            .with_for_update().all())
+    names = {t.id: t.name for t in ServiceTeam.query.all()}
+    now = datetime.utcnow()
+    for r in recs:
+        old = names.get(r.assigned_team_id, '?')
+        r.assigned_team_id, r.assigned_at = team.id, now
+        r.assigned_by, r.sheet_sent_at = current_user.id, None
+        log_action(r.project_id, f'Service visit #{r.visit_number} reassigned: {old} → {team.name}',
+                   old_val=old, new_val=team.name)
+    db.session.commit()
+
+    skipped = len(ids) - len(recs)
+    flash(f'{len(recs)} work(s) moved to {team.name}.'
+          + (f' {skipped} skipped — not assigned, already with {team.name}, or closed.' if skipped else ''),
+          'success' if recs else 'warning')
+    return _dispatch_back()
+
+
+@app.route('/service/dispatch/unassign', methods=['POST'])
+@login_required
+@roles_required(*DISPATCH_ROLES)
+def dispatch_unassign():
+    ids = _dispatch_ids()
+    if not ids:
+        flash('Select at least one work.', 'warning'); return _dispatch_back()
+
+    recs = (ServiceRecord.query
+            .filter(ServiceRecord.id.in_(ids),
+                    ServiceRecord.assigned_team_id.isnot(None),
+                    ServiceRecord.status.notin_(['Completed', 'Skipped']))
+            .with_for_update().all())
+    names = {t.id: t.name for t in ServiceTeam.query.all()}
+    for r in recs:
+        old = names.get(r.assigned_team_id, '?')
+        r.assigned_team_id = r.assigned_at = r.assigned_by = r.sheet_sent_at = None
+        log_action(r.project_id, f'Service visit #{r.visit_number} unassigned from {old}',
+                   old_val=old, new_val=None)
+    db.session.commit()
+    flash(f'{len(recs)} work(s) returned to the unassigned pool.', 'success' if recs else 'warning')
+    return _dispatch_back()
+
+
+
+def build_dispatch_excel(teams, rows_by_team, labels, output_dir='/tmp', only_new=False):
+    today = date.today()
+    headers = ['#', 'MNRE No.', 'Customer', 'Phone', 'Address', 'Inverter (kW)', 'Visit #',
+               'Scheduled', 'Status', 'Assigned on', 'Days with team', 'Done?', 'Remarks']
+    n = len(headers)
+    wb = Workbook()
+    wb.remove(wb.active)
+    used = set()
+
+    for t in teams:
+        base = (re.sub(r'[\\/*?:\[\]]', '', t.name)[:31] or f'Team {t.id}')
+        name = base if base not in used else f'{base[:27]} {t.id}'
+        used.add(name)
+        ws = wb.create_sheet(name)
+        _page_setup(ws)
+        ws.freeze_panes = 'A6'
+
+        rows = sorted(rows_by_team.get(t.id, []),
+                      key=lambda r: (labels.get(r['place_key'], '').lower(), _code_sort(r)))
+        subtitle = f'{t.name} — {len(rows)} work(s)' + (' (new since last download)' if only_new else '')
+        for i, (txt, bg_c, fg_c, sz, italic) in enumerate([
+            ('Power On Plus Solar Solutions', C_HEADER_BG, C_HEADER_FG, 14, False),
+            (f'Service Dispatch — {subtitle}', C_SUBHDR_BG, C_HEADER_FG, 11, False),
+            (f'Generated: {today.strftime("%d %b %Y")}', C_ALT_BG, '444444', 10, True)], 1):
+            ws.merge_cells(start_row=i, start_column=1, end_row=i, end_column=n)
+            c = ws.cell(i, 1)
+            c.value, c.fill = txt, _fill(bg_c)
+            c.font = _font(bold=not italic, color=fg_c, size=sz, italic=italic)
+            c.alignment = _center()
+        ws.row_dimensions[1].height = 28
+        ws.row_dimensions[2].height = 22
+        ws.row_dimensions[4].height = 8
+        for col, h in enumerate(headers, 1):
+            _style_header_cell(ws.cell(5, col), h)
+
+        row, idx, last_key = 6, 0, None
+        for r in rows:
+            rec, p = r['rec'], r['project']
+            if r['place_key'] != last_key:
+                last_key = r['place_key']
+                count = sum(1 for x in rows if x['place_key'] == last_key)
+                ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=n)
+                _style_data_cell(ws.cell(row, 1), f'{labels.get(last_key, "—")} — {count} work(s)',
+                                 bg=C_ACCENT_BG, bold=True)
+                ws.row_dimensions[row].height = 20
+                row += 1
+            idx += 1
+            bg = C_ALT_BG if idx % 2 == 0 else 'FFFFFF'
+            status = 'Overdue' if rec.scheduled_date < today else rec.status
+            s_bg, s_fg = {'Overdue': (C_RED_BG, C_RED_FG), 'Due': (C_AMBER_BG, C_AMBER_FG)}.get(status, (bg, '000000'))
+            days = (today - rec.assigned_at.date()).days if rec.assigned_at else ''
+            vals = [idx, p.project_code, p.customer.name, p.customer.phone or '—',
+                    p.customer.full_address or p.customer.place or '—',
+                    p.inverter_capacity_kw, rec.visit_number,
+                    rec.scheduled_date.strftime('%d %b %Y'), status,
+                    rec.assigned_at.strftime('%d %b %Y') if rec.assigned_at else '—', days, '', '']
+            fmts = [None] * 5 + ['0.##'] + [None] * 7
+            aligns = ['center', 'center', 'left', 'center', 'left', 'center', 'center',
+                      'center', 'center', 'center', 'center', 'center', 'left']
+            for col, (v, f, a) in enumerate(zip(vals, fmts, aligns), 1):
+                _style_data_cell(ws.cell(row, col), v,
+                                 bg=s_bg if col == 9 else bg, fg=s_fg if col == 9 else '000000',
+                                 align=a, number_fmt=f)
+            ws.row_dimensions[row].height = 30
+            row += 1
+
+        if not rows:
+            ws.merge_cells(start_row=6, start_column=1, end_row=6, end_column=n)
+            _style_data_cell(ws.cell(6, 1), 'No open works for this team.', align='center')
+
+        for i, w in enumerate([5, 11, 24, 14, 40, 12, 9, 13, 11, 13, 13, 9, 26], 1):
+            ws.column_dimensions[get_column_letter(i)].width = w
+
+    path = os.path.join(output_dir, f'ServiceDispatch_{today.isoformat()}{"_new" if only_new else ""}.xlsx')
+    wb.save(path)
+    return path
+
+
+@app.route('/service/dispatch/download', methods=['POST'])
+@login_required
+@roles_required(*DISPATCH_ROLES)
+def dispatch_download():
+    only_new = request.form.get('scope') == 'new'
+    teams = _dispatch_teams()
+    rows, labels = _dispatch_rows()
+
+    by_team, picked = {}, []
+    for r in rows:
+        rec = r['rec']
+        if not rec.assigned_team_id or (only_new and rec.sheet_sent_at):
+            continue
+        by_team.setdefault(rec.assigned_team_id, []).append(r)
+        picked.append(rec)
+    if not picked:
+        flash('Nothing to download — no assigned works' + (' that are new since the last download.' if only_new else '.'),
+              'warning')
+        return redirect(url_for('dispatch_board'))
+
+    path = build_dispatch_excel(teams, by_team, labels, tempfile.gettempdir(), only_new)
+    now = datetime.utcnow()
+    for rec in picked:                 # "downloaded" == "sent to the team"
+        rec.sheet_sent_at = now
+    db.session.commit()
+    return send_file(path, as_attachment=True, download_name=os.path.basename(path),
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+@app.route('/service/dispatch/teams/save', methods=['POST'])
+@login_required
+@roles_required(*DISPATCH_ROLES)
+def dispatch_team_save():
+    action = request.form.get('action', '')
+    name   = _clean(request.form.get('name', ''), 80)
+    team   = (db.session.get(ServiceTeam, request.form.get('team_id', type=int) or 0)
+              if action != 'add' else None)
+
+    def _dup(exclude_id=None):
+        q = ServiceTeam.query.filter(func.lower(ServiceTeam.name) == name.lower())
+        if exclude_id:
+            q = q.filter(ServiceTeam.id != exclude_id)
+        return q.first()
+
+    if action == 'add':
+        if not name:
+            flash('Enter a team name.', 'danger')
+        elif _dup():
+            flash(f'A team called "{name}" already exists.', 'warning')
+        else:
+            db.session.add(ServiceTeam(name=name))
+            db.session.commit()
+            flash(f'Team "{name}" added.', 'success')
+    elif not team:
+        flash('Team not found.', 'danger')
+    elif action == 'rename':
+        if not name:
+            flash('Enter a team name.', 'danger')
+        elif _dup(team.id):
+            flash(f'A team called "{name}" already exists.', 'warning')
+        else:
+            team.name = name
+            db.session.commit()
+            flash('Team renamed.', 'success')
+    elif action == 'deactivate':
+        open_n = ServiceRecord.query.filter(
+            ServiceRecord.assigned_team_id == team.id,
+            ServiceRecord.status.notin_(['Completed', 'Skipped'])).count()
+        if open_n:
+            flash(f'{team.name} still has {open_n} open work(s). Move or unassign them first.', 'danger')
+        else:
+            team.is_active = False
+            db.session.commit()
+            flash(f'{team.name} deactivated.', 'warning')
+    elif action == 'activate':
+        team.is_active = True
+        db.session.commit()
+        flash(f'{team.name} activated.', 'success')
+    return redirect(url_for('dispatch_board', teams=1))
+def build_dispatch_completed_excel(teams, recs, start, end, output_dir='/tmp'):
+    today = date.today()
+    period = f'{start.strftime("%d %b %Y")} to {end.strftime("%d %b %Y")}'
+    headers = ['MNRE No.', 'Customer', 'Phone', 'Place', 'Visit #', 'Completed',
+               'Panel cleaning', 'Recorded by', 'Notes']
+    n = len(headers)
+
+    groups = [(t.id, t.name) for t in teams] + [(None, 'No team')]
+    known = {t.id for t in teams}
+    by_team = {}
+    for r in recs:
+        key = r.assigned_team_id if r.assigned_team_id in known else None
+        by_team.setdefault(key, []).append(r)
+
+    wb = Workbook()
+    ws0 = wb.active
+    ws0.title = 'Summary'
+    used = {'Summary'}
+
+    def _titles(ws, subtitle, width):
+        for i, (txt, bg_c, fg_c, sz, italic) in enumerate([
+            ('Power On Plus Solar Solutions', C_HEADER_BG, C_HEADER_FG, 14, False),
+            (f'Service Completed — {subtitle}', C_SUBHDR_BG, C_HEADER_FG, 11, False),
+            (f'Period: {period} · Generated {today.strftime("%d %b %Y")}', C_ALT_BG, '444444', 10, True)], 1):
+            ws.merge_cells(start_row=i, start_column=1, end_row=i, end_column=width)
+            c = ws.cell(i, 1)
+            c.value, c.fill = txt, _fill(bg_c)
+            c.font = _font(bold=not italic, color=fg_c, size=sz, italic=italic)
+            c.alignment = _center()
+        ws.row_dimensions[1].height = 28
+        ws.row_dimensions[2].height = 22
+        ws.row_dimensions[4].height = 8
+
+    # Summary sheet
+    _page_setup(ws0)
+    _titles(ws0, 'Summary', 3)
+    for col, h in enumerate(['Team', 'Visits completed', 'With panel cleaning'], 1):
+        _style_header_cell(ws0.cell(5, col), h)
+    row = 6
+    for i, (tid, tname) in enumerate(groups):
+        rs = by_team.get(tid, [])
+        if tid is None and not rs:
+            continue
+        bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        for col, (v, a) in enumerate(zip([tname, len(rs), sum(1 for x in rs if x.panel_cleaning)],
+                                         ['left', 'center', 'center']), 1):
+            _style_data_cell(ws0.cell(row, col), v, bg=bg, align=a)
+        row += 1
+    _style_data_cell(ws0.cell(row, 1), 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
+    _style_data_cell(ws0.cell(row, 2), len(recs), bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+    _style_data_cell(ws0.cell(row, 3), sum(1 for x in recs if x.panel_cleaning),
+                     bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
+    for i, w in enumerate([26, 18, 20], 1):
+        ws0.column_dimensions[get_column_letter(i)].width = w
+
+    # One sheet per team
+    for tid, tname in groups:
+        rs = by_team.get(tid, [])
+        if tid is None and not rs:
+            continue
+        base = re.sub(r'[\\/*?:\[\]]', '', tname)[:31] or 'Team'
+        name = base if base not in used else f'{base[:27]} {tid}'
+        used.add(name)
+        ws = wb.create_sheet(name)
+        _page_setup(ws)
+        ws.freeze_panes = 'A6'
+        _titles(ws, f'{tname} — {len(rs)} visit(s)', n)
+        for col, h in enumerate(headers, 1):
+            _style_header_cell(ws.cell(5, col), h)
+        rs.sort(key=lambda r: (r.completed_date, (r.project.customer.place or '').lower(),
+                               int(r.project.project_code) if str(r.project.project_code).isdigit() else 0))
+        row = 6
+        for i, r in enumerate(rs):
+            p = r.project
+            bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+            vals = [p.project_code, p.customer.name, p.customer.phone or '—', p.customer.place or '—',
+                    r.visit_number, r.completed_date.strftime('%d %b %Y'),
+                    'Yes' if r.panel_cleaning else 'No',
+                    r.technician.full_name if r.technician else '—', r.notes or '']
+            aligns = ['center', 'left', 'center', 'left', 'center', 'center', 'center', 'left', 'left']
+            for col, (v, a) in enumerate(zip(vals, aligns), 1):
+                _style_data_cell(ws.cell(row, col), v, bg=bg, align=a)
+            ws.row_dimensions[row].height = 18
+            row += 1
+        if not rs:
+            ws.merge_cells(start_row=6, start_column=1, end_row=6, end_column=n)
+            _style_data_cell(ws.cell(6, 1), 'No completed visits in this period.', align='center')
+        for i, w in enumerate([11, 24, 14, 18, 9, 13, 14, 20, 36], 1):
+            ws.column_dimensions[get_column_letter(i)].width = w
+
+    path = os.path.join(output_dir, f'ServiceCompleted_{start.isoformat()}_to_{end.isoformat()}.xlsx')
+    wb.save(path)
+    return path
+
+
+@app.route('/service/dispatch/completed_download')
+@login_required
+@roles_required(*DISPATCH_ROLES)
+def dispatch_completed_download():
+    days  = min(max(request.args.get('days', 7, type=int) or 7, 1), 90)
+    end   = date.today()
+    start = end - timedelta(days=days - 1)
+    recs = (ServiceRecord.query.join(Project)
+            .options(joinedload(ServiceRecord.project).joinedload(Project.customer),
+                     joinedload(ServiceRecord.technician))
+            .filter(ServiceRecord.status == 'Completed',
+                    ServiceRecord.completed_date.isnot(None),
+                    ServiceRecord.completed_date >= start,
+                    ServiceRecord.completed_date <= end)
+            .all())
+    path = build_dispatch_completed_excel(_dispatch_teams(), recs, start, end, tempfile.gettempdir())
+    return send_file(path, as_attachment=True, download_name=os.path.basename(path),
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
 @app.route('/projects/<int:pid>/service')
 @login_required
 def project_service(pid):
@@ -9565,54 +10055,54 @@ def complete_service(sid):
 @login_required
 @roles_required('admin', 'service')
 def bulk_complete_service():
-    ids                 = request.form.getlist('service_ids')
-    completed_date_str  = request.form.get('completed_date', '')
-    panel_cleaning      = 'panel_cleaning' in request.form
-    notes               = _clean(request.form.get('notes', ''), 1000)
+    ids                = request.form.getlist('service_ids')
+    completed_date_str = request.form.get('completed_date', '')
+    panel_cleaning     = 'panel_cleaning' in request.form
+    notes              = _clean(request.form.get('notes', ''), 1000)
 
     if not ids:
         flash('No visits were selected.', 'warning')
         return redirect(url_for('service_management'))
 
-    completed_date = date.fromisoformat(completed_date_str) if completed_date_str else date.today()
+    try:
+        completed_date = date.fromisoformat(completed_date_str) if completed_date_str else date.today()
+    except ValueError:
+        flash('Invalid date.', 'danger')
+        return redirect(url_for('service_management'))
     if completed_date > date.today():
         flash('Completion date cannot be in the future.', 'danger')
         return redirect(url_for('service_management'))
 
-    
-    # blocks = _active_blocks()          # ← add this
-    # skipped_blocked = 0 
+    done = skipped_locked = 0
     for sid in ids:
-        rec = ServiceRecord.query.get(int(sid))
-    #     if not rec or rec.status == 'Completed':
-    #         continue
-    #     if _block_for(rec.project, blocks):          # blocks = _active_blocks() before the loop
-    #         skipped_blocked += 1
-    #         continue
-    #     if rec.visit_number > 1 and current_user.role != 'admin':
-    #         prev = ServiceRecord.query.filter_by(
-    #             project_id=rec.project_id, visit_number=rec.visit_number - 1).first()
-    #         if not prev or prev.status != 'Completed':
-    #             skipped_locked += 1
-    #             continue
+        if not str(sid).isdigit():
+            continue
+        rec = db.session.get(ServiceRecord, int(sid))
+        if not rec or rec.status == 'Completed':
+            continue
+        if rec.visit_number > 1 and current_user.role != 'admin':
+            prev = ServiceRecord.query.filter_by(
+                project_id=rec.project_id, visit_number=rec.visit_number - 1).first()
+            if not prev or prev.status != 'Completed':
+                skipped_locked += 1
+                continue
 
-    rec.status         = 'Completed'
-    rec.completed_date = completed_date
-    rec.conducted_by   = current_user.id
-    rec.panel_cleaning = panel_cleaning
-    if notes:
-        rec.notes = notes
-
-    log_action(rec.project_id,
-        f'Service visit #{rec.visit_number} completed via bulk action — '
-        f'panel cleaning: {"Yes" if panel_cleaning else "No"}', new_val='Completed')
-    _reschedule_future_visits(rec, completed_date)
-    done += 1
+        rec.status         = 'Completed'
+        rec.completed_date = completed_date
+        rec.conducted_by   = current_user.id
+        rec.panel_cleaning = panel_cleaning
+        if notes:
+            rec.notes = notes
+        log_action(rec.project_id,
+            f'Service visit #{rec.visit_number} completed via bulk action — '
+            f'panel cleaning: {"Yes" if panel_cleaning else "No"}', new_val='Completed')
+        _reschedule_future_visits(rec, completed_date)
+        done += 1
 
     db.session.commit()
     msg = f'{done} visit(s) marked complete.'
-    # if skipped_blocked:
-    #     msg += f' {skipped_blocked} skipped — service blocked for their coordinator.'
+    if skipped_locked:
+        msg += f' {skipped_locked} skipped — previous visit not completed.'
     flash(msg, 'success' if done else 'warning')
     return redirect(url_for('service_management'))
 
