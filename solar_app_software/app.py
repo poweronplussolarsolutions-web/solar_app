@@ -9752,7 +9752,13 @@ def build_dispatch_excel(teams, rows_by_team, labels, output_dir='/tmp', only_ne
 @roles_required(*DISPATCH_ROLES)
 def dispatch_download():
     only_new = request.form.get('scope') == 'new'
+    only_team_id = request.form.get('team_id', type=int)
     teams = _dispatch_teams()
+    if only_team_id:
+        teams = [t for t in teams if t.id == only_team_id]
+        if not teams:
+            flash('Team not found.', 'danger')
+            return redirect(url_for('dispatch_board'))
     rows, labels = _dispatch_rows()
 
     by_team, picked = {}, []
@@ -9760,10 +9766,13 @@ def dispatch_download():
         rec = r['rec']
         if not rec.assigned_team_id or (only_new and rec.sheet_sent_at):
             continue
+        if only_team_id and rec.assigned_team_id != only_team_id:
+            continue
         by_team.setdefault(rec.assigned_team_id, []).append(r)
         picked.append(rec)
     if not picked:
-        flash('Nothing to download — no assigned works' + (' that are new since the last download.' if only_new else '.'),
+        flash('Nothing to download — no assigned works'
+              + (' that are new since the last download.' if only_new else '.'),
               'warning')
         return redirect(url_for('dispatch_board'))
 
@@ -9772,7 +9781,12 @@ def dispatch_download():
     for rec in picked:                 # "downloaded" == "sent to the team"
         rec.sheet_sent_at = now
     db.session.commit()
-    return send_file(path, as_attachment=True, download_name=os.path.basename(path),
+
+    dl_name = os.path.basename(path)
+    if only_team_id:
+        safe = re.sub(r'[^A-Za-z0-9]+', '', teams[0].name) or f'Team{teams[0].id}'
+        dl_name = f'ServiceDispatch_{safe}_{date.today().isoformat()}.xlsx'
+    return send_file(path, as_attachment=True, download_name=dl_name,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 @app.route('/service/dispatch/teams/save', methods=['POST'])
 @login_required

@@ -254,12 +254,20 @@
 </form>
 <div class="dp-modal" id="dp-modal" hidden onclick="if(event.target===this)dpCloseTeam()">
   <div class="dp-modal-box" role="dialog" aria-modal="true" aria-labelledby="dp-modal-title">
-    <div class="dp-modal-head">
+       <div class="dp-modal-head">
       <div>
         <div id="dp-modal-title" class="dp-gname" style="font-size:16px"></div>
         <div class="dp-sub" id="dp-modal-count"></div>
       </div>
-      <button type="button" class="btn btn-sm" onclick="dpCloseTeam()"><i class="ti ti-x"></i> Close</button>
+      <div style="display:flex;gap:6px;align-items:center">
+        <form method="POST" action="{{ url_for('dispatch_download') }}" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="scope" value="all">
+          <input type="hidden" name="team_id" id="dp-modal-team-id" value="">
+          <button type="submit" class="btn btn-sm"><i class="ti ti-file-spreadsheet"></i> Download Excel</button>
+        </form>
+        <button type="button" class="btn btn-sm" onclick="dpCloseTeam()"><i class="ti ti-x"></i> Close</button>
+      </div>
     </div>
     <div class="dp-search">
       <i class="ti ti-search"></i>
@@ -365,6 +373,8 @@ function dpPoolFilter() {
 function dpOpenTeam(id) {
   var panel = document.getElementById('dp-team' + id);
   var stat  = document.querySelector('.dp-stat[data-team-id="' + id + '"]');
+    document.getElementById('dp-modal-title').textContent = stat ? stat.dataset.teamName : 'Team';
+  document.getElementById('dp-modal-team-id').value = id;
   if (!panel) return;
   var body = document.getElementById('dp-modal-body');
   body.innerHTML = '';
