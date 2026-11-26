@@ -83,6 +83,21 @@
   <button class="filter-pill"        data-f="cd"          onclick="wsSetFilter('cd',this)">CD ✗</button>
   <button class="filter-pill"        data-f="kseb"        onclick="wsSetFilter('kseb',this)">KSEB ✗</button>
   <button class="filter-pill"        data-f="warranty"    onclick="wsSetFilter('warranty',this)">Warranty ✗</button>
+
+  <span style="flex:1"></span>
+  {% if can_export %}
+    <a class="btn btn-sm" href="{{ url_for('works_status_download_excel', staff_id='all') }}">
+      ⬇ All staff (Excel)
+    </a>
+    <a class="btn btn-sm" href="#" onclick="return wsDownloadSelected(this)">
+      ⬇ Selected staff
+    </a>
+  {% else %}
+    <a class="btn btn-sm" href="{{ url_for('works_status_download_excel') }}">
+      ⬇ My works (Excel)
+    </a>
+  {% endif %}
+</div>
 </div>
 
 {# ── Table ── #}
