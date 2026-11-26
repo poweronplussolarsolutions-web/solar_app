@@ -3779,113 +3779,44 @@ def build_onsite_full_report(projects, output_dir='/tmp', label='All Works'):
     ids = [p.id for p in projects]
     users = {u.id: u.full_name for u in User.query.all()}
 
-    # ── who/when per project, mined from ProjectLog ──────────────────────
-    ONSITE_LOG_PREFIXES = ('Onsite', 'Materials', 'Worker', 'Job card', 'Site photo',
-                           'Pre-work site photo', 'Auto-advanced', 'Delivered material',
-                           'Payments team notified')
-    logs = (ProjectLog.query
-            .filter(ProjectLog.project_id.in_(ids),
-                    db.or_(*[ProjectLog.action.like(f'{k}%') for k in ONSITE_LOG_PREFIXES]))
-            .order_by(ProjectLog.created_at, ProjectLog.id).all()) if ids else []
-    events = {}
-    for lg in logs:
-        act, who, when = lg.action or '', users.get(lg.done_by, ''), _ist(lg.created_at)
-        ev = events.setdefault(lg.project_id, {})
-        if act.startswith('Onsite:'):
-            for ph, _old, new in _PHASE_RE.findall(act):
-                if new == 'Completed':
-                    ev[(ph, 'Completed')] = (who, when)          # last one wins
-                else:
-                    ev.setdefault((ph, new), (who, when))        # first one wins
-        elif act.startswith('Auto-advanced') and act.endswith('→ Onsite Work'):
-            ev.setdefault('onsite_start', (who, when))
-        elif act.startswith('Auto-advanced') and act.endswith('→ Connection'):
-            ev['onsite_end'] = (who, when)
-        elif act.startswith('Materials delivered to site'):
-            ev.setdefault('delivered', (who, when))
-
-    def E(pid, key):
-        return events.get(pid, {}).get(key, ('', ''))
-
-    # ── delivered stock ──────────────────────────────────────────────────
+    # ── delivered stock (used by the Materials Delivered sheet) ──────────
     txns = (StockTransaction.query
             .options(joinedload(StockTransaction.stock_item), joinedload(StockTransaction.recorder))
             .filter(StockTransaction.project_id.in_(ids),
                     StockTransaction.source == 'OnsiteDelivery')
             .order_by(StockTransaction.created_at).all()) if ids else []
-    items_by_proj = {}
-    for t in txns:
-        items_by_proj.setdefault(t.project_id, []).append(
-            f'{t.stock_item.display_name} ({float(t.quantity):g} {t.stock_item.unit})')
 
     # ── summary rows ─────────────────────────────────────────────────────
     summary = []
     for p in projects:
-        op, g, c = p.onsite_progress, p.geo_tag, p.customer
-
-        def team(*phases):
-            return ', '.join(f'{a.worker.name} ({a.days_worked or 0}d)'
-                             for a in p.assignments if a.work_phase in phases)
-
-        s_by, s_on = E(p.id, ('Structure', 'Completed'))
-        i_by, i_on = E(p.id, ('Installation', 'Completed'))
-        e_by, e_on = E(p.id, ('Electrical', 'Completed'))
-        d_by, d_on = E(p.id, 'delivered')
-        os_by, os_on = E(p.id, 'onsite_start')
-        oe_by, oe_on = E(p.id, 'onsite_end')
-
+        op, c = p.onsite_progress, p.customer
         summary.append([
             p.project_code, c.name, c.phone, c.place,
             p.coordinator.full_name if p.coordinator else p.coordinator_name,
             p.doc_staff.full_name if p.doc_staff else '',
-            p.project_type, p.project_subtype,
+            p.project_type,
             p.inverter_capacity_kw, p.panel_capacity_kw, p.structure_capacity_kw,
-            p.roof_type_display, p.inverter_type, p.status, p.stage,
+            p.roof_type_display, p.inverter_type, p.status,
             _onsite_bucket(op),
-            _ist(p.created_at), p.days_open,
-            os_on, os_by,
+            _ist(p.created_at),
             'Yes' if op and op.materials_ordered else 'No', op.materials_ordered_date if op else None,
             'Yes' if op and op.materials_delivered else 'No', op.materials_delivered_date if op else None,
-            d_by, '; '.join(items_by_proj.get(p.id, [])),
             op.structure_work_status if op else 'NotStarted',
-            op.structure_start_date if op else None, op.structure_end_date if op else None,
-            s_by, s_on, op.structure_notes if op else '',
             op.installation_status if op else 'NotStarted',
-            op.installation_start_date if op else None, op.installation_end_date if op else None,
-            i_by, i_on, op.installation_notes if op else '',
             op.electrical_status if op else 'NotStarted',
-            op.electrical_start_date if op else None, op.electrical_end_date if op else None,
-            e_by, e_on, op.electrical_notes if op else '',
-            team('Structure'), team('Electrical/Installation'), team('Full Work'),
-            oe_on, oe_by,
-            op.important_notes if op else '',
-            users.get(g.uploaded_by, '') if g and g.photo_path else '',
-            _ist(g.uploaded_at) if g and g.photo_path else None,
             users.get(op.updated_by, '') if op else '', _ist(op.updated_at) if op else None,
         ])
 
     s_headers = [
-        'MNRE No.', 'Customer', 'Phone', 'Place', 'Coordinator', 'Doc Staff', 'Type', 'Subtype',
+        'MNRE No.', 'Customer', 'Phone', 'Place', 'Coordinator', 'Doc Staff', 'Type',
         'Inverter (kW)', 'Panel (kW)', 'Structure (kW)', 'Roof', 'Inverter Type',
-        'Project Status', 'Project Stage', 'Onsite Bucket',
-        'Project Created', 'Days Open', 'Onsite Stage Started', 'Onsite Stage Started By',
+        'Project Status', 'Onsite Bucket', 'Project Created',
         'Materials Ordered?', 'Ordered On', 'Materials Delivered?', 'Delivered On',
-        'Delivery Logged By', 'Delivered Items',
-        'Structure Status', 'Structure Start', 'Structure End', 'Structure Completed By',
-        'Structure Completed Logged On', 'Structure Notes',
-        'Installation Status', 'Installation Start', 'Installation End', 'Installation Completed By',
-        'Installation Completed Logged On', 'Installation Notes',
-        'Electrical Status', 'Electrical Start', 'Electrical End', 'Electrical Completed By',
-        'Electrical Completed Logged On', 'Electrical Notes',
-        'Structure Team', 'Electrical/Installation Team', 'Full-Work Team',
-        'Moved to Connection On', 'Moved to Connection By',
-        'Important Notes', 'Completion Photo By', 'Completion Photo On',
+        'Structure Status', 'Installation Status', 'Electrical Status',
         'Last Onsite Update By', 'Last Onsite Update On',
     ]
-    s_widths = [11, 24, 13, 16, 20, 18, 8, 10, 10, 10, 11, 14, 13, 12, 14, 14,
-                17, 9, 17, 18, 11, 13, 12, 13, 18, 40,
-                13, 13, 13, 18, 17, 28, 13, 13, 13, 18, 17, 28, 13, 13, 13, 18, 17, 28,
-                30, 30, 24, 17, 18, 32, 18, 17, 20, 17]
+    s_widths = [11, 24, 13, 16, 20, 18, 8, 10, 10, 11, 14, 13,
+                12, 14, 17, 11, 13, 12, 13, 13, 13, 13, 20, 17]
 
     # ── workers sheet ────────────────────────────────────────────────────
     w_rows = []
