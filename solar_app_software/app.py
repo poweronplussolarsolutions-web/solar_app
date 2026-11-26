@@ -17,6 +17,7 @@ from decimal import Decimal
 import os
 import re
 import uuid
+from copy import copy
 import shutil
 from collections import Counter
 from solar_app_software.rts_feasibility import build_rts_feasibility_pdf
@@ -3749,6 +3750,7 @@ def _onsite_sheet(ws, subtitle, headers, rows, widths):
     for col, h in enumerate(headers, 1):
         _style_header_cell(ws.cell(5, col), h)
 
+    cache = {}   # (bg, align, fmt) -> prebuilt style
     for i, row in enumerate(rows):
         bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
         for col, v in enumerate(row, 1):
@@ -3761,18 +3763,29 @@ def _onsite_sheet(ws, subtitle, headers, rows, widths):
                 aln = 'center'
             if v in ('', None):
                 v, aln = '—', 'center'
-            _style_data_cell(ws.cell(6 + i, col), v, bg=bg, align=aln, number_fmt=fmt)
+            cell = ws.cell(6 + i, col)
+            key = (bg, aln, fmt)
+            if key in cache:
+                cell.value = v
+                cell._style = copy(cache[key])
+            else:
+                _style_data_cell(cell, v, bg=bg, align=aln, number_fmt=fmt)
+                cache[key] = copy(cell._style)
     for i, w in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.auto_filter.ref = f'A5:{last}{5 + max(len(rows), 1)}'
-
 
 def build_onsite_full_report(projects, output_dir='/tmp', label='All Works'):
     ids = [p.id for p in projects]
     users = {u.id: u.full_name for u in User.query.all()}
 
     # ── who/when per project, mined from ProjectLog ──────────────────────
-    logs = (ProjectLog.query.filter(ProjectLog.project_id.in_(ids))
+    ONSITE_LOG_PREFIXES = ('Onsite', 'Materials', 'Worker', 'Job card', 'Site photo',
+                           'Pre-work site photo', 'Auto-advanced', 'Delivered material',
+                           'Payments team notified')
+    logs = (ProjectLog.query
+            .filter(ProjectLog.project_id.in_(ids),
+                    db.or_(*[ProjectLog.action.like(f'{k}%') for k in ONSITE_LOG_PREFIXES]))
             .order_by(ProjectLog.created_at, ProjectLog.id).all()) if ids else []
     events = {}
     for lg in logs:
@@ -3896,11 +3909,13 @@ def build_onsite_full_report(projects, output_dir='/tmp', label='All Works'):
                  'Final Amount (₹)', 'Job Card Closed On', 'Closed By']
 
     # ── daily logs sheet ─────────────────────────────────────────────────
-    ol = (OnsiteLog.query.options(joinedload(OnsiteLog.logger), joinedload(OnsiteLog.project))
+    ol = (OnsiteLog.query.options(joinedload(OnsiteLog.logger))
           .filter(OnsiteLog.project_id.in_(ids))
           .order_by(OnsiteLog.log_date.desc(), OnsiteLog.id.desc()).all()) if ids else []
-    l_rows = [[l.project.project_code, l.project.customer.name, l.log_date, l.work_phase,
-               l.note, l.logger.full_name if l.logger else '', _ist(l.created_at)] for l in ol]
+    pmap = {p.id: p for p in projects}   
+    l_rows = [[pmap[l.project_id].project_code, pmap[l.project_id].customer.name, l.log_date,
+               l.work_phase, l.note, l.logger.full_name if l.logger else '', _ist(l.created_at)]
+              for l in ol if l.project_id in pmap]
     l_headers = ['MNRE No.', 'Customer', 'Log Date', 'Phase', 'Note', 'Logged By', 'Logged At']
 
     # ── materials delivered sheet ────────────────────────────────────────
@@ -3918,8 +3933,7 @@ def build_onsite_full_report(projects, output_dir='/tmp', label='All Works'):
             'Auto-advanced', 'Delivered material', 'Payments team notified')
     a_rows = [[pmap[lg.project_id].project_code, pmap[lg.project_id].customer.name,
                _ist(lg.created_at), users.get(lg.done_by, ''), lg.action, lg.old_value, lg.new_value]
-              for lg in reversed(logs)
-              if lg.project_id in pmap and (lg.action or '').startswith(KEYS)]
+              for lg in reversed(logs) if lg.project_id in pmap]
     a_headers = ['MNRE No.', 'Customer', 'When', 'Done By', 'Action', 'Old Value', 'New Value']
 
     # ── assemble workbook ────────────────────────────────────────────────
