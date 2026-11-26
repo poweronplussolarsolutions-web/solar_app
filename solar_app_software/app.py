@@ -7890,16 +7890,17 @@ def works_status():
     from sqlalchemy.orm import joinedload
 
     projects = (Project.query
-        .options(
-            joinedload(Project.customer),
-            joinedload(Project.documents),
-            joinedload(Project.expenses),
-            joinedload(Project.coordinator),
-            joinedload(Project.doc_staff),
-        )
-        .filter(Project.status.notin_(['Cancelled', 'Closed', 'Completed']))
-        .order_by(Project.updated_at.desc())
-        .all())
+    .options(
+        joinedload(Project.customer),
+        joinedload(Project.documents),
+        joinedload(Project.expenses),
+        joinedload(Project.coordinator),
+        joinedload(Project.doc_staff),
+    )
+    .filter(Project.status.notin_(['Cancelled', 'OnHold', 'Closed', 'Completed']),
+            Project.work_category != 'Outside')
+    .order_by(Project.updated_at.desc())
+    .all())
 
     if current_user.role in ('documents','documents_k'):
         projects = [p for p in projects if p.doc_staff_id == current_user.id]
