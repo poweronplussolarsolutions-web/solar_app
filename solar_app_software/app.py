@@ -3785,7 +3785,7 @@ def _onsite_sheet(ws, subtitle, headers, rows, widths):
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.auto_filter.ref = f'A5:{last}{5 + max(len(rows), 1)}'
 
-def build_onsite_full_report(projects, output_dir='/tmp', label='All Works'):
+def build_onsite_full_report(projects, output_dir='/tmp', label='All Works', show_collected=False):
     ids = [p.id for p in projects]
     users = {u.id: u.full_name for u in User.query.all()}
     ONSITE_LOG_PREFIXES = ('Onsite', 'Materials', 'Worker', 'Job card', 'Site photo',
@@ -3833,6 +3833,16 @@ def build_onsite_full_report(projects, output_dir='/tmp', label='All Works'):
     ]
     s_widths = [11, 24, 13, 16, 20, 18, 8, 10, 10, 11, 14, 13,
                 12, 14, 17, 11, 13, 12, 13, 13, 13, 13, 20, 17]
+
+    # ── collected amount column (Completed export only) ──────────────────
+    COLLECTED_IDX = 4          # right after Place
+    collected = []
+    if show_collected:
+        collected = [round(float(p.effective_collected), 2) for p in projects]
+        for row, amt in zip(summary, collected):
+            row.insert(COLLECTED_IDX, amt)
+        s_headers.insert(COLLECTED_IDX, 'Collected (₹)')
+        s_widths.insert(COLLECTED_IDX, 15)
 
     # ── workers sheet ────────────────────────────────────────────────────
     w_rows = []
@@ -3887,7 +3897,18 @@ def build_onsite_full_report(projects, output_dir='/tmp', label='All Works'):
     wb = Workbook()
     ws = wb.active
     ws.title = 'Onsite Summary'
-    _onsite_sheet(ws, f'Onsite Report — {label} ({len(projects)} works)', s_headers, summary, s_widths)
+    title = f'Onsite Report — {label} ({len(projects)} works)'
+    if show_collected:
+        title += f' · {sum(1 for amt in collected if amt <= 0)} with zero collection'
+    _onsite_sheet(ws, title, s_headers, summary, s_widths)
+
+    # money format; zero rows in red (empty list unless show_collected)
+    for i, amt in enumerate(collected):
+        zero = amt <= 0
+        bg = C_RED_BG if zero else (C_ALT_BG if i % 2 == 0 else 'FFFFFF')
+        _style_data_cell(ws.cell(6 + i, COLLECTED_IDX + 1), amt, bg=bg,
+                         fg=C_RED_FG if zero else '000000', bold=zero,
+                         align='right', number_fmt='₹#,##0')
     _onsite_sheet(wb.create_sheet('Workers'), 'Workers & Job Cards', w_headers, w_rows,
                   [11, 24, 16, 20, 16, 20, 14, 13, 13, 12, 12, 11, 12, 15, 17, 18])
     _onsite_sheet(wb.create_sheet('Daily Logs'), 'Onsite Daily Logs', l_headers, l_rows,
@@ -3900,7 +3921,6 @@ def build_onsite_full_report(projects, output_dir='/tmp', label='All Works'):
     path = os.path.join(output_dir, f'OnsiteReport_{date.today().isoformat()}.xlsx')
     wb.save(path)
     return path
-
 
 ONSITE_BUCKETS = {
     'pending':      ('Order pending',  ['Order pending']),
@@ -3929,6 +3949,7 @@ def onsite_download_excel():
         return redirect(back)
     if bucket:
         scope = 'board'
+    show_collected = (bucket == 'completed')
 
     q = (Project.query
          .options(joinedload(Project.customer), joinedload(Project.coordinator),
@@ -3937,6 +3958,12 @@ def onsite_download_excel():
                   selectinload(Project.assignments).joinedload(WorkerAssignment.worker),
                   selectinload(Project.job_cards).joinedload(JobCard.closer))
          .filter(Project.work_category != 'Outside'))
+    if show_collected:
+        # everything effective_collected reads, loaded up front
+        q = q.options(joinedload(Project.subsidy),
+                      selectinload(Project.expenses),
+                      selectinload(Project.payment_excesses),
+                      selectinload(Project.adjustments_in))
     if scope == 'board':
         q = q.filter(Project.status.in_(['InProgress', 'Delayed', 'Lead', 'Created']))
         label = 'Active Board'
@@ -3970,7 +3997,8 @@ def onsite_download_excel():
         flash('No works match this selection.', 'warning')
         return redirect(back)
 
-    path = build_onsite_full_report(projects, tempfile.gettempdir(), label)
+    path = build_onsite_full_report(projects, tempfile.gettempdir(), label,
+                                    show_collected=show_collected)
     return send_file(path, as_attachment=True, download_name=fname,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 # ─────────────────────────────────────────────────────────────────────────────
