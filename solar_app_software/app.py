@@ -7619,54 +7619,17 @@ def payments_dashboard():
     recovered_total = None
 
     if pay_date:
-        payments_today = (Payment.query
-            .filter(Payment.payment_date == pay_date)
-            .order_by(Payment.created_at.desc())
-            .all())
-        expenses_today = (ProjectExpense.query
-            .filter(ProjectExpense.recovered == True,
-                    ProjectExpense.recovered_date == pay_date)
-            .order_by(ProjectExpense.updated_at.desc())
-            .all())
-
-        entries = []
-        for pay in payments_today:
-            entries.append({
-                'kind':      'payment',
-                'sort_key':  pay.created_at,
-                'date':      pay.payment_date,
-                'project':   pay.project,
-                'amount':    float(pay.amount),
-                'label':     pay.payment_type,
-                'reference': pay.reference_no or '—',
-                'notes':     pay.notes or '—',
-            })
-        for exp in expenses_today:
-            entries.append({
-        'kind':      'expense_recovery',
-        'sort_key':  exp.updated_at,
-        'date':      exp.recovered_date,
-        'project':   exp.project,
-        'amount':    float(exp.amount),
-        'label':     f'{exp.expense_type} Recovered',
-        'reference': exp.recovery_reference or '—',
-        'notes':     exp.notes or '—',
-    })
-        entries.sort(key=lambda e: e['sort_key'] or datetime.min, reverse=True)
-
-        total_entries = len(entries)
-        start         = (pay_page - 1) * per_page
-        total_pages   = max(1, (total_entries + per_page - 1) // per_page)
-
+        all_entries = _get_day_entries(pay_date)
+        total_entries = len(all_entries)
+        start = (pay_page - 1) * per_page
+        total_pages = max(1, (total_entries + per_page - 1) // per_page)
         recent_payments = {
-            'entries': entries[start:start + per_page],
-            'total':   total_entries,
-            'page':    pay_page,
-            'pages':   total_pages,
+            'entries': all_entries[start:start + per_page],
+            'total': total_entries, 'page': pay_page, 'pages': total_pages,
         }
-
-        date_total      = sum(float(p.amount) for p in payments_today)
-        recovered_total = sum(float(e.amount) for e in expenses_today)
+        date_total      = sum(e['amount'] for e in all_entries if e['kind'] == 'payment')
+        recovered_total = sum(e['amount'] for e in all_entries if e['kind'] == 'expense_recovery')
+    
     else:
         pag = (Payment.query
                .order_by(Payment.payment_date.desc(), Payment.created_at.desc())
@@ -12080,7 +12043,7 @@ def build_docstaff_monthly_report(staff, all_projects, year, month, output_dir='
 # PAYMENTS-BY-DATE REPORT (Excel + PDF)
 # ─────────────────────────────────────────────────────────────────────────────
  
-def build_payments_report_excel(payments, pay_date, output_dir='/tmp'):
+def build_payments_report_excel(entries, pay_date, output_dir='/tmp'):
     wb = Workbook()
     ws = wb.active
     ws.title = 'Payments'
@@ -12114,26 +12077,27 @@ def build_payments_report_excel(payments, pay_date, output_dir='/tmp'):
         _style_header_cell(ws.cell(5, col), h)
 
     row = 6
-    for i, pay in enumerate(payments):
+    for i, e in enumerate(entries):
+        p = e['project']
         bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
         ws.row_dimensions[row].height = 17
-        vals = [pay.payment_date.strftime('%d %b %Y'), pay.project.project_code,
-                pay.project.customer.name, pay.project.customer.phone or '—', float(pay.amount), pay.payment_type,
-                pay.payment_source, pay.reference_no or '—', pay.notes or '—']
+        vals = [e['date'].strftime('%d %b %Y'), p.project_code, p.customer.name,
+                p.customer.phone or '—', e['amount'], e['label'],
+                e['source'], e['reference'], e['notes']]
         fmts   = [None, None, None, None, '₹#,##0', None, None, None, None]
         aligns = ['center', 'center', 'left', 'center', 'right', 'center', 'center', 'center', 'left']
         for col, (val, fmt, aln) in enumerate(zip(vals, fmts, aligns), 1):
             _style_data_cell(ws.cell(row, col), val, bg=bg, align=aln, number_fmt=fmt)
         row += 1
 
-    total_amt = sum(float(p.amount) for p in payments)
+    total_amt = sum(e['amount'] for e in entries)
     ws.row_dimensions[row].height = 20
     for col in range(1, len(headers) + 1):
         cell = ws.cell(row, col)
         if col == 1:
             _style_data_cell(cell, 'TOTAL', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='center')
         elif col == 2:
-            _style_data_cell(cell, f'{len(payments)} payments', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
+            _style_data_cell(cell, f'{len(entries)} payments', bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True)
         elif col == 5:
             _style_data_cell(cell, total_amt, bg=C_TOTAL_BG, fg=C_TOTAL_FG, bold=True, align='right', number_fmt='₹#,##0')
         else:
@@ -12252,7 +12216,7 @@ def build_writeoffs_report_excel(waivers, start_date, end_date, output_dir='/tmp
     path = os.path.join(output_dir, fname)
     wb.save(path)
     return path
-def build_payments_report_pdf(payments, pay_date, output_dir='/tmp'):
+def build_payments_report_pdf(entries, pay_date, output_dir='/tmp'):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -12282,22 +12246,15 @@ def build_payments_report_pdf(payments, pay_date, output_dir='/tmp'):
 
     data = [['Date', 'MNRE No.', 'Customer', 'Phone', 'Amount (₹)', 'Type', 'Source', 'Reference', 'Notes']]
     total_amt = 0.0
-    for pay in payments:
-        amt = float(pay.amount)
-        total_amt += amt
+    for e in entries:
+        total_amt += e['amount']
+        p = e['project']
         data.append([
-            pay.payment_date.strftime('%d %b %Y'),
-            pay.project.project_code,
-            pay.project.customer.name,
-            pay.project.customer.phone or '—',
-            f'{amt:,.0f}',
-            pay.payment_type,
-            pay.payment_source,
-            pay.reference_no or '—',
-            (pay.notes or '—')[:60],
+            e['date'].strftime('%d %b %Y'), p.project_code, p.customer.name,
+            p.customer.phone or '—', f"{e['amount']:,.0f}", e['label'],
+            e['source'], e['reference'], e['notes'][:60],
         ])
-    data.append(['TOTAL', f'{len(payments)} payments', '', '', f'{total_amt:,.0f}', '', '', '', ''])
-
+    data.append(['TOTAL', f'{len(entries)} entries', '', '', f'{total_amt:,.0f}', '', '', '', ''])
     table = Table(data, repeatRows=1,
                   colWidths=[22 * mm, 20 * mm, 36 * mm, 22 * mm, 24 * mm, 18 * mm, 18 * mm, 26 * mm, 54 * mm])
     table.setStyle(TableStyle([
@@ -12317,11 +12274,41 @@ def build_payments_report_pdf(payments, pay_date, output_dir='/tmp'):
     return path
 
 
-def _get_payments_for_date(pay_date):
-    q = Payment.query.order_by(Payment.payment_date.desc(), Payment.created_at.desc())
+def _get_day_entries(pay_date):
+    """Payments + recovered expenses for a day (or all, if pay_date is None).
+    Single source for the dashboard, Excel and PDF."""
+    pq = (Payment.query
+          .options(joinedload(Payment.project).joinedload(Project.customer))
+          .order_by(Payment.payment_date.desc(), Payment.created_at.desc()))
+    eq = (ProjectExpense.query
+          .options(joinedload(ProjectExpense.project).joinedload(Project.customer))
+          .filter(ProjectExpense.recovered == True))
     if pay_date:
-        q = q.filter(Payment.payment_date == pay_date)
-    return q.all()
+        pq = pq.filter(Payment.payment_date == pay_date)
+        eq = eq.filter(ProjectExpense.recovered_date == pay_date)
+
+    entries = []
+    for pay in pq.all():
+        if not pay.project:
+            continue
+        entries.append({
+            'kind': 'payment', 'sort_key': pay.created_at, 'date': pay.payment_date,
+            'project': pay.project, 'amount': float(pay.amount),
+            'label': pay.payment_type, 'source': pay.payment_source,
+            'reference': pay.reference_no or '—', 'notes': pay.notes or '—',
+        })
+    for exp in eq.all():
+        if not exp.project:
+            continue
+        entries.append({
+            'kind': 'expense_recovery', 'sort_key': exp.updated_at,
+            'date': exp.recovered_date or exp.updated_at.date(),
+            'project': exp.project, 'amount': float(exp.amount or 0),
+            'label': f'{exp.expense_type} Recovered', 'source': 'Expense Recovery',
+            'reference': exp.recovery_reference or '—', 'notes': exp.notes or '—',
+        })
+    entries.sort(key=lambda e: (e['date'], e['sort_key'] or datetime.min), reverse=True)
+    return entries
 def _get_write_offs(start_date=None, end_date=None, search=''):
     q = (PaymentWaiver.query
          .join(Project)
@@ -12397,8 +12384,8 @@ def download_payments_excel():
         except ValueError:
             pay_date = None
 
-    payments = _get_payments_for_date(pay_date)
-    path = build_payments_report_excel(payments, pay_date, tempfile.gettempdir())
+    entries = _get_day_entries(pay_date)
+    path = build_payments_report_excel(entries, pay_date, tempfile.gettempdir())   
     fname = f'Payments_{pay_date_str}.xlsx' if pay_date_str else 'Payments_All.xlsx'
     return send_file(path, as_attachment=True, download_name=fname,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -12416,8 +12403,8 @@ def download_payments_pdf():
         except ValueError:
             pay_date = None
 
-    payments = _get_payments_for_date(pay_date)
-    path = build_payments_report_pdf(payments, pay_date, tempfile.gettempdir())
+        entries = _get_day_entries(pay_date)
+    path = build_payments_report_excel(entries, pay_date, tempfile.gettempdir())  
     fname = f'Payments_{pay_date_str}.pdf' if pay_date_str else 'Payments_All.pdf'
     return send_file(path, as_attachment=True, download_name=fname, mimetype='application/pdf')
 def build_excess_report_excel(items, output_dir='/tmp'):
