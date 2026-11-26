@@ -1326,7 +1326,7 @@ class ServiceRecord(db.Model):
     assigned_by      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     sheet_sent_at    = db.Column(db.DateTime, nullable=True)
     team             = db.relationship('ServiceTeam', foreign_keys=[assigned_team_id])
- 
+    dispatch_date    = db.Column(db.Date, nullable=True)   
     @property
     def checklist_pct(self):
         return 100 if self.panel_cleaning else 0
@@ -9924,11 +9924,22 @@ def _code_sort(r):
     c = str(r['project'].project_code)
     return (0, int(c), '') if c.isdigit() else (1, 0, c)
 
+def _dispatch_date_from_form():
+    """Returns (date_or_None, error_or_None). Blank is (None, None)."""
+    raw = request.form.get('dispatch_date', '').strip()
+    if not raw:
+        return None, None
+    d = _parse_iso_date(raw)
+    if not d:
+        return None, 'Enter a valid visit date.'
+    if d < date.today():
+        return None, 'Visit date cannot be in the past.'
+    return d, None
 
 def _dispatch_rows():
     """The NEXT open visit of every eligible project (same eligibility rule as
     service_management). Returns (rows, labels).
-    rows   -> [{'rec', 'project', 'place_key'}]
+    rows   -> [{'rec', 'project', 'place_key', 'block'}]
     labels -> {place_key: display label}  (most common spelling wins)"""
     refresh_service_statuses()
 
@@ -9958,13 +9969,15 @@ def _dispatch_rows():
     for r in recs:
         next_rec.setdefault(r.project_id, r)          # first open visit = next one
 
+    blocks = _active_blocks()
     rows, spellings = [], {}
     for pid, rec in next_rec.items():
         p = eligible[pid]
         raw = (p.customer.place or '').strip()
         key = re.sub(r'[\s.,\-]+', ' ', raw.lower()).strip()
         spellings.setdefault(key, Counter())[raw] += 1
-        rows.append({'rec': rec, 'project': p, 'place_key': key})
+        rows.append({'rec': rec, 'project': p, 'place_key': key,
+                     'block': _block_for(p, blocks)})
 
     labels = {}
     for key, c in spellings.items():
@@ -9996,10 +10009,9 @@ def _dispatch_ids():
 def _dispatch_back():
     show = 'all' if request.form.get('show') == 'all' else 'due'
     tab = request.form.get('tab', 'pool')
-    if not re.fullmatch(r'pool|team\d+', tab):
+    if not re.fullmatch(r'pool|blocked|team\d+', tab):
         tab = 'pool'
     return redirect(url_for('dispatch_board', show=show) + '#' + tab)
-
 
 @app.route('/service/dispatch')
 @login_required
@@ -10013,6 +10025,7 @@ def dispatch_board():
                  if not r['rec'].assigned_team_id
                  and (show == 'all' or r['rec'].status in ('Overdue', 'Due'))]
     team_rows = {t.id: [r for r in rows if r['rec'].assigned_team_id == t.id] for t in teams}
+    blocked_rows = [r for r in rows if r['block']]
 
     # which teams hold open work in each place (drives the overlap warnings)
     place_teams = {}
@@ -10025,14 +10038,16 @@ def dispatch_board():
 
     return render_template('service_dispatch.html',
         teams=teams, all_teams=ServiceTeam.query.order_by(ServiceTeam.id).all(),
+        team_names={t.id: t.name for t in teams},
         show=show, today=date.today(),
         pool_groups=_group_by_place(pool_rows, labels, by_count=True),
         pool_total=len(pool_rows),
+        blocked_groups=_group_by_place(blocked_rows, labels),
+        blocked_total=len(blocked_rows),
         team_groups={t.id: _group_by_place(team_rows[t.id], labels) for t in teams},
         team_counts={t.id: len(team_rows[t.id]) for t in teams},
         team_overdue={t.id: sum(1 for r in team_rows[t.id] if r['rec'].status == 'Overdue') for t in teams},
         place_teams=place_teams, overlaps=overlaps)
-
 
 @app.route('/service/dispatch/assign', methods=['POST'])
 @login_required
@@ -10040,10 +10055,13 @@ def dispatch_board():
 def dispatch_assign():
     team = db.session.get(ServiceTeam, request.form.get('team_id', type=int) or 0)
     ids = _dispatch_ids()
+    visit_on, err = _dispatch_date_from_form()
     if not team or not team.is_active:
         flash('Choose a team.', 'danger'); return _dispatch_back()
     if not ids:
         flash('Select at least one work.', 'warning'); return _dispatch_back()
+    if err or not visit_on:
+        flash(err or 'Choose a visit date.', 'danger'); return _dispatch_back()
 
     # Row lock + "still unassigned" check: two admins clicking at once can't both win.
     recs = (ServiceRecord.query
@@ -10052,15 +10070,18 @@ def dispatch_assign():
                     ServiceRecord.status.notin_(['Completed', 'Skipped']))
             .with_for_update().all())
     now = datetime.utcnow()
+    when = visit_on.strftime('%d %b %Y')
     for r in recs:
         r.assigned_team_id, r.assigned_at = team.id, now
         r.assigned_by, r.sheet_sent_at = current_user.id, None
-        log_action(r.project_id, f'Service visit #{r.visit_number} assigned to {team.name}',
+        r.dispatch_date = visit_on
+        log_action(r.project_id,
+                   f'Service visit #{r.visit_number} assigned to {team.name} for {when}',
                    new_val=team.name)
     db.session.commit()
 
     skipped = len(ids) - len(recs)
-    flash(f'{len(recs)} work(s) assigned to {team.name}.'
+    flash(f'{len(recs)} work(s) assigned to {team.name} for {when}.'
           + (f' {skipped} skipped — already assigned or no longer open.' if skipped else ''),
           'success' if recs else 'warning')
     return _dispatch_back()
@@ -10072,10 +10093,13 @@ def dispatch_assign():
 def dispatch_reassign():
     team = db.session.get(ServiceTeam, request.form.get('team_id', type=int) or 0)
     ids = _dispatch_ids()
+    visit_on, err = _dispatch_date_from_form()      # blank = keep the current date
     if not team or not team.is_active:
         flash('Choose a team.', 'danger'); return _dispatch_back()
     if not ids:
         flash('Select at least one work.', 'warning'); return _dispatch_back()
+    if err:
+        flash(err, 'danger'); return _dispatch_back()
 
     recs = (ServiceRecord.query
             .filter(ServiceRecord.id.in_(ids),
@@ -10089,6 +10113,8 @@ def dispatch_reassign():
         old = names.get(r.assigned_team_id, '?')
         r.assigned_team_id, r.assigned_at = team.id, now
         r.assigned_by, r.sheet_sent_at = current_user.id, None
+        if visit_on:
+            r.dispatch_date = visit_on
         log_action(r.project_id, f'Service visit #{r.visit_number} reassigned: {old} → {team.name}',
                    old_val=old, new_val=team.name)
     db.session.commit()
@@ -10098,7 +10124,6 @@ def dispatch_reassign():
           + (f' {skipped} skipped — not assigned, already with {team.name}, or closed.' if skipped else ''),
           'success' if recs else 'warning')
     return _dispatch_back()
-
 
 @app.route('/service/dispatch/unassign', methods=['POST'])
 @login_required
@@ -10117,6 +10142,7 @@ def dispatch_unassign():
     for r in recs:
         old = names.get(r.assigned_team_id, '?')
         r.assigned_team_id = r.assigned_at = r.assigned_by = r.sheet_sent_at = None
+        r.dispatch_date = None
         log_action(r.project_id, f'Service visit #{r.visit_number} unassigned from {old}',
                    old_val=old, new_val=None)
     db.session.commit()
@@ -10124,15 +10150,48 @@ def dispatch_unassign():
     return _dispatch_back()
 
 
+@app.route('/service/dispatch/set_date', methods=['POST'])
+@login_required
+@roles_required(*DISPATCH_ROLES)
+def dispatch_set_date():
+    ids = _dispatch_ids()
+    visit_on, err = _dispatch_date_from_form()
+    if not ids:
+        flash('Select at least one work.', 'warning'); return _dispatch_back()
+    if err or not visit_on:
+        flash(err or 'Choose a visit date.', 'danger'); return _dispatch_back()
+
+    recs = (ServiceRecord.query
+            .filter(ServiceRecord.id.in_(ids),
+                    ServiceRecord.assigned_team_id.isnot(None),
+                    ServiceRecord.status.notin_(['Completed', 'Skipped']))
+            .with_for_update().all())
+    changed = 0
+    for r in recs:
+        if r.dispatch_date == visit_on:
+            continue
+        old = r.dispatch_date
+        r.dispatch_date, r.sheet_sent_at = visit_on, None
+        log_action(r.project_id, f'Service visit #{r.visit_number} team visit date changed',
+                   old_val=old, new_val=visit_on)
+        changed += 1
+    db.session.commit()
+    flash(f'Visit date set to {visit_on.strftime("%d %b %Y")} for {changed} work(s).'
+          + (' Unassigned works were skipped.' if len(recs) < len(ids) else ''),
+          'success' if changed else 'warning')
+    return _dispatch_back()
 
 def build_dispatch_excel(teams, rows_by_team, labels, output_dir='/tmp', only_new=False):
     today = date.today()
     headers = ['#', 'MNRE No.', 'Customer', 'Phone', 'Address', 'Inverter (kW)', 'Visit #',
-               'Scheduled', 'Status', 'Assigned on', 'Days with team', 'Done?', 'Remarks']
+               'Due date', 'Status', 'Visit on', 'Assigned on', 'Days with team', 'Done?', 'Remarks']
     n = len(headers)
     wb = Workbook()
     wb.remove(wb.active)
     used = set()
+
+    def _group_key(r):
+        return (r['rec'].dispatch_date or date.max, labels.get(r['place_key'], '').lower(), r['place_key'])
 
     for t in teams:
         base = (re.sub(r'[\\/*?:\[\]]', '', t.name)[:31] or f'Team {t.id}')
@@ -10142,8 +10201,8 @@ def build_dispatch_excel(teams, rows_by_team, labels, output_dir='/tmp', only_ne
         _page_setup(ws)
         ws.freeze_panes = 'A6'
 
-        rows = sorted(rows_by_team.get(t.id, []),
-                      key=lambda r: (labels.get(r['place_key'], '').lower(), _code_sort(r)))
+        rows = sorted(rows_by_team.get(t.id, []), key=lambda r: (_group_key(r), _code_sort(r)))
+        counts = Counter(_group_key(r) for r in rows)
         subtitle = f'{t.name} — {len(rows)} work(s)' + (' (new since last download)' if only_new else '')
         for i, (txt, bg_c, fg_c, sz, italic) in enumerate([
             ('Power On Plus Solar Solutions', C_HEADER_BG, C_HEADER_FG, 14, False),
@@ -10163,11 +10222,13 @@ def build_dispatch_excel(teams, rows_by_team, labels, output_dir='/tmp', only_ne
         row, idx, last_key = 6, 0, None
         for r in rows:
             rec, p = r['rec'], r['project']
-            if r['place_key'] != last_key:
-                last_key = r['place_key']
-                count = sum(1 for x in rows if x['place_key'] == last_key)
+            visit_on = rec.dispatch_date.strftime('%d %b %Y') if rec.dispatch_date else 'No date'
+            key = _group_key(r)
+            if key != last_key:
+                last_key = key
                 ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=n)
-                _style_data_cell(ws.cell(row, 1), f'{labels.get(last_key, "—")} — {count} work(s)',
+                _style_data_cell(ws.cell(row, 1),
+                                 f'{visit_on} · {labels.get(r["place_key"], "—")} — {counts[key]} work(s)',
                                  bg=C_ACCENT_BG, bold=True)
                 ws.row_dimensions[row].height = 20
                 row += 1
@@ -10179,11 +10240,11 @@ def build_dispatch_excel(teams, rows_by_team, labels, output_dir='/tmp', only_ne
             vals = [idx, p.project_code, p.customer.name, p.customer.phone or '—',
                     p.customer.full_address or p.customer.place or '—',
                     p.inverter_capacity_kw, rec.visit_number,
-                    rec.scheduled_date.strftime('%d %b %Y'), status,
+                    rec.scheduled_date.strftime('%d %b %Y'), status, visit_on,
                     rec.assigned_at.strftime('%d %b %Y') if rec.assigned_at else '—', days, '', '']
-            fmts = [None] * 5 + ['0.##'] + [None] * 7
+            fmts = [None] * 5 + ['0.##'] + [None] * 8
             aligns = ['center', 'center', 'left', 'center', 'left', 'center', 'center',
-                      'center', 'center', 'center', 'center', 'center', 'left']
+                      'center', 'center', 'center', 'center', 'center', 'center', 'left']
             for col, (v, f, a) in enumerate(zip(vals, fmts, aligns), 1):
                 _style_data_cell(ws.cell(row, col), v,
                                  bg=s_bg if col == 9 else bg, fg=s_fg if col == 9 else '000000',
@@ -10195,7 +10256,7 @@ def build_dispatch_excel(teams, rows_by_team, labels, output_dir='/tmp', only_ne
             ws.merge_cells(start_row=6, start_column=1, end_row=6, end_column=n)
             _style_data_cell(ws.cell(6, 1), 'No open works for this team.', align='center')
 
-        for i, w in enumerate([5, 11, 24, 14, 40, 12, 9, 13, 11, 13, 13, 9, 26], 1):
+        for i, w in enumerate([5, 11, 24, 14, 40, 12, 9, 13, 11, 13, 13, 13, 9, 26], 1):
             ws.column_dimensions[get_column_letter(i)].width = w
 
     path = os.path.join(output_dir, f'ServiceDispatch_{today.isoformat()}{"_new" if only_new else ""}.xlsx')

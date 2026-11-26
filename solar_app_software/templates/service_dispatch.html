@@ -113,10 +113,12 @@
 </style>
 {% endblock %}
 
-{% macro group_block(g, place_teams, current_team_id, open_default, today) %}
+{% macro group_block(g, place_teams, current_team_id, open_default, today, readonly=false, team_names=none) %}
 <details class="dp-group" {% if open_default %}open{% endif %}>
   <summary>
+    {% if not readonly %}
     <input type="checkbox" class="dp-chk" onclick="event.stopPropagation(); dpGroup(this)" aria-label="Select all in {{ g.label }}">
+    {% endif %}
     <span class="dp-gname">{{ g.label }}</span>
     <span class="dp-gcount">{{ g.rows | length }} work{{ '' if g.rows | length == 1 else 's' }}</span>
     {% if g.overdue %}<span class="dp-pill over">{{ g.overdue }} overdue</span>{% endif %}
@@ -132,21 +134,41 @@
       <tbody>
       {% for r in g.rows %}
         {% set rec = r.rec %}{% set p = r.project %}
-                <tr data-search="{{ (p.project_code ~ ' ' ~ p.customer.name ~ ' ' ~ (p.customer.place or '') ~ ' ' ~ (p.customer.full_address or '') ~ ' ' ~ g.label ~ ' ' ~ (p.customer.phone or '')) | lower }}">
+        <tr {% if r.block %}data-blocked="1"{% endif %}
+            data-search="{{ (p.project_code ~ ' ' ~ p.customer.name ~ ' ' ~ (p.customer.place or '') ~ ' ' ~ (p.customer.full_address or '') ~ ' ' ~ g.label ~ ' ' ~ (p.customer.phone or '') ~ ' ' ~ (rec.dispatch_date | date_fmt if rec.dispatch_date else '')) | lower }}">
+          {% if not readonly %}
           <td style="width:30px"><input type="checkbox" class="dp-chk dp-row" name="record_ids" value="{{ rec.id }}" onchange="dpCount()"></td>
+          {% endif %}
           <td class="dp-code"><a href="{{ url_for('project_detail', pid=p.id) }}" target="_blank">{{ p.project_code }}</a></td>
-          <td>{{ p.customer.name }}<div class="dp-sub">{{ p.customer.full_address or p.customer.place or '—' }}</div></td>
+          <td>
+            {{ p.customer.name }}
+            {% if r.block %}<span class="dp-pill clash">Blocked: {{ r.block.label }}</span>{% endif %}
+            <div class="dp-sub">{{ p.customer.full_address or p.customer.place or '—' }}</div>
+            {% if r.block %}
+            <div class="dp-sub" style="color:#b91c1c">{{ r.block.reason }}{% if r.block.blocked_until %} · until {{ r.block.blocked_until | date_fmt }}{% endif %}</div>
+            {% endif %}
+          </td>
           <td>{% if p.customer.phone %}<a href="tel:{{ p.customer.phone }}" style="color:inherit;text-decoration:none">{{ p.customer.phone }}</a>{% else %}—{% endif %}</td>
           <td>{{ '%g' % p.inverter_capacity_kw }} kW</td>
           <td>Visit {{ rec.visit_number }}</td>
           <td>
             <span class="dp-st {{ rec.status }}">{{ rec.status }}</span>
-            <div class="dp-sub">{{ rec.scheduled_date | date_fmt }}</div>
+            <div class="dp-sub">Due {{ rec.scheduled_date | date_fmt }}</div>
           </td>
           <td class="dp-sub">
-            {% if rec.assigned_at %}
-              Assigned {{ (today - rec.assigned_at.date()).days }}d ago
+            {% if rec.assigned_team_id %}
+              {% if team_names %}<strong>{{ team_names.get(rec.assigned_team_id, '—') }}</strong><br>{% endif %}
+              {% if rec.dispatch_date %}
+                <strong style="color:{{ '#b91c1c' if rec.dispatch_date < today else 'var(--text)' }}">Visit on {{ rec.dispatch_date | date_fmt }}</strong>
+                {% if rec.dispatch_date < today %}(missed){% endif %}
+              {% else %}
+                <span style="color:#c2410c">No visit date</span>
+              {% endif %}
+              <br>
+              {% if rec.assigned_at %}Assigned {{ (today - rec.assigned_at.date()).days }}d ago{% endif %}
               {% if rec.sheet_sent_at %}· sent {{ rec.sheet_sent_at | date_fmt }}{% else %}· <span style="color:#c2410c">not sent</span>{% endif %}
+            {% elif readonly %}
+              Unassigned
             {% endif %}
           </td>
         </tr>
@@ -172,6 +194,10 @@
   </div>
   {% endfor %}
   <div class="dp-stat {% if overlaps %}warn{% endif %}"><div class="val">{{ overlaps | length }}</div><div class="lbl">Places with 2+ teams</div></div>
+    <div class="dp-stat {% if blocked_total %}warn{% endif %}">
+    <div class="val">{{ blocked_total }}</div>
+    <div class="lbl">Blocked coordinator works</div>
+  </div>
 </div>
 
 {% if overlaps %}
@@ -189,17 +215,24 @@
   <input type="hidden" name="show" value="{{ show }}">
   <input type="hidden" name="tab" id="dp-tab-input" value="pool">
 
-  <div class="dp-bar">
+   <div class="dp-bar">
     <span class="dp-count"><strong id="dp-count">0</strong> selected</span>
     <select name="team_id" id="dp-team" aria-label="Team">
       <option value="">Choose team…</option>
       {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
     </select>
+    <label class="dp-sub">Visit on
+      <input type="date" name="dispatch_date" id="dp-date" min="{{ today.isoformat() }}"
+             style="font-size:13px;padding:6px 8px;border:0.5px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)">
+    </label>
     <button type="submit" class="btn btn-sm btn-primary dp-act" formaction="{{ url_for('dispatch_assign') }}" onclick="return dpCheck('assign')">
       <i class="ti ti-user-plus"></i> Assign
     </button>
     <button type="submit" class="btn btn-sm dp-act" formaction="{{ url_for('dispatch_reassign') }}" onclick="return dpCheck('reassign')">
       <i class="ti ti-arrows-exchange"></i> Move to team
+    </button>
+    <button type="submit" class="btn btn-sm dp-act" formaction="{{ url_for('dispatch_set_date') }}" onclick="return dpCheck('date')">
+      <i class="ti ti-calendar"></i> Change date
     </button>
     <button type="submit" class="btn btn-sm btn-danger dp-act" formaction="{{ url_for('dispatch_unassign') }}" onclick="return dpCheck('unassign')">
       <i class="ti ti-user-minus"></i> Unassign
@@ -211,6 +244,7 @@
     {% for t in teams %}
     <button type="button" class="dp-tab" data-tab="team{{ t.id }}" onclick="dpTab('team{{ t.id }}')">{{ t.name }} <span class="n">{{ team_counts[t.id] }}</span></button>
     {% endfor %}
+        <button type="button" class="dp-tab" data-tab="blocked" onclick="dpTab('blocked')">Blocked <span class="n">{{ blocked_total }}</span></button>
   </div>
 
   <section class="dp-panel" id="dp-pool">
@@ -251,6 +285,16 @@
     {% endfor %}
   </section>
   {% endfor %}
+    <section class="dp-panel" id="dp-blocked" hidden>
+    <div class="dp-panel-head">
+      <span>Open works of blocked coordinators (view only). To act on one, select it in the Unassigned or team tab.</span>
+    </div>
+    {% for g in blocked_groups %}
+      {{ group_block(g, place_teams, none, true, today, readonly=true, team_names=team_names) }}
+    {% else %}
+      <div class="dp-empty">No open works under a blocked coordinator.</div>
+    {% endfor %}
+  </section>
 </form>
 <div class="dp-modal" id="dp-modal" hidden onclick="if(event.target===this)dpCloseTeam()">
   <div class="dp-modal-box" role="dialog" aria-modal="true" aria-labelledby="dp-modal-title">
@@ -343,11 +387,23 @@ function dpAll(box) {
 }
 
 function dpCheck(kind) {
-  var n = document.querySelectorAll('.dp-row:checked').length;
+  var picked = document.querySelectorAll('.dp-row:checked');
+  var n = picked.length;
   if (!n) { alert('Select at least one work.'); return false; }
   var team = document.getElementById('dp-team');
-  if (kind !== 'unassign' && !team.value) { alert('Choose a team first.'); team.focus(); return false; }
+  var when = document.getElementById('dp-date');
+  if ((kind === 'assign' || kind === 'reassign') && !team.value) {
+    alert('Choose a team first.'); team.focus(); return false;
+  }
+  if ((kind === 'assign' || kind === 'date') && !when.value) {
+    alert('Choose a visit date.'); when.focus(); return false;
+  }
   document.getElementById('dp-tab-input').value = dpCurrent;
+
+  var blocked = Array.from(picked).filter(function (c) { return c.closest('tr').dataset.blocked; }).length;
+  if (blocked && kind !== 'unassign' &&
+      !confirm(blocked + ' selected work(s) belong to a blocked coordinator. Continue?')) return false;
+
   if (kind === 'reassign') return confirm('Move ' + n + ' work(s) to ' + team.options[team.selectedIndex].text + '?');
   if (kind === 'unassign') return confirm('Return ' + n + ' work(s) to the unassigned pool?');
   return true;
