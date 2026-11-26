@@ -30,6 +30,9 @@
   font-size:10px;font-weight:500;padding:1px 7px;
   border-radius:20px;white-space:nowrap;
 }
+.dl-link { font-size:10px;text-decoration:none;color:var(--hint);
+           border:0.5px solid var(--border);border-radius:20px;padding:1px 8px; }
+.dl-link:hover { background:var(--bg); }
 .pill-malabar  { background:#fef3c7;color:#92400e;border:0.5px solid #fcd34d; }
 .pill-delivered{ background:#d1fae5;color:#065f46;border:0.5px solid #6ee7b7; }
 .pill-struct   { background:#dbeafe;color:#1e40af;border:0.5px solid #93c5fd; }
@@ -129,9 +132,14 @@
   {# Column A: Needs Malabar + With Malabar #}
   <div class="card" style="padding:0">
   <div class="stage-header">
-    <span>Materials</span>
+  <span>Materials</span>
+  <span style="display:flex;gap:4px;align-items:center">
+    <a class="dl-link" href="{{ url_for('onsite_download_excel', bucket='pending') }}" title="Order pending only">⬇ Pending</a>
+    <a class="dl-link" href="{{ url_for('onsite_download_excel', bucket='ordered') }}" title="Order placed only">⬇ Placed</a>
+    <a class="dl-link" href="{{ url_for('onsite_download_excel', bucket='materials') }}" title="Both">⬇ All</a>
     <span class="count">{{ (ns.not_ordered | length) + (ns.ordered | length) }}</span>
-  </div>
+  </span>
+</div>
   {% if ns.not_ordered or ns.ordered %}
     {% for p in ns.not_ordered %}
     <a href="{{ url_for('onsite_progress', pid=p.id) }}" style="text-decoration:none;color:inherit;display:block">
@@ -174,11 +182,14 @@
 </div>
 
   {# Column B: Structure work #}
-  <div class="card" style="padding:0">
-    <div class="stage-header">
-      <span> Structure work</span>
-      <span class="count">{{ ns.structure | length }}</span>
-    </div>
+  <div class="stage-header">
+  <span> Structure work</span>
+  <span style="display:flex;gap:6px;align-items:center">
+    <a class="dl-link" href="{{ url_for('onsite_download_excel', bucket='structure') }}">⬇ Excel</a>
+    <span class="count">{{ ns.structure | length }}</span>
+  </span>
+</div>
+
     {% if ns.structure %}
       {% for p in ns.structure %}
       {% set op = p.onsite_progress %}
@@ -207,11 +218,13 @@
   </div>
 
   {# Column C: Installation #}
-  <div class="card" style="padding:0">
-    <div class="stage-header">
-      <span> Installation</span>
-      <span class="count">{{ ns.installation | length }}</span>
-    </div>
+  <div class="stage-header">
+  <span> Installation</span>
+  <span style="display:flex;gap:6px;align-items:center">
+    <a class="dl-link" href="{{ url_for('onsite_download_excel', bucket='installation') }}">⬇ Excel</a>
+    <span class="count">{{ ns.installation | length }}</span>
+  </span>
+</div>
     {% if ns.installation %}
       {% for p in ns.installation %}
       {% set op = p.onsite_progress %}
@@ -240,11 +253,13 @@
   </div>
 
   {# Column D: Completed #}
-  <div class="card" style="padding:0">
-    <div class="stage-header">
-      <span>Completed</span>
-      <span class="count">{{ ns.done | length }}</span>
-    </div>
+ <div class="stage-header">
+  <span>Completed</span>
+  <span style="display:flex;gap:6px;align-items:center">
+    <a class="dl-link" href="{{ url_for('onsite_download_excel', bucket='completed') }}">⬇ Excel</a>
+    <span class="count">{{ ns.done | length }}</span>
+  </span>
+</div>
     {% if ns.done %}
       {% for p in ns.done %}
       {% set op = p.onsite_progress %}

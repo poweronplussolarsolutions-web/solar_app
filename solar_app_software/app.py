@@ -3892,13 +3892,30 @@ def build_onsite_full_report(projects, output_dir='/tmp', label='All Works'):
     return path
 
 
+ONSITE_BUCKETS = {
+    'pending':      ('Order pending',  ['Order pending']),
+    'ordered':      ('Order placed',   ['Order placed']),
+    'materials':    ('Materials',      ['Order pending', 'Order placed']),   # the board's first column
+    'structure':    ('Structure work', ['Structure work']),
+    'installation': ('Installation',   ['Installation']),
+    'completed':    ('Completed',      ['Completed']),
+}
+
+
 @app.route('/onsite/download_excel')
 @login_required
 @roles_required(*ONSITE_EXPORT_ROLES)
 def onsite_download_excel():
-    scope = request.args.get('scope', 'all')          # 'all' (default) or 'board'
-    month = request.args.get('month', type=int)
-    year  = request.args.get('year',  type=int)
+    scope  = request.args.get('scope', 'all')          # 'all' (default) or 'board'
+    bucket = request.args.get('bucket', '')
+    month  = request.args.get('month', type=int)
+    year   = request.args.get('year',  type=int)
+
+    if bucket and bucket not in ONSITE_BUCKETS:
+        flash('Unknown bucket.', 'danger')
+        return redirect(url_for('onsite_board'))
+    if bucket:
+        scope = 'board'            # bucket lists are the board's lists
 
     q = (Project.query
          .options(joinedload(Project.customer), joinedload(Project.coordinator),
@@ -3921,9 +3938,19 @@ def onsite_download_excel():
         label += f' · {calendar.month_name[month]} {year}'
 
     projects = q.order_by(cast(Project.project_code, Integer).desc()).all()
+
+    fname = f'OnsiteReport_{date.today().isoformat()}.xlsx'
+    if bucket:
+        b_label, b_names = ONSITE_BUCKETS[bucket]
+        projects = [p for p in projects if _onsite_bucket(p.onsite_progress) in b_names]
+        label = b_label
+        fname = f'Onsite_{re.sub(r"[^A-Za-z0-9]+", "", b_label)}_{date.today().isoformat()}.xlsx'
+        if not projects:
+            flash(f'No works in "{b_label}" right now.', 'warning')
+            return redirect(url_for('onsite_board'))
+
     path = build_onsite_full_report(projects, tempfile.gettempdir(), label)
-    return send_file(path, as_attachment=True,
-                     download_name=f'OnsiteReport_{date.today().isoformat()}.xlsx',
+    return send_file(path, as_attachment=True, download_name=fname,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 # ─────────────────────────────────────────────────────────────────────────────
