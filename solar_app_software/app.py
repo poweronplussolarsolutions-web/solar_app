@@ -7907,8 +7907,9 @@ def works_status():
 
     # ── Doc-staff filter dropdown — only populated/shown for office role ────
     is_office = (current_user.role == 'office')
+    can_export = current_user.role in ('admin', 'office', 'director')
     doc_staff_list = []
-    if is_office:
+    if can_export:
         doc_staff_list = User.query.filter(
             User.role.in_(['documents', 'documents_k']),
             User.is_active == True
@@ -7957,7 +7958,233 @@ def works_status():
                            summary=summary,
                            done_statuses=DONE_STATUSES,
                            doc_staff_list=doc_staff_list,
-                           is_office=is_office)
+                           is_office=is_office,can_export=can_export)
+WS_KEY_DOCS = [('Feasibility Receipt', 'Feasibility'), ('MNRE', 'MNRE'),
+               ('CD Payment Receipt', 'CD Payment'), ('KSEB Connection', 'KSEB'),
+               ('Warranty Card', 'Warranty')]
+WS_DONE = {'Received', 'Sent', 'Completed'}
+
+
+def _ws_doc_states(p):
+    """{label: 'done' | 'pend' | 'na'} for the five key documents."""
+    dm = {d.doc_type: d.status for d in p.documents}
+    out = {}
+    for doc, label in WS_KEY_DOCS:
+        if doc == 'MNRE' and p.project_subtype != 'DCR':
+            out[label] = 'na'
+        else:
+            out[label] = 'done' if dm.get(doc) in WS_DONE else 'pend'
+    return out
+
+
+def build_works_status_excel(projects, staff_list, title, output_dir='/tmp', with_summary=True):
+    now = datetime.utcnow()
+    staff_ids = [s.id for s in staff_list]
+
+    # last time each staff member did ANYTHING in the system
+    last_by_user = {}
+    if staff_ids:
+        last_by_user = dict(
+            db.session.query(ProjectLog.done_by, func.max(ProjectLog.created_at))
+            .filter(ProjectLog.done_by.in_(staff_ids))
+            .group_by(ProjectLog.done_by).all())
+
+    # last time each project was touched by its own doc staff
+    proj_ids = [p.id for p in projects]
+    last_by_proj = {}
+    if proj_ids and staff_ids:
+        last_by_proj = dict(
+            db.session.query(ProjectLog.project_id, func.max(ProjectLog.created_at))
+            .filter(ProjectLog.project_id.in_(proj_ids),
+                    ProjectLog.done_by.in_(staff_ids))
+            .group_by(ProjectLog.project_id).all())
+
+    labels = [l for _, l in WS_KEY_DOCS]
+    headers = ['MNRE No.', 'Customer', 'Place', 'Type', 'Subtype', 'Doc Staff'] + labels + \
+              ['Pending Docs', 'Last Update by Staff (IST)', 'Days Since Update']
+
+    def _titles(ws, subtitle, width):
+        _page_setup(ws)
+        for r, (txt, bg_c, fg_c, sz, italic) in enumerate([
+            ('Power On Plus Solar Solutions', C_HEADER_BG, C_HEADER_FG, 14, False),
+            (subtitle, C_SUBHDR_BG, C_HEADER_FG, 11, False),
+            (f'Generated: {date.today().strftime("%d %b %Y")}', C_ALT_BG, '444444', 10, True)], 1):
+            ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=width)
+            c = ws.cell(r, 1)
+            c.value, c.fill = txt, _fill(bg_c)
+            c.font = _font(bold=not italic, color=fg_c, size=sz, italic=italic)
+            c.alignment = _center()
+        ws.row_dimensions[1].height = 28
+        ws.row_dimensions[2].height = 22
+        ws.row_dimensions[4].height = 8
+        ws.row_dimensions[5].height = 30
+
+    def _days_colors(days, bg):
+        if days is None:  return C_RED_BG, C_RED_FG
+        if days > 14:     return C_RED_BG, C_RED_FG
+        if days > 7:      return C_AMBER_BG, C_AMBER_FG
+        return bg, '000000'
+
+    def _works_sheet(ws, subtitle, plist):
+        _titles(ws, subtitle, len(headers))
+        ws.freeze_panes = 'C6'
+        for col, h in enumerate(headers, 1):
+            _style_header_cell(ws.cell(5, col), h)
+        row = 6
+        for i, p in enumerate(plist):
+            bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+            st = _ws_doc_states(p)
+            pending = sum(1 for v in st.values() if v == 'pend')
+            lu = last_by_proj.get(p.id)
+            days = (now - lu).days if lu else None
+            vals = [p.project_code, p.customer.name, p.customer.place or '—',
+                    p.project_type, p.project_subtype or '—',
+                    p.doc_staff.full_name if p.doc_staff else 'Unassigned']
+            vals += ['✓' if st[l] == 'done' else '✗' if st[l] == 'pend' else '—' for l in labels]
+            vals += [pending, _ist(lu).strftime('%d %b %Y %H:%M') if lu else 'Never',
+                     days if days is not None else '—']
+            for col, v in enumerate(vals, 1):
+                bg_c, fg_c, aln = bg, '000000', 'center'
+                if col in (2, 3, 6):
+                    aln = 'left'
+                if 7 <= col < 7 + len(labels):
+                    if v == '✓':   bg_c, fg_c = C_GREEN_BG, C_GREEN_FG
+                    elif v == '✗': bg_c, fg_c = C_RED_BG, C_RED_FG
+                if col == 7 + len(labels) and v > 0:
+                    bg_c, fg_c = C_AMBER_BG, C_AMBER_FG
+                if col == len(vals):
+                    bg_c, fg_c = _days_colors(days, bg)
+                _style_data_cell(ws.cell(row, col), v, bg=bg_c, fg=fg_c, align=aln)
+            ws.row_dimensions[row].height = 17
+            row += 1
+        for i, w in enumerate([12, 24, 18, 8, 10, 20] + [12] * len(labels) + [12, 22, 12], 1):
+            ws.column_dimensions[get_column_letter(i)].width = w
+        ws.auto_filter.ref = f'A5:{get_column_letter(len(headers))}{max(row - 1, 6)}'
+
+    by_staff = {s.id: [] for s in staff_list}
+    unassigned = []
+    for p in projects:
+        (by_staff[p.doc_staff_id] if p.doc_staff_id in by_staff else unassigned).append(p)
+
+    wb = Workbook()
+    ws0 = wb.active
+    used = set()
+
+    def _name(base):
+        base = re.sub(r'[\\/*?:\[\]]', '', base)[:28] or 'Sheet'
+        n, k = base, 2
+        while n in used:
+            n = f'{base[:26]} {k}'; k += 1
+        used.add(n)
+        return n
+
+    if with_summary:
+        ws0.title = _name('Summary')
+        sh = ['Staff', 'Active Works'] + [f'{l} Pending' for l in labels] + \
+             ['Total Pending', 'Completion %', 'Last Activity (IST)', 'Days Inactive']
+        _titles(ws0, f'Works Status — Staff Summary ({title})', len(sh))
+        ws0.freeze_panes = 'B6'
+        for col, h in enumerate(sh, 1):
+            _style_header_cell(ws0.cell(5, col), h)
+        groups = [(s.full_name, s, by_staff[s.id]) for s in staff_list]
+        if unassigned:
+            groups.append(('Unassigned', None, unassigned))
+        # least active first, so the people to chase are at the top
+        def _inactive_key(g):
+            lu = last_by_user.get(g[1].id) if g[1] else None
+            return lu or datetime.min
+        groups.sort(key=_inactive_key)
+
+        row = 6
+        for i, (name, s, plist) in enumerate(groups):
+            bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+            counts = {l: 0 for l in labels}
+            applicable = done = 0
+            for p in plist:
+                for l, v in _ws_doc_states(p).items():
+                    if v == 'na':
+                        continue
+                    applicable += 1
+                    if v == 'done': done += 1
+                    else:           counts[l] += 1
+            lu = last_by_user.get(s.id) if s else None
+            days = (now - lu).days if lu else None
+            vals = [name, len(plist)] + [counts[l] for l in labels] + \
+                   [sum(counts.values()), (done / applicable) if applicable else 1.0,
+                    _ist(lu).strftime('%d %b %Y %H:%M') if lu else ('—' if not s else 'Never'),
+                    days if days is not None else ('—' if not s else 'Never')]
+            for col, v in enumerate(vals, 1):
+                bg_c, fg_c = bg, '000000'
+                if s and col == len(vals):
+                    bg_c, fg_c = _days_colors(days, bg)
+                fmt = '0%' if col == 2 + len(labels) + 2 else None
+                _style_data_cell(ws0.cell(row, col), v, bg=bg_c, fg=fg_c,
+                                 align='left' if col == 1 else 'center', number_fmt=fmt)
+            ws0.row_dimensions[row].height = 18
+            row += 1
+        for i, w in enumerate([24, 12] + [14] * len(labels) + [13, 13, 22, 13], 1):
+            ws0.column_dimensions[get_column_letter(i)].width = w
+
+        _works_sheet(wb.create_sheet(_name('All Works')), f'All Works ({title})', projects)
+    else:
+        ws0.title = _name('Works')
+        _works_sheet(ws0, f'Works Status — {title}', projects)
+
+    if with_summary:
+        for s in staff_list:
+            if by_staff[s.id]:
+                _works_sheet(wb.create_sheet(_name(s.full_name)),
+                             f'{s.full_name} — {len(by_staff[s.id])} works', by_staff[s.id])
+        if unassigned:
+            _works_sheet(wb.create_sheet(_name('Unassigned')), 'Unassigned works', unassigned)
+
+    safe = re.sub(r'[^A-Za-z0-9]+', '', title) or 'Report'
+    path = os.path.join(output_dir, f'WorksStatus_{safe}_{date.today().isoformat()}.xlsx')
+    wb.save(path)
+    return path
+
+
+@app.route('/works_status/download_excel')
+@login_required
+@roles_required('admin', 'office', 'director', 'documents', 'documents_k')
+def works_status_download_excel():
+    staff_param = request.args.get('staff_id', 'all')
+    # documents staff may only download their own works
+    if current_user.role in ('documents', 'documents_k'):
+        staff_param = str(current_user.id)
+
+    projects = (Project.query
+        .options(joinedload(Project.customer), joinedload(Project.documents),
+                 joinedload(Project.doc_staff))
+        .filter(Project.status.notin_(['Cancelled', 'OnHold', 'Closed', 'Completed']),
+                Project.work_category != 'Outside')
+        .order_by(cast(Project.project_code, Integer).desc())
+        .all())
+
+    all_staff = User.query.filter(User.role.in_(['documents', 'documents_k', 'office']),
+                                  User.is_active == True).order_by(User.full_name).all()
+
+    if staff_param == 'all':
+        path = build_works_status_excel(projects, all_staff, 'All Staff',
+                                        tempfile.gettempdir(), with_summary=True)
+    elif staff_param == 'unassigned':
+        projects = [p for p in projects if not p.doc_staff_id]
+        path = build_works_status_excel(projects, [], 'Unassigned',
+                                        tempfile.gettempdir(), with_summary=False)
+    elif staff_param.isdigit():
+        staff = db.session.get(User, int(staff_param))
+        if not staff:
+            flash('Staff member not found.', 'danger')
+            return redirect(url_for('works_status'))
+        projects = [p for p in projects if p.doc_staff_id == staff.id]
+        path = build_works_status_excel(projects, [staff], staff.full_name,
+                                        tempfile.gettempdir(), with_summary=False)
+    else:
+        flash('Invalid selection.', 'danger')
+        return redirect(url_for('works_status'))
+
+    return send_file(path, as_attachment=True, download_name=os.path.basename(path),
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 @app.route('/api/projects/<int:pid>/service_visits')
 @login_required
 def api_project_service_visits(pid):

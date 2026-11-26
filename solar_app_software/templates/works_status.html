@@ -67,7 +67,7 @@
 <div class="ws-toolbar">
   <input type="text" id="ws-search" placeholder="Search code or customer…" oninput="wsFilter()">
 
-  {% if is_office %}
+  {% if can_export %}
   <select id="ws-docstaff" onchange="wsFilter()">
     <option value="">All doc staff</option>
     {% for staff in doc_staff_list %}
@@ -206,7 +206,12 @@ function wsSetFilter(f, el) {
   el.classList.add('active');
   wsFilter();
 }
-
+function wsDownloadSelected(a) {
+  const sel = document.getElementById('ws-docstaff');
+  if (!sel || !sel.value) { alert('Pick a staff member in the dropdown first.'); return false; }
+  a.href = "{{ url_for('works_status_download_excel') }}?staff_id=" + encodeURIComponent(sel.value);
+  return true;
+}
 function wsFilter() {
   const q   = document.getElementById('ws-search').value.toLowerCase();
   const docStaffEl = document.getElementById('ws-docstaff');
