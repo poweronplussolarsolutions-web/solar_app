@@ -6,11 +6,11 @@
   <a href="{{ url_for('service_management') }}" class="btn btn-sm">
     <i class="ti ti-arrow-left"></i> Service management
   </a>
-  <form method="POST" action="{{ url_for('dispatch_download') }}" style="display:inline">
+  <!-- <form method="POST" action="{{ url_for('dispatch_download') }}" style="display:inline">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="scope" value="all">
     <button type="submit" class="btn btn-sm"><i class="ti ti-file-spreadsheet"></i> Excel: all open</button>
-  </form>
+  </form> -->
   <form method="GET" action="{{ url_for('dispatch_completed_download') }}" style="display:inline-flex;gap:4px;align-items:center">
     <select name="days" aria-label="Period" style="font-size:12px;padding:6px 8px;border:0.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)">
       <option value="7">Last 7 days</option>
@@ -19,11 +19,11 @@
     </select>
     <button type="submit" class="btn btn-sm"><i class="ti ti-checks"></i> Completed report</button>
   </form>
-  <form method="POST" action="{{ url_for('dispatch_download') }}" style="display:inline">
+  <!-- <form method="POST" action="{{ url_for('dispatch_download') }}" style="display:inline">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="scope" value="new">
     <button type="submit" class="btn btn-sm"><i class="ti ti-file-spreadsheet"></i> Excel: new only</button>
-  </form>
+  </form> -->
 {% endblock %}
 
 {% block head %}
