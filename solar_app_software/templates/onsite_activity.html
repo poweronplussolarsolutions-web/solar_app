@@ -37,6 +37,9 @@
 @media (max-width:640px) {
   .board-grid { grid-template-columns:1fr !important; }
 }
+.dl-link { font-size:10px;text-decoration:none;color:var(--hint);
+           border:0.5px solid var(--border);border-radius:20px;padding:1px 8px; }
+.dl-link:hover { background:var(--bg); }
 </style>
 
 {# ── Bucket each project into onsite stages ── #}
@@ -99,7 +102,12 @@
                  padding:2px 8px;border:0.5px solid var(--border);
                  border-radius:20px;background:var(--bg)">Clear</button>
 </div>
-
+<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+  <a class="dl-link" style="font-size:12px;padding:7px 14px;border-radius:var(--radius);background:var(--surface)"
+     data-dl href="{{ url_for('onsite_download_excel') }}">⬇ Download all onsite data (Excel)</a>
+  <a class="dl-link" style="font-size:12px;padding:7px 14px;border-radius:var(--radius);background:var(--surface)"
+     data-dl href="{{ url_for('onsite_download_excel', scope='board') }}">⬇ Active board only</a>
+</div>
 
 {# ── Summary strip ── #}
 <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
@@ -123,9 +131,14 @@
   {# Column A: Materials #}
   <div class="card" style="padding:0">
     <div class="stage-header">
-      <span>Materials</span>
-      <span class="count">{{ (ns.not_ordered | length) + (ns.ordered | length) }}</span>
-    </div>
+  <span>Materials</span>
+  <span style="display:flex;gap:4px;align-items:center">
+    <a class="dl-link" data-dl href="{{ url_for('onsite_download_excel', bucket='pending') }}" title="Order pending only">⬇ Pending</a>
+    <a class="dl-link" data-dl href="{{ url_for('onsite_download_excel', bucket='ordered') }}" title="Order placed only">⬇ Placed</a>
+    <a class="dl-link" data-dl href="{{ url_for('onsite_download_excel', bucket='materials') }}" title="Both">⬇ All</a>
+    <span class="count">{{ (ns.not_ordered | length) + (ns.ordered | length) }}</span>
+  </span>
+</div>
     {% if ns.not_ordered or ns.ordered %}
       {% for p in ns.not_ordered %}
       {% set op = p.onsite_progress %}
@@ -157,9 +170,12 @@
   {# Column B: Structure work #}
   <div class="card" style="padding:0">
     <div class="stage-header">
-      <span>Structure work</span>
-      <span class="count">{{ ns.structure | length }}</span>
-    </div>
+  <span>Structure work</span>
+  <span style="display:flex;gap:6px;align-items:center">
+    <a class="dl-link" data-dl href="{{ url_for('onsite_download_excel', bucket='structure') }}">⬇ Excel</a>
+    <span class="count">{{ ns.structure | length }}</span>
+  </span>
+</div>
     {% if ns.structure %}
       {% for p in ns.structure %}
       {% set op = p.onsite_progress %}
@@ -186,10 +202,13 @@
 
   {# Column C: Installation #}
   <div class="card" style="padding:0">
-    <div class="stage-header">
-      <span>Installation</span>
-      <span class="count">{{ ns.installation | length }}</span>
-    </div>
+   <div class="stage-header">
+  <span>Installation</span>
+  <span style="display:flex;gap:6px;align-items:center">
+    <a class="dl-link" data-dl href="{{ url_for('onsite_download_excel', bucket='installation') }}">⬇ Excel</a>
+    <span class="count">{{ ns.installation | length }}</span>
+  </span>
+</div>
     {% if ns.installation %}
       {% for p in ns.installation %}
       {% set op = p.onsite_progress %}
@@ -217,9 +236,12 @@
   {# Column D: Completed #}
   <div class="card" style="padding:0">
     <div class="stage-header">
-      <span>Completed</span>
-      <span class="count">{{ ns.done | length }}</span>
-    </div>
+  <span>Completed</span>
+  <span style="display:flex;gap:6px;align-items:center">
+    <a class="dl-link" data-dl href="{{ url_for('onsite_download_excel', bucket='completed') }}">⬇ Excel</a>
+    <span class="count">{{ ns.done | length }}</span>
+  </span>
+</div>
     {% if ns.done %}
       {% for p in ns.done %}
       {% set op = p.onsite_progress %}
@@ -296,12 +318,24 @@
   input.addEventListener('input', filter);
   dateFrom.addEventListener('change', filter);
   dateTo.addEventListener('change', filter);
-
+  const dlLinks = [...document.querySelectorAll('[data-dl]')];
+  dlLinks.forEach(a => a.dataset.base = a.getAttribute('href'));
+  function syncDownloadLinks() {
+    dlLinks.forEach(a => {
+      const u = new URL(a.dataset.base, window.location.origin);
+      if (dateFrom.value) u.searchParams.set('date_from', dateFrom.value);
+      if (dateTo.value)   u.searchParams.set('date_to', dateTo.value);
+      a.setAttribute('href', u.pathname + u.search);
+    });
+  }
+  dateFrom.addEventListener('change', syncDownloadLinks);
+  dateTo.addEventListener('change', syncDownloadLinks);
   window.onsiteActivityClear = function () {
     input.value = '';
     dateFrom.value = '';
     dateTo.value = '';
     filter();
+    syncDownloadLinks();
   };
 })();
 </script>

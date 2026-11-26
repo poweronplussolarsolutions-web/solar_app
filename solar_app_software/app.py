@@ -3718,7 +3718,17 @@ def _ist(dt):
     """Timestamps are stored in UTC; show IST."""
     return dt + timedelta(hours=5, minutes=30) if dt else None
 
-
+def _onsite_stage_date(op, bucket_name):
+    """The date the board card uses for its date filter."""
+    if not op:
+        return None
+    return {
+        'Order pending':  op.materials_ordered_date,
+        'Order placed':   op.materials_ordered_date,
+        'Structure work': op.structure_start_date,
+        'Installation':   op.installation_start_date,
+        'Completed':      op.installation_end_date,
+    }.get(bucket_name)
 def _onsite_bucket(op):
     """Same staging as the onsite board."""
     if op and op.installation_status == 'Completed':   return 'Completed'
@@ -3906,16 +3916,19 @@ ONSITE_BUCKETS = {
 @login_required
 @roles_required(*ONSITE_EXPORT_ROLES)
 def onsite_download_excel():
-    scope  = request.args.get('scope', 'all')          # 'all' (default) or 'board'
+    back   = request.referrer or url_for('dashboard')
+    scope  = request.args.get('scope', 'all')
     bucket = request.args.get('bucket', '')
     month  = request.args.get('month', type=int)
     year   = request.args.get('year',  type=int)
+    d_from = _parse_iso_date(request.args.get('date_from'))
+    d_to   = _parse_iso_date(request.args.get('date_to'))
 
     if bucket and bucket not in ONSITE_BUCKETS:
         flash('Unknown bucket.', 'danger')
-        return redirect(url_for('onsite_board'))
+        return redirect(back)
     if bucket:
-        scope = 'board'            # bucket lists are the board's lists
+        scope = 'board'
 
     q = (Project.query
          .options(joinedload(Project.customer), joinedload(Project.coordinator),
@@ -3945,14 +3958,21 @@ def onsite_download_excel():
         projects = [p for p in projects if _onsite_bucket(p.onsite_progress) in b_names]
         label = b_label
         fname = f'Onsite_{re.sub(r"[^A-Za-z0-9]+", "", b_label)}_{date.today().isoformat()}.xlsx'
-        if not projects:
-            flash(f'No works in "{b_label}" right now.', 'warning')
-            return redirect(url_for('onsite_board'))
+
+    if d_from or d_to:
+        def _in_range(p):
+            d = _onsite_stage_date(p.onsite_progress, _onsite_bucket(p.onsite_progress))
+            return bool(d) and (not d_from or d >= d_from) and (not d_to or d <= d_to)
+        projects = [p for p in projects if _in_range(p)]
+        label += f' · stage date {d_from or "…"} to {d_to or "…"}'
+
+    if not projects:
+        flash('No works match this selection.', 'warning')
+        return redirect(back)
 
     path = build_onsite_full_report(projects, tempfile.gettempdir(), label)
     return send_file(path, as_attachment=True, download_name=fname,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-
 # ─────────────────────────────────────────────────────────────────────────────
 # AUTH ROUTES
 # ─────────────────────────────────────────────────────────────────────────────

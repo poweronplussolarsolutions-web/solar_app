@@ -182,7 +182,8 @@
 </div>
 
   {# Column B: Structure work #}
-  <div class="stage-header">
+  <div class="card" style="padding:0">
+    <div class="stage-header">
   <span> Structure work</span>
   <span style="display:flex;gap:6px;align-items:center">
     <a class="dl-link" href="{{ url_for('onsite_download_excel', bucket='structure') }}">⬇ Excel</a>
@@ -218,7 +219,8 @@
   </div>
 
   {# Column C: Installation #}
-  <div class="stage-header">
+  <div class="card" style="padding:0">
+    <div class="stage-header">
   <span> Installation</span>
   <span style="display:flex;gap:6px;align-items:center">
     <a class="dl-link" href="{{ url_for('onsite_download_excel', bucket='installation') }}">⬇ Excel</a>
@@ -253,7 +255,8 @@
   </div>
 
   {# Column D: Completed #}
- <div class="stage-header">
+  <div class="card" style="padding:0">
+    <div class="stage-header">
   <span>Completed</span>
   <span style="display:flex;gap:6px;align-items:center">
     <a class="dl-link" href="{{ url_for('onsite_download_excel', bucket='completed') }}">⬇ Excel</a>
