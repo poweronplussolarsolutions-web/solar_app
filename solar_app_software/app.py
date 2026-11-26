@@ -3778,7 +3778,13 @@ def _onsite_sheet(ws, subtitle, headers, rows, widths):
 def build_onsite_full_report(projects, output_dir='/tmp', label='All Works'):
     ids = [p.id for p in projects]
     users = {u.id: u.full_name for u in User.query.all()}
-
+    ONSITE_LOG_PREFIXES = ('Onsite', 'Materials', 'Worker', 'Job card', 'Site photo',
+                           'Pre-work site photo', 'Auto-advanced', 'Delivered material',
+                           'Payments team notified')
+    logs = (ProjectLog.query
+            .filter(ProjectLog.project_id.in_(ids),
+                    db.or_(*[ProjectLog.action.like(f'{k}%') for k in ONSITE_LOG_PREFIXES]))
+            .order_by(ProjectLog.created_at, ProjectLog.id).all()) if ids else []
     # ── delivered stock (used by the Materials Delivered sheet) ──────────
     txns = (StockTransaction.query
             .options(joinedload(StockTransaction.stock_item), joinedload(StockTransaction.recorder))
