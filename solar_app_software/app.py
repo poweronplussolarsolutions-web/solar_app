@@ -3706,7 +3706,274 @@ def next_project_code():
     while candidate in existing:
         candidate += 1
     return str(candidate)
+# ─────────────────────────────────────────────────────────────────────────────
+# ONSITE — FULL EXCEL EXPORT
+# ─────────────────────────────────────────────────────────────────────────────
+ONSITE_EXPORT_ROLES = ('admin', 'onsite', 'director', 'payments')
+_PHASE_RE = re.compile(r'(Structure|Installation|Electrical): (\w+) → (\w+)')
 
+
+def _ist(dt):
+    """Timestamps are stored in UTC; show IST."""
+    return dt + timedelta(hours=5, minutes=30) if dt else None
+
+
+def _onsite_bucket(op):
+    """Same staging as the onsite board."""
+    if op and op.installation_status == 'Completed':   return 'Completed'
+    if op and op.structure_work_status == 'Completed': return 'Installation'
+    if op and op.materials_delivered:                  return 'Structure work'
+    if op and op.materials_ordered:                    return 'Order placed'
+    return 'Order pending'
+
+
+def _onsite_sheet(ws, subtitle, headers, rows, widths):
+    _page_setup(ws)
+    ws.freeze_panes = 'C6'
+    n = len(headers)
+    last = get_column_letter(n)
+    for r, (txt, bg_c, fg_c, sz, italic) in enumerate([
+        ('Power On Plus Solar Solutions', C_HEADER_BG, C_HEADER_FG, 14, False),
+        (subtitle,                        C_SUBHDR_BG, C_HEADER_FG, 11, False),
+        (f'Generated: {date.today().strftime("%d %b %Y")}  ·  times in IST',
+                                          C_ALT_BG, '444444', 10, True)], 1):
+        ws.merge_cells(f'A{r}:{last}{r}')
+        c = ws[f'A{r}']
+        c.value, c.fill = txt, _fill(bg_c)
+        c.font = _font(bold=not italic, color=fg_c, size=sz, italic=italic)
+        c.alignment = _center()
+    ws.row_dimensions[1].height = 28
+    ws.row_dimensions[2].height = 22
+    ws.row_dimensions[4].height = 8
+    ws.row_dimensions[5].height = 32
+    for col, h in enumerate(headers, 1):
+        _style_header_cell(ws.cell(5, col), h)
+
+    for i, row in enumerate(rows):
+        bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        for col, v in enumerate(row, 1):
+            fmt, aln = None, 'left'
+            if isinstance(v, datetime):
+                fmt, aln = 'DD-MMM-YYYY HH:MM', 'center'
+            elif isinstance(v, date):
+                fmt, aln = 'DD-MMM-YYYY', 'center'
+            elif isinstance(v, (int, float)):
+                aln = 'center'
+            if v in ('', None):
+                v, aln = '—', 'center'
+            _style_data_cell(ws.cell(6 + i, col), v, bg=bg, align=aln, number_fmt=fmt)
+    for i, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.auto_filter.ref = f'A5:{last}{5 + max(len(rows), 1)}'
+
+
+def build_onsite_full_report(projects, output_dir='/tmp', label='All Works'):
+    ids = [p.id for p in projects]
+    users = {u.id: u.full_name for u in User.query.all()}
+
+    # ── who/when per project, mined from ProjectLog ──────────────────────
+    logs = (ProjectLog.query.filter(ProjectLog.project_id.in_(ids))
+            .order_by(ProjectLog.created_at, ProjectLog.id).all()) if ids else []
+    events = {}
+    for lg in logs:
+        act, who, when = lg.action or '', users.get(lg.done_by, ''), _ist(lg.created_at)
+        ev = events.setdefault(lg.project_id, {})
+        if act.startswith('Onsite:'):
+            for ph, _old, new in _PHASE_RE.findall(act):
+                if new == 'Completed':
+                    ev[(ph, 'Completed')] = (who, when)          # last one wins
+                else:
+                    ev.setdefault((ph, new), (who, when))        # first one wins
+        elif act.startswith('Auto-advanced') and act.endswith('→ Onsite Work'):
+            ev.setdefault('onsite_start', (who, when))
+        elif act.startswith('Auto-advanced') and act.endswith('→ Connection'):
+            ev['onsite_end'] = (who, when)
+        elif act.startswith('Materials delivered to site'):
+            ev.setdefault('delivered', (who, when))
+
+    def E(pid, key):
+        return events.get(pid, {}).get(key, ('', ''))
+
+    # ── delivered stock ──────────────────────────────────────────────────
+    txns = (StockTransaction.query
+            .options(joinedload(StockTransaction.stock_item), joinedload(StockTransaction.recorder))
+            .filter(StockTransaction.project_id.in_(ids),
+                    StockTransaction.source == 'OnsiteDelivery')
+            .order_by(StockTransaction.created_at).all()) if ids else []
+    items_by_proj = {}
+    for t in txns:
+        items_by_proj.setdefault(t.project_id, []).append(
+            f'{t.stock_item.display_name} ({float(t.quantity):g} {t.stock_item.unit})')
+
+    # ── summary rows ─────────────────────────────────────────────────────
+    summary = []
+    for p in projects:
+        op, g, c = p.onsite_progress, p.geo_tag, p.customer
+
+        def team(*phases):
+            return ', '.join(f'{a.worker.name} ({a.days_worked or 0}d)'
+                             for a in p.assignments if a.work_phase in phases)
+
+        s_by, s_on = E(p.id, ('Structure', 'Completed'))
+        i_by, i_on = E(p.id, ('Installation', 'Completed'))
+        e_by, e_on = E(p.id, ('Electrical', 'Completed'))
+        d_by, d_on = E(p.id, 'delivered')
+        os_by, os_on = E(p.id, 'onsite_start')
+        oe_by, oe_on = E(p.id, 'onsite_end')
+
+        summary.append([
+            p.project_code, c.name, c.phone, c.place,
+            p.coordinator.full_name if p.coordinator else p.coordinator_name,
+            p.doc_staff.full_name if p.doc_staff else '',
+            p.project_type, p.project_subtype,
+            p.inverter_capacity_kw, p.panel_capacity_kw, p.structure_capacity_kw,
+            p.roof_type_display, p.inverter_type, p.status, p.stage,
+            _onsite_bucket(op),
+            _ist(p.created_at), p.days_open,
+            os_on, os_by,
+            'Yes' if op and op.materials_ordered else 'No', op.materials_ordered_date if op else None,
+            'Yes' if op and op.materials_delivered else 'No', op.materials_delivered_date if op else None,
+            d_by, '; '.join(items_by_proj.get(p.id, [])),
+            op.structure_work_status if op else 'NotStarted',
+            op.structure_start_date if op else None, op.structure_end_date if op else None,
+            s_by, s_on, op.structure_notes if op else '',
+            op.installation_status if op else 'NotStarted',
+            op.installation_start_date if op else None, op.installation_end_date if op else None,
+            i_by, i_on, op.installation_notes if op else '',
+            op.electrical_status if op else 'NotStarted',
+            op.electrical_start_date if op else None, op.electrical_end_date if op else None,
+            e_by, e_on, op.electrical_notes if op else '',
+            team('Structure'), team('Electrical/Installation'), team('Full Work'),
+            oe_on, oe_by,
+            op.important_notes if op else '',
+            users.get(g.uploaded_by, '') if g and g.photo_path else '',
+            _ist(g.uploaded_at) if g and g.photo_path else None,
+            users.get(op.updated_by, '') if op else '', _ist(op.updated_at) if op else None,
+        ])
+
+    s_headers = [
+        'MNRE No.', 'Customer', 'Phone', 'Place', 'Coordinator', 'Doc Staff', 'Type', 'Subtype',
+        'Inverter (kW)', 'Panel (kW)', 'Structure (kW)', 'Roof', 'Inverter Type',
+        'Project Status', 'Project Stage', 'Onsite Bucket',
+        'Project Created', 'Days Open', 'Onsite Stage Started', 'Onsite Stage Started By',
+        'Materials Ordered?', 'Ordered On', 'Materials Delivered?', 'Delivered On',
+        'Delivery Logged By', 'Delivered Items',
+        'Structure Status', 'Structure Start', 'Structure End', 'Structure Completed By',
+        'Structure Completed Logged On', 'Structure Notes',
+        'Installation Status', 'Installation Start', 'Installation End', 'Installation Completed By',
+        'Installation Completed Logged On', 'Installation Notes',
+        'Electrical Status', 'Electrical Start', 'Electrical End', 'Electrical Completed By',
+        'Electrical Completed Logged On', 'Electrical Notes',
+        'Structure Team', 'Electrical/Installation Team', 'Full-Work Team',
+        'Moved to Connection On', 'Moved to Connection By',
+        'Important Notes', 'Completion Photo By', 'Completion Photo On',
+        'Last Onsite Update By', 'Last Onsite Update On',
+    ]
+    s_widths = [11, 24, 13, 16, 20, 18, 8, 10, 10, 10, 11, 14, 13, 12, 14, 14,
+                17, 9, 17, 18, 11, 13, 12, 13, 18, 40,
+                13, 13, 13, 18, 17, 28, 13, 13, 13, 18, 17, 28, 13, 13, 13, 18, 17, 28,
+                30, 30, 24, 17, 18, 32, 18, 17, 20, 17]
+
+    # ── workers sheet ────────────────────────────────────────────────────
+    w_rows = []
+    for p in projects:
+        for a in sorted(p.assignments, key=lambda x: (x.start_date or date.min, x.id)):
+            jc = next((j for j in sorted(p.job_cards, key=lambda j: j.id, reverse=True)
+                       if j.worker_id == a.worker_id and j.work_phase == a.work_phase
+                       and j.status != 'Voided'), None)
+            w_rows.append([
+                p.project_code, p.customer.name, p.customer.place,
+                a.worker.name, a.worker.skill, a.work_phase, a.status,
+                a.start_date, a.end_date, a.days_worked,
+                jc.status if jc else '', float(jc.actual_days) if jc and jc.actual_days is not None else None,
+                float(jc.rate_per_day) if jc and jc.rate_per_day is not None else None,
+                float(jc.final_amount) if jc and jc.final_amount is not None else None,
+                _ist(jc.closed_at) if jc else None,
+                jc.closer.full_name if jc and jc.closer else '',
+            ])
+    w_headers = ['MNRE No.', 'Customer', 'Place', 'Worker', 'Skill', 'Phase', 'Assignment Status',
+                 'Start', 'End', 'Days (assigned)', 'Job Card', 'Actual Days', 'Rate/Day (₹)',
+                 'Final Amount (₹)', 'Job Card Closed On', 'Closed By']
+
+    # ── daily logs sheet ─────────────────────────────────────────────────
+    ol = (OnsiteLog.query.options(joinedload(OnsiteLog.logger), joinedload(OnsiteLog.project))
+          .filter(OnsiteLog.project_id.in_(ids))
+          .order_by(OnsiteLog.log_date.desc(), OnsiteLog.id.desc()).all()) if ids else []
+    l_rows = [[l.project.project_code, l.project.customer.name, l.log_date, l.work_phase,
+               l.note, l.logger.full_name if l.logger else '', _ist(l.created_at)] for l in ol]
+    l_headers = ['MNRE No.', 'Customer', 'Log Date', 'Phase', 'Note', 'Logged By', 'Logged At']
+
+    # ── materials delivered sheet ────────────────────────────────────────
+    pmap = {p.id: p for p in projects}
+    m_rows = [[pmap[t.project_id].project_code, pmap[t.project_id].customer.name,
+               t.stock_item.category, t.stock_item.display_name,
+               float(t.quantity), t.stock_item.unit,
+               t.recorder.full_name if t.recorder else '', _ist(t.created_at), t.notes]
+              for t in txns]
+    m_headers = ['MNRE No.', 'Customer', 'Category', 'Item', 'Qty', 'Unit',
+                 'Recorded By', 'Recorded At', 'Notes']
+
+    # ── activity log sheet ───────────────────────────────────────────────
+    KEYS = ('Onsite', 'Materials', 'Worker', 'Job card', 'Site photo', 'Pre-work site photo',
+            'Auto-advanced', 'Delivered material', 'Payments team notified')
+    a_rows = [[pmap[lg.project_id].project_code, pmap[lg.project_id].customer.name,
+               _ist(lg.created_at), users.get(lg.done_by, ''), lg.action, lg.old_value, lg.new_value]
+              for lg in reversed(logs)
+              if lg.project_id in pmap and (lg.action or '').startswith(KEYS)]
+    a_headers = ['MNRE No.', 'Customer', 'When', 'Done By', 'Action', 'Old Value', 'New Value']
+
+    # ── assemble workbook ────────────────────────────────────────────────
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Onsite Summary'
+    _onsite_sheet(ws, f'Onsite Report — {label} ({len(projects)} works)', s_headers, summary, s_widths)
+    _onsite_sheet(wb.create_sheet('Workers'), 'Workers & Job Cards', w_headers, w_rows,
+                  [11, 24, 16, 20, 16, 20, 14, 13, 13, 12, 12, 11, 12, 15, 17, 18])
+    _onsite_sheet(wb.create_sheet('Daily Logs'), 'Onsite Daily Logs', l_headers, l_rows,
+                  [11, 24, 13, 20, 60, 20, 17])
+    _onsite_sheet(wb.create_sheet('Materials Delivered'), 'Materials Delivered to Site', m_headers, m_rows,
+                  [11, 24, 14, 40, 9, 8, 20, 17, 36])
+    _onsite_sheet(wb.create_sheet('Activity Log'), 'Onsite Activity Log', a_headers, a_rows,
+                  [11, 24, 17, 20, 60, 16, 16])
+
+    path = os.path.join(output_dir, f'OnsiteReport_{date.today().isoformat()}.xlsx')
+    wb.save(path)
+    return path
+
+
+@app.route('/onsite/download_excel')
+@login_required
+@roles_required(*ONSITE_EXPORT_ROLES)
+def onsite_download_excel():
+    scope = request.args.get('scope', 'all')          # 'all' (default) or 'board'
+    month = request.args.get('month', type=int)
+    year  = request.args.get('year',  type=int)
+
+    q = (Project.query
+         .options(joinedload(Project.customer), joinedload(Project.coordinator),
+                  joinedload(Project.doc_staff), joinedload(Project.onsite_progress),
+                  joinedload(Project.geo_tag),
+                  selectinload(Project.assignments).joinedload(WorkerAssignment.worker),
+                  selectinload(Project.job_cards).joinedload(JobCard.closer))
+         .filter(Project.work_category != 'Outside'))
+    if scope == 'board':
+        q = q.filter(Project.status.in_(['InProgress', 'Delayed', 'Lead', 'Created']))
+        label = 'Active Board'
+    else:
+        q = q.filter(Project.status != 'Cancelled')
+        label = 'All Works'
+    if month and year and 1 <= month <= 12:
+        start = date(year, month, 1)
+        end   = date(year, month, calendar.monthrange(year, month)[1])
+        q = q.filter(db.func.date(Project.created_at) >= start,
+                     db.func.date(Project.created_at) <= end)
+        label += f' · {calendar.month_name[month]} {year}'
+
+    projects = q.order_by(cast(Project.project_code, Integer).desc()).all()
+    path = build_onsite_full_report(projects, tempfile.gettempdir(), label)
+    return send_file(path, as_attachment=True,
+                     download_name=f'OnsiteReport_{date.today().isoformat()}.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 # ─────────────────────────────────────────────────────────────────────────────
 # AUTH ROUTES

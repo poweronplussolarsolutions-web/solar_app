@@ -94,6 +94,18 @@
                  padding:2px 8px;border:0.5px solid var(--border);
                  border-radius:20px;background:var(--bg)">Clear</button>
 </div>
+<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+  <a href="{{ url_for('onsite_download_excel') }}"
+     style="font-size:12px;padding:7px 14px;border:0.5px solid var(--border);
+            border-radius:var(--radius);background:var(--surface);text-decoration:none;color:inherit">
+    ⬇ Download all onsite data (Excel)
+  </a>
+  <a href="{{ url_for('onsite_download_excel', scope='board') }}"
+     style="font-size:12px;padding:7px 14px;border:0.5px solid var(--border);
+            border-radius:var(--radius);background:var(--surface);text-decoration:none;color:inherit">
+    ⬇ Active board only
+  </a>
+</div>
 {# ── Summary strip ── #}
 <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
   {% for label, count, color in [
