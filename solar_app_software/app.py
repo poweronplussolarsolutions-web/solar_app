@@ -3785,138 +3785,63 @@ def _onsite_sheet(ws, subtitle, headers, rows, widths):
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.auto_filter.ref = f'A5:{last}{5 + max(len(rows), 1)}'
 
-def build_onsite_full_report(projects, output_dir='/tmp', label='All Works', show_collected=False):
-    ids = [p.id for p in projects]
-    users = {u.id: u.full_name for u in User.query.all()}
-    ONSITE_LOG_PREFIXES = ('Onsite', 'Materials', 'Worker', 'Job card', 'Site photo',
-                           'Pre-work site photo', 'Auto-advanced', 'Delivered material',
-                           'Payments team notified')
-    logs = (ProjectLog.query
-            .filter(ProjectLog.project_id.in_(ids),
-                    db.or_(*[ProjectLog.action.like(f'{k}%') for k in ONSITE_LOG_PREFIXES]))
-            .order_by(ProjectLog.created_at, ProjectLog.id).all()) if ids else []
-    # ── delivered stock (used by the Materials Delivered sheet) ──────────
-    txns = (StockTransaction.query
-            .options(joinedload(StockTransaction.stock_item), joinedload(StockTransaction.recorder))
-            .filter(StockTransaction.project_id.in_(ids),
-                    StockTransaction.source == 'OnsiteDelivery')
-            .order_by(StockTransaction.created_at).all()) if ids else []
+def build_onsite_full_report(projects, output_dir='/tmp', label='All Works'):
+    """Single-sheet onsite export with collected and balance amounts,
+    least collected first."""
+    def _code_key(p):
+        code = str(p.project_code)
+        return int(code) if code.isdigit() else 0
 
-    # ── summary rows ─────────────────────────────────────────────────────
-    summary = []
-    for p in projects:
-        op, c = p.onsite_progress, p.customer
-        summary.append([
-            p.project_code, c.name, c.phone, c.place,
-            p.coordinator.full_name if p.coordinator else p.coordinator_name,
-            p.doc_staff.full_name if p.doc_staff else '',
-            p.project_type,
-            p.inverter_capacity_kw, p.panel_capacity_kw, p.structure_capacity_kw,
-            p.roof_type_display, p.inverter_type, p.status,
-            _onsite_bucket(op),
-            _ist(p.created_at),
-            'Yes' if op and op.materials_ordered else 'No', op.materials_ordered_date if op else None,
-            'Yes' if op and op.materials_delivered else 'No', op.materials_delivered_date if op else None,
-            op.structure_work_status if op else 'NotStarted',
-            op.installation_status if op else 'NotStarted',
-            op.electrical_status if op else 'NotStarted',
-            users.get(op.updated_by, '') if op else '', _ist(op.updated_at) if op else None,
-        ])
+    data = [(p,
+             round(float(p.effective_collected), 2),
+             round(float(p.pending_amount), 2))
+            for p in projects]
+    # least collected first; ties → higher balance first, then MNRE no.
+    data.sort(key=lambda x: (x[1], -x[2], _code_key(x[0])))
 
-    s_headers = [
-        'MNRE No.', 'Customer', 'Phone', 'Place', 'Coordinator', 'Doc Staff', 'Type',
-        'Inverter (kW)', 'Panel (kW)', 'Structure (kW)', 'Roof', 'Inverter Type',
-        'Project Status', 'Onsite Bucket', 'Project Created',
-        'Materials Ordered?', 'Ordered On', 'Materials Delivered?', 'Delivered On',
-        'Structure Status', 'Installation Status', 'Electrical Status',
-        'Last Onsite Update By', 'Last Onsite Update On',
+    headers = [
+        'MNRE No.', 'Customer', 'Coordinator', 'Doc Staff', 'Type',
+        'Inverter (kW)', 'Panel (kW)', 'Structure (kW)', 'Inverter Type',
+        'Project Created', 'Collected (₹)', 'Balance (₹)',
     ]
-    s_widths = [11, 24, 13, 16, 20, 18, 8, 10, 10, 11, 14, 13,
-                12, 14, 17, 11, 13, 12, 13, 13, 13, 13, 20, 17]
+    widths = [11, 24, 20, 18, 8, 12, 11, 13, 14, 17, 15, 15]
 
-    # ── collected amount column (Completed export only) ──────────────────
-    COLLECTED_IDX = 4          # right after Place
-    collected = []
-    if show_collected:
-        collected = [round(float(p.effective_collected), 2) for p in projects]
-        for row, amt in zip(summary, collected):
-            row.insert(COLLECTED_IDX, amt)
-        s_headers.insert(COLLECTED_IDX, 'Collected (₹)')
-        s_widths.insert(COLLECTED_IDX, 15)
+    rows = [[
+        p.project_code,
+        p.customer.name,
+        p.coordinator.full_name if p.coordinator else p.coordinator_name,
+        p.doc_staff.full_name if p.doc_staff else '',
+        p.project_type,
+        p.inverter_capacity_kw,
+        p.panel_capacity_kw,
+        p.structure_capacity_kw,
+        p.inverter_type,
+        _ist(p.created_at),
+        collected,
+        balance,
+    ] for p, collected, balance in data]
 
-    # ── workers sheet ────────────────────────────────────────────────────
-    w_rows = []
-    for p in projects:
-        for a in sorted(p.assignments, key=lambda x: (x.start_date or date.min, x.id)):
-            jc = next((j for j in sorted(p.job_cards, key=lambda j: j.id, reverse=True)
-                       if j.worker_id == a.worker_id and j.work_phase == a.work_phase
-                       and j.status != 'Voided'), None)
-            w_rows.append([
-                p.project_code, p.customer.name, p.customer.place,
-                a.worker.name, a.worker.skill, a.work_phase, a.status,
-                a.start_date, a.end_date, a.days_worked,
-                jc.status if jc else '', float(jc.actual_days) if jc and jc.actual_days is not None else None,
-                float(jc.rate_per_day) if jc and jc.rate_per_day is not None else None,
-                float(jc.final_amount) if jc and jc.final_amount is not None else None,
-                _ist(jc.closed_at) if jc else None,
-                jc.closer.full_name if jc and jc.closer else '',
-            ])
-    w_headers = ['MNRE No.', 'Customer', 'Place', 'Worker', 'Skill', 'Phase', 'Assignment Status',
-                 'Start', 'End', 'Days (assigned)', 'Job Card', 'Actual Days', 'Rate/Day (₹)',
-                 'Final Amount (₹)', 'Job Card Closed On', 'Closed By']
+    zero_count = sum(1 for _, collected, _ in data if collected <= 0)
+    title = (f'Onsite Report — {label} ({len(data)} works) · '
+             f'{zero_count} with zero collection')
 
-    # ── daily logs sheet ─────────────────────────────────────────────────
-    ol = (OnsiteLog.query.options(joinedload(OnsiteLog.logger))
-          .filter(OnsiteLog.project_id.in_(ids))
-          .order_by(OnsiteLog.log_date.desc(), OnsiteLog.id.desc()).all()) if ids else []
-    pmap = {p.id: p for p in projects}   
-    l_rows = [[pmap[l.project_id].project_code, pmap[l.project_id].customer.name, l.log_date,
-               l.work_phase, l.note, l.logger.full_name if l.logger else '', _ist(l.created_at)]
-              for l in ol if l.project_id in pmap]
-    l_headers = ['MNRE No.', 'Customer', 'Log Date', 'Phase', 'Note', 'Logged By', 'Logged At']
-
-    # ── materials delivered sheet ────────────────────────────────────────
-    pmap = {p.id: p for p in projects}
-    m_rows = [[pmap[t.project_id].project_code, pmap[t.project_id].customer.name,
-               t.stock_item.category, t.stock_item.display_name,
-               float(t.quantity), t.stock_item.unit,
-               t.recorder.full_name if t.recorder else '', _ist(t.created_at), t.notes]
-              for t in txns]
-    m_headers = ['MNRE No.', 'Customer', 'Category', 'Item', 'Qty', 'Unit',
-                 'Recorded By', 'Recorded At', 'Notes']
-
-    # ── activity log sheet ───────────────────────────────────────────────
-    KEYS = ('Onsite', 'Materials', 'Worker', 'Job card', 'Site photo', 'Pre-work site photo',
-            'Auto-advanced', 'Delivered material', 'Payments team notified')
-    a_rows = [[pmap[lg.project_id].project_code, pmap[lg.project_id].customer.name,
-               _ist(lg.created_at), users.get(lg.done_by, ''), lg.action, lg.old_value, lg.new_value]
-              for lg in reversed(logs) if lg.project_id in pmap]
-    a_headers = ['MNRE No.', 'Customer', 'When', 'Done By', 'Action', 'Old Value', 'New Value']
-
-    # ── assemble workbook ────────────────────────────────────────────────
     wb = Workbook()
     ws = wb.active
     ws.title = 'Onsite Summary'
-    title = f'Onsite Report — {label} ({len(projects)} works)'
-    if show_collected:
-        title += f' · {sum(1 for amt in collected if amt <= 0)} with zero collection'
-    _onsite_sheet(ws, title, s_headers, summary, s_widths)
+    _onsite_sheet(ws, title, headers, rows, widths)
 
-    # money format; zero rows in red (empty list unless show_collected)
-    for i, amt in enumerate(collected):
-        zero = amt <= 0
-        bg = C_RED_BG if zero else (C_ALT_BG if i % 2 == 0 else 'FFFFFF')
-        _style_data_cell(ws.cell(6 + i, COLLECTED_IDX + 1), amt, bg=bg,
-                         fg=C_RED_FG if zero else '000000', bold=zero,
-                         align='right', number_fmt='₹#,##0')
-    _onsite_sheet(wb.create_sheet('Workers'), 'Workers & Job Cards', w_headers, w_rows,
-                  [11, 24, 16, 20, 16, 20, 14, 13, 13, 12, 12, 11, 12, 15, 17, 18])
-    _onsite_sheet(wb.create_sheet('Daily Logs'), 'Onsite Daily Logs', l_headers, l_rows,
-                  [11, 24, 13, 20, 60, 20, 17])
-    _onsite_sheet(wb.create_sheet('Materials Delivered'), 'Materials Delivered to Site', m_headers, m_rows,
-                  [11, 24, 14, 40, 9, 8, 20, 17, 36])
-    _onsite_sheet(wb.create_sheet('Activity Log'), 'Onsite Activity Log', a_headers, a_rows,
-                  [11, 24, 17, 20, 60, 16, 16])
+    # money format; zero collection highlighted in red
+    collected_col = headers.index('Collected (₹)') + 1
+    balance_col   = headers.index('Balance (₹)') + 1
+    for i, (_, collected, balance) in enumerate(data):
+        bg = C_ALT_BG if i % 2 == 0 else 'FFFFFF'
+        zero = collected <= 0
+        _style_data_cell(ws.cell(6 + i, collected_col), collected,
+                         bg=C_RED_BG if zero else bg,
+                         fg=C_RED_FG if zero else '000000',
+                         bold=zero, align='right', number_fmt='₹#,##0')
+        _style_data_cell(ws.cell(6 + i, balance_col), balance,
+                         bg=bg, align='right', number_fmt='₹#,##0')
 
     path = os.path.join(output_dir, f'OnsiteReport_{date.today().isoformat()}.xlsx')
     wb.save(path)
@@ -3949,27 +3874,28 @@ def onsite_download_excel():
         return redirect(back)
     if bucket:
         scope = 'board'
-    show_collected = (bucket == 'completed')
 
+    # load everything effective_collected / pending_amount read, up front
     q = (Project.query
-         .options(joinedload(Project.customer), joinedload(Project.coordinator),
-                  joinedload(Project.doc_staff), joinedload(Project.onsite_progress),
-                  joinedload(Project.geo_tag),
-                  selectinload(Project.assignments).joinedload(WorkerAssignment.worker),
-                  selectinload(Project.job_cards).joinedload(JobCard.closer))
+         .options(joinedload(Project.customer),
+                  joinedload(Project.coordinator),
+                  joinedload(Project.doc_staff),
+                  joinedload(Project.onsite_progress),
+                  joinedload(Project.subsidy),
+                  joinedload(Project.bank_excess),
+                  selectinload(Project.expenses),
+                  selectinload(Project.waivers),
+                  selectinload(Project.payment_excesses),
+                  selectinload(Project.adjustments_in))
          .filter(Project.work_category != 'Outside'))
-    if show_collected:
-        # everything effective_collected reads, loaded up front
-        q = q.options(joinedload(Project.subsidy),
-                      selectinload(Project.expenses),
-                      selectinload(Project.payment_excesses),
-                      selectinload(Project.adjustments_in))
+
     if scope == 'board':
         q = q.filter(Project.status.in_(['InProgress', 'Delayed', 'Lead', 'Created']))
         label = 'Active Board'
     else:
         q = q.filter(Project.status != 'Cancelled')
         label = 'All Works'
+
     if month and year and 1 <= month <= 12:
         start = date(year, month, 1)
         end   = date(year, month, calendar.monthrange(year, month)[1])
@@ -3977,7 +3903,7 @@ def onsite_download_excel():
                      db.func.date(Project.created_at) <= end)
         label += f' · {calendar.month_name[month]} {year}'
 
-    projects = q.order_by(cast(Project.project_code, Integer).desc()).all()
+    projects = q.all()
 
     fname = f'OnsiteReport_{date.today().isoformat()}.xlsx'
     if bucket:
@@ -3997,8 +3923,7 @@ def onsite_download_excel():
         flash('No works match this selection.', 'warning')
         return redirect(back)
 
-    path = build_onsite_full_report(projects, tempfile.gettempdir(), label,
-                                    show_collected=show_collected)
+    path = build_onsite_full_report(projects, tempfile.gettempdir(), label)
     return send_file(path, as_attachment=True, download_name=fname,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 # ─────────────────────────────────────────────────────────────────────────────
